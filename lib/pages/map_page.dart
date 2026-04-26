@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
@@ -9,12 +10,12 @@ class MapPage extends StatefulWidget {
 }
 
 class _MapPageState extends State<MapPage> {
-  late MapboxMap mapboxMap;
+  late MapController _mapController;
   bool _showHeatmap = true;
 
-  // TODO: 替换为你的 Mapbox 访问令牌
-  // 从 https://account.mapbox.com/tokens/ 获取
-  static const String _mapboxAccessToken = 'YOUR_MAPBOX_ACCESS_TOKEN';
+  // Mapbox 访问令牌
+  static const String _mapboxAccessToken =
+      'pk.eyJ1IjoiYnNndWl2enNxIiwiYSI6ImNtbmpxYjdzZzBtajcycXM0aG1xNDdoN2YifQ.WjHfteUnM7ZBkihAhI1TUw';
 
   void _toggleHeatmap() {
     setState(() {
@@ -22,8 +23,16 @@ class _MapPageState extends State<MapPage> {
     });
   }
 
-  Future<void> _onMapCreated(MapboxMap mapboxMap) async {
-    this.mapboxMap = mapboxMap;
+  @override
+  void initState() {
+    super.initState();
+    _mapController = MapController();
+  }
+
+  @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
   }
 
   @override
@@ -42,18 +51,23 @@ class _MapPageState extends State<MapPage> {
           ),
         ],
       ),
-      body: MapWidget(
-        key: const ValueKey('mapbox'),
-        resourceOptions: ResourceOptions(
-          accessToken: _mapboxAccessToken,
-          baseUrl: 'https://api.mapbox.com',
+      body: FlutterMap(
+        mapController: _mapController,
+        options: MapOptions(
+          initialCenter: const LatLng(39.9042, 116.4074), // 北京坐标
+          initialZoom: 10.0,
+          minZoom: 2.0,
+          maxZoom: 18.0,
         ),
-        cameraOptions: CameraOptions(
-          center: Point(coordinates: Position(116.4074, 39.9042)).toJson(),
-          zoom: 10.0,
-        ),
-        styleUri: MapboxStyles.OUTDOORS,
-        onMapCreated: _onMapCreated,
+        children: [
+          TileLayer(
+            urlTemplate:
+                'https://api.mapbox.com/styles/v1/mapbox/outdoors-v12/tiles/{z}/{x}/{y}@2x?access_token=$_mapboxAccessToken',
+            additionalOptions: {'accessToken': _mapboxAccessToken},
+            tileSize: 512,
+          ),
+          if (_showHeatmap) _buildHeatmapLayer(),
+        ],
       ),
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
@@ -62,11 +76,10 @@ class _MapPageState extends State<MapPage> {
           const SizedBox(height: 12),
           FloatingActionButton(
             heroTag: 'zoom_in',
-            onPressed: () async {
-              final currentZoom = await mapboxMap.getZoom();
-              await mapboxMap.easeTo(
-                CameraOptions(zoom: currentZoom + 1),
-                MapAnimationOptions(duration: 300),
+            onPressed: () {
+              _mapController.move(
+                _mapController.camera.center,
+                _mapController.camera.zoom + 1,
               );
             },
             tooltip: '放大',
@@ -75,11 +88,10 @@ class _MapPageState extends State<MapPage> {
           const SizedBox(height: 12),
           FloatingActionButton(
             heroTag: 'zoom_out',
-            onPressed: () async {
-              final currentZoom = await mapboxMap.getZoom();
-              await mapboxMap.easeTo(
-                CameraOptions(zoom: currentZoom - 1),
-                MapAnimationOptions(duration: 300),
+            onPressed: () {
+              _mapController.move(
+                _mapController.camera.center,
+                _mapController.camera.zoom - 1,
               );
             },
             tooltip: '缩小',
@@ -89,23 +101,59 @@ class _MapPageState extends State<MapPage> {
           FloatingActionButton(
             heroTag: 'location',
             backgroundColor: Theme.of(context).colorScheme.secondary,
-            onPressed: () async {
+            onPressed: () {
               // 定位到北京
-              await mapboxMap.easeTo(
-                CameraOptions(
-                  center: Point(
-                    coordinates: Position(116.4074, 39.9042),
-                  ).toJson(),
-                  zoom: 12.0,
-                ),
-                MapAnimationOptions(duration: 500),
-              );
+              _mapController.move(const LatLng(39.9042, 116.4074), 12.0);
             },
             tooltip: '北京',
             child: const Icon(Icons.location_on),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildHeatmapLayer() {
+    // 热力图层示例数据
+    return CircleLayer(
+      circles: [
+        // 示例数据：北京多个热点位置
+        CircleMarker(
+          point: const LatLng(39.9042, 116.4074),
+          radius: 20,
+          color: Colors.red.withValues(alpha: 0.7),
+          borderStrokeWidth: 2,
+          borderColor: Colors.red,
+        ),
+        CircleMarker(
+          point: const LatLng(39.9020, 116.4070),
+          radius: 15,
+          color: Colors.orange.withValues(alpha: 0.7),
+          borderStrokeWidth: 2,
+          borderColor: Colors.orange,
+        ),
+        CircleMarker(
+          point: const LatLng(39.9060, 116.4080),
+          radius: 12,
+          color: Colors.yellow.withValues(alpha: 0.7),
+          borderStrokeWidth: 2,
+          borderColor: Colors.yellow,
+        ),
+        CircleMarker(
+          point: const LatLng(39.9000, 116.4100),
+          radius: 10,
+          color: Colors.lightGreen.withValues(alpha: 0.7),
+          borderStrokeWidth: 2,
+          borderColor: Colors.lightGreen,
+        ),
+        CircleMarker(
+          point: const LatLng(39.9100, 116.4000),
+          radius: 8,
+          color: Colors.blue.withValues(alpha: 0.7),
+          borderStrokeWidth: 2,
+          borderColor: Colors.blue,
+        ),
+      ],
     );
   }
 
