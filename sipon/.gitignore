@@ -33,11 +33,6 @@ migrate_working_dir/
 /build/
 /coverage/
 
-# Local secrets / compile-time environment values
-.env*
-!.env.example.json
-ios/Flutter/Local.xcconfig
-
 # Symbolication related
 app.*.symbols
 
