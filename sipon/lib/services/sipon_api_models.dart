@@ -14,12 +14,16 @@ class SiponMapBounds {
   final double north;
 
   Map<String, Object?> toQueryParameters(double zoom) {
+    final normalizedZoom = zoom.isFinite
+        ? zoom.round().clamp(0, 22).toInt()
+        : 5;
+
     return {
       'west': west,
       'south': south,
       'east': east,
       'north': north,
-      'zoom': zoom.clamp(0, 22),
+      'zoom': normalizedZoom,
     };
   }
 }

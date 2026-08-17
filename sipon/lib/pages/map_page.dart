@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart' hide Visibility;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
 import '../services/sipon_api_models.dart';
+import '../services/sipon_city_controller.dart';
 import '../services/sipon_data_repository.dart';
+import '../widgets/sipon_city_picker.dart';
 import 'language_transform.dart';
 
 class MapPage extends StatefulWidget {
@@ -17,17 +20,20 @@ class MapPage extends StatefulWidget {
 }
 
 class _MapPageState extends State<MapPage> {
-  static const int _maxMarkerAnnotations = 180;
+  static const double _initialZoom = 15.05;
   static const String _geoJsonSourceId = 'sipon_geojson_points_source';
   static const String _heatmapSourceId = 'sipon_heatmap_points_source';
   static const String _geoJsonCircleLayerId = 'sipon_geojson_points_circle';
   static const String _heatmapLayerId = 'sipon_points_heatmap';
+  static const String _markerAnnotationManagerId = 'sipon_marker_annotations';
+  static const Duration _cameraReloadDelay = Duration(milliseconds: 450);
 
   MapboxMap? _mapboxMap;
   PointAnnotationManager? _markerManager;
   Cancelable? _markerTapCancelable;
-
-  static const String _mapTapInteractionId = 'sipon_map_tap_interaction';
+  Timer? _cameraReloadTimer;
+  SiponCityController? _cityController;
+  String? _lastFocusedCity;
 
   final SiponDataRepository _repository = SiponDataRepository.instance;
 
@@ -35,25 +41,46 @@ class _MapPageState extends State<MapPage> {
   MapLayerMode _layerMode = MapLayerMode.pointsAndHeatmap;
   MapLoadingState _loadingState = MapLoadingState.waiting;
 
+  bool _isLoadingMapData = false;
+  bool _queuedMapDataReload = false;
   bool _markersLoaded = false;
   bool _geoJsonLoaded = false;
   bool _heatmapLoaded = false;
   int _selectedCategoryIndex = 0;
   List<MapVenue> _venues = _fallbackFeaturedVenues;
-  List<MapPoint> _markerPlaces = _buildMarkerPoints(_fallbackFeaturedVenues);
-  List<MapPoint> _geoJsonPoints = _buildGeoJsonPoints(_fallbackFeaturedVenues);
+  List<MapPoint> _markerPlaces = _buildMarkerPoints(
+    _fallbackFeaturedVenues,
+    zoom: _initialZoom,
+  );
+  List<MapPoint> _geoJsonPoints = _buildMarkerPoints(
+    _fallbackFeaturedVenues,
+    zoom: _initialZoom,
+  );
   List<MapPoint> _heatmapPoints = _buildHeatmapPoints(
-    _buildGeoJsonPoints(_fallbackFeaturedVenues),
+    _buildMarkerPoints(_fallbackFeaturedVenues, zoom: _initialZoom),
   );
   MapVenue _selectedVenue = _fallbackFeaturedVenues.first;
   String? _selectedPointName;
   String? _statusMessage;
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final cityController = SiponCityScope.controllerOf(context);
+    if (_cityController == cityController) {
+      return;
+    }
+
+    _cityController?.removeListener(_handleCityChanged);
+    _cityController = cityController..addListener(_handleCityChanged);
+    _handleCityChanged();
+  }
+
+  @override
   void dispose() {
-    _markerTapCancelable?.cancel();
-    _mapboxMap?.removeInteraction(_mapTapInteractionId);
-    _markerManager = null;
+    _cameraReloadTimer?.cancel();
+    _cityController?.removeListener(_handleCityChanged);
+    _discardMarkerManager();
     _mapboxMap = null;
     super.dispose();
   }
@@ -61,10 +88,6 @@ class _MapPageState extends State<MapPage> {
   Future<void> _onMapCreated(MapboxMap mapboxMap) async {
     _mapboxMap = mapboxMap;
     await _configureMap(mapboxMap);
-    mapboxMap.addInteraction(
-      TapInteraction.onMap(_handleMapTap),
-      interactionID: _mapTapInteractionId,
-    );
   }
 
   Future<void> _onStyleLoaded(StyleLoadedEventData _) async {
@@ -76,8 +99,34 @@ class _MapPageState extends State<MapPage> {
     await _loadMapData(mapboxMap);
   }
 
+  void _handleMapIdle(MapIdleEventData data) {
+    final mapboxMap = _mapboxMap;
+    if (mapboxMap == null || _loadingState == MapLoadingState.waiting) {
+      return;
+    }
+
+    unawaited(_loadMapData(mapboxMap));
+  }
+
+  void _handleCameraChange(CameraChangedEventData data) {
+    final mapboxMap = _mapboxMap;
+    if (mapboxMap == null || _loadingState == MapLoadingState.waiting) {
+      return;
+    }
+
+    _cameraReloadTimer?.cancel();
+    _cameraReloadTimer = Timer(_cameraReloadDelay, () {
+      final currentMap = _mapboxMap;
+      if (mounted && currentMap != null) {
+        unawaited(_loadMapData(currentMap));
+      }
+    });
+  }
+
   Future<void> _configureMap(MapboxMap mapboxMap) async {
-    await mapboxMap.setCamera(_initialCamera);
+    final city = _cityController?.city ?? SiponCityController.defaultCity;
+    _lastFocusedCity = city;
+    await mapboxMap.setCamera(_cameraForCity(city));
     await mapboxMap.compass.updateSettings(
       CompassSettings(
         enabled: false,
@@ -88,7 +137,7 @@ class _MapPageState extends State<MapPage> {
     );
     await mapboxMap.scaleBar.updateSettings(
       ScaleBarSettings(
-        enabled: true,
+        enabled: false,
         position: OrnamentPosition.BOTTOM_LEFT,
         marginLeft: 16,
         marginBottom: 250 + widget.bottomOverlayInset,
@@ -97,15 +146,15 @@ class _MapPageState extends State<MapPage> {
     await mapboxMap.logo.updateSettings(
       LogoSettings(
         position: OrnamentPosition.BOTTOM_LEFT,
-        marginLeft: 16,
-        marginBottom: 206 + widget.bottomOverlayInset,
+        marginLeft: 12,
+        marginBottom: 184 + widget.bottomOverlayInset,
       ),
     );
     await mapboxMap.attribution.updateSettings(
       AttributionSettings(
         position: OrnamentPosition.BOTTOM_RIGHT,
-        marginRight: 16,
-        marginBottom: 206 + widget.bottomOverlayInset,
+        marginRight: 12,
+        marginBottom: 184 + widget.bottomOverlayInset,
       ),
     );
     await mapboxMap.gestures.updateSettings(
@@ -118,41 +167,37 @@ class _MapPageState extends State<MapPage> {
   }
 
   Future<void> _loadMapData(MapboxMap mapboxMap) async {
-    setState(() {
-      _loadingState = MapLoadingState.loading;
-      _markersLoaded = false;
-      _geoJsonLoaded = false;
-      _heatmapLoaded = false;
-      _statusMessage = null;
-    });
+    if (_isLoadingMapData) {
+      _queuedMapDataReload = true;
+      return;
+    }
+
+    _isLoadingMapData = true;
+    final firstLoad = _loadingState == MapLoadingState.waiting;
+
+    if (firstLoad) {
+      setState(() {
+        _loadingState = MapLoadingState.loading;
+        _markersLoaded = false;
+        _geoJsonLoaded = false;
+        _heatmapLoaded = false;
+        _statusMessage = null;
+      });
+    }
 
     try {
-      final previousMarkerManager = _markerManager;
-      _markerTapCancelable?.cancel();
-      _markerTapCancelable = null;
-      _markerManager = null;
-
-      if (previousMarkerManager != null) {
-        try {
-          await mapboxMap.annotations.removeAnnotationManager(
-            previousMarkerManager,
-          );
-        } catch (_) {
-          // The native style reload can invalidate the old manager before Dart sees it.
-        }
-      }
-
       String? statusMessage;
       try {
-        final apiVenues = await _fetchVisibleVenues(mapboxMap);
-        if (apiVenues.isEmpty) {
-          _replaceMapData(_fallbackFeaturedVenues);
+        final apiData = await _fetchVisibleMapData(mapboxMap);
+        if (apiData.venues.isEmpty) {
+          _replaceMapData(_fallbackFeaturedVenues, zoom: apiData.zoom);
           statusMessage = '使用本地示例数据: 接口未返回可展示酒吧';
         } else {
-          _replaceMapData(apiVenues);
+          _replaceMapData(apiData.venues, zoom: apiData.zoom);
         }
       } catch (error) {
-        _replaceMapData(_fallbackFeaturedVenues);
+        final cameraState = await mapboxMap.getCameraState();
+        _replaceMapData(_fallbackFeaturedVenues, zoom: cameraState.zoom);
         statusMessage = '使用本地示例数据: $error';
       }
 
@@ -177,14 +222,29 @@ class _MapPageState extends State<MapPage> {
         return;
       }
 
-      setState(() {
-        _loadingState = MapLoadingState.failed;
-        _statusMessage = '地图数据加载失败: $error';
-      });
+      if (firstLoad) {
+        setState(() {
+          _loadingState = MapLoadingState.failed;
+          _statusMessage = '地图数据加载失败: $error';
+        });
+      } else {
+        setState(() {
+          _statusMessage = '地图数据刷新失败: $error';
+        });
+      }
+    } finally {
+      _isLoadingMapData = false;
+      if (_queuedMapDataReload && mounted) {
+        _queuedMapDataReload = false;
+        final currentMap = _mapboxMap;
+        if (currentMap != null) {
+          unawaited(_loadMapData(currentMap));
+        }
+      }
     }
   }
 
-  Future<List<MapVenue>> _fetchVisibleVenues(MapboxMap mapboxMap) async {
+  Future<_VisibleMapData> _fetchVisibleMapData(MapboxMap mapboxMap) async {
     final cameraState = await mapboxMap.getCameraState();
     final bounds = await mapboxMap.coordinateBoundsForCamera(
       cameraState.toCameraOptions(),
@@ -202,16 +262,20 @@ class _MapPageState extends State<MapPage> {
       zoom: cameraState.zoom,
     );
 
-    return [
-      for (var index = 0; index < bars.length; index++)
-        _venueFromApi(bars[index], index),
-    ];
+    return _VisibleMapData(
+      zoom: cameraState.zoom,
+      venues: [
+        for (var index = 0; index < bars.length; index++)
+          _venueFromApi(bars[index], index),
+      ],
+    );
   }
 
-  void _replaceMapData(List<MapVenue> venues) {
+  void _replaceMapData(List<MapVenue> venues, {required double zoom}) {
+    final displayPoints = _buildMarkerPoints(venues, zoom: zoom);
     _venues = venues;
-    _markerPlaces = _buildMarkerPoints(venues);
-    _geoJsonPoints = _buildGeoJsonPoints(venues);
+    _markerPlaces = displayPoints;
+    _geoJsonPoints = displayPoints;
     _heatmapPoints = _buildHeatmapPoints(_geoJsonPoints);
     _selectedVenue = venues.firstWhere(
       (venue) => venue.id == _selectedVenue.id,
@@ -221,13 +285,8 @@ class _MapPageState extends State<MapPage> {
 
   Future<void> _addMarkerAnnotations(MapboxMap mapboxMap) async {
     final text = SiponLanguageScope.textOf(context);
-    final manager = await mapboxMap.annotations.createPointAnnotationManager(
-      id: 'sipon_marker_annotations',
-    );
-    _markerManager = manager;
-
-    await manager.setIconAllowOverlap(true);
-    await manager.setTextAllowOverlap(false);
+    final manager = await _ensureMarkerManager(mapboxMap);
+    await manager.deleteAll();
 
     final markerOptions = _markerPlaces
         .map(
@@ -253,6 +312,25 @@ class _MapPageState extends State<MapPage> {
         .toList();
 
     await manager.createMulti(markerOptions);
+  }
+
+  Future<PointAnnotationManager> _ensureMarkerManager(
+    MapboxMap mapboxMap,
+  ) async {
+    final existingManager = _markerManager;
+    if (existingManager != null) {
+      return existingManager;
+    }
+
+    final manager = await mapboxMap.annotations.createPointAnnotationManager(
+      id: _markerAnnotationManagerId,
+    );
+    _markerManager = manager;
+
+    await manager.setIconAllowOverlap(true);
+    await manager.setTextAllowOverlap(false);
+
+    _markerTapCancelable?.cancel();
     _markerTapCancelable = manager.tapEvents(
       onTap: (annotation) {
         final name = annotation.customData?['name']?.toString();
@@ -267,6 +345,14 @@ class _MapPageState extends State<MapPage> {
         }
       },
     );
+
+    return manager;
+  }
+
+  void _discardMarkerManager() {
+    _markerTapCancelable?.cancel();
+    _markerTapCancelable = null;
+    _markerManager = null;
   }
 
   MapVenue? _venueByName(String name) {
@@ -280,13 +366,15 @@ class _MapPageState extends State<MapPage> {
   }
 
   Future<void> _addGeoJsonPointLayer(MapboxMap mapboxMap) async {
-    final source = GeoJsonSource(
-      id: _geoJsonSourceId,
-      data: _buildFeatureCollection(_geoJsonPoints),
-      generateId: true,
+    await _upsertGeoJsonSource(
+      mapboxMap,
+      sourceId: _geoJsonSourceId,
+      points: _geoJsonPoints,
     );
+    if (await mapboxMap.style.styleLayerExists(_geoJsonCircleLayerId)) {
+      return;
+    }
 
-    await mapboxMap.style.addSource(source);
     await mapboxMap.style.addLayer(
       CircleLayer(
         id: _geoJsonCircleLayerId,
@@ -327,13 +415,15 @@ class _MapPageState extends State<MapPage> {
   }
 
   Future<void> _addHeatmapLayer(MapboxMap mapboxMap) async {
-    final source = GeoJsonSource(
-      id: _heatmapSourceId,
-      data: _buildFeatureCollection(_heatmapPoints),
-      generateId: true,
+    await _upsertGeoJsonSource(
+      mapboxMap,
+      sourceId: _heatmapSourceId,
+      points: _heatmapPoints,
     );
+    if (await mapboxMap.style.styleLayerExists(_heatmapLayerId)) {
+      return;
+    }
 
-    await mapboxMap.style.addSource(source);
     await mapboxMap.style.addLayer(
       HeatmapLayer(
         id: _heatmapLayerId,
@@ -399,6 +489,22 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
+  Future<void> _upsertGeoJsonSource(
+    MapboxMap mapboxMap, {
+    required String sourceId,
+    required List<MapPoint> points,
+  }) async {
+    final data = _buildFeatureCollection(points);
+    if (await mapboxMap.style.styleSourceExists(sourceId)) {
+      await mapboxMap.style.setStyleSourceProperty(sourceId, 'data', data);
+      return;
+    }
+
+    await mapboxMap.style.addSource(
+      GeoJsonSource(id: sourceId, data: data, generateId: true),
+    );
+  }
+
   Future<void> _applyLayerMode() async {
     final style = _mapboxMap?.style;
     if (style == null) {
@@ -439,9 +545,13 @@ class _MapPageState extends State<MapPage> {
     setState(() {
       _currentStyle = style;
       _loadingState = MapLoadingState.loading;
+      _markersLoaded = false;
+      _geoJsonLoaded = false;
+      _heatmapLoaded = false;
       _selectedPointName = null;
     });
 
+    _discardMarkerManager();
     await mapboxMap.style.setStyleURI(style.uri);
   }
 
@@ -459,14 +569,33 @@ class _MapPageState extends State<MapPage> {
 
   Future<void> _focusDowntown() async {
     await _mapboxMap?.flyTo(
-      CameraOptions(
-        center: _point(121.4702, 31.2227),
-        zoom: 15.1,
-        pitch: 28,
-        bearing: -20,
-      ),
+      _cameraForCity(_cityController?.city ?? SiponCityController.defaultCity),
       MapAnimationOptions(duration: 800),
     );
+  }
+
+  void _handleCityChanged() {
+    final mapboxMap = _mapboxMap;
+    final city = _cityController?.city ?? SiponCityController.defaultCity;
+    if (mapboxMap == null || city == _lastFocusedCity) {
+      return;
+    }
+
+    _lastFocusedCity = city;
+    unawaited(_focusCity(mapboxMap, city));
+  }
+
+  Future<void> _focusCity(MapboxMap mapboxMap, String city) async {
+    setState(() {
+      _loadingState = MapLoadingState.loading;
+      _statusMessage = null;
+    });
+
+    await mapboxMap.flyTo(
+      _cameraForCity(city),
+      MapAnimationOptions(duration: 760),
+    );
+    await _loadMapData(mapboxMap);
   }
 
   Future<void> _focusVenue(MapVenue venue) async {
@@ -512,14 +641,6 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
-  void _handleMapTap(MapContentGestureContext context) {
-    final point = context.point.coordinates;
-    setState(() {
-      _selectedPointName =
-          'Lng ${point.lng.toStringAsFixed(5)}, Lat ${point.lat.toStringAsFixed(5)}';
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -536,6 +657,8 @@ class _MapPageState extends State<MapPage> {
             ),
             onMapCreated: _onMapCreated,
             onStyleLoadedListener: _onStyleLoaded,
+            onCameraChangeListener: _handleCameraChange,
+            onMapIdleListener: _handleMapIdle,
           ),
           SafeArea(
             child: Align(
@@ -596,42 +719,72 @@ class _MapSearchAndFilters extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Material(
-              color: Colors.white.withValues(alpha: 0.96),
-              borderRadius: BorderRadius.circular(8),
-              elevation: 0,
-              child: InkWell(
-                onTap: () {},
-                borderRadius: BorderRadius.circular(8),
-                child: SizedBox(
-                  height: 44,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            text.t('搜索喜欢的酒或者酒吧...'),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Color(0xFFA9A2A8),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              letterSpacing: 0,
-                            ),
+            Row(
+              children: [
+                const SiponCityButton(
+                  backgroundColor: Color(0xF7FFFFFF),
+                  foregroundColor: _MapDesign.ink,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Material(
+                    color: Colors.white.withValues(alpha: 0.98),
+                    borderRadius: BorderRadius.circular(16),
+                    elevation: 0,
+                    shadowColor: Colors.black26,
+                    child: InkWell(
+                      onTap: () {},
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        height: 44,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0x559A3D78),
+                            width: 1.1,
                           ),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x1F9A3D78),
+                              blurRadius: 18,
+                              offset: Offset(0, 8),
+                            ),
+                            BoxShadow(
+                              color: Color(0x0F000000),
+                              blurRadius: 8,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
                         ),
-                        const Icon(
-                          Icons.search_rounded,
-                          color: Color(0xFF9A9198),
-                          size: 22,
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.search_rounded,
+                              color: Color(0xFF8E7588),
+                              size: 22,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                text.t('搜索喜欢的酒或者酒吧...'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Color(0xFFA198A0),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
             const SizedBox(height: 14),
             SizedBox(
@@ -1417,6 +1570,13 @@ class MapVenue {
   }
 }
 
+class _VisibleMapData {
+  const _VisibleMapData({required this.zoom, required this.venues});
+
+  final double zoom;
+  final List<MapVenue> venues;
+}
+
 class MapPoint {
   const MapPoint({
     required this.id,
@@ -1453,13 +1613,30 @@ class MapPoint {
   }
 }
 
-CameraOptions get _initialCamera =>
-    CameraOptions(center: _initialCenter, zoom: 15.05, pitch: 24, bearing: -12);
+CameraOptions get _overviewCamera => CameraOptions(
+  center: _initialCenter,
+  zoom: _MapPageState._initialZoom,
+  pitch: 24,
+  bearing: -12,
+);
 
-CameraOptions get _overviewCamera =>
-    CameraOptions(center: _initialCenter, zoom: 15.05, pitch: 24, bearing: -12);
+CameraOptions _cameraForCity(String city) {
+  final center =
+      _cityCenters[city] ?? _cityCenters[SiponCityController.defaultCity]!;
+
+  return CameraOptions(center: center, zoom: 11.8, pitch: 24, bearing: -12);
+}
 
 Point get _initialCenter => _point(121.4712, 31.2227);
+
+final Map<String, Point> _cityCenters = {
+  '上海': _point(121.4712, 31.2227),
+  '北京': _point(116.4074, 39.9042),
+  '深圳': _point(114.0579, 22.5431),
+  '广州': _point(113.2644, 23.1291),
+  '成都': _point(104.0668, 30.5728),
+  '杭州': _point(120.1551, 30.2741),
+};
 
 Point _point(double longitude, double latitude) {
   return Point(coordinates: Position(longitude, latitude));
@@ -1518,14 +1695,20 @@ String _imageAssetForIndex(int index) {
   return images[index % images.length];
 }
 
-List<MapPoint> _buildMarkerPoints(List<MapVenue> venues) {
-  return _sampleVenuesForMarkerAnnotations(venues)
+List<MapPoint> _buildMarkerPoints(
+  List<MapVenue> venues, {
+  required double zoom,
+}) {
+  return _sampleVenuesForMarkerAnnotations(venues, zoom: zoom)
       .map((venue) => venue.toMapPoint(idPrefix: 'marker'))
       .toList(growable: false);
 }
 
-List<MapVenue> _sampleVenuesForMarkerAnnotations(List<MapVenue> venues) {
-  const markerLimit = _MapPageState._maxMarkerAnnotations;
+List<MapVenue> _sampleVenuesForMarkerAnnotations(
+  List<MapVenue> venues, {
+  required double zoom,
+}) {
+  final markerLimit = mapMarkerLabelLimitForZoom(zoom);
   if (venues.length <= markerLimit) {
     return venues;
   }
@@ -1538,11 +1721,27 @@ List<MapVenue> _sampleVenuesForMarkerAnnotations(List<MapVenue> venues) {
   ];
 }
 
-List<MapPoint> _buildGeoJsonPoints(List<MapVenue> venues) {
-  return [
-    ...venues.map((venue) => venue.toMapPoint(idPrefix: 'poi')),
-    ..._fallbackExtraGeoJsonPoints,
-  ];
+int mapMarkerLabelLimitForZoom(double zoom) {
+  if (!zoom.isFinite) {
+    return 24;
+  }
+  if (zoom < 7) {
+    return 24;
+  }
+  if (zoom < 10) {
+    return 48;
+  }
+  if (zoom < 12) {
+    return 80;
+  }
+  if (zoom < 14) {
+    return 120;
+  }
+  if (zoom < 16) {
+    return 180;
+  }
+
+  return 260;
 }
 
 List<MapPoint> _buildHeatmapPoints(List<MapPoint> geoJsonPoints) {
@@ -1601,41 +1800,6 @@ const List<MapVenue> _fallbackFeaturedVenues = [
     tags: ['精酿', '现场音乐'],
     iconAsset: _MapAssets.craft,
     imageAsset: _MapAssets.playHouseImage,
-  ),
-];
-
-const List<MapPoint> _fallbackExtraGeoJsonPoints = [
-  MapPoint(
-    id: 'poi-found-158',
-    name: 'Found 158',
-    longitude: 121.4667,
-    latitude: 31.2215,
-    kind: 'bistro',
-    weight: 4.2,
-  ),
-  MapPoint(
-    id: 'poi-julu',
-    name: '巨鹿路小酒馆',
-    longitude: 121.4696,
-    latitude: 31.2242,
-    kind: 'pub',
-    weight: 4.0,
-  ),
-  MapPoint(
-    id: 'poi-fuxing',
-    name: '复兴公园酒廊',
-    longitude: 121.4755,
-    latitude: 31.2228,
-    kind: 'party',
-    weight: 3.9,
-  ),
-  MapPoint(
-    id: 'poi-sinan',
-    name: '思南精酿',
-    longitude: 121.4724,
-    latitude: 31.2192,
-    kind: 'craft',
-    weight: 3.8,
   ),
 ];
 

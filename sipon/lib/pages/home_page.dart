@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
 
 import '../services/sipon_api_models.dart';
+import '../services/sipon_city_controller.dart';
 import '../services/sipon_data_repository.dart';
+import '../widgets/sipon_city_picker.dart';
 import 'language_transform.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key, this.bottomOverlayInset = 0});
+  const HomePage({
+    super.key,
+    this.bottomOverlayInset = 0,
+    this.onRecordPressed,
+  });
 
   final double bottomOverlayInset;
+  final VoidCallback? onRecordPressed;
 
   static const Color brand = Color(0xFF9A3D78);
   static const Color ink = Color(0xFF252229);
@@ -43,7 +50,8 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   late final PageController _drinkController;
-  late final Future<_HomeBarsData> _homeBarsFuture;
+  late Future<_HomeBarsData> _homeBarsFuture;
+  SiponCityController? _cityController;
   int _currentDrink = 1;
 
   @override
@@ -54,9 +62,30 @@ class _HomePageState extends State<HomePage> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final cityController = SiponCityScope.controllerOf(context);
+    if (_cityController == cityController) {
+      return;
+    }
+
+    _cityController?.removeListener(_refreshHomeBarsForCity);
+    _cityController = cityController..addListener(_refreshHomeBarsForCity);
+  }
+
+  @override
   void dispose() {
+    _cityController?.removeListener(_refreshHomeBarsForCity);
     _drinkController.dispose();
     super.dispose();
+  }
+
+  void _refreshHomeBarsForCity() {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() => _homeBarsFuture = _loadHomeBars());
   }
 
   Future<_HomeBarsData> _loadHomeBars() async {
@@ -115,6 +144,13 @@ class _HomePageState extends State<HomePage> {
                           setState(() => _currentDrink = index);
                         },
                       ),
+                      const SizedBox(height: 18),
+                      Padding(
+                        padding: const EdgeInsets.only(right: 23),
+                        child: _HomeRecordPrompt(
+                          onPressed: widget.onRecordPressed,
+                        ),
+                      ),
                       const SizedBox(height: 24),
                       FutureBuilder<_HomeBarsData>(
                         future: _homeBarsFuture,
@@ -152,12 +188,12 @@ class _HomeTopBar extends StatelessWidget {
       height: 52,
       child: Row(
         children: [
-          Image.asset(HomePage.logoAsset, width: 42, height: 42),
-          Expanded(
-            child: Center(
-              child: Image.asset(HomePage.nameAsset, width: 88, height: 32),
-            ),
-          ),
+          Image.asset(HomePage.logoAsset, width: 36, height: 36),
+          const SizedBox(width: 8),
+          const SiponCityButton(compact: true),
+          const Spacer(),
+          Image.asset(HomePage.nameAsset, width: 82, height: 30),
+          const Spacer(),
           Tooltip(
             message: text.t('搜索'),
             child: IconButton(
@@ -176,6 +212,88 @@ class _HomeTopBar extends StatelessWidget {
                 color: const Color(0xFF6B666B),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HomeRecordPrompt extends StatelessWidget {
+  const _HomeRecordPrompt({required this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = SiponLanguageScope.textOf(context);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7FC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0x1F9A3D78)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x109A3D78),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.auto_graph_rounded, color: HomePage.brand, size: 28),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  text.t('看见你的饮酒习惯'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: HomePage.ink,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  text.t('少一点模糊印象，多一点清楚记录'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: HomePage.muted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          FilledButton(
+            onPressed: onPressed,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(82, 44),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              backgroundColor: HomePage.brand,
+              foregroundColor: Colors.white,
+              textStyle: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child: Text(text.t('记一笔')),
           ),
         ],
       ),

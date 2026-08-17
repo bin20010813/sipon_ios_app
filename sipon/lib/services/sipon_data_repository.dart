@@ -28,6 +28,26 @@ class SiponDataRepository {
     return fetchMapBars(bounds: const SiponMapBounds.china(), zoom: 5);
   }
 
+  Future<List<String>> fetchCities() async {
+    final json = await _apiClient.getJson('/api/cities');
+    final rawCities = switch (json) {
+      List() => json,
+      Map() =>
+        json['data'] is List
+            ? json['data'] as List
+            : json['cities'] is List
+            ? json['cities'] as List
+            : const [],
+      _ => const [],
+    };
+
+    return rawCities
+        .map((city) => city.toString().trim())
+        .where((city) => city.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+  }
+
   Future<void> refreshMapClusters() async {
     await _apiClient.postAdminJson('/api/admin/map/clusters/refresh');
   }

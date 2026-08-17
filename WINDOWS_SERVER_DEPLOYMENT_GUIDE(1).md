@@ -628,3 +628,8 @@ SERVER_PORT=8082
 | 地图 | `/api/bars/map?west=73&south=18&east=135&north=54&zoom=5` 返回具体酒吧 |
 | Flutter | baseUrl 使用公网 IP 或 HTTPS 域名，不使用 `localhost` |
 | iOS | Debug HTTP 已配置 ATS，生产使用 HTTPS |
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://127.0.0.1:8081/api/admin/import/bars" `
+  -Headers @{ "X-Admin-Token" = "adf5a45fafd34b36946e163392910ad0123" }

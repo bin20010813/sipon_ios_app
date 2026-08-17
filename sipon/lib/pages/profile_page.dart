@@ -22,9 +22,14 @@ void _showProfileMessage(BuildContext context, String message) {
 }
 
 class ProfilePage extends StatelessWidget {
-  const ProfilePage({super.key, this.bottomOverlayInset = 0});
+  const ProfilePage({
+    super.key,
+    this.bottomOverlayInset = 0,
+    this.onRecordPressed,
+  });
 
   final double bottomOverlayInset;
+  final VoidCallback? onRecordPressed;
 
   static const Color _brand = Color(0xFF9A3D78);
   static const Color _ink = Color(0xFF292B32);
@@ -79,7 +84,7 @@ class ProfilePage extends StatelessWidget {
                         const SizedBox(height: 22),
                         const _QuickEntryCard(),
                         const SizedBox(height: 18),
-                        const _BudgetCard(),
+                        _BudgetCard(onRecordPressed: onRecordPressed),
                         const SizedBox(height: 22),
                         _SectionTitle(text.benefits),
                         const SizedBox(height: 12),
@@ -464,7 +469,9 @@ class _VerticalDivider extends StatelessWidget {
 }
 
 class _BudgetCard extends StatelessWidget {
-  const _BudgetCard();
+  const _BudgetCard({required this.onRecordPressed});
+
+  final VoidCallback? onRecordPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -514,7 +521,7 @@ class _BudgetCard extends StatelessWidget {
                   ),
                 ),
                 FilledButton.tonalIcon(
-                  onPressed: () {},
+                  onPressed: onRecordPressed,
                   style: FilledButton.styleFrom(
                     minimumSize: const Size(76, 26),
                     padding: const EdgeInsets.symmetric(horizontal: 10),
