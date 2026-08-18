@@ -6,6 +6,7 @@ import 'pages/home_page.dart';
 import 'pages/language_transform.dart';
 import 'pages/map_page.dart';
 import 'pages/profile_page.dart';
+import 'services/drink_budget_store.dart';
 import 'services/sipon_city_controller.dart';
 import 'widgets/sipon_city_picker.dart';
 
@@ -31,6 +32,12 @@ class SiponApp extends StatefulWidget {
 class _SiponAppState extends State<SiponApp> {
   final SiponLanguageController _languageController = SiponLanguageController();
   final SiponCityController _cityController = SiponCityController();
+
+  @override
+  void initState() {
+    super.initState();
+    DrinkBudgetStore.instance.ensureLoaded();
+  }
 
   @override
   void dispose() {

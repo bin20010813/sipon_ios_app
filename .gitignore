@@ -3,6 +3,7 @@
 *.log
 *.pyc
 *.swp
+.metadata
 .DS_Store
 .atom/
 .build/
@@ -26,17 +27,18 @@ migrate_working_dir/
 # Flutter/Dart/Pub related
 **/doc/api/
 **/ios/Flutter/.last_build_id
-.dart_tool/
+**/.dart_tool/
 .flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
-/coverage/
+**/.flutter-plugins-dependencies
+**/.pub-cache/
+**/.pub/
+**/build/
+**/coverage/
 
 # Local secrets / compile-time environment values
 .env*
 !.env.example.json
-ios/Flutter/Local.xcconfig
+**/ios/Flutter/Local.xcconfig
 
 # Symbolication related
 app.*.symbols
@@ -45,6 +47,32 @@ app.*.symbols
 app.*.map.json
 
 # Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
+**/android/.gradle/
+**/android/captures/
+**/android/local.properties
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+**/android/app/*.apk
+**/android/app/*.aab
+**/android/app/*.ap_
+**/android/key.properties
+**/*.keystore
+**/*.jks
+
+# iOS/macOS generated files
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/ephemeral/
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/Flutter.podspec
+**/ios/Runner/GeneratedPluginRegistrant.*
+**/macos/Pods/
+**/macos/Flutter/ephemeral/
+**/macos/Flutter/GeneratedPluginRegistrant.swift
+
+# Xcode user/build files
+**/DerivedData/
+**/xcuserdata/
+*.xcuserstate

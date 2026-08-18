@@ -1,7 +1,27 @@
 import 'package:flutter/material.dart';
 
+import '../services/drink_budget_store.dart';
 import 'language_transform.dart';
 import 'review_page.dart';
+
+String _formatCurrency(double value) {
+  final negative = value < 0;
+  final fixed = value.abs().toStringAsFixed(2);
+  final dot = fixed.indexOf('.');
+  final intPart = fixed.substring(0, dot);
+  final decimals = fixed.substring(dot);
+  final buffer = StringBuffer();
+  var count = 0;
+  for (var index = intPart.length - 1; index >= 0; index--) {
+    if (count > 0 && count % 3 == 0) {
+      buffer.write(',');
+    }
+    buffer.write(intPart[index]);
+    count++;
+  }
+  final reversed = buffer.toString().split('').reversed.join();
+  return '${negative ? '-' : ''}¥$reversed$decimals';
+}
 
 void _openReviewPage(BuildContext context) {
   Navigator.of(
@@ -468,14 +488,138 @@ class _VerticalDivider extends StatelessWidget {
   }
 }
 
-class _BudgetCard extends StatelessWidget {
+class _BudgetCard extends StatefulWidget {
   const _BudgetCard({required this.onRecordPressed});
 
   final VoidCallback? onRecordPressed;
 
   @override
+  State<_BudgetCard> createState() => _BudgetCardState();
+}
+
+class _BudgetCardState extends State<_BudgetCard> {
+  final DrinkBudgetStore _store = DrinkBudgetStore.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _store.addListener(_onStoreChanged);
+    _store.ensureLoaded();
+  }
+
+  @override
+  void dispose() {
+    _store.removeListener(_onStoreChanged);
+    super.dispose();
+  }
+
+  void _onStoreChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _showRecords(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (_) => _BudgetRecordsSheet(onDeleted: _onStoreChanged),
+    );
+  }
+
+  Future<void> _editBudget(BuildContext context) async {
+    final text = SiponLanguageScope.textOf(context);
+    final controller = TextEditingController(
+      text: _store.monthlyBudget.toStringAsFixed(0),
+    );
+    final result = await showDialog<double>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: Text(
+            text.editBudget,
+            style: const TextStyle(
+              color: ProfilePage._ink,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0,
+            ),
+          ),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              hintText: text.enterBudget,
+              hintStyle: const TextStyle(
+                color: ProfilePage._muted,
+                fontWeight: FontWeight.w600,
+              ),
+              filled: true,
+              fillColor: const Color(0xFFFBF8FA),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
+            ),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              style: TextButton.styleFrom(foregroundColor: ProfilePage._muted),
+              child: Text(text.cancel),
+            ),
+            FilledButton(
+              onPressed: () {
+                final value = double.tryParse(controller.text.trim());
+                if (value == null || value < 0) {
+                  Navigator.of(dialogContext).pop();
+                  return;
+                }
+                Navigator.of(dialogContext).pop(value);
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: ProfilePage._brand,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text(text.confirm),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result != null) {
+      await _store.setMonthlyBudget(result);
+      if (context.mounted) {
+        _showProfileMessage(context, text.budgetUpdated);
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final monthExpense = _store.currentMonthExpense;
+    final remaining = _store.remaining;
+    final delta = _store.monthDeltaRatio;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -521,7 +665,7 @@ class _BudgetCard extends StatelessWidget {
                   ),
                 ),
                 FilledButton.tonalIcon(
-                  onPressed: onRecordPressed,
+                  onPressed: widget.onRecordPressed,
                   style: FilledButton.styleFrom(
                     minimumSize: const Size(76, 26),
                     padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -544,14 +688,28 @@ class _BudgetCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                const Expanded(flex: 5, child: _MonthlyExpense()),
+                Expanded(
+                  flex: 5,
+                  child: _MonthlyExpense(
+                    expense: monthExpense,
+                    delta: delta,
+                    onTap: () => _showRecords(context),
+                  ),
+                ),
                 Container(
                   width: 1,
                   height: 74,
                   margin: const EdgeInsets.symmetric(horizontal: 18),
                   color: ProfilePage._line,
                 ),
-                const Expanded(flex: 4, child: _BudgetStats()),
+                Expanded(
+                  flex: 4,
+                  child: _BudgetStats(
+                    budget: _store.monthlyBudget,
+                    remaining: remaining,
+                    onEditBudget: () => _editBudget(context),
+                  ),
+                ),
               ],
             ),
           ],
@@ -562,79 +720,105 @@ class _BudgetCard extends StatelessWidget {
 }
 
 class _MonthlyExpense extends StatelessWidget {
-  const _MonthlyExpense();
+  const _MonthlyExpense({
+    required this.expense,
+    required this.delta,
+    this.onTap,
+  });
+
+  final double expense;
+  final double delta;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Flexible(
-              child: Text(
-                text.monthlySpend,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: ProfilePage._ink,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0,
+    final deltaText = delta == 0
+        ? text.noComparison
+        : '${delta > 0 ? '↗' : '↘'} ${(delta * 100).abs().toStringAsFixed(0)}%';
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Flexible(
+                child: Text(
+                  text.monthlySpend,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: ProfilePage._ink,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 5),
-            const Icon(
-              Icons.visibility_off_outlined,
-              size: 13,
-              color: ProfilePage._muted,
-            ),
-          ],
-        ),
-        const SizedBox(height: 9),
-        const FittedBox(
-          alignment: Alignment.centerLeft,
-          fit: BoxFit.scaleDown,
-          child: Text(
-            '¥ 16,542.17',
-            style: TextStyle(
-              color: ProfilePage._brand,
-              fontSize: 25,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0,
-            ),
-          ),
-        ),
-        const SizedBox(height: 7),
-        Text.rich(
-          TextSpan(
-            children: [
-              TextSpan(text: text.monthlyDeltaPrefix),
-              const TextSpan(
-                text: '↗ 12%',
-                style: TextStyle(
-                  color: ProfilePage._brand,
-                  fontWeight: FontWeight.w800,
-                ),
+              const SizedBox(width: 5),
+              const Icon(
+                Icons.visibility_outlined,
+                size: 13,
+                color: ProfilePage._muted,
               ),
             ],
           ),
-          style: const TextStyle(
-            color: ProfilePage._muted,
-            fontSize: 11,
-            letterSpacing: 0,
+          const SizedBox(height: 9),
+          FittedBox(
+            alignment: Alignment.centerLeft,
+            fit: BoxFit.scaleDown,
+            child: Text(
+              _formatCurrency(expense),
+              style: const TextStyle(
+                color: ProfilePage._brand,
+                fontSize: 25,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
           ),
-        ),
-      ],
+          const SizedBox(height: 7),
+          Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(text: text.monthlyDeltaPrefix),
+                TextSpan(
+                  text: deltaText,
+                  style: TextStyle(
+                    color: delta >= 0
+                        ? ProfilePage._brand
+                        : const Color(0xFF3FA66A),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+            style: const TextStyle(
+              color: ProfilePage._muted,
+              fontSize: 11,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _BudgetStats extends StatelessWidget {
-  const _BudgetStats();
+  const _BudgetStats({
+    required this.budget,
+    required this.remaining,
+    required this.onEditBudget,
+  });
+
+  final double budget;
+  final double remaining;
+  final VoidCallback onEditBudget;
 
   @override
   Widget build(BuildContext context) {
@@ -643,52 +827,510 @@ class _BudgetStats extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _BudgetStat(label: text.monthlyBudget, value: '¥14,008.00'),
+        InkWell(
+          onTap: onEditBudget,
+          borderRadius: BorderRadius.circular(10),
+          child: _BudgetStat(
+            label: text.monthlyBudget,
+            value: _formatCurrency(budget),
+            trailing: const Icon(
+              Icons.edit_outlined,
+              size: 13,
+              color: ProfilePage._muted,
+            ),
+          ),
+        ),
         const Padding(
           padding: EdgeInsets.symmetric(vertical: 9),
           child: Divider(height: 1, color: ProfilePage._line),
         ),
-        _BudgetStat(label: text.remainingBudget, value: '¥308.00'),
+        _BudgetStat(
+          label: text.remainingBudget,
+          value: _formatCurrency(remaining),
+        ),
       ],
     );
   }
 }
 
 class _BudgetStat extends StatelessWidget {
-  const _BudgetStat({required this.label, required this.value});
+  const _BudgetStat({required this.label, required this.value, this.trailing});
 
   final String label;
   final String value;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Color(0xFFC4BBC2),
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 0,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Color(0xFFC4BBC2),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0,
+                ),
+              ),
+              const SizedBox(height: 3),
+              FittedBox(
+                alignment: Alignment.centerLeft,
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  value,
+                  style: const TextStyle(
+                    color: ProfilePage._brand,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 3),
-        FittedBox(
-          alignment: Alignment.centerLeft,
-          fit: BoxFit.scaleDown,
-          child: Text(
-            value,
-            style: const TextStyle(
-              color: ProfilePage._brand,
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0,
+        trailing ?? const SizedBox.shrink(),
+      ],
+    );
+  }
+}
+
+class _BudgetRecordsSheet extends StatelessWidget {
+  const _BudgetRecordsSheet({this.onDeleted});
+
+  final VoidCallback? onDeleted;
+
+  String _formatDate(DateTime date, SiponAppText text) {
+    final now = DateTime.now();
+    final isToday =
+        date.year == now.year && date.month == now.month && date.day == now.day;
+    if (isToday) {
+      return text.t('今天');
+    }
+
+    if (text.isZh) {
+      return '${date.month}月${date.day}日';
+    }
+
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[date.month - 1]} ${date.day}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = SiponLanguageScope.textOf(context);
+    final store = DrinkBudgetStore.instance;
+    final records = store.recordsOf(DrinkBudgetMonth.now());
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    text.monthlyRecords,
+                    style: const TextStyle(
+                      color: ProfilePage._ink,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFEDF7),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${text.t('共')} ${_formatCurrency(store.currentMonthExpense)}',
+                    style: const TextStyle(
+                      color: ProfilePage._brand,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            if (records.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 30),
+                child: Center(
+                  child: Text(
+                    text.noRecords,
+                    style: const TextStyle(
+                      color: ProfilePage._muted,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+              )
+            else
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: records.length,
+                  itemBuilder: (_, index) {
+                    final record = records[index];
+                    final isLast = index == records.length - 1;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _BudgetRecordTile(
+                          record: record,
+                          dateText: _formatDate(record.date, text),
+                          onDeleted: () async {
+                            await store.removeRecord(record.id);
+                            onDeleted?.call();
+                          },
+                        ),
+                        if (!isLast)
+                          const Divider(height: 1, color: ProfilePage._line),
+                      ],
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BudgetRecordTile extends StatelessWidget {
+  const _BudgetRecordTile({
+    required this.record,
+    required this.dateText,
+    required this.onDeleted,
+  });
+
+  final DrinkBudgetRecord record;
+  final String dateText;
+  final VoidCallback onDeleted;
+
+  String _formatFullDate(DateTime date, SiponAppText text) {
+    if (text.isZh) {
+      return '${date.year}年${date.month}月${date.day}日';
+    }
+
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+
+  void _showDetail(BuildContext context) {
+    final text = SiponLanguageScope.textOf(context);
+
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (_) => _BudgetRecordDetailSheet(
+        record: record,
+        dateText: _formatFullDate(record.date, text),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = SiponLanguageScope.textOf(context);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _showDetail(context),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF4FB),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: const Icon(
+                  Icons.local_bar_rounded,
+                  color: ProfilePage._brand,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      text.t(record.drinkType),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: ProfilePage._ink,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${text.t(record.place)} · $dateText',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: ProfilePage._muted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                _formatCurrency(record.amount),
+                style: const TextStyle(
+                  color: ProfilePage._brand,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
+              ),
+              const SizedBox(width: 6),
+              IconButton(
+                onPressed: onDeleted,
+                style: IconButton.styleFrom(
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  foregroundColor: const Color(0xFFC7C1C6),
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(28, 28),
+                ),
+                icon: const Icon(Icons.delete_outline_rounded, size: 18),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BudgetRecordDetailSheet extends StatelessWidget {
+  const _BudgetRecordDetailSheet({
+    required this.record,
+    required this.dateText,
+  });
+
+  final DrinkBudgetRecord record;
+  final String dateText;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = SiponLanguageScope.textOf(context);
+    final note = record.note.trim();
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          0,
+          20,
+          MediaQuery.of(context).viewInsets.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF4FB),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.local_bar_rounded,
+                    color: ProfilePage._brand,
+                    size: 21,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        text.t('记录详情'),
+                        style: const TextStyle(
+                          color: ProfilePage._ink,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        text.t('本笔记账'),
+                        style: const TextStyle(
+                          color: ProfilePage._muted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  _formatCurrency(record.amount),
+                  style: const TextStyle(
+                    color: ProfilePage._brand,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            _RecordDetailRow(
+              label: text.t('酒款'),
+              value: text.t(record.drinkType),
+            ),
+            _RecordDetailRow(label: text.t('地点'), value: text.t(record.place)),
+            _RecordDetailRow(label: text.t('日期'), value: dateText),
+            _RecordDetailRow(
+              label: text.t('花费'),
+              value: _formatCurrency(record.amount),
+            ),
+            _RecordDetailRow(
+              label: text.t('杯数'),
+              value: '${record.cups} ${text.t('杯')}',
+            ),
+            _RecordDetailRow(
+              label: text.t('评分'),
+              value: record.rating > 0 ? '${record.rating}/5' : '-',
+            ),
+            _RecordDetailRow(
+              label: text.t('备注'),
+              value: note.isEmpty ? '-' : note,
+              alignTop: true,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RecordDetailRow extends StatelessWidget {
+  const _RecordDetailRow({
+    required this.label,
+    required this.value,
+    this.alignTop = false,
+  });
+
+  final String label;
+  final String value;
+  final bool alignTop;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      child: Row(
+        crossAxisAlignment: alignTop
+            ? CrossAxisAlignment.start
+            : CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 58,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: ProfilePage._muted,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
             ),
           ),
-        ),
-      ],
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                color: ProfilePage._ink,
+                fontSize: 14,
+                height: 1.35,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

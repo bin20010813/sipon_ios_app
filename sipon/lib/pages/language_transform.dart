@@ -97,6 +97,14 @@ class SiponAppText {
   String get monthlyDeltaPrefix => t('较上月  ');
   String get monthlyBudget => t('本月预算');
   String get remainingBudget => t('剩余预算');
+  String get editBudget => t('设置月预算');
+  String get enterBudget => t('请输入月预算金额');
+  String get budgetUpdated => t('预算已更新');
+  String get noComparison => t('暂无对比');
+  String get monthlyRecords => t('本月记录');
+  String get noRecords => t('本月还没有记账记录');
+  String get cancel => t('取消');
+  String get confirm => t('确定');
   String get benefits => t('权益');
   String get membership => t('Sipon会员');
   String get vouchers => t('我的礼券');
@@ -163,6 +171,14 @@ const Map<String, String> _englishText = {
   '较上月  ': 'vs last month  ',
   '本月预算': 'Monthly Budget',
   '剩余预算': 'Remaining',
+  '设置月预算': 'Set Budget',
+  '请输入月预算金额': 'Enter monthly budget',
+  '预算已更新': 'Budget updated',
+  '暂无对比': 'No comparison',
+  '本月记录': 'Monthly Records',
+  '本月还没有记账记录': 'No records this month',
+  '取消': 'Cancel',
+  '确定': 'Confirm',
   '权益': 'Benefits',
   'Sipon会员': 'Sipon Membership',
   '我的礼券': 'Vouchers',
@@ -309,4 +325,31 @@ const Map<String, String> _englishText = {
   '新天地热区 B': 'Xintiandi Hot Zone B',
   '复兴中路热区 A': 'Fuxing Middle Rd Hot Zone A',
   '黄陂南路热区 A': 'Huangpi South Rd Hot Zone A',
+  '选择酒款': 'Choose Drink',
+  '请选择酒款': 'Please choose a drink',
+  '请选择地点': 'Please choose a place',
+  '请填写花费金额': 'Please enter the amount',
+  '金额需大于 0': 'Amount must be greater than 0',
+  '杯数': 'Cups',
+  '日期': 'Date',
+  '今天': 'Today',
+  '评分': 'Rating',
+  '备注': 'Note',
+  '添加备注': 'Add a note',
+  '记录详情': 'Record details',
+  '本笔记账': 'This record',
+  '记录已保存到本地': 'Record saved locally',
+  '其他地点': 'Other place',
+  '输入自定义地点': 'Enter a custom place',
+  '啤酒': 'Beer',
+  '威士忌': 'Whisky',
+  '红酒': 'Wine',
+  '香槟': 'Champagne',
+  '清酒': 'Sake',
+  '烈酒': 'Spirit',
+  '其他': 'Other',
+  '共': 'Total',
+  '杯': 'cups',
+  '选择地点': 'Choose Place',
+  '搜索酒吧': 'Search bars',
 };
