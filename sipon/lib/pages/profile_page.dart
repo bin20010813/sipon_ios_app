@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/drink_budget_store.dart';
 import 'language_transform.dart';
-import 'review_page.dart';
+import 'settings_support_page.dart';
 
 String _formatCurrency(double value) {
   final negative = value < 0;
@@ -21,12 +21,6 @@ String _formatCurrency(double value) {
   }
   final reversed = buffer.toString().split('').reversed.join();
   return '${negative ? '-' : ''}¥$reversed$decimals';
-}
-
-void _openReviewPage(BuildContext context) {
-  Navigator.of(
-    context,
-  ).push(MaterialPageRoute<void>(builder: (_) => const ReviewPage()));
 }
 
 void _showProfileMessage(BuildContext context, String message) {
@@ -63,13 +57,8 @@ class ProfilePage extends StatelessWidget {
   static const String _memberAsset = 'assest/我的/Sipon会员@3x.png';
   static const String _couponAsset = 'assest/我的/我的礼券@3x.png';
   static const String _achievementAsset = 'assest/我的/成就勋章@3x.png';
-  static const String _feedbackAsset = 'assest/我的/反馈与建议@3x.png';
-  static const String _securityAsset = 'assest/我的/安全@3x.png';
-  static const String _settingsAsset = 'assest/我的/设置@3x.png';
-
   @override
   Widget build(BuildContext context) {
-    final languageController = SiponLanguageScope.controllerOf(context);
     final text = SiponLanguageScope.textOf(context);
 
     return Scaffold(
@@ -126,39 +115,6 @@ class ProfilePage extends StatelessWidget {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 26),
-                        _SectionTitle(text.settingsSupport),
-                        const SizedBox(height: 12),
-                        _ProfileListCard(
-                          rows: [
-                            _ProfileListRow(
-                              assetPath: _feedbackAsset,
-                              title: text.reviewEntry,
-                              onTap: () => _openReviewPage(context),
-                            ),
-                            _ProfileListRow(
-                              assetPath: _securityAsset,
-                              title: text.accountSecurity,
-                            ),
-                            _ProfileLanguageRow(
-                              assetPath: _settingsAsset,
-                              title: text.languageTransformEntry,
-                              text: text,
-                              language: languageController.language,
-                              onChanged: (language) {
-                                if (languageController.language == language) {
-                                  return;
-                                }
-
-                                languageController.setLanguage(language);
-                                _showProfileMessage(
-                                  context,
-                                  SiponAppText(language).languageChanged,
-                                );
-                              },
-                            ),
-                          ],
-                        ),
                       ],
                     ),
                   ),
@@ -192,7 +148,13 @@ class _ProfileTopActions extends StatelessWidget {
         _TopIconButton(
           tooltip: text.settings,
           icon: Icons.settings_outlined,
-          onPressed: () => _openReviewPage(context),
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const SettingsSupportPage(),
+              ),
+            );
+          },
         ),
       ],
     );
@@ -1382,161 +1344,22 @@ class _ProfileListCard extends StatelessWidget {
   }
 }
 
-class _ProfileLanguageRow extends StatelessWidget {
-  const _ProfileLanguageRow({
-    required this.assetPath,
-    required this.title,
-    required this.text,
-    required this.language,
-    required this.onChanged,
-  });
-
-  final String assetPath;
-  final String title;
-  final SiponAppText text;
-  final SiponLanguage language;
-  final ValueChanged<SiponLanguage> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 13),
-      child: Row(
-        children: [
-          Image.asset(assetPath, width: 26, height: 26),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: ProfilePage._ink,
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0,
-              ),
-            ),
-          ),
-          _ProfileLanguageToggle(
-            text: text,
-            language: language,
-            onChanged: onChanged,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProfileLanguageToggle extends StatelessWidget {
-  const _ProfileLanguageToggle({
-    required this.text,
-    required this.language,
-    required this.onChanged,
-  });
-
-  final SiponAppText text;
-  final SiponLanguage language;
-  final ValueChanged<SiponLanguage> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF6FB),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: ProfilePage._line),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(2),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _ProfileLanguageOption(
-              label: text.languageChinese,
-              selected: language == SiponLanguage.zh,
-              onTap: () => onChanged(SiponLanguage.zh),
-            ),
-            _ProfileLanguageOption(
-              label: text.languageEnglish,
-              selected: language == SiponLanguage.en,
-              onTap: () => onChanged(SiponLanguage.en),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ProfileLanguageOption extends StatelessWidget {
-  const _ProfileLanguageOption({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: label,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: selected ? null : onTap,
-          borderRadius: BorderRadius.circular(13),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            curve: Curves.easeOut,
-            constraints: const BoxConstraints(minWidth: 48),
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-            decoration: BoxDecoration(
-              color: selected ? ProfilePage._brand : Colors.transparent,
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: selected ? Colors.white : ProfilePage._muted,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _ProfileListRow extends StatelessWidget {
   const _ProfileListRow({
     required this.assetPath,
     required this.title,
     this.badge,
     this.trailingText,
-    this.onTap,
   });
 
   final String assetPath;
   final String title;
   final String? badge;
   final String? trailingText;
-  final VoidCallback? onTap;
-
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: onTap ?? () {},
+      onTap: null,
       borderRadius: BorderRadius.circular(14),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 16),

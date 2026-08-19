@@ -186,32 +186,34 @@ class _HomeTopBar extends StatelessWidget {
 
     return SizedBox(
       height: 52,
-      child: Row(
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          Image.asset(HomePage.logoAsset, width: 36, height: 36),
-          const SizedBox(width: 8),
-          const SiponCityButton(compact: true),
-          const Spacer(),
-          Image.asset(HomePage.nameAsset, width: 82, height: 30),
-          const Spacer(),
-          Tooltip(
-            message: text.t('搜索'),
-            child: IconButton(
-              onPressed: () {},
-              style: IconButton.styleFrom(
-                fixedSize: const Size(44, 44),
-                backgroundColor: const Color(0xFFF6F5F6),
-                foregroundColor: const Color(0xFF6B666B),
-                padding: EdgeInsets.zero,
-                shape: const CircleBorder(),
+          Center(child: Image.asset(HomePage.nameAsset, width: 82, height: 30)),
+          Row(
+            children: [
+              const SiponCityButton(compact: true),
+              const Spacer(),
+              Tooltip(
+                message: text.t('搜索'),
+                child: IconButton(
+                  onPressed: () {},
+                  style: IconButton.styleFrom(
+                    fixedSize: const Size(44, 44),
+                    backgroundColor: const Color(0xFFF6F5F6),
+                    foregroundColor: const Color(0xFF6B666B),
+                    padding: EdgeInsets.zero,
+                    shape: const CircleBorder(),
+                  ),
+                  icon: Image.asset(
+                    HomePage.searchAsset,
+                    width: 22,
+                    height: 22,
+                    color: const Color(0xFF6B666B),
+                  ),
+                ),
               ),
-              icon: Image.asset(
-                HomePage.searchAsset,
-                width: 22,
-                height: 22,
-                color: const Color(0xFF6B666B),
-              ),
-            ),
+            ],
           ),
         ],
       ),

@@ -116,6 +116,12 @@ class SiponAppText {
   String get languageTransformEntry => t('语言翻译');
   String get reviewEntry => t('评价与反馈');
   String get accountSecurity => t('账号安全');
+  String get preferenceSelection => t('偏好选择');
+  String get notificationSettings => t('通知设置');
+  String get privacySettings => t('隐私设置');
+  String get praiseUs => t('夸一下');
+  String get featureFeedback => t('功能反馈');
+  String get aboutUs => t('关于我们');
   String get generalSettings => t('通用设置');
 
   String get reviewTitle => t('评价与反馈');
@@ -190,6 +196,12 @@ const Map<String, String> _englishText = {
   '语言翻译': 'Language',
   '评价与反馈': 'Reviews & Feedback',
   '账号安全': 'Account Security',
+  '偏好选择': 'Preferences',
+  '通知设置': 'Notifications',
+  '隐私设置': 'Privacy',
+  '夸一下': 'Like Us',
+  '功能反馈': 'Feature Feedback',
+  '关于我们': 'About Us',
   '通用设置': 'General Settings',
   '设置与反馈': 'Settings & Feedback',
   '返回': 'Back',
