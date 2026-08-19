@@ -326,22 +326,8 @@ class _SiponBottomJumpItem extends StatelessWidget {
               color: selected ? activeColor : Colors.transparent,
               borderRadius: BorderRadius.circular(22),
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 23),
-                const SizedBox(height: 1),
-                Text(
-                  tooltip,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ],
+            child: Center(
+              child: Icon(icon, size: 28),
             ),
           ),
         ),
