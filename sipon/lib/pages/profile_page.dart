@@ -364,8 +364,6 @@ class _QuickEntryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = SiponLanguageScope.textOf(context);
-
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.97),
@@ -385,21 +383,24 @@ class _QuickEntryCard extends StatelessWidget {
             Expanded(
               child: _QuickEntryItem(
                 assetPath: ProfilePage._drunkAsset,
-                label: text.drank,
+                label: '喝过2家',
+                onTap: () => _showMockList(context, _MockListType.drank),
               ),
             ),
             const _VerticalDivider(),
             Expanded(
               child: _QuickEntryItem(
                 assetPath: ProfilePage._wishAsset,
-                label: text.wishList,
+                label: '2家想喝',
+                onTap: () => _showMockList(context, _MockListType.wish),
               ),
             ),
             const _VerticalDivider(),
             Expanded(
               child: _QuickEntryItem(
                 assetPath: ProfilePage._routeAsset,
-                label: text.route,
+                label: '2条路线',
+                onTap: () => _showMockList(context, _MockListType.route),
               ),
             ),
           ],
@@ -410,15 +411,20 @@ class _QuickEntryCard extends StatelessWidget {
 }
 
 class _QuickEntryItem extends StatelessWidget {
-  const _QuickEntryItem({required this.assetPath, required this.label});
+  const _QuickEntryItem({
+    required this.assetPath,
+    required this.label,
+    required this.onTap,
+  });
 
   final String assetPath;
   final String label;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () {},
+      onTap: onTap,
       borderRadius: BorderRadius.circular(14),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
@@ -437,6 +443,380 @@ class _QuickEntryItem extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+enum _MockListType { drank, wish, route }
+
+class _MockListItem {
+  const _MockListItem({
+    required this.name,
+    required this.description,
+    required this.meta,
+    required this.imagePath,
+  });
+
+  final String name;
+  final String description;
+  final String meta;
+  final String imagePath;
+}
+
+void _showMockList(BuildContext context, _MockListType type) {
+  final title = switch (type) {
+    _MockListType.drank => '喝过的酒吧',
+    _MockListType.wish => '想喝的酒吧',
+    _MockListType.route => '我的酒鬼路线',
+  };
+  final items = switch (type) {
+    _MockListType.drank => const [
+      _MockListItem(
+        name: 'Janes and Hooch',
+        description: '精酿啤酒与经典调酒，适合夜晚小聚。',
+        meta: '上海 · 静安',
+        imagePath: 'assest/首页/图片素材/酒吧 Janes and Hooch.png',
+      ),
+      _MockListItem(
+        name: 'Speak Low',
+        description: '藏在街角的经典鸡尾酒酒吧。',
+        meta: '上海 · 黄浦',
+        imagePath: 'assest/首页/图片素材/Speak Low（彼楼）.png',
+      ),
+    ],
+    _MockListType.wish => const [
+      _MockListItem(
+        name: 'Play House',
+        description: '音乐、舞池和一杯值得期待的特调。',
+        meta: '上海 · 长宁',
+        imagePath: 'assest/首页/图片素材/Play House 电音夜店.png',
+      ),
+      _MockListItem(
+        name: 'Matt Hasting',
+        description: '收藏清单中的下一站，等你来探索。',
+        meta: '北京 · 朝阳',
+        imagePath: 'assest/首页/图片素材/Matt Hasting.png',
+      ),
+    ],
+    _MockListType.route => const [
+      _MockListItem(
+        name: '外滩夜饮路线',
+        description: '05.17 至 05.17 1 天',
+        meta: '3 个地点',
+        imagePath: 'assest/首页/图片素材/酒吧1.png',
+      ),
+      _MockListItem(
+        name: '鸡尾酒探索路线',
+        description: '06.08 至 06.09 2 天 1 晚',
+        meta: '4 个地点',
+        imagePath: 'assest/首页/图片素材/鸡尾酒系列1.png',
+      ),
+    ],
+  };
+
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _MockListSheet(title: title, items: items, type: type),
+  );
+}
+
+class _MockListSheet extends StatelessWidget {
+  const _MockListSheet({
+    required this.title,
+    required this.items,
+    required this.type,
+  });
+
+  final String title;
+  final List<_MockListItem> items;
+  final _MockListType type;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Container(
+        constraints: const BoxConstraints(maxHeight: 620),
+        decoration: const BoxDecoration(
+          color: Color(0xFFF5F6F8),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Color(0xFFD1D3D8),
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF292B32),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            Flexible(
+               child: ListView.separated(
+                 shrinkWrap: true,
+                 itemCount: items.length,
+                 separatorBuilder: (_, _) => const SizedBox(height: 12),
+                itemBuilder: (_, index) => type == _MockListType.route
+                    ? _MockRouteCard(item: items[index], index: index)
+                    : _MockListCard(item: items[index]),
+               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MockListCard extends StatelessWidget {
+  const _MockListCard({required this.item});
+  final _MockListItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.asset(
+              item.imagePath,
+              width: 88,
+              height: 88,
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  item.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF858991),
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  item.meta,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF9A3D78),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () {},
+            icon: const Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 16,
+              color: Color(0xFF9A3D78),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MockRouteCard extends StatelessWidget {
+  const _MockRouteCard({required this.item, required this.index});
+
+  final _MockListItem item;
+  final int index;
+
+  static const _routeImages = [
+    'assest/首页/图片素材/酒吧 Janes and Hooch.png',
+    'assest/首页/图片素材/Speak Low（彼楼）.png',
+    'assest/首页/图片素材/Play House 电音夜店.png',
+    'assest/首页/图片素材/Matt Hasting.png',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final isPrivate = index == 0;
+    final backgroundColor = index.isEven
+        ? const Color(0xFFFFE6B8)
+        : const Color(0xFFDDE5FF);
+    final routeImages = [
+      item.imagePath,
+      _routeImages[(index * 2) % _routeImages.length],
+      _routeImages[(index * 2 + 1) % _routeImages.length],
+    ];
+
+    return InkWell(
+      onTap: () {},
+      borderRadius: BorderRadius.circular(20),
+      child: SizedBox(
+        height: 144,
+        child: Material(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(20),
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 112, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: ProfilePage._ink,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                      height: 1.25,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    item.description,
+                    style: const TextStyle(
+                      color: Color(0xFF79747C),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    item.meta,
+                    style: const TextStyle(
+                      color: Color(0xFF79747C),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              top: 13,
+              right: 14,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isPrivate
+                        ? Icons.lock_outline_rounded
+                        : Icons.public_rounded,
+                    size: 15,
+                    color: const Color(0xFF7B7580),
+                  ),
+                  const SizedBox(width: 10),
+                  const Icon(
+                    Icons.visibility_outlined,
+                    size: 16,
+                    color: Color(0xFF7B7580),
+                  ),
+                  const SizedBox(width: 3),
+                  Text(
+                    isPrivate ? '12' : '86',
+                    style: const TextStyle(
+                      color: Color(0xFF7B7580),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              right: 12,
+              bottom: 6,
+              child: SizedBox(
+                width: 112,
+                height: 76,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    for (var imageIndex = 0;
+                        imageIndex < routeImages.length;
+                        imageIndex++)
+                      Positioned(
+                        right: imageIndex * 16.0,
+                        bottom: imageIndex * 5.0,
+                        child: Transform.rotate(
+                          angle: (imageIndex - 1) * 0.10,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              width: 76,
+                              height: 58,
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  width: 2,
+                                ),
+                              ),
+                              child: Image.asset(
+                                routeImages[imageIndex],
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          ),
         ),
       ),
     );
@@ -923,22 +1303,12 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
   }
 
   Future<void> _pickDate() async {
-    final selected = await showDatePicker(
+    final selected = await showDialog<DateTime>(
       context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(2018),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: ProfilePage._brand,
-              onPrimary: Colors.white,
-            ),
-          ),
-          child: child!,
-        );
-      },
+      builder: (_) => _BillDatePickerDialog(
+        initialDate: _selectedDate,
+        records: _store.records,
+      ),
     );
     if (selected != null && mounted) {
       setState(() => _selectedDate = selected);
@@ -946,10 +1316,29 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
   }
 
   String _formatSelectedDate(SiponAppText text) {
-    if (text.isZh) {
-      return '${_selectedDate.year}年${_selectedDate.month}月${_selectedDate.day}日';
+    final date = _selectedDate;
+    if (_period == _BillPeriod.month) {
+      return text.isZh
+          ? '${date.year}年${date.month}月'
+          : '${date.month}/${date.year}';
     }
-    return '${_selectedDate.month}/${_selectedDate.day}/${_selectedDate.year}';
+
+    if (_period == _BillPeriod.week) {
+      final weekStart = date.subtract(Duration(days: date.weekday - 1));
+      final weekEnd = weekStart.add(const Duration(days: 6));
+      if (text.isZh) {
+        if (weekStart.month == weekEnd.month) {
+          return '${weekStart.year}年${weekStart.month}月${weekStart.day}日至${weekEnd.day}日';
+        }
+        return '${weekStart.year}年${weekStart.month}月${weekStart.day}日至${weekEnd.month}月${weekEnd.day}日';
+      }
+      return '${weekStart.month}/${weekStart.day} - ${weekEnd.month}/${weekEnd.day}';
+    }
+
+    if (text.isZh) {
+      return '${date.year}年${date.month}月${date.day}日';
+    }
+    return '${date.month}/${date.day}/${date.year}';
   }
 
   String _formatDate(DateTime date, SiponAppText text) {
@@ -1063,15 +1452,20 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    IconButton(
-                      tooltip: text.back,
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.arrow_back_rounded),
-                    ),
-                    Expanded(
-                      child: Text(
+                SizedBox(
+                  height: 48,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: IconButton(
+                          tooltip: text.back,
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.arrow_back_rounded),
+                        ),
+                      ),
+                      Text(
                         text.t('账单'),
                         textAlign: TextAlign.center,
                         style: const TextStyle(
@@ -1081,33 +1475,45 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
                           letterSpacing: 0,
                         ),
                       ),
-                    ),
-                    IconButton(
-                      tooltip: text.t('更多'),
-                      onPressed: () {},
-                      icon: const Icon(Icons.more_vert_rounded),
-                    ),
-                  ],
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: IconButton(
+                          tooltip: text.t('更多'),
+                          onPressed: () {},
+                          icon: const Icon(Icons.more_vert_rounded),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 0),
                 Center(
-                  child: TextButton.icon(
-                    onPressed: _pickDate,
-                    style: TextButton.styleFrom(
-                      foregroundColor: ProfilePage._ink,
-                      minimumSize: const Size(0, 32),
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
-                    ),
-                    iconAlignment: IconAlignment.end,
-                    icon: const Icon(Icons.arrow_drop_down_rounded, size: 23),
-                    label: Text(
-                      _formatSelectedDate(text),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0,
+                  child: Transform.translate(
+                    offset: const Offset(8, 0),
+                    child: TextButton(
+                      onPressed: _pickDate,
+                      style: TextButton.styleFrom(
+                        foregroundColor: ProfilePage._ink,
+                        minimumSize: const Size(0, 32),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _formatSelectedDate(text),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                          const SizedBox(width: 1),
+                          const Icon(Icons.arrow_drop_down_rounded, size: 23),
+                        ],
                       ),
                     ),
                   ),
@@ -1232,6 +1638,176 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
             ),
           const SliverToBoxAdapter(child: SizedBox(height: 12)),
         ],
+      ),
+    );
+  }
+}
+
+class _BillDatePickerDialog extends StatefulWidget {
+  const _BillDatePickerDialog({
+    required this.initialDate,
+    required this.records,
+  });
+
+  final DateTime initialDate;
+  final List<DrinkBudgetRecord> records;
+
+  @override
+  State<_BillDatePickerDialog> createState() => _BillDatePickerDialogState();
+}
+
+class _BillDatePickerDialogState extends State<_BillDatePickerDialog> {
+  late DateTime _month;
+  late DateTime _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.initialDate;
+    _month = DateTime(_selected.year, _selected.month);
+  }
+
+  bool _hasRecord(int day) {
+    return widget.records.any(
+      (record) =>
+          record.date.year == _month.year &&
+          record.date.month == _month.month &&
+          record.date.day == day,
+    );
+  }
+
+  void _changeMonth(int offset) {
+    final next = DateTime(_month.year, _month.month + offset);
+    if (next.isAfter(DateTime(DateTime.now().year, DateTime.now().month))) {
+      return;
+    }
+    setState(() => _month = next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = SiponLanguageScope.textOf(context);
+    final firstWeekday = DateTime(_month.year, _month.month, 1).weekday;
+    final days = DateUtils.getDaysInMonth(_month.year, _month.month);
+    return AlertDialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      contentPadding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
+      content: SizedBox(
+        width: 320,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                IconButton(
+                  onPressed: () => _changeMonth(-1),
+                  icon: const Icon(Icons.chevron_left_rounded),
+                ),
+                Expanded(
+                  child: Text(
+                    '${_month.year}年${_month.month}月',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: ProfilePage._ink,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => _changeMonth(1),
+                  icon: const Icon(Icons.chevron_right_rounded),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                for (final label in ['一', '二', '三', '四', '五', '六', '日'])
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        label,
+                        style: const TextStyle(
+                          color: ProfilePage._muted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: firstWeekday - 1 + days,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 7,
+                mainAxisExtent: 42,
+              ),
+              itemBuilder: (_, index) {
+                if (index < firstWeekday - 1) {
+                  return const SizedBox.shrink();
+                }
+                final day = index - firstWeekday + 2;
+                final date = DateTime(_month.year, _month.month, day);
+                final selected =
+                    date.year == _selected.year &&
+                    date.month == _selected.month &&
+                    date.day == _selected.day;
+                final hasRecord = _hasRecord(day);
+                return InkWell(
+                  onTap: () => Navigator.of(context).pop(date),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 30,
+                        height: 30,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: selected ? ProfilePage._brand : null,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          '$day',
+                          style: TextStyle(
+                            color: selected ? Colors.white : ProfilePage._ink,
+                            fontSize: 13,
+                            fontWeight: selected
+                                ? FontWeight.w900
+                                : FontWeight.w600,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Container(
+                        width: 4,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: hasRecord
+                              ? ProfilePage._brand
+                              : Colors.transparent,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(text.cancel),
+            ),
+          ],
+        ),
       ),
     );
   }
