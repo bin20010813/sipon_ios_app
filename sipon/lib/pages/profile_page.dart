@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../services/drink_budget_store.dart';
@@ -482,15 +484,10 @@ class _BudgetCardState extends State<_BudgetCard> {
   }
 
   void _showRecords(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      showDragHandle: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => BudgetBillPage(onDeleted: _onStoreChanged),
       ),
-      builder: (_) => _BudgetRecordsSheet(onDeleted: _onStoreChanged),
     );
   }
 
@@ -863,10 +860,97 @@ class _BudgetStat extends StatelessWidget {
   }
 }
 
-class _BudgetRecordsSheet extends StatelessWidget {
-  const _BudgetRecordsSheet({this.onDeleted});
+class BudgetBillPage extends StatelessWidget {
+  const BudgetBillPage({super.key, this.onDeleted});
 
   final VoidCallback? onDeleted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 430),
+            child: _BudgetBillBody(onDeleted: onDeleted),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BudgetBillBody extends StatefulWidget {
+  const _BudgetBillBody({this.onDeleted});
+
+  final VoidCallback? onDeleted;
+
+  @override
+  State<_BudgetBillBody> createState() => _BudgetBillBodyState();
+}
+
+class _BudgetBillBodyState extends State<_BudgetBillBody> {
+  static const _chartColors = [
+    Color(0xFF9A3D78),
+    Color(0xFFEE8E51),
+    Color(0xFF477BC8),
+    Color(0xFF3FA66A),
+    Color(0xFFC2A43A),
+  ];
+
+  final DrinkBudgetStore _store = DrinkBudgetStore.instance;
+  late DateTime _selectedDate;
+  _BillPeriod _period = _BillPeriod.month;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDate = DateTime.now();
+    _store.addListener(_onStoreChanged);
+  }
+
+  @override
+  void dispose() {
+    _store.removeListener(_onStoreChanged);
+    super.dispose();
+  }
+
+  void _onStoreChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _pickDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2018),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: ProfilePage._brand,
+              onPrimary: Colors.white,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (selected != null && mounted) {
+      setState(() => _selectedDate = selected);
+    }
+  }
+
+  String _formatSelectedDate(SiponAppText text) {
+    if (text.isZh) {
+      return '${_selectedDate.year}年${_selectedDate.month}月${_selectedDate.day}日';
+    }
+    return '${_selectedDate.month}/${_selectedDate.day}/${_selectedDate.year}';
+  }
 
   String _formatDate(DateTime date, SiponAppText text) {
     final now = DateTime.now();
@@ -897,64 +981,228 @@ class _BudgetRecordsSheet extends StatelessWidget {
     return '${months[date.month - 1]} ${date.day}';
   }
 
+  List<DrinkBudgetRecord> _recordsForPeriod() {
+    final dayStart = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+    );
+    final weekStart = dayStart.subtract(Duration(days: dayStart.weekday - 1));
+    final weekEnd = weekStart.add(const Duration(days: 7));
+    final month = DrinkBudgetMonth(_selectedDate.year, _selectedDate.month);
+    final records = _store.records.where((record) {
+      switch (_period) {
+        case _BillPeriod.day:
+          return record.date.year == dayStart.year &&
+              record.date.month == dayStart.month &&
+              record.date.day == dayStart.day;
+        case _BillPeriod.week:
+          return !record.date.isBefore(weekStart) &&
+              record.date.isBefore(weekEnd);
+        case _BillPeriod.month:
+          return month.contains(record.date);
+      }
+    }).toList();
+    records.sort((a, b) => b.date.compareTo(a.date));
+    return records;
+  }
+
+  Map<String, double> _categoryExpenses(List<DrinkBudgetRecord> records) {
+    final expenses = <String, double>{};
+    for (final record in records) {
+      expenses.update(
+        record.drinkType,
+        (value) => value + record.amount,
+        ifAbsent: () => record.amount,
+      );
+    }
+    final sorted = expenses.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return Map.fromEntries(sorted);
+  }
+
+  List<_DayExpense> _dailyExpenses(List<DrinkBudgetRecord> records) {
+    final expenses = <DateTime, double>{};
+    for (final record in records) {
+      final day = DateTime(
+        record.date.year,
+        record.date.month,
+        record.date.day,
+      );
+      expenses.update(
+        day,
+        (value) => value + record.amount,
+        ifAbsent: () => record.amount,
+      );
+    }
+    final days = expenses.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    return days
+        .skip(math.max(0, days.length - 7))
+        .map((entry) => _DayExpense(entry.key, entry.value))
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
-    final store = DrinkBudgetStore.instance;
-    final records = store.recordsOf(DrinkBudgetMonth.now());
+    final records = _recordsForPeriod();
+    final total = records.fold<double>(0, (sum, record) => sum + record.amount);
+    final categoryExpenses = _categoryExpenses(records);
+    final dailyExpenses = _dailyExpenses(records);
+    final budgetProgress = _store.monthlyBudget <= 0
+        ? 0.0
+        : (total / _store.monthlyBudget).clamp(0.0, 1.0);
 
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      child: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    text.monthlyRecords,
-                    style: const TextStyle(
-                      color: ProfilePage._ink,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0,
+                Row(
+                  children: [
+                    IconButton(
+                      tooltip: text.back,
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.arrow_back_rounded),
+                    ),
+                    Expanded(
+                      child: Text(
+                        text.t('账单'),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: ProfilePage._ink,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: text.t('更多'),
+                      onPressed: () {},
+                      icon: const Icon(Icons.more_vert_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 0),
+                Center(
+                  child: TextButton.icon(
+                    onPressed: _pickDate,
+                    style: TextButton.styleFrom(
+                      foregroundColor: ProfilePage._ink,
+                      minimumSize: const Size(0, 32),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    iconAlignment: IconAlignment.end,
+                    icon: const Icon(Icons.arrow_drop_down_rounded, size: 23),
+                    label: Text(
+                      _formatSelectedDate(text),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0,
+                      ),
                     ),
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFEDF7),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${text.t('共')} ${_formatCurrency(store.currentMonthExpense)}',
-                    style: const TextStyle(
-                      color: ProfilePage._brand,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0,
-                    ),
+                const SizedBox(height: 12),
+                _BillPeriodSelector(
+                  period: _period,
+                  text: text,
+                  onChanged: (period) => setState(() => _period = period),
+                ),
+                const SizedBox(height: 22),
+                _BillSummary(
+                  headline: '${_period.label(text)}${text.t('支出')}',
+                  total: total,
+                  budget: _store.monthlyBudget,
+                  progress: budgetProgress,
+                  recordCount: records.length,
+                  activeDays: _dailyExpenses(records).length,
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  text.t('消费趋势'),
+                  style: const TextStyle(
+                    color: ProfilePage._ink,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0,
                   ),
                 ),
+                const SizedBox(height: 4),
+                Text(
+                  text.t('最近 7 个有消费记录的日期'),
+                  style: const TextStyle(
+                    color: ProfilePage._muted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _BillBarChart(data: dailyExpenses),
+                const SizedBox(height: 26),
+                Text(
+                  text.t('消费构成'),
+                  style: const TextStyle(
+                    color: ProfilePage._ink,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _BillCategoryChart(
+                  expenses: categoryExpenses,
+                  colors: _chartColors,
+                  text: text,
+                ),
+                const SizedBox(height: 26),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${_period.label(text)}${text.t('明细')}',
+                        style: const TextStyle(
+                          color: ProfilePage._ink,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${records.length}${text.t('笔')}',
+                      style: const TextStyle(
+                        color: ProfilePage._muted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
               ],
             ),
-            const SizedBox(height: 14),
-            if (records.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 30),
+          ),
+          if (records.isEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 42),
                 child: Center(
                   child: Text(
-                    text.noRecords,
+                    _period == _BillPeriod.day
+                        ? text.t('当天还没有记账记录')
+                        : text.noRecords,
                     style: const TextStyle(
                       color: ProfilePage._muted,
                       fontSize: 13,
@@ -963,38 +1211,502 @@ class _BudgetRecordsSheet extends StatelessWidget {
                     ),
                   ),
                 ),
-              )
-            else
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  physics: const BouncingScrollPhysics(),
-                  itemCount: records.length,
-                  itemBuilder: (_, index) {
-                    final record = records[index];
-                    final isLast = index == records.length - 1;
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _BudgetRecordTile(
-                          record: record,
-                          dateText: _formatDate(record.date, text),
-                          onDeleted: () async {
-                            await store.removeRecord(record.id);
-                            onDeleted?.call();
-                          },
-                        ),
-                        if (!isLast)
-                          const Divider(height: 1, color: ProfilePage._line),
-                      ],
-                    );
-                  },
-                ),
               ),
-          ],
+            )
+          else
+            SliverList.separated(
+              itemCount: records.length,
+              itemBuilder: (_, index) {
+                final record = records[index];
+                return _BudgetRecordTile(
+                  record: record,
+                  dateText: _formatDate(record.date, text),
+                  onDeleted: () async {
+                    await _store.removeRecord(record.id);
+                    widget.onDeleted?.call();
+                  },
+                );
+              },
+              separatorBuilder: (_, _) =>
+                  const Divider(height: 1, color: ProfilePage._line),
+            ),
+          const SliverToBoxAdapter(child: SizedBox(height: 12)),
+        ],
+      ),
+    );
+  }
+}
+
+enum _BillPeriod { day, week, month }
+
+extension on _BillPeriod {
+  String label(SiponAppText text) {
+    switch (this) {
+      case _BillPeriod.day:
+        return text.t('当日');
+      case _BillPeriod.week:
+        return text.t('本周');
+      case _BillPeriod.month:
+        return text.t('本月');
+    }
+  }
+}
+
+class _BillPeriodSelector extends StatelessWidget {
+  const _BillPeriodSelector({
+    required this.period,
+    required this.text,
+    required this.onChanged,
+  });
+
+  final _BillPeriod period;
+  final SiponAppText text;
+  final ValueChanged<_BillPeriod> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F0F0),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        children: [
+          for (final option in _BillPeriod.values)
+            Expanded(
+              child: _BillPeriodOption(
+                label: switch (option) {
+                  _BillPeriod.day => text.t('日'),
+                  _BillPeriod.week => text.t('周'),
+                  _BillPeriod.month => text.t('月'),
+                },
+                selected: period == option,
+                onTap: () => onChanged(option),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BillPeriodOption extends StatelessWidget {
+  const _BillPeriodOption({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: selected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: ProfilePage._ink,
+                fontSize: 17,
+                fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
         ),
       ),
     );
+  }
+}
+
+class _BillSummary extends StatelessWidget {
+  const _BillSummary({
+    required this.headline,
+    required this.total,
+    required this.budget,
+    required this.progress,
+    required this.recordCount,
+    required this.activeDays,
+  });
+
+  final String headline;
+  final double total;
+  final double budget;
+  final double progress;
+  final int recordCount;
+  final int activeDays;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = SiponLanguageScope.textOf(context);
+    final average = activeDays == 0 ? 0.0 : total / activeDays;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7FB),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFF2DFEB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            headline,
+            style: const TextStyle(
+              color: ProfilePage._muted,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _formatCurrency(total),
+            style: const TextStyle(
+              color: ProfilePage._brand,
+              fontSize: 32,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              backgroundColor: const Color(0xFFF2E6ED),
+              valueColor: const AlwaysStoppedAnimation(ProfilePage._brand),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '${text.t('预算')} ${_formatCurrency(budget)}  ·  ${text.t('剩余')} ${_formatCurrency(budget - total)}',
+            style: const TextStyle(
+              color: ProfilePage._muted,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0,
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10),
+            child: Divider(height: 1, color: Color(0xFFF0E3EB)),
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: _BillMetric(
+                  label: text.t('记账笔数'),
+                  value: '$recordCount',
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 34,
+                margin: const EdgeInsets.symmetric(horizontal: 10),
+                color: const Color(0xFFF0E3EB),
+              ),
+              Expanded(
+                child: _BillMetric(label: text.t('消费天数'), value: '$activeDays'),
+              ),
+              Container(
+                width: 1,
+                height: 34,
+                margin: const EdgeInsets.symmetric(horizontal: 10),
+                color: const Color(0xFFF0E3EB),
+              ),
+              Expanded(
+                child: _BillMetric(
+                  label: text.t('日均消费'),
+                  value: _formatCurrency(average),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BillMetric extends StatelessWidget {
+  const _BillMetric({required this.label, required this.value});
+
+  final String label;
+  final String value;
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: ProfilePage._muted,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0,
+          ),
+        ),
+        const SizedBox(height: 2),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            value,
+            style: const TextStyle(
+              color: ProfilePage._ink,
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DayExpense {
+  const _DayExpense(this.date, this.amount);
+
+  final DateTime date;
+  final double amount;
+}
+
+class _BillBarChart extends StatelessWidget {
+  const _BillBarChart({required this.data});
+
+  final List<_DayExpense> data;
+
+  @override
+  Widget build(BuildContext context) {
+    if (data.isEmpty) {
+      return const _BillChartEmpty();
+    }
+    final highest = data.fold<double>(
+      0,
+      (value, item) => math.max(value, item.amount),
+    );
+    return SizedBox(
+      height: 156,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          for (final item in data)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.bottomCenter,
+                        child: Tooltip(
+                          message: _formatCurrency(item.amount),
+                          child: Container(
+                            width: 18,
+                            height: math.max(8, 100 * item.amount / highest),
+                            decoration: BoxDecoration(
+                              color: ProfilePage._brand,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${item.date.day}',
+                      style: const TextStyle(
+                        color: ProfilePage._muted,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BillCategoryChart extends StatelessWidget {
+  const _BillCategoryChart({
+    required this.expenses,
+    required this.colors,
+    required this.text,
+  });
+
+  final Map<String, double> expenses;
+  final List<Color> colors;
+  final SiponAppText text;
+
+  @override
+  Widget build(BuildContext context) {
+    if (expenses.isEmpty) {
+      return const _BillChartEmpty();
+    }
+    final total = expenses.values.fold<double>(0, (sum, value) => sum + value);
+    final entries = expenses.entries.toList();
+    if (entries.length > colors.length) {
+      final otherTotal = entries
+          .skip(colors.length - 1)
+          .fold<double>(0, (sum, entry) => sum + entry.value);
+      entries
+        ..removeRange(colors.length - 1, entries.length)
+        ..add(MapEntry('其他', otherTotal));
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        CustomPaint(
+          size: const Size(116, 116),
+          painter: _CategoryPiePainter(
+            values: entries.map((entry) => entry.value).toList(),
+            colors: colors,
+          ),
+          child: SizedBox(
+            width: 116,
+            height: 116,
+            child: Center(
+              child: Text(
+                _formatCurrency(total),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: ProfilePage._ink,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 18),
+        Expanded(
+          child: Column(
+            children: [
+              for (var index = 0; index < entries.length; index++)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: colors[index % colors.length],
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Text(
+                          text.t(entries[index].key),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: ProfilePage._ink,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${(entries[index].value / total * 100).round()}%',
+                        style: const TextStyle(
+                          color: ProfilePage._muted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BillChartEmpty extends StatelessWidget {
+  const _BillChartEmpty();
+
+  @override
+  Widget build(BuildContext context) {
+    final text = SiponLanguageScope.textOf(context);
+    return Container(
+      height: 116,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: const Color(0xFFFBF8FA),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        text.t('暂无统计数据'),
+        style: const TextStyle(
+          color: ProfilePage._muted,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0,
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryPiePainter extends CustomPainter {
+  const _CategoryPiePainter({required this.values, required this.colors});
+
+  final List<double> values;
+  final List<Color> colors;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final total = values.fold<double>(0, (sum, value) => sum + value);
+    if (total <= 0) {
+      return;
+    }
+    final rect = Offset.zero & size;
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 18
+      ..strokeCap = StrokeCap.butt;
+    var start = -math.pi / 2;
+    for (var index = 0; index < values.length; index++) {
+      final sweep = values[index] / total * math.pi * 2;
+      paint.color = colors[index % colors.length];
+      canvas.drawArc(rect.deflate(9), start, sweep, false, paint);
+      start += sweep;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CategoryPiePainter oldDelegate) {
+    return oldDelegate.values != values || oldDelegate.colors != colors;
   }
 }
 
