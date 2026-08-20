@@ -16,8 +16,8 @@ class _ReviewPageState extends State<ReviewPage> {
   static const Color _line = Color(0xFFF1EBEF);
 
   final TextEditingController _feedbackController = TextEditingController();
-  final List<String> _feedbackItems = <String>[];
-  int _rating = 0;
+  final List<_FeedbackDraft> _feedbackItems = <_FeedbackDraft>[];
+  int _screenshotCount = 0;
 
   @override
   void dispose() {
@@ -33,20 +33,29 @@ class _ReviewPageState extends State<ReviewPage> {
     }
 
     setState(() {
-      _feedbackItems.insert(0, feedback);
+      _feedbackItems.insert(
+        0,
+        _FeedbackDraft(message: feedback, screenshotCount: _screenshotCount),
+      );
       _feedbackController.clear();
+      _screenshotCount = 0;
     });
     FocusScope.of(context).unfocus();
     _showMessage(text.feedbackSent);
   }
 
-  void _submitRating(SiponAppText text) {
-    if (_rating == 0) {
-      _showMessage(text.ratingRequired);
+  void _addScreenshot(SiponAppText text) {
+    if (_screenshotCount >= 3) {
+      _showMessage(text.t('最多添加 3 张截图'));
       return;
     }
 
-    _showMessage(text.ratingSent);
+    setState(() => _screenshotCount += 1);
+    _showMessage(text.t('已添加截图占位'));
+  }
+
+  void _removeScreenshot(int index) {
+    setState(() => _screenshotCount -= 1);
   }
 
   void _showMessage(String message) {
@@ -86,21 +95,18 @@ class _ReviewPageState extends State<ReviewPage> {
                     padding: const EdgeInsets.fromLTRB(22, 10, 22, 28),
                     sliver: SliverList.list(
                       children: [
-                        _ReviewTopBar(title: text.reviewTitle, back: text.back),
-                        const SizedBox(height: 20),
-                        _RatingSection(
-                          text: text,
-                          rating: _rating,
-                          onRatingChanged: (rating) {
-                            setState(() => _rating = rating);
-                          },
-                          onSubmit: () => _submitRating(text),
+                        _ReviewTopBar(
+                          title: text.featureFeedback,
+                          back: text.back,
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 20),
                         _FeedbackSection(
                           text: text,
                           controller: _feedbackController,
                           feedbackItems: _feedbackItems,
+                          screenshotCount: _screenshotCount,
+                          onAddScreenshot: () => _addScreenshot(text),
+                          onRemoveScreenshot: _removeScreenshot,
                           onSubmit: () => _submitFeedback(text),
                         ),
                       ],
@@ -114,6 +120,13 @@ class _ReviewPageState extends State<ReviewPage> {
       ),
     );
   }
+}
+
+class _FeedbackDraft {
+  const _FeedbackDraft({required this.message, required this.screenshotCount});
+
+  final String message;
+  final int screenshotCount;
 }
 
 class _ReviewTopBar extends StatelessWidget {
@@ -162,131 +175,23 @@ class _ReviewTopBar extends StatelessWidget {
   }
 }
 
-class _RatingSection extends StatelessWidget {
-  const _RatingSection({
-    required this.text,
-    required this.rating,
-    required this.onRatingChanged,
-    required this.onSubmit,
-  });
-
-  final SiponAppText text;
-  final int rating;
-  final ValueChanged<int> onRatingChanged;
-  final VoidCallback onSubmit;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SettingsCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _SectionHeader(
-            icon: Icons.star_rate_rounded,
-            title: text.rateTitle,
-            trailing: Text(
-              text.ratingValue(rating),
-              style: const TextStyle(
-                color: _ReviewPageState._brand,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0,
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            text.ratingPrompt,
-            style: const TextStyle(
-              color: _ReviewPageState._muted,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              for (var value = 1; value <= 5; value++)
-                _StarButton(
-                  value: value,
-                  selected: value <= rating,
-                  onPressed: () => onRatingChanged(value),
-                ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: onSubmit,
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(46),
-                backgroundColor: _ReviewPageState._brand,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              icon: const Icon(Icons.send_rounded, size: 18),
-              label: Text(
-                text.submitRating,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StarButton extends StatelessWidget {
-  const _StarButton({
-    required this.value,
-    required this.selected,
-    required this.onPressed,
-  });
-
-  final int value;
-  final bool selected;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: IconButton(
-        onPressed: onPressed,
-        style: IconButton.styleFrom(
-          fixedSize: const Size.fromHeight(44),
-          padding: EdgeInsets.zero,
-          foregroundColor: selected
-              ? const Color(0xFFFFB340)
-              : const Color(0xFFD9D3D8),
-        ),
-        icon: Icon(
-          selected ? Icons.star_rounded : Icons.star_border_rounded,
-          size: 34,
-        ),
-      ),
-    );
-  }
-}
-
 class _FeedbackSection extends StatelessWidget {
   const _FeedbackSection({
     required this.text,
     required this.controller,
     required this.feedbackItems,
+    required this.screenshotCount,
+    required this.onAddScreenshot,
+    required this.onRemoveScreenshot,
     required this.onSubmit,
   });
 
   final SiponAppText text;
   final TextEditingController controller;
-  final List<String> feedbackItems;
+  final List<_FeedbackDraft> feedbackItems;
+  final int screenshotCount;
+  final VoidCallback onAddScreenshot;
+  final ValueChanged<int> onRemoveScreenshot;
   final VoidCallback onSubmit;
 
   @override
@@ -296,8 +201,8 @@ class _FeedbackSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _SectionHeader(
-            icon: Icons.forum_rounded,
-            title: text.feedbackBoardTitle,
+            icon: Icons.add_comment_outlined,
+            title: text.t('留言反馈'),
           ),
           const SizedBox(height: 14),
           TextField(
@@ -322,6 +227,13 @@ class _FeedbackSection extends StatelessWidget {
                 ),
               ),
             ),
+          ),
+          const SizedBox(height: 14),
+          _ScreenshotPicker(
+            text: text,
+            count: screenshotCount,
+            onAdd: onAddScreenshot,
+            onRemove: onRemoveScreenshot,
           ),
           const SizedBox(height: 12),
           SizedBox(
@@ -355,7 +267,8 @@ class _FeedbackSection extends StatelessWidget {
                 for (var index = 0; index < feedbackItems.length; index++) ...[
                   _FeedbackItem(
                     title: text.feedbackNumber(feedbackItems.length - index),
-                    body: feedbackItems[index],
+                    body: feedbackItems[index].message,
+                    screenshotCount: feedbackItems[index].screenshotCount,
                   ),
                   if (index != feedbackItems.length - 1)
                     const SizedBox(height: 10),
@@ -363,6 +276,174 @@ class _FeedbackSection extends StatelessWidget {
               ],
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _ScreenshotPicker extends StatelessWidget {
+  const _ScreenshotPicker({
+    required this.text,
+    required this.count,
+    required this.onAdd,
+    required this.onRemove,
+  });
+
+  final SiponAppText text;
+  final int count;
+  final VoidCallback onAdd;
+  final ValueChanged<int> onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          text.t('添加截图'),
+          style: const TextStyle(
+            color: _ReviewPageState._ink,
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            for (var index = 0; index < count; index++)
+              _ScreenshotTile(
+                label: text.t('截图 ${index + 1}'),
+                onRemove: () => onRemove(index),
+              ),
+            if (count < 3) _AddScreenshotTile(text: text, onTap: onAdd),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          text.t('最多上传 3 张问题截图，便于我们定位页面和异常。'),
+          style: const TextStyle(
+            color: _ReviewPageState._muted,
+            fontSize: 12,
+            height: 1.3,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ScreenshotTile extends StatelessWidget {
+  const _ScreenshotTile({required this.label, required this.onRemove});
+
+  final String label;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 88,
+      height: 88,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF6FB),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _ReviewPageState._line),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.image_outlined,
+                    color: _ReviewPageState._brand,
+                    size: 24,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _ReviewPageState._muted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            right: -6,
+            top: -6,
+            child: IconButton.filled(
+              onPressed: onRemove,
+              style: IconButton.styleFrom(
+                fixedSize: const Size(24, 24),
+                padding: EdgeInsets.zero,
+                backgroundColor: _ReviewPageState._ink,
+                foregroundColor: Colors.white,
+              ),
+              icon: const Icon(Icons.close_rounded, size: 14),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AddScreenshotTile extends StatelessWidget {
+  const _AddScreenshotTile({required this.text, required this.onTap});
+
+  final SiponAppText text;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Ink(
+          width: 88,
+          height: 88,
+          decoration: BoxDecoration(
+            color: const Color(0xFFFCF8FA),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: _ReviewPageState._line),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.add_photo_alternate_outlined,
+                color: _ReviewPageState._brand,
+                size: 26,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                text.t('添加'),
+                style: const TextStyle(
+                  color: _ReviewPageState._brand,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -398,10 +479,15 @@ class _EmptyFeedback extends StatelessWidget {
 }
 
 class _FeedbackItem extends StatelessWidget {
-  const _FeedbackItem({required this.title, required this.body});
+  const _FeedbackItem({
+    required this.title,
+    required this.body,
+    required this.screenshotCount,
+  });
 
   final String title;
   final String body;
+  final int screenshotCount;
 
   @override
   Widget build(BuildContext context) {
@@ -436,6 +522,30 @@ class _FeedbackItem extends StatelessWidget {
               letterSpacing: 0,
             ),
           ),
+          if (screenshotCount > 0) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Icon(
+                  Icons.photo_library_outlined,
+                  color: _ReviewPageState._brand,
+                  size: 16,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  SiponLanguageScope.textOf(
+                    context,
+                  ).t('已附加 $screenshotCount 张截图'),
+                  style: const TextStyle(
+                    color: _ReviewPageState._brand,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -470,15 +580,10 @@ class _SettingsCard extends StatelessWidget {
 }
 
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({
-    required this.icon,
-    required this.title,
-    this.trailing,
-  });
+  const _SectionHeader({required this.icon, required this.title});
 
   final IconData icon;
   final String title;
-  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -507,7 +612,6 @@ class _SectionHeader extends StatelessWidget {
             ),
           ),
         ),
-        ?trailing,
       ],
     );
   }

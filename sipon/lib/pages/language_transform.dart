@@ -68,6 +68,18 @@ class SiponAppText {
       return '${t('使用本地示例数据')}:${source.substring('使用本地示例数据:'.length)}';
     }
 
+    final screenshotMatch = RegExp(r'^截图 (\d+)$').firstMatch(source);
+    if (screenshotMatch != null) {
+      return 'Screenshot ${screenshotMatch.group(1)}';
+    }
+
+    final attachedScreenshotMatch = RegExp(
+      r'^已附加 (\d+) 张截图$',
+    ).firstMatch(source);
+    if (attachedScreenshotMatch != null) {
+      return '${attachedScreenshotMatch.group(1)} screenshots attached';
+    }
+
     final kilometerMatch = RegExp(r'^约(.+)公里$').firstMatch(source);
     if (kilometerMatch != null) {
       return 'About ${kilometerMatch.group(1)} km';
@@ -236,11 +248,18 @@ const Map<String, String> _englishText = {
   '英文': 'English',
   '语言已切换': 'Language updated',
   '用户反馈板': 'Feedback Board',
+  '留言反馈': 'Message Feedback',
   '写下你的建议或遇到的问题': 'Write feedback or issues',
   '提交反馈': 'Submit Feedback',
   '请输入反馈内容': 'Please enter feedback first',
   '反馈已提交': 'Feedback submitted',
   '暂无反馈': 'No feedback yet',
+  '添加截图': 'Add Screenshots',
+  '最多上传 3 张问题截图，便于我们定位页面和异常。':
+      'Upload up to 3 issue screenshots so we can locate the page and problem.',
+  '最多添加 3 张截图': 'You can add up to 3 screenshots',
+  '已添加截图占位': 'Screenshot placeholder added',
+  '添加': 'Add',
   '为我们评分': 'Rate Us',
   '选择你的评分': 'Choose your rating',
   '提交评分': 'Submit Rating',

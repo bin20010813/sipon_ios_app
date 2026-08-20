@@ -466,6 +466,7 @@ class _AboutUsPage extends StatelessWidget {
           icon: Icons.local_bar_rounded,
           title: text.appTitle,
           subtitle: text.t('记录饮酒偏好，发现附近好酒吧，管理每一次微醺。'),
+          centered: true,
         ),
         const SizedBox(height: 16),
         _SupportPanel(
@@ -551,11 +552,13 @@ class _SupportHero extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.subtitle,
+    this.centered = false,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
+  final bool centered;
 
   @override
   Widget build(BuildContext context) {
@@ -572,50 +575,97 @@ class _SupportHero extends StatelessWidget {
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFEDF7),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(icon, color: SettingsSupportPage._brand, size: 26),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        padding: EdgeInsets.all(centered ? 24 : 18),
+        child: centered
+            ? Column(
                 children: [
+                  Container(
+                    width: 76,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFEDF7),
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                    child: Icon(
+                      icon,
+                      color: SettingsSupportPage._brand,
+                      size: 42,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
                   Text(
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: SettingsSupportPage._ink,
-                      fontSize: 18,
+                      fontSize: 20,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   Text(
                     subtitle,
+                    textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: SettingsSupportPage._muted,
-                      fontSize: 12,
-                      height: 1.35,
+                      fontSize: 13,
+                      height: 1.4,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0,
                     ),
                   ),
                 ],
+              )
+            : Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFEDF7),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(
+                      icon,
+                      color: SettingsSupportPage._brand,
+                      size: 26,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: SettingsSupportPage._ink,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          subtitle,
+                          style: const TextStyle(
+                            color: SettingsSupportPage._muted,
+                            fontSize: 12,
+                            height: 1.35,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }
