@@ -66,6 +66,8 @@ flutter:
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
   assets:
+    - assest/logo.png
+    - assest/app_name.png
     - assest/首页/首页.png
     - assest/首页/首页sel.png
     - assest/首页/地图.png

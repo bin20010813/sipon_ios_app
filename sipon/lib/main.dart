@@ -6,7 +6,10 @@ import 'pages/home_page.dart';
 import 'pages/language_transform.dart';
 import 'pages/map_page.dart';
 import 'pages/profile_page.dart';
+import 'pages/sipon_launch_page.dart';
+import 'pages/sms_login_page.dart';
 import 'services/drink_budget_store.dart';
+import 'services/sipon_auth_service.dart';
 import 'services/sipon_city_controller.dart';
 import 'widgets/sipon_city_picker.dart';
 
@@ -89,23 +92,113 @@ class _StartupGateState extends State<_StartupGate> {
   bool _ready = false;
   bool _showShell = false;
   bool _openRecordInitially = false;
+  bool _sessionChecked = false;
+  bool _isLoggedIn = false;
+  bool _loginPageOpen = false;
+  bool _launchCompleted = false;
 
   @override
   void initState() {
     super.initState();
+    _restoreSession();
+  }
+
+  Future<void> _restoreSession() async {
+    final isLoggedIn = await SiponAuthService.instance.restoreSession();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _isLoggedIn = isLoggedIn;
+      _sessionChecked = true;
+    });
+  }
+
+  void _onLoginSucceeded() {
+    setState(() {
+      _isLoggedIn = true;
+      _launchCompleted = true;
+    });
     _bootstrap();
   }
 
-  Future<void> _bootstrap() async {
-    await Future.wait([
-      widget.cityController.load(),
-      Future<void>.delayed(const Duration(milliseconds: 1300)),
-    ]);
+  void _onLaunchCompleted() {
+    if (!_sessionChecked) {
+      return;
+    }
+    if (!_isLoggedIn) {
+      _openLoginPage();
+      return;
+    }
+
+    setState(() => _launchCompleted = true);
+    _bootstrap(showShellImmediately: true);
+  }
+
+  void _openLoginPage() {
+    if (_loginPageOpen || !_sessionChecked || _isLoggedIn) {
+      return;
+    }
+
+    _loginPageOpen = true;
+    Navigator.of(context)
+        .push<void>(
+          PageRouteBuilder<void>(
+            transitionDuration: const Duration(milliseconds: 620),
+            reverseTransitionDuration: const Duration(milliseconds: 250),
+            pageBuilder: (_, animation, _) => SmsLoginPage(
+              onLoginSucceeded: () {
+                Navigator.of(context).pop();
+                _onLoginSucceeded();
+              },
+            ),
+            transitionsBuilder: (_, animation, _, child) => FadeTransition(
+              opacity: CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+              ),
+              child: child,
+            ),
+          ),
+        )
+        .whenComplete(() {
+          if (mounted) {
+            _loginPageOpen = false;
+          }
+        });
+  }
+
+  void _onLogoutSucceeded() {
+    setState(() {
+      _ready = false;
+      _showShell = false;
+      _openRecordInitially = false;
+      _isLoggedIn = false;
+      _launchCompleted = false;
+    });
+  }
+
+  Future<void> _bootstrap({bool showShellImmediately = false}) async {
+    if (showShellImmediately) {
+      await widget.cityController.load();
+    } else {
+      await Future.wait([
+        widget.cityController.load(),
+        Future<void>.delayed(const Duration(milliseconds: 1300)),
+      ]);
+    }
 
     if (!mounted) {
       return;
     }
 
+    if (showShellImmediately) {
+      setState(() {
+        _ready = true;
+        _showShell = true;
+      });
+      return;
+    }
     setState(() => _ready = true);
     await Future<void>.delayed(const Duration(milliseconds: 450));
 
@@ -127,8 +220,18 @@ class _StartupGateState extends State<_StartupGate> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_launchCompleted) {
+      return SiponLaunchPage(
+        readyToContinue: _sessionChecked,
+        animateLogoToLogin: _sessionChecked && !_isLoggedIn,
+        onContinue: _onLaunchCompleted,
+      );
+    }
     if (_showShell) {
-      return _SiponShell(openRecordInitially: _openRecordInitially);
+      return _SiponShell(
+        openRecordInitially: _openRecordInitially,
+        onLogoutSucceeded: _onLogoutSucceeded,
+      );
     }
 
     return _SiponSplashScreen(ready: _ready, onRecordPressed: _openRecord);
@@ -136,9 +239,13 @@ class _StartupGateState extends State<_StartupGate> {
 }
 
 class _SiponShell extends StatefulWidget {
-  const _SiponShell({this.openRecordInitially = false});
+  const _SiponShell({
+    this.openRecordInitially = false,
+    required this.onLogoutSucceeded,
+  });
 
   final bool openRecordInitially;
+  final VoidCallback onLogoutSucceeded;
 
   @override
   State<_SiponShell> createState() => _SiponShellState();
@@ -195,6 +302,7 @@ class _SiponShellState extends State<_SiponShell> {
               ProfilePage(
                 bottomOverlayInset: _navigationReserveHeight,
                 onRecordPressed: _openDrinkRecord,
+                onLogoutSucceeded: widget.onLogoutSucceeded,
               ),
             ],
           ),
@@ -326,9 +434,7 @@ class _SiponBottomJumpItem extends StatelessWidget {
               color: selected ? activeColor : Colors.transparent,
               borderRadius: BorderRadius.circular(22),
             ),
-            child: Center(
-              child: Icon(icon, size: 28),
-            ),
+            child: Center(child: Icon(icon, size: 28)),
           ),
         ),
       ),

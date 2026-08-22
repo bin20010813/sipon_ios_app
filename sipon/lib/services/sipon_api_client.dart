@@ -12,7 +12,15 @@ class SiponApiClient {
 
   final SiponApiConfig config;
   final http.Client _httpClient;
+  static String? _sharedSessionAccessToken;
   String? _sessionAccessToken;
+
+  static void setSessionAccessToken(String? accessToken) {
+    final normalized = accessToken?.trim();
+    _sharedSessionAccessToken = normalized?.isNotEmpty == true
+        ? normalized
+        : null;
+  }
 
   Future<dynamic> getJson(
     String path, {
@@ -21,7 +29,9 @@ class SiponApiClient {
     final response = await _sendWithAuthRetry(
       () => _httpClient.get(
         config.uri(path, queryParameters),
-        headers: config.headers(accessTokenOverride: _sessionAccessToken),
+        headers: config.headers(
+          accessTokenOverride: _sessionAccessToken ?? _sharedSessionAccessToken,
+        ),
       ),
     );
 
@@ -38,11 +48,23 @@ class SiponApiClient {
         config.uri(path, queryParameters),
         headers: config.headers(
           jsonBody: true,
-          accessTokenOverride: _sessionAccessToken,
+          accessTokenOverride: _sessionAccessToken ?? _sharedSessionAccessToken,
         ),
         body: body == null ? null : jsonEncode(body),
       ),
     );
+
+    return _decode(response);
+  }
+
+  Future<dynamic> postUnauthenticatedJson(String path, {Object? body}) async {
+    final response = await _httpClient
+        .post(
+          config.uri(path),
+          headers: config.headers(jsonBody: true, includeAuth: false),
+          body: body == null ? null : jsonEncode(body),
+        )
+        .timeout(config.timeout);
 
     return _decode(response);
   }

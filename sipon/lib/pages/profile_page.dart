@@ -42,10 +42,12 @@ class ProfilePage extends StatelessWidget {
     super.key,
     this.bottomOverlayInset = 0,
     this.onRecordPressed,
+    this.onLogoutSucceeded,
   });
 
   final double bottomOverlayInset;
   final VoidCallback? onRecordPressed;
+  final VoidCallback? onLogoutSucceeded;
 
   static const Color _brand = Color(0xFF9A3D78);
   static const Color _ink = Color(0xFF292B32);
@@ -89,7 +91,9 @@ class ProfilePage extends StatelessWidget {
                     ),
                     sliver: SliverList.list(
                       children: [
-                        const _ProfileTopActions(),
+                        _ProfileTopActions(
+                          onLogoutSucceeded: onLogoutSucceeded,
+                        ),
                         const SizedBox(height: 22),
                         const _ProfileHeader(),
                         const SizedBox(height: 22),
@@ -131,7 +135,9 @@ class ProfilePage extends StatelessWidget {
 }
 
 class _ProfileTopActions extends StatelessWidget {
-  const _ProfileTopActions();
+  const _ProfileTopActions({this.onLogoutSucceeded});
+
+  final VoidCallback? onLogoutSucceeded;
 
   @override
   Widget build(BuildContext context) {
@@ -153,7 +159,8 @@ class _ProfileTopActions extends StatelessWidget {
           onPressed: () {
             Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (_) => const SettingsSupportPage(),
+                builder: (_) =>
+                    SettingsSupportPage(onLogoutSucceeded: onLogoutSucceeded),
               ),
             );
           },
@@ -576,14 +583,14 @@ class _MockListSheet extends StatelessWidget {
               ],
             ),
             Flexible(
-               child: ListView.separated(
-                 shrinkWrap: true,
-                 itemCount: items.length,
-                 separatorBuilder: (_, _) => const SizedBox(height: 12),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: items.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 12),
                 itemBuilder: (_, index) => type == _MockListType.route
                     ? _MockRouteCard(item: items[index], index: index)
                     : _MockListCard(item: items[index]),
-               ),
+              ),
             ),
           ],
         ),
@@ -701,121 +708,123 @@ class _MockRouteCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           clipBehavior: Clip.antiAlias,
           child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 112, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: ProfilePage._ink,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w900,
-                      height: 1.25,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  Text(
-                    item.description,
-                    style: const TextStyle(
-                      color: Color(0xFF79747C),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    item.meta,
-                    style: const TextStyle(
-                      color: Color(0xFF79747C),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              top: 13,
-              right: 14,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    isPrivate
-                        ? Icons.lock_outline_rounded
-                        : Icons.public_rounded,
-                    size: 15,
-                    color: const Color(0xFF7B7580),
-                  ),
-                  const SizedBox(width: 10),
-                  const Icon(
-                    Icons.visibility_outlined,
-                    size: 16,
-                    color: Color(0xFF7B7580),
-                  ),
-                  const SizedBox(width: 3),
-                  Text(
-                    isPrivate ? '12' : '86',
-                    style: const TextStyle(
-                      color: Color(0xFF7B7580),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              right: 12,
-              bottom: 6,
-              child: SizedBox(
-                width: 112,
-                height: 76,
-                child: Stack(
-                  clipBehavior: Clip.none,
+            clipBehavior: Clip.none,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 112, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (var imageIndex = 0;
+                    Text(
+                      item.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: ProfilePage._ink,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                        height: 1.25,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      item.description,
+                      style: const TextStyle(
+                        color: Color(0xFF79747C),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      item.meta,
+                      style: const TextStyle(
+                        color: Color(0xFF79747C),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Positioned(
+                top: 13,
+                right: 14,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isPrivate
+                          ? Icons.lock_outline_rounded
+                          : Icons.public_rounded,
+                      size: 15,
+                      color: const Color(0xFF7B7580),
+                    ),
+                    const SizedBox(width: 10),
+                    const Icon(
+                      Icons.visibility_outlined,
+                      size: 16,
+                      color: Color(0xFF7B7580),
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      isPrivate ? '12' : '86',
+                      style: const TextStyle(
+                        color: Color(0xFF7B7580),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Positioned(
+                right: 12,
+                bottom: 6,
+                child: SizedBox(
+                  width: 112,
+                  height: 76,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      for (
+                        var imageIndex = 0;
                         imageIndex < routeImages.length;
-                        imageIndex++)
-                      Positioned(
-                        right: imageIndex * 16.0,
-                        bottom: imageIndex * 5.0,
-                        child: Transform.rotate(
-                          angle: (imageIndex - 1) * 0.10,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              width: 76,
-                              height: 58,
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.9),
-                                  width: 2,
+                        imageIndex++
+                      )
+                        Positioned(
+                          right: imageIndex * 16.0,
+                          bottom: imageIndex * 5.0,
+                          child: Transform.rotate(
+                            angle: (imageIndex - 1) * 0.10,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                width: 76,
+                                height: 58,
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.9),
+                                    width: 2,
+                                  ),
                                 ),
-                              ),
-                              child: Image.asset(
-                                routeImages[imageIndex],
-                                fit: BoxFit.cover,
+                                child: Image.asset(
+                                  routeImages[imageIndex],
+                                  fit: BoxFit.cover,
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
           ),
         ),
       ),

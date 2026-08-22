@@ -142,7 +142,7 @@ class SiponAppText {
   String get languagePageTitle => t('语言翻译');
   String get languageCurrent => t('当前语言');
   String get languageChinese => t('中文');
-  String get languageEnglish => t('英文');
+  String get languageEnglish => t('En');
   String get languageChanged => t('语言已切换');
   String get feedbackBoardTitle => t('用户反馈板');
   String get feesdbackBoardTitle => feedbackBoardTitle;
@@ -176,6 +176,22 @@ const Map<String, String> _englishText = {
   '我的': 'Profile',
   '消息': 'Messages',
   '设置': 'Settings',
+  '欢迎来到 SipOn': 'Welcome to SipOn',
+  '记录每一次微醺。':
+      'keep tracking every drink.',
+  '用户名': 'Username',
+  '请输入用户名': 'Enter username',
+  '密码': 'Password',
+  '请输入密码（至少 6 位）': 'Enter password (at least 6 characters)',
+  '显示密码': 'Show password',
+  '隐藏密码': 'Hide password',
+  '登录': 'Sign In',
+  '登录即代表你已阅读并同意用户协议和隐私政策':
+      'By signing in, you agree to the User Agreement and Privacy Policy',
+  '请求失败，请稍后重试。': 'Request failed. Please try again later.',
+  '网络异常，请检查网络和服务地址。':
+      'Network error. Please check your connection and server address.',
+  '接口响应中未包含 accessToken。': 'The API response did not include an accessToken.',
   '琥珀鉴赏家': 'Amber Connoisseur',
   '酒鬼ID： 89829189': 'Sipon ID: 89829189',
   '编辑资料': 'Edit Profile',
@@ -422,6 +438,12 @@ const Map<String, String> _englishText = {
   '用于快速进入 Sipon': 'Quickly unlock Sipon',
   '异地登录提醒': 'New Location Alert',
   '发现新设备登录时通知你': 'Notify you when a new device signs in',
+  '退出登录': 'Log Out',
+  '清除本机登录状态': 'Clear this device sign-in state',
+  '退出': 'Log Out',
+  '退出中': 'Logging out',
+  '退出后需要重新登录才能继续使用 Sipon。':
+      'You will need to sign in again to continue using Sipon.',
   '偏好画像': 'Preference Profile',
   '这些选择会用于后续推荐酒款、酒吧和活动。':
       'These choices will shape drink, bar, and event recommendations.',

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../services/sipon_auth_service.dart';
 import 'language_transform.dart';
 import 'review_page.dart';
 
 class SettingsSupportPage extends StatelessWidget {
-  const SettingsSupportPage({super.key});
+  const SettingsSupportPage({super.key, this.onLogoutSucceeded});
+
+  final VoidCallback? onLogoutSucceeded;
 
   static const Color _brand = Color(0xFF9A3D78);
   static const Color _ink = Color(0xFF292B32);
@@ -82,7 +85,9 @@ class SettingsSupportPage extends StatelessWidget {
                               title: text.accountSecurity,
                               onTap: () => _openPage(
                                 context,
-                                const _AccountSecurityPage(),
+                                _AccountSecurityPage(
+                                  onLogoutSucceeded: onLogoutSucceeded,
+                                ),
                               ),
                             ),
                             _SettingsRow(
@@ -157,7 +162,9 @@ class SettingsSupportPage extends StatelessWidget {
 }
 
 class _AccountSecurityPage extends StatefulWidget {
-  const _AccountSecurityPage();
+  const _AccountSecurityPage({this.onLogoutSucceeded});
+
+  final VoidCallback? onLogoutSucceeded;
 
   @override
   State<_AccountSecurityPage> createState() => _AccountSecurityPageState();
@@ -166,6 +173,53 @@ class _AccountSecurityPage extends StatefulWidget {
 class _AccountSecurityPageState extends State<_AccountSecurityPage> {
   bool _biometric = true;
   bool _loginAlert = true;
+  bool _loggingOut = false;
+
+  Future<void> _confirmLogout() async {
+    final text = SiponLanguageScope.textOf(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: Text(text.t('退出登录')),
+          content: Text(text.t('退出后需要重新登录才能继续使用 Sipon。')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(text.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: SettingsSupportPage._brand,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(text.t('退出')),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      await _logout();
+    }
+  }
+
+  Future<void> _logout() async {
+    if (_loggingOut) return;
+
+    setState(() => _loggingOut = true);
+    await SiponAuthService.instance.logout();
+    if (!mounted) return;
+
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    widget.onLogoutSucceeded?.call();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -208,6 +262,13 @@ class _AccountSecurityPageState extends State<_AccountSecurityPage> {
               subtitle: text.t('发现新设备登录时通知你'),
               value: _loginAlert,
               onChanged: (value) => setState(() => _loginAlert = value),
+            ),
+            _SupportActionRow(
+              icon: Icons.logout_rounded,
+              title: text.t('退出登录'),
+              subtitle: text.t('清除本机登录状态'),
+              trailing: _loggingOut ? text.t('退出中') : text.t('退出'),
+              onTap: _loggingOut ? null : _confirmLogout,
             ),
           ],
         ),
@@ -464,6 +525,7 @@ class _AboutUsPage extends StatelessWidget {
       children: [
         _SupportHero(
           icon: Icons.local_bar_rounded,
+          assetPath: 'assest/logo.png',
           title: text.appTitle,
           subtitle: text.t('记录饮酒偏好，发现附近好酒吧，管理每一次微醺。'),
           centered: true,
@@ -553,12 +615,14 @@ class _SupportHero extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.centered = false,
+    this.assetPath,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final bool centered;
+  final String? assetPath;
 
   @override
   Widget build(BuildContext context) {
@@ -579,18 +643,12 @@ class _SupportHero extends StatelessWidget {
         child: centered
             ? Column(
                 children: [
-                  Container(
-                    width: 76,
-                    height: 76,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFEDF7),
-                      borderRadius: BorderRadius.circular(22),
-                    ),
-                    child: Icon(
-                      icon,
-                      color: SettingsSupportPage._brand,
-                      size: 42,
-                    ),
+                  _SupportHeroMark(
+                    icon: icon,
+                    assetPath: assetPath,
+                    size: 76,
+                    borderRadius: 22,
+                    iconSize: 42,
                   ),
                   const SizedBox(height: 14),
                   Text(
@@ -621,18 +679,12 @@ class _SupportHero extends StatelessWidget {
               )
             : Row(
                 children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFEDF7),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(
-                      icon,
-                      color: SettingsSupportPage._brand,
-                      size: 26,
-                    ),
+                  _SupportHeroMark(
+                    icon: icon,
+                    assetPath: assetPath,
+                    size: 48,
+                    borderRadius: 14,
+                    iconSize: 26,
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -666,6 +718,45 @@ class _SupportHero extends StatelessWidget {
                   ),
                 ],
               ),
+      ),
+    );
+  }
+}
+
+class _SupportHeroMark extends StatelessWidget {
+  const _SupportHeroMark({
+    required this.icon,
+    required this.size,
+    required this.borderRadius,
+    required this.iconSize,
+    this.assetPath,
+  });
+
+  final IconData icon;
+  final double size;
+  final double borderRadius;
+  final double iconSize;
+  final String? assetPath;
+
+  @override
+  Widget build(BuildContext context) {
+    final path = assetPath;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(borderRadius),
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: path == null
+            ? ColoredBox(
+                color: const Color(0xFFFFEDF7),
+                child: Icon(
+                  icon,
+                  color: SettingsSupportPage._brand,
+                  size: iconSize,
+                ),
+              )
+            : Image.asset(path, fit: BoxFit.cover),
       ),
     );
   }
@@ -713,12 +804,14 @@ class _SupportActionRow extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.trailing,
+    this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final String trailing;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -726,6 +819,7 @@ class _SupportActionRow extends StatelessWidget {
       icon: icon,
       title: title,
       subtitle: subtitle,
+      onTap: onTap,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -787,63 +881,69 @@ class _SupportBaseRow extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.trailing,
+    this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final Widget trailing;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFF6FB),
-              borderRadius: BorderRadius.circular(10),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF6FB),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: SettingsSupportPage._brand, size: 20),
             ),
-            child: Icon(icon, color: SettingsSupportPage._brand, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: SettingsSupportPage._ink,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: SettingsSupportPage._ink,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: SettingsSupportPage._muted,
-                    fontSize: 12,
-                    height: 1.25,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0,
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: SettingsSupportPage._muted,
+                      fontSize: 12,
+                      height: 1.25,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          trailing,
-        ],
+            const SizedBox(width: 8),
+            trailing,
+          ],
+        ),
       ),
     );
   }
