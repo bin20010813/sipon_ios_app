@@ -176,9 +176,7 @@ const Map<String, String> _englishText = {
   '我的': 'Profile',
   '消息': 'Messages',
   '设置': 'Settings',
-  '欢迎来到 SipOn': 'Welcome to SipOn',
-  '记录每一次微醺。':
-      'keep tracking every drink.',
+  '开饮 就现在': 'Turn the SIP ON',
   '用户名': 'Username',
   '请输入用户名': 'Enter username',
   '密码': 'Password',

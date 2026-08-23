@@ -47,8 +47,9 @@ dev_dependencies:
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
-  # rules and activating additional ones.
+  # rules and activating additional lints.
   flutter_lints: ^6.0.0
+  flutter_native_splash: ^2.4.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -111,6 +112,15 @@ flutter:
     - assest/我的/安全@3x.png
     - assest/我的/设置@3x.png
 
+  fonts:
+    - family: Dubai
+      fonts:
+        - asset: assets/fonts/Dubai-Bold.ttf
+          weight: 700
+    - family: Microsoft YaHei
+      fonts:
+        - asset: assets/fonts/Microsoft-YaHei.ttc
+
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
 
@@ -136,3 +146,12 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+flutter_native_splash:
+  color: "#ffffff"
+  image_android: "assest/logo.png"
+  image_ios: "assest/logo.png"
+  android_12:
+    color: "#ffffff"
+  ios: true
+  web: false

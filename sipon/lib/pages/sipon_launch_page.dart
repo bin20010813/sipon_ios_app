@@ -19,6 +19,7 @@ class SiponLaunchPage extends StatefulWidget {
 }
 
 class _SiponLaunchPageState extends State<SiponLaunchPage> {
+  static const _brandColor = Color(0xFF563E5C);
   bool _leaving = false;
   bool _scheduled = false;
 
@@ -71,49 +72,77 @@ class _SiponLaunchPageState extends State<SiponLaunchPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  AnimatedOpacity(
-                    opacity: _leaving ? 0 : 1,
-                    duration: const Duration(milliseconds: 220),
-                    child: Image.asset(
-                      'assest/app_name.png',
-                      width: 178,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                  const SizedBox(width: 7),
-                  widget.animateLogoToLogin
-                      ? logo
-                      : AnimatedOpacity(
-                          opacity: _leaving ? 0 : 1,
-                          duration: const Duration(milliseconds: 220),
-                          child: logo,
+        child: Stack(
+          children: [
+            Center(
+              child: Transform.translate(
+                offset: const Offset(0, -34),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    widget.animateLogoToLogin
+                        ? logo
+                        : AnimatedOpacity(
+                            opacity: _leaving ? 0 : 1,
+                            duration: const Duration(milliseconds: 220),
+                            child: logo,
+                          ),
+                    const SizedBox(height: 24),
+                    AnimatedOpacity(
+                      opacity: _leaving ? 0 : 1,
+                      duration: const Duration(milliseconds: 220),
+                      child: const Text(
+                        'Sip’On',
+                        style: TextStyle(
+                          color: _brandColor,
+                          fontFamily: 'Dubai',
+                          fontSize: 42,
+                          fontWeight: FontWeight.w700,
+                          height: 1,
                         ),
-                ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    AnimatedOpacity(
+                      opacity: _leaving ? 0 : 1,
+                      duration: const Duration(milliseconds: 220),
+                      child: const Text(
+                        '酒吧地图',
+                        style: TextStyle(
+                          color: _brandColor,
+                          fontFamily: 'Microsoft YaHei',
+                          fontSize: 26,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 2.5,
+                          height: 1.1,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 30),
-              AnimatedOpacity(
+            ),
+            Positioned(
+              left: 24,
+              right: 24,
+              bottom: 34,
+              child: AnimatedOpacity(
                 opacity: _leaving ? 0 : 1,
                 duration: const Duration(milliseconds: 220),
                 child: const Text(
-                  '发现身边好酒吧',
+                  '杭州探极科技有限公司',
+                  textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Color(0xFF9A3D78),
-                    fontSize: 24,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0,
+                    color: _brandColor,
+                    fontFamily: 'Microsoft YaHei',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
+                    letterSpacing: 0.4,
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

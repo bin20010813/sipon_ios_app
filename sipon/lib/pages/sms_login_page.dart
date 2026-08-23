@@ -127,24 +127,35 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
                               ),
                             ),
                             const SizedBox(height: 24),
-                            Text(
-                              text.t('欢迎来到 SipOn'),
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Color(0xFF292B32),
-                                fontSize: 28,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Text(
-                              text.t('记录每一次微醺。'),
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Color(0xFF8E8790),
-                                fontSize: 14,
-                                height: 1.45,
-                                fontWeight: FontWeight.w500,
+                            const SizedBox(
+                              width: 220,
+                              child: Column(
+                                children: [
+                                  Text(
+                                    'Turn the SIP ON',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Color(0xFF292B32),
+                                      fontFamily: 'Dubai',
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.w700,
+                                      height: 1,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    '开饮   就现在',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Color(0xFF292B32),
+                                      fontFamily: 'Microsoft YaHei',
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 4.1,
+                                      height: 1.15,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
@@ -267,6 +278,7 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
       onSubmitted: onSubmitted,
       decoration: InputDecoration(
         hintText: hint,
+        hintStyle: const TextStyle(color: Color(0xFFAAA3AA)),
         prefixIcon: Icon(icon, size: 21, color: const Color(0xFF8E8790)),
         suffixIcon: suffixIcon,
         filled: true,
