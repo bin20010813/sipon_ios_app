@@ -60,12 +60,20 @@ class SiponAppText {
       return direct;
     }
 
-    if (source.startsWith('地图数据加载失败:')) {
-      return '${t('地图数据加载失败')}:${source.substring('地图数据加载失败:'.length)}';
-    }
-
     if (source.startsWith('使用本地示例数据:')) {
       return '${t('使用本地示例数据')}:${source.substring('使用本地示例数据:'.length)}';
+    }
+
+    // 地图页的距离文案由视野中心实时算出来（mapFormatDistance），取值无穷多，
+    // 没法逐条列进 _englishText，按格式转。
+    final kilometreMatch = RegExp(r'^约(\d+(?:\.\d+)?)km$').firstMatch(source);
+    if (kilometreMatch != null) {
+      return 'About ${kilometreMatch.group(1)} km';
+    }
+
+    final metreMatch = RegExp(r'^约(\d+)m$').firstMatch(source);
+    if (metreMatch != null) {
+      return 'About ${metreMatch.group(1)} m';
     }
 
     final screenshotMatch = RegExp(r'^截图 (\d+)$').firstMatch(source);
@@ -338,6 +346,11 @@ const Map<String, String> _englishText = {
   '接口未返回可展示酒吧': 'The API returned no displayable bars',
   '地址待补充': 'Address pending',
   '距离待计算': 'Distance pending',
+  '收起地点详情': 'Close place details',
+  '在地图中查看': 'Show on map',
+  '类型': 'Type',
+  '距离': 'Distance',
+  '地点位置': 'Location',
   '未命名酒吧': 'Unnamed Bar',
   '搜索喜欢的酒或者酒吧...': 'Search drinks or bars...',
   '记录每一次微醺': 'Record every tipsy moment',
@@ -368,8 +381,10 @@ const Map<String, String> _englishText = {
   '回到总览': 'Overview',
   '聚焦城区': 'Focus Downtown',
   '等待地图': 'Waiting for map',
-  '正在加载 marker、GeoJSON 与热力图': 'Loading markers, GeoJSON, and heatmap',
+  '正在加载地图数据': 'Loading map data',
   '地图数据已加载': 'Map data loaded',
+  '当前视野暂无可展示酒吧': 'No bars in this area yet',
+  '试着缩小地图或者换个分类看看': 'Try zooming out or picking another category',
   '浅色': 'Light',
   '标准': 'Standard',
   '街道': 'Streets',
@@ -378,6 +393,15 @@ const Map<String, String> _englishText = {
   '全部': 'All',
   '点位': 'Points',
   '热力': 'Heatmap',
+  '标签': 'Labels',
+  '开': 'On',
+  '关': 'Off',
+  '已缩小到城市视野，当前只画热力图': 'Zoomed out to city view — heatmap only',
+  // 地图 mock 数据按类型派生的标签，补齐还没出现过的几条。
+  '自酿啤酒': 'House Brew',
+  '微醺小食': 'Small Bites',
+  '电音': 'Electronic',
+  '乐队演出': 'Band Shows',
   '上海市黄浦区复兴中路 579': '579 Fuxing Middle Rd, Huangpu, Shanghai',
   '约2.0km': 'About 2.0 km',
   '约1.7km': 'About 1.7 km',

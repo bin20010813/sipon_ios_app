@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sipon/main.dart';
 import 'package:sipon/pages/language_transform.dart';
-import 'package:sipon/pages/map_page.dart';
 import 'package:sipon/pages/profile_page.dart';
 import 'package:sipon/services/sipon_api_config.dart';
 import 'package:sipon/services/sipon_api_models.dart';
@@ -27,16 +26,16 @@ void main() {
 
     expect(controller.language, SiponLanguage.zh);
 
-    await tester.drag(find.byType(CustomScrollView), const Offset(0, -520));
+    await tester.tap(find.byIcon(Icons.settings_outlined));
     await tester.pumpAndSettle();
 
     expect(find.text('语言翻译'), findsOneWidget);
 
-    await tester.tap(find.text('英文'));
+    await tester.tap(find.text('En'));
     await tester.pumpAndSettle();
 
     expect(controller.language, SiponLanguage.en);
-    expect(find.text('Language'), findsWidgets);
+    expect(find.text('Language'), findsOneWidget);
     expect(find.text('Account Security'), findsOneWidget);
   });
 
@@ -93,15 +92,6 @@ void main() {
     expect(query['east'], 121.49);
     expect(query['north'], 31.24);
     expect(query['zoom'], 15);
-  });
-
-  test('map marker label limit grows with zoom level', () {
-    expect(mapMarkerLabelLimitForZoom(5), 24);
-    expect(mapMarkerLabelLimitForZoom(9.5), 48);
-    expect(mapMarkerLabelLimitForZoom(11), 80);
-    expect(mapMarkerLabelLimitForZoom(13), 120);
-    expect(mapMarkerLabelLimitForZoom(15.05), 180);
-    expect(mapMarkerLabelLimitForZoom(17), 260);
   });
 
   test('api config keeps admin token out of normal headers', () {

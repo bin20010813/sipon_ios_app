@@ -1,15 +1,34 @@
 import 'dart:async';
-import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart' hide Visibility;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
-import '../services/sipon_api_models.dart';
+import '../services/map/map_data_controller.dart';
+import '../services/map/map_display_options.dart';
+import '../services/map/map_models.dart';
+import '../services/map/map_scene_controller.dart';
+import '../services/map/map_venue_repository.dart';
+import '../services/map/map_viewport.dart';
+import '../services/map/mock_map_venue_repository.dart';
+import '../services/map/venue_sheet_controller.dart';
 import '../services/sipon_city_controller.dart';
-import '../services/sipon_data_repository.dart';
+import '../widgets/map/map_controls.dart';
+import '../widgets/map/map_tools_sheet.dart';
+import '../widgets/map/venue_sheet.dart';
 import '../widgets/sipon_city_picker.dart';
 import 'language_transform.dart';
 
+/// 地图数据源开关。后端接口就绪后改成 false 就切到 [SiponApiMapVenueRepository]，
+/// 页面代码一行都不用动。
+const bool _useMockMapData = true;
+
+/// 地图页只做组装：把三个控制器接到一起，再把它们的状态摊给几个展示组件。
+///
+/// 真正的逻辑分别在：
+/// - [MapDataController]：有哪些酒吧、选中哪个、筛选了什么；
+/// - [MapSceneController]：Mapbox 的样式、图层、annotation、相机、装饰物；
+/// - [VenueSheetController]：详情面板的 extent 与吸附档位。
 class MapPage extends StatefulWidget {
   const MapPage({super.key, this.bottomOverlayInset = 0});
 
@@ -20,599 +39,198 @@ class MapPage extends StatefulWidget {
 }
 
 class _MapPageState extends State<MapPage> {
-  static const double _initialZoom = 15.05;
-  static const String _geoJsonSourceId = 'sipon_geojson_points_source';
-  static const String _heatmapSourceId = 'sipon_heatmap_points_source';
-  static const String _geoJsonCircleLayerId = 'sipon_geojson_points_circle';
-  static const String _heatmapLayerId = 'sipon_points_heatmap';
-  static const String _markerAnnotationManagerId = 'sipon_marker_annotations';
-  static const Duration _cameraReloadDelay = Duration(milliseconds: 450);
+  /// 收起态下地图 logo / 版权信息的下边距：正好落在悬浮卡片上方。
+  static const double _collapsedOrnamentMargin = 184;
 
-  MapboxMap? _mapboxMap;
-  PointAnnotationManager? _markerManager;
-  Cancelable? _markerTapCancelable;
-  Timer? _cameraReloadTimer;
+  /// 定位按钮距面板顶边与右边的间距。
+  static const double _locateButtonGap = 12;
+  static const double _locateButtonRightInset = 18;
+
+  late final MapDataController _data;
+  late final MapSceneController _scene;
+  final VenueSheetController _sheet = VenueSheetController();
+
   SiponCityController? _cityController;
-  String? _lastFocusedCity;
 
-  final SiponDataRepository _repository = SiponDataRepository.instance;
-
-  MapboxStyle _currentStyle = MapboxStyle.light;
-  MapLayerMode _layerMode = MapLayerMode.pointsAndHeatmap;
-  MapLoadingState _loadingState = MapLoadingState.waiting;
-
-  bool _isLoadingMapData = false;
-  bool _queuedMapDataReload = false;
-  bool _markersLoaded = false;
-  bool _geoJsonLoaded = false;
-  bool _heatmapLoaded = false;
-  int _selectedCategoryIndex = 0;
-  List<MapVenue> _venues = _fallbackFeaturedVenues;
-  List<MapPoint> _markerPlaces = _buildMarkerPoints(
-    _fallbackFeaturedVenues,
-    zoom: _initialZoom,
-  );
-  List<MapPoint> _geoJsonPoints = _buildMarkerPoints(
-    _fallbackFeaturedVenues,
-    zoom: _initialZoom,
-  );
-  List<MapPoint> _heatmapPoints = _buildHeatmapPoints(
-    _buildMarkerPoints(_fallbackFeaturedVenues, zoom: _initialZoom),
-  );
-  MapVenue _selectedVenue = _fallbackFeaturedVenues.first;
-  String? _selectedPointName;
-  String? _statusMessage;
+  @override
+  void initState() {
+    super.initState();
+    _data = MapDataController(
+      repository: _useMockMapData
+          ? MockMapVenueRepository()
+          : SiponApiMapVenueRepository(),
+      city: SiponCityController.defaultCity,
+    )..addListener(_handleDataChanged);
+    _scene = MapSceneController(
+      onViewportSettled: _handleViewportSettled,
+      onVenueTapped: _handleVenueTapped,
+      // 点地图空白处就收起面板。原来这里毫无反应。
+      onBlankTapped: _sheet.collapse,
+    );
+    _sheet.addListener(_handleSheetStage);
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+
     final cityController = SiponCityScope.controllerOf(context);
-    if (_cityController == cityController) {
-      return;
+    if (_cityController != cityController) {
+      _cityController?.removeListener(_handleCityChanged);
+      _cityController = cityController..addListener(_handleCityChanged);
+      _handleCityChanged();
     }
 
-    _cityController?.removeListener(_handleCityChanged);
-    _cityController = cityController..addListener(_handleCityChanged);
-    _handleCityChanged();
+    // 语言也是一条依赖：marker 的文字标签在这一层翻译好再交给地图，
+    // 所以切换语言要重新下发一帧。
+    unawaited(_pushFrame());
   }
 
   @override
   void dispose() {
-    _cameraReloadTimer?.cancel();
     _cityController?.removeListener(_handleCityChanged);
-    _discardMarkerManager();
-    _mapboxMap = null;
+    _sheet.removeListener(_handleSheetStage);
+    _data.removeListener(_handleDataChanged);
+    _scene.detach();
+    _sheet.dispose();
+    _data.dispose();
     super.dispose();
   }
 
-  Future<void> _onMapCreated(MapboxMap mapboxMap) async {
-    _mapboxMap = mapboxMap;
-    await _configureMap(mapboxMap);
+  // ------------------------------------------------------------ 地图生命周期
+
+  Future<void> _handleMapCreated(MapboxMap map) async {
+    await _scene.attach(map, city: _data.city);
+    await _applyStage(focusSelection: false);
   }
 
-  Future<void> _onStyleLoaded(StyleLoadedEventData _) async {
-    final mapboxMap = _mapboxMap;
-    if (mapboxMap == null) {
+  /// 样式加载完成（首次进入、或切了底图）：source / layer / annotation 都没了，
+  /// 重新下发当前这一帧，并按当前视野补一次取数。
+  Future<void> _handleStyleLoaded(StyleLoadedEventData event) async {
+    _scene.handleStyleLoaded();
+    await _pushFrame();
+
+    final viewport = await _scene.readViewport();
+    if (viewport == null || !mounted) {
       return;
     }
 
-    await _loadMapData(mapboxMap);
+    await _data.syncViewport(viewport);
   }
 
-  void _handleMapIdle(MapIdleEventData data) {
-    final mapboxMap = _mapboxMap;
-    if (mapboxMap == null || _loadingState == MapLoadingState.waiting) {
+  void _handleMapIdle(MapIdleEventData event) => _scene.handleMapIdle();
+
+  /// 相机停稳（已在 [MapSceneController] 里去抖）。视野有没有实质变化由
+  /// [MapViewport.differsMateriallyFrom] 说了算，所以自己的 `flyTo` 不会引起重拉，
+  /// 也就不再需要原来的 `_skipNextIdleReload` 标志位。
+  void _handleViewportSettled(MapViewport viewport) {
+    unawaited(_data.syncViewport(viewport));
+  }
+
+  // ---------------------------------------------------------------- 状态联动
+
+  void _handleDataChanged() {
+    if (!mounted) {
       return;
     }
 
-    unawaited(_loadMapData(mapboxMap));
+    // 界面部分由 ListenableBuilder 自己重建，这里只负责把新的一帧交给地图。
+    unawaited(_pushFrame());
   }
 
-  void _handleCameraChange(CameraChangedEventData data) {
-    final mapboxMap = _mapboxMap;
-    if (mapboxMap == null || _loadingState == MapLoadingState.waiting) {
+  /// 把当前数据整帧交给地图。[MapSceneController] 自己比指纹决定要不要真下发。
+  Future<void> _pushFrame() async {
+    if (!_scene.isAttached) {
       return;
     }
 
-    _cameraReloadTimer?.cancel();
-    _cameraReloadTimer = Timer(_cameraReloadDelay, () {
-      final currentMap = _mapboxMap;
-      if (mounted && currentMap != null) {
-        unawaited(_loadMapData(currentMap));
-      }
-    });
-  }
-
-  Future<void> _configureMap(MapboxMap mapboxMap) async {
-    final city = _cityController?.city ?? SiponCityController.defaultCity;
-    _lastFocusedCity = city;
-    await mapboxMap.setCamera(_cameraForCity(city));
-    await mapboxMap.compass.updateSettings(
-      CompassSettings(
-        enabled: false,
-        position: OrnamentPosition.TOP_RIGHT,
-        marginTop: 20,
-        marginRight: 16,
-      ),
-    );
-    await mapboxMap.scaleBar.updateSettings(
-      ScaleBarSettings(
-        enabled: false,
-        position: OrnamentPosition.BOTTOM_LEFT,
-        marginLeft: 16,
-        marginBottom: 250 + widget.bottomOverlayInset,
-      ),
-    );
-    await mapboxMap.logo.updateSettings(
-      LogoSettings(
-        position: OrnamentPosition.BOTTOM_LEFT,
-        marginLeft: 12,
-        marginBottom: 184 + widget.bottomOverlayInset,
-      ),
-    );
-    await mapboxMap.attribution.updateSettings(
-      AttributionSettings(
-        position: OrnamentPosition.BOTTOM_RIGHT,
-        marginRight: 12,
-        marginBottom: 184 + widget.bottomOverlayInset,
-      ),
-    );
-    await mapboxMap.gestures.updateSettings(
-      GesturesSettings(
-        rotateEnabled: true,
-        pinchToZoomEnabled: true,
-        scrollEnabled: true,
-      ),
-    );
-  }
-
-  Future<void> _loadMapData(MapboxMap mapboxMap) async {
-    if (_isLoadingMapData) {
-      _queuedMapDataReload = true;
-      return;
-    }
-
-    _isLoadingMapData = true;
-    final firstLoad = _loadingState == MapLoadingState.waiting;
-
-    if (firstLoad) {
-      setState(() {
-        _loadingState = MapLoadingState.loading;
-        _markersLoaded = false;
-        _geoJsonLoaded = false;
-        _heatmapLoaded = false;
-        _statusMessage = null;
-      });
-    }
-
-    try {
-      String? statusMessage;
-      try {
-        final apiData = await _fetchVisibleMapData(mapboxMap);
-        if (apiData.venues.isEmpty) {
-          _replaceMapData(_fallbackFeaturedVenues, zoom: apiData.zoom);
-          statusMessage = '使用本地示例数据: 接口未返回可展示酒吧';
-        } else {
-          _replaceMapData(apiData.venues, zoom: apiData.zoom);
-        }
-      } catch (error) {
-        final cameraState = await mapboxMap.getCameraState();
-        _replaceMapData(_fallbackFeaturedVenues, zoom: cameraState.zoom);
-        statusMessage = '使用本地示例数据: $error';
-      }
-
-      await _addMarkerAnnotations(mapboxMap);
-      await _addGeoJsonPointLayer(mapboxMap);
-      await _addHeatmapLayer(mapboxMap);
-      await _applyLayerMode();
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _loadingState = MapLoadingState.loaded;
-        _markersLoaded = true;
-        _geoJsonLoaded = true;
-        _heatmapLoaded = true;
-        _statusMessage = statusMessage;
-      });
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      if (firstLoad) {
-        setState(() {
-          _loadingState = MapLoadingState.failed;
-          _statusMessage = '地图数据加载失败: $error';
-        });
-      } else {
-        setState(() {
-          _statusMessage = '地图数据刷新失败: $error';
-        });
-      }
-    } finally {
-      _isLoadingMapData = false;
-      if (_queuedMapDataReload && mounted) {
-        _queuedMapDataReload = false;
-        final currentMap = _mapboxMap;
-        if (currentMap != null) {
-          unawaited(_loadMapData(currentMap));
-        }
-      }
-    }
-  }
-
-  Future<_VisibleMapData> _fetchVisibleMapData(MapboxMap mapboxMap) async {
-    final cameraState = await mapboxMap.getCameraState();
-    final bounds = await mapboxMap.coordinateBoundsForCamera(
-      cameraState.toCameraOptions(),
-    );
-    final apiBounds = bounds.infiniteBounds
-        ? const SiponMapBounds.china()
-        : SiponMapBounds(
-            west: bounds.southwest.coordinates.lng.toDouble(),
-            south: bounds.southwest.coordinates.lat.toDouble(),
-            east: bounds.northeast.coordinates.lng.toDouble(),
-            north: bounds.northeast.coordinates.lat.toDouble(),
-          );
-    final bars = await _repository.fetchMapBars(
-      bounds: apiBounds,
-      zoom: cameraState.zoom,
-    );
-
-    return _VisibleMapData(
-      zoom: cameraState.zoom,
-      venues: [
-        for (var index = 0; index < bars.length; index++)
-          _venueFromApi(bars[index], index),
-      ],
-    );
-  }
-
-  void _replaceMapData(List<MapVenue> venues, {required double zoom}) {
-    final displayPoints = _buildMarkerPoints(venues, zoom: zoom);
-    _venues = venues;
-    _markerPlaces = displayPoints;
-    _geoJsonPoints = displayPoints;
-    _heatmapPoints = _buildHeatmapPoints(_geoJsonPoints);
-    _selectedVenue = venues.firstWhere(
-      (venue) => venue.id == _selectedVenue.id,
-      orElse: () => venues.first,
-    );
-  }
-
-  Future<void> _addMarkerAnnotations(MapboxMap mapboxMap) async {
     final text = SiponLanguageScope.textOf(context);
-    final manager = await _ensureMarkerManager(mapboxMap);
-    await manager.deleteAll();
 
-    final markerOptions = _markerPlaces
-        .map(
-          (place) => PointAnnotationOptions(
-            geometry: place.point,
-            iconImage: 'marker-15',
-            iconSize: 1.35,
-            iconAnchor: IconAnchor.BOTTOM,
-            textField: text.t(place.name),
-            textSize: 12,
-            textOffset: const [0, 1.15],
-            textAnchor: TextAnchor.TOP,
-            textColor: const Color(0xFF0F172A).toARGB32(),
-            textHaloColor: Colors.white.toARGB32(),
-            textHaloWidth: 1.5,
-            customData: {
-              'id': place.id,
-              'name': place.name,
-              'kind': place.kind,
-            },
-          ),
-        )
-        .toList();
-
-    await manager.createMulti(markerOptions);
-  }
-
-  Future<PointAnnotationManager> _ensureMarkerManager(
-    MapboxMap mapboxMap,
-  ) async {
-    final existingManager = _markerManager;
-    if (existingManager != null) {
-      return existingManager;
-    }
-
-    final manager = await mapboxMap.annotations.createPointAnnotationManager(
-      id: _markerAnnotationManagerId,
-    );
-    _markerManager = manager;
-
-    await manager.setIconAllowOverlap(true);
-    await manager.setTextAllowOverlap(false);
-
-    _markerTapCancelable?.cancel();
-    _markerTapCancelable = manager.tapEvents(
-      onTap: (annotation) {
-        final name = annotation.customData?['name']?.toString();
-        if (mounted && name != null) {
-          final matchingVenue = _venueByName(name);
-          setState(() {
-            _selectedPointName = name;
-            if (matchingVenue != null) {
-              _selectedVenue = matchingVenue;
-            }
-          });
-        }
-      },
-    );
-
-    return manager;
-  }
-
-  void _discardMarkerManager() {
-    _markerTapCancelable?.cancel();
-    _markerTapCancelable = null;
-    _markerManager = null;
-  }
-
-  MapVenue? _venueByName(String name) {
-    for (final venue in _venues) {
-      if (venue.name == name) {
-        return venue;
-      }
-    }
-
-    return null;
-  }
-
-  Future<void> _addGeoJsonPointLayer(MapboxMap mapboxMap) async {
-    await _upsertGeoJsonSource(
-      mapboxMap,
-      sourceId: _geoJsonSourceId,
-      points: _geoJsonPoints,
-    );
-    if (await mapboxMap.style.styleLayerExists(_geoJsonCircleLayerId)) {
-      return;
-    }
-
-    await mapboxMap.style.addLayer(
-      CircleLayer(
-        id: _geoJsonCircleLayerId,
-        sourceId: _geoJsonSourceId,
-        slot: LayerSlot.TOP,
-        circleColorExpression: [
-          'match',
-          ['get', 'category'],
-          'pub',
-          ['rgba', 154, 61, 120, 0.9],
-          'craft',
-          ['rgba', 13, 148, 136, 0.9],
-          'bistro',
-          ['rgba', 37, 99, 235, 0.9],
-          'party',
-          ['rgba', 220, 38, 38, 0.9],
-          'livehouse',
-          ['rgba', 245, 158, 11, 0.9],
-          ['rgba', 71, 85, 105, 0.88],
+    await _scene.render(
+      MapSceneFrame(
+        circlePoints: _data.circlePoints,
+        heatmapPoints: _data.heatmapPoints,
+        markers: [
+          for (final venue in _data.markerVenues)
+            MapMarkerSpec(
+              venueId: venue.id,
+              label: text.t(venue.name),
+              longitude: venue.longitude,
+              latitude: venue.latitude,
+              kind: venue.kind,
+            ),
         ],
-        circleRadiusExpression: [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          9,
-          4,
-          13,
-          7,
-          16,
-          11,
-        ],
-        circleStrokeColor: Colors.white.toARGB32(),
-        circleStrokeWidth: 1.5,
-        circleOpacity: 0.92,
-        circleEmissiveStrength: 0.4,
+        layerMode: _data.layerMode,
+        selected: _data.selectedPoint,
       ),
     );
   }
 
-  Future<void> _addHeatmapLayer(MapboxMap mapboxMap) async {
-    await _upsertGeoJsonSource(
-      mapboxMap,
-      sourceId: _heatmapSourceId,
-      points: _heatmapPoints,
-    );
-    if (await mapboxMap.style.styleLayerExists(_heatmapLayerId)) {
-      return;
-    }
+  /// 面板落定到新档位。**这里是相机与装饰物的唯一触发点**：原来
+  /// `_expandVenueDetails` / `_collapseVenueDetails` / `_settleVenueSheet` /
+  /// `_showSelectedVenueOnMap` 四处各自调一遍 `_focusVenue`。
+  void _handleSheetStage() => unawaited(_applyStage());
 
-    await mapboxMap.style.addLayer(
-      HeatmapLayer(
-        id: _heatmapLayerId,
-        sourceId: _heatmapSourceId,
-        slot: LayerSlot.MIDDLE,
-        maxZoom: 16,
-        heatmapWeightExpression: [
-          'interpolate',
-          ['linear'],
-          ['get', 'weight'],
-          0,
-          0,
-          8,
-          1,
-        ],
-        heatmapIntensityExpression: [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          9,
-          0.7,
-          14,
-          1.6,
-        ],
-        heatmapRadiusExpression: [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          9,
-          16,
-          14,
-          34,
-          16,
-          46,
-        ],
-        heatmapOpacityExpression: [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          10,
-          0.88,
-          15,
-          0.45,
-        ],
-        heatmapColorExpression: const [
-          'interpolate',
-          ['linear'],
-          ['heatmap-density'],
-          0,
-          'rgba(33,102,172,0)',
-          0.2,
-          'rgb(103,169,207)',
-          0.4,
-          'rgb(209,229,240)',
-          0.6,
-          'rgb(253,219,199)',
-          0.8,
-          'rgb(239,138,98)',
-          1,
-          'rgb(178,24,43)',
-        ],
+  Future<void> _applyStage({bool focusSelection = true}) async {
+    final venue = _data.selectedVenue;
+
+    await _scene.applyStage(
+      cameraBottomPadding: _sheet.cameraBottomPadding,
+      ornamentBottomMargin: _sheet.ornamentBottomMargin(
+        _collapsedOrnamentMargin + widget.bottomOverlayInset,
       ),
+      focus: focusSelection && venue != null
+          ? MapLatLng(longitude: venue.longitude, latitude: venue.latitude)
+          : null,
     );
   }
 
-  Future<void> _upsertGeoJsonSource(
-    MapboxMap mapboxMap, {
-    required String sourceId,
-    required List<MapPoint> points,
-  }) async {
-    final data = _buildFeatureCollection(points);
-    if (await mapboxMap.style.styleSourceExists(sourceId)) {
-      await mapboxMap.style.setStyleSourceProperty(sourceId, 'data', data);
+  /// 点中圆点或带标签的 marker。当前档位保持不变：收起态就换卡片，半屏态就换详情。
+  void _handleVenueTapped(String venueId) {
+    if (_data.isSelected(venueId)) {
+      // 已经选中的点再点一次 = 打开详情。
+      _sheet.expand();
       return;
     }
 
-    await mapboxMap.style.addSource(
-      GeoJsonSource(id: sourceId, data: data, generateId: true),
-    );
+    _data.selectVenue(venueId);
+    unawaited(_applyStage());
   }
 
-  Future<void> _applyLayerMode() async {
-    final style = _mapboxMap?.style;
-    if (style == null) {
-      return;
-    }
-
-    await _setLayerVisible(
-      _geoJsonCircleLayerId,
-      _layerMode == MapLayerMode.pointsOnly ||
-          _layerMode == MapLayerMode.pointsAndHeatmap,
-    );
-    await _setLayerVisible(
-      _heatmapLayerId,
-      _layerMode == MapLayerMode.heatmapOnly ||
-          _layerMode == MapLayerMode.pointsAndHeatmap,
-    );
-  }
-
-  Future<void> _setLayerVisible(String layerId, bool visible) async {
-    final style = _mapboxMap?.style;
-    if (style == null || !await style.styleLayerExists(layerId)) {
-      return;
-    }
-
-    await style.setStyleLayerProperty(
-      layerId,
-      'visibility',
-      visible ? 'visible' : 'none',
-    );
-  }
-
-  Future<void> _switchStyle(MapboxStyle style) async {
-    final mapboxMap = _mapboxMap;
-    if (mapboxMap == null || style == _currentStyle) {
-      return;
-    }
-
-    setState(() {
-      _currentStyle = style;
-      _loadingState = MapLoadingState.loading;
-      _markersLoaded = false;
-      _geoJsonLoaded = false;
-      _heatmapLoaded = false;
-      _selectedPointName = null;
-    });
-
-    _discardMarkerManager();
-    await mapboxMap.style.setStyleURI(style.uri);
-  }
-
-  Future<void> _switchLayerMode(MapLayerMode mode) async {
-    setState(() => _layerMode = mode);
-    await _applyLayerMode();
-  }
-
-  Future<void> _resetCamera() async {
-    await _mapboxMap?.flyTo(
-      _overviewCamera,
-      MapAnimationOptions(duration: 700),
-    );
-  }
-
-  Future<void> _focusDowntown() async {
-    await _mapboxMap?.flyTo(
-      _cameraForCity(_cityController?.city ?? SiponCityController.defaultCity),
-      MapAnimationOptions(duration: 800),
-    );
+  /// 详情里的「在地图中查看」：全屏态先退回半屏，让地图露出来再取景。
+  Future<void> _handleShowOnMap() async {
+    await _sheet.settleToHalf();
+    await _applyStage();
   }
 
   void _handleCityChanged() {
-    final mapboxMap = _mapboxMap;
     final city = _cityController?.city ?? SiponCityController.defaultCity;
-    if (mapboxMap == null || city == _lastFocusedCity) {
+    if (city == _data.city) {
       return;
     }
 
-    _lastFocusedCity = city;
-    unawaited(_focusCity(mapboxMap, city));
+    _data.setCity(city);
+    unawaited(_scene.flyToCity(city, zoom: MapSceneController.cityZoom));
   }
 
-  Future<void> _focusCity(MapboxMap mapboxMap, String city) async {
-    setState(() {
-      _loadingState = MapLoadingState.loading;
-      _statusMessage = null;
-    });
+  // ------------------------------------------------------------------ 工具面板
 
-    await mapboxMap.flyTo(
-      _cameraForCity(city),
-      MapAnimationOptions(duration: 760),
-    );
-    await _loadMapData(mapboxMap);
+  Future<void> _handleStyleChanged(MapboxStyle style) async {
+    if (style == _data.style) {
+      return;
+    }
+
+    _data.setStyle(style);
+    await _scene.setStyle(style);
   }
 
-  Future<void> _focusVenue(MapVenue venue) async {
-    await _mapboxMap?.flyTo(
-      CameraOptions(
-        center: _point(venue.longitude, venue.latitude),
-        zoom: 15.4,
-        pitch: 30,
-        bearing: -18,
-      ),
-      MapAnimationOptions(duration: 650),
-    );
-  }
+  /// 「回到总览」：拉回当前城市的默认缩放。原来这里写死的是上海中心。
+  Future<void> _handleResetCamera() =>
+      _scene.flyToCity(_data.city, zoom: MapSceneController.defaultZoom);
 
-  void _selectCategory(int index) {
-    setState(() => _selectedCategoryIndex = index);
-  }
+  /// 「聚焦城区」与右下角定位按钮：城市级视野。
+  Future<void> _handleFocusDowntown() =>
+      _scene.flyToCity(_data.city, zoom: MapSceneController.cityZoom);
 
   Future<void> _showMapTools() async {
     await showModalBottomSheet<void>(
@@ -624,1216 +242,173 @@ class _MapPageState extends State<MapPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
-        return _MapToolsSheet(
-          currentStyle: _currentStyle,
-          currentLayerMode: _layerMode,
-          markersLoaded: _markersLoaded,
-          geoJsonLoaded: _geoJsonLoaded,
-          heatmapLoaded: _heatmapLoaded,
-          selectedPointName: _selectedPointName,
-          statusMessage: _statusMessage,
-          onStyleChanged: _switchStyle,
-          onLayerModeChanged: _switchLayerMode,
-          onResetCamera: _resetCamera,
-          onFocusDowntown: _focusDowntown,
+        // 弹窗内也监听数据：原来它拿的是打开那一刻的快照，切完样式看不出选中变化。
+        return ListenableBuilder(
+          listenable: _data,
+          builder: (context, _) => MapToolsSheet(
+            currentStyle: _data.style,
+            currentLayerMode: _data.layerMode,
+            effectiveLayerMode: _data.effectiveLayerMode,
+            status: _data.status,
+            visibleCount: _data.visibleVenues.length,
+            markerCount: _data.markerVenues.length,
+            failureDetail: _data.failureDetail,
+            onStyleChanged: _handleStyleChanged,
+            onLayerModeChanged: _data.setLayerMode,
+            onResetCamera: _handleResetCamera,
+            onFocusDowntown: _handleFocusDowntown,
+          ),
         );
       },
     );
   }
 
+  // ---------------------------------------------------------------------- 组装
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          MapWidget(
-            key: const ValueKey('sipon_map_widget'),
-            styleUri: _currentStyle.uri,
-            viewport: CameraViewportState(
-              center: _initialCenter,
-              zoom: 11.6,
-              pitch: 24,
-              bearing: -12,
-            ),
-            onMapCreated: _onMapCreated,
-            onStyleLoadedListener: _onStyleLoaded,
-            onCameraChangeListener: _handleCameraChange,
-            onMapIdleListener: _handleMapIdle,
-          ),
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: _MapSearchAndFilters(
-                selectedCategoryIndex: _selectedCategoryIndex,
-                loadingState: _loadingState,
-                statusMessage: _statusMessage,
-                onCategorySelected: _selectCategory,
-                onFilterPressed: _showMapTools,
-              ),
-            ),
-          ),
-          Positioned(
-            right: 18,
-            bottom: widget.bottomOverlayInset + 156,
-            child: _MapLocateButton(onPressed: _focusDowntown),
-          ),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: _SelectedVenueCard(
-              venue: _selectedVenue,
-              bottomOverlayInset: widget.bottomOverlayInset,
-              selectedPointName: _selectedPointName,
-              onTap: () => _focusVenue(_selectedVenue),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final availableHeight = constraints.maxHeight;
+          // 收起态卡片原本浮在导航栏之上，这段间距一并算进面板高度，
+          // 于是同一个面板既能表现"悬浮卡片"，也能表现"贴底面板"。
+          final collapsedBottomGap = math.max(
+            MediaQuery.paddingOf(context).bottom,
+            widget.bottomOverlayInset + 2,
+          );
+          final collapsedExtent = availableHeight <= 0
+              ? 0.2
+              : mapClamp(
+                  (VenueSheetController.collapsedCardHeight +
+                          collapsedBottomGap) /
+                      availableHeight,
+                  0.08,
+                  0.42,
+                );
+          // 布局算出来的数只能从布局来，但由它派生的档位变化会被推到帧末再通知，
+          // 所以这里不会在 build 期触发 setState。
+          _sheet.updateMetrics(
+            availableHeight: availableHeight,
+            collapsedExtent: collapsedExtent,
+          );
 
-class _MapSearchAndFilters extends StatelessWidget {
-  const _MapSearchAndFilters({
-    required this.selectedCategoryIndex,
-    required this.loadingState,
-    required this.statusMessage,
-    required this.onCategorySelected,
-    required this.onFilterPressed,
-  });
-
-  final int selectedCategoryIndex;
-  final MapLoadingState loadingState;
-  final String? statusMessage;
-  final ValueChanged<int> onCategorySelected;
-  final VoidCallback onFilterPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = SiponLanguageScope.textOf(context);
-
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 430),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(26, 10, 26, 0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                const SiponCityButton(
-                  backgroundColor: Color(0xF7FFFFFF),
-                  foregroundColor: _MapDesign.ink,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Material(
-                    color: Colors.white.withValues(alpha: 0.98),
-                    borderRadius: BorderRadius.circular(16),
-                    elevation: 0,
-                    shadowColor: Colors.black26,
-                    child: InkWell(
-                      onTap: () {},
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        height: 44,
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: const Color(0x559A3D78),
-                            width: 1.1,
-                          ),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x1F9A3D78),
-                              blurRadius: 18,
-                              offset: Offset(0, 8),
-                            ),
-                            BoxShadow(
-                              color: Color(0x0F000000),
-                              blurRadius: 8,
-                              offset: Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.search_rounded,
-                              color: Color(0xFF8E7588),
-                              size: 22,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                text.t('搜索喜欢的酒或者酒吧...'),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Color(0xFFA198A0),
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 0,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            SizedBox(
-              height: 40,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                children: [
-                  for (
-                    var index = 0;
-                    index < _mapCategoryFilters.length;
-                    index++
-                  )
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: _MapCategoryPill(
-                        category: _mapCategoryFilters[index],
-                        selected: selectedCategoryIndex == index,
-                        onTap: () => onCategorySelected(index),
-                      ),
-                    ),
-                  _FilterIconPill(onPressed: onFilterPressed),
-                ],
-              ),
-            ),
-            if (loadingState == MapLoadingState.loading ||
-                statusMessage != null) ...[
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.9),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    child: Text(
-                      text.t(statusMessage ?? loadingState.label),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: statusMessage == null
-                            ? _MapDesign.muted
-                            : const Color(0xFFB91C1C),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MapCategoryPill extends StatelessWidget {
-  const _MapCategoryPill({
-    required this.category,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final MapCategory category;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = SiponLanguageScope.textOf(context);
-
-    return Material(
-      color: selected ? _MapDesign.brand : Colors.white.withValues(alpha: 0.96),
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 7, 13, 7),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+          return Stack(
             children: [
-              if (category.iconAsset != null) ...[
-                Image.asset(
-                  category.iconAsset!,
-                  width: 18,
-                  height: 18,
-                  color: selected ? Colors.white : _MapDesign.brand,
-                ),
-                const SizedBox(width: 5),
-              ],
-              Text(
-                text.t(category.label),
-                style: TextStyle(
-                  color: selected ? Colors.white : _MapDesign.ink,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0,
-                ),
+              MapWidget(
+                key: const ValueKey('sipon_map_widget'),
+                // MapWidget 只在创建平台视图时读一次 styleUri，后续切换底图走
+                // MapSceneController.setStyle。
+                styleUri: _data.style.uri,
+                onMapCreated: _handleMapCreated,
+                onStyleLoadedListener: _handleStyleLoaded,
+                onMapIdleListener: _handleMapIdle,
+              ),
+              _buildTopControls(),
+              _buildLocateButton(
+                collapsedExtent: collapsedExtent,
+                availableHeight: availableHeight,
+              ),
+              _buildVenueSheet(
+                collapsedExtent: collapsedExtent,
+                collapsedBottomGap: collapsedBottomGap,
               ),
             ],
-          ),
-        ),
+          );
+        },
       ),
     );
   }
-}
 
-class _FilterIconPill extends StatelessWidget {
-  const _FilterIconPill({required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white.withValues(alpha: 0.96),
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(18),
-        child: SizedBox(
-          width: 42,
-          height: 36,
-          child: Center(
-            child: Image.asset(
-              _MapAssets.filter,
-              width: 20,
-              height: 20,
-              color: _MapDesign.ink,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MapLocateButton extends StatelessWidget {
-  const _MapLocateButton({required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(8),
-      elevation: 0,
-      shadowColor: Colors.black26,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(8),
-        child: const SizedBox(
-          width: 44,
-          height: 44,
-          child: Icon(
-            Icons.my_location_rounded,
-            color: Color(0xFF737176),
-            size: 25,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SelectedVenueCard extends StatelessWidget {
-  const _SelectedVenueCard({
-    required this.venue,
-    required this.bottomOverlayInset,
-    required this.selectedPointName,
-    required this.onTap,
-  });
-
-  final MapVenue venue;
-  final double bottomOverlayInset;
-  final String? selectedPointName;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = SiponLanguageScope.textOf(context);
-
+  Widget _buildTopControls() {
     return SafeArea(
-      minimum: EdgeInsets.fromLTRB(14, 0, 14, bottomOverlayInset + 8),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 430),
-        child: Material(
-          color: Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 8, 18, 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 38,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFD2D0D2),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: _VenueImage(
-                          imageUrl: venue.imageUrl,
-                          assetPath: venue.imageAsset,
-                          width: 90,
-                          height: 102,
-                        ),
-                      ),
-                      const SizedBox(width: 13),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              text.t(venue.name),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: _MapDesign.ink,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0,
-                              ),
-                            ),
-                            const SizedBox(height: 7),
-                            Row(
-                              children: [
-                                Text(
-                                  venue.rating.toStringAsFixed(1),
-                                  style: const TextStyle(
-                                    color: _MapDesign.ink,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 0,
-                                  ),
-                                ),
-                                const SizedBox(width: 3),
-                                const Icon(
-                                  Icons.star_rounded,
-                                  color: _MapDesign.brand,
-                                  size: 15,
-                                ),
-                                const SizedBox(width: 8),
-                                for (final tag in venue.tags.take(2)) ...[
-                                  _VenueTag(label: text.t(tag)),
-                                  const SizedBox(width: 6),
-                                ],
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Icon(
-                                  Icons.location_on_outlined,
-                                  color: _MapDesign.brand,
-                                  size: 17,
-                                ),
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  child: Text(
-                                    text.t(venue.address),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: _MapDesign.muted,
-                                      fontSize: 12,
-                                      letterSpacing: 0,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              text.t(venue.distance),
-                              style: const TextStyle(
-                                color: _MapDesign.muted,
-                                fontSize: 12,
-                                letterSpacing: 0,
-                              ),
-                            ),
-                            if (selectedPointName != null &&
-                                selectedPointName != venue.name) ...[
-                              const SizedBox(height: 5),
-                              Text(
-                                text.t(selectedPointName!),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Color(0xFFB7B0B6),
-                                  fontSize: 10,
-                                  letterSpacing: 0,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ListenableBuilder(
+          listenable: _data,
+          builder: (context, _) => MapSearchAndFilters(
+            selectedKind: _data.categoryFilter,
+            status: _data.status,
+            onCategoryToggled: _data.toggleCategory,
+            onFilterPressed: _showMapTools,
           ),
         ),
       ),
     );
   }
-}
 
-class _VenueImage extends StatelessWidget {
-  const _VenueImage({
-    required this.imageUrl,
-    required this.assetPath,
-    required this.width,
-    required this.height,
-  });
+  /// 定位按钮跟面板共用同一个 extent，拖动过程中连续跟随而不是瞬移。
+  Widget _buildLocateButton({
+    required double collapsedExtent,
+    required double availableHeight,
+  }) {
+    return Positioned.fill(
+      child: ValueListenableBuilder<double>(
+        valueListenable: _sheet.extent,
+        builder: (context, rawExtent, child) {
+          final extent = rawExtent <= 0 ? collapsedExtent : rawExtent;
 
-  final String? imageUrl;
-  final String assetPath;
-  final double width;
-  final double height;
-
-  @override
-  Widget build(BuildContext context) {
-    final url = imageUrl;
-    if (url != null && url.isNotEmpty) {
-      return Image.network(
-        url,
-        width: width,
-        height: height,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => _assetImage(),
-      );
-    }
-
-    return _assetImage();
-  }
-
-  Widget _assetImage() {
-    return Image.asset(
-      assetPath,
-      width: width,
-      height: height,
-      fit: BoxFit.cover,
+          return Align(
+            alignment: Alignment.bottomRight,
+            child: Transform.translate(
+              offset: Offset(
+                -_locateButtonRightInset,
+                -(extent * availableHeight + _locateButtonGap),
+              ),
+              child: child,
+            ),
+          );
+        },
+        child: MapLocateButton(onPressed: _handleFocusDowntown),
+      ),
     );
   }
-}
 
-class _VenueTag extends StatelessWidget {
-  const _VenueTag({required this.label});
+  Widget _buildVenueSheet({
+    required double collapsedExtent,
+    required double collapsedBottomGap,
+  }) {
+    return Positioned.fill(
+      child: NotificationListener<DraggableScrollableNotification>(
+        onNotification: _sheet.handleNotification,
+        child: DraggableScrollableSheet(
+          controller: _sheet.sheet,
+          initialChildSize: collapsedExtent,
+          minChildSize: collapsedExtent,
+          maxChildSize: VenueSheetController.maxExtent,
+          snap: true,
+          snapSizes: const [VenueSheetController.halfExtent],
+          snapAnimationDuration: VenueSheetController.motionDuration,
+          builder: (context, scrollController) {
+            // builder 只在面板重建时调用，缓存下来供收起时归零滚动位置。
+            _sheet.attachScrollController(scrollController);
 
-  final String label;
+            // 两条来源不同的重建：数据换了（选中的酒吧、内容）走 _data，
+            // 拖拽过程中的形变走 extent。
+            return ListenableBuilder(
+              listenable: _data,
+              builder: (context, _) => ValueListenableBuilder<double>(
+                valueListenable: _sheet.extent,
+                builder: (context, rawExtent, _) {
+                  final extent = rawExtent <= 0 ? collapsedExtent : rawExtent;
 
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFE8F6),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-        child: Text(
-          label,
-          style: const TextStyle(
-            color: _MapDesign.brand,
-            fontSize: 9,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0,
-          ),
+                  return VenueSheetSurface(
+                    venue: _data.selectedVenue,
+                    scrollController: scrollController,
+                    progress: _sheet.progressFor(extent),
+                    fullscreenProgress: _sheet.fullscreenProgressFor(extent),
+                    collapsedBottomGap: collapsedBottomGap,
+                    bottomOverlayInset: widget.bottomOverlayInset,
+                    onExpand: _sheet.expand,
+                    onCollapse: _sheet.collapse,
+                    onShowOnMap: _handleShowOnMap,
+                  );
+                },
+              ),
+            );
+          },
         ),
       ),
     );
   }
 }
-
-class _MapToolsSheet extends StatelessWidget {
-  const _MapToolsSheet({
-    required this.currentStyle,
-    required this.currentLayerMode,
-    required this.markersLoaded,
-    required this.geoJsonLoaded,
-    required this.heatmapLoaded,
-    required this.selectedPointName,
-    required this.statusMessage,
-    required this.onStyleChanged,
-    required this.onLayerModeChanged,
-    required this.onResetCamera,
-    required this.onFocusDowntown,
-  });
-
-  final MapboxStyle currentStyle;
-  final MapLayerMode currentLayerMode;
-  final bool markersLoaded;
-  final bool geoJsonLoaded;
-  final bool heatmapLoaded;
-  final String? selectedPointName;
-  final String? statusMessage;
-  final ValueChanged<MapboxStyle> onStyleChanged;
-  final ValueChanged<MapLayerMode> onLayerModeChanged;
-  final VoidCallback onResetCamera;
-  final VoidCallback onFocusDowntown;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = SiponLanguageScope.textOf(context);
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            text.t('地图工具'),
-            style: const TextStyle(
-              color: _MapDesign.ink,
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0,
-            ),
-          ),
-          const SizedBox(height: 18),
-          _ToolSection(
-            title: text.t('地图样式'),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final style in MapboxStyle.values)
-                  _StyleOption(
-                    label: text.t(style.label),
-                    selected: style == currentStyle,
-                    onTap: () => onStyleChanged(style),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          _ToolSection(
-            title: text.t('数据图层'),
-            child: SegmentedButton<MapLayerMode>(
-              segments: MapLayerMode.values
-                  .map(
-                    (mode) => ButtonSegment<MapLayerMode>(
-                      value: mode,
-                      icon: Icon(mode.icon),
-                      label: Text(text.t(mode.label)),
-                    ),
-                  )
-                  .toList(),
-              selected: {currentLayerMode},
-              showSelectedIcon: false,
-              onSelectionChanged: (selection) =>
-                  onLayerModeChanged(selection.first),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _LayerStatusChip(
-                label: 'marker',
-                loaded: markersLoaded,
-                color: _MapDesign.brand,
-              ),
-              _LayerStatusChip(
-                label: 'geojson',
-                loaded: geoJsonLoaded,
-                color: const Color(0xFF10B981),
-              ),
-              _LayerStatusChip(
-                label: 'heatmap',
-                loaded: heatmapLoaded,
-                color: const Color(0xFFDC2626),
-              ),
-            ],
-          ),
-          if (selectedPointName != null || statusMessage != null) ...[
-            const SizedBox(height: 14),
-            Text(
-              text.t(statusMessage ?? selectedPointName!),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: statusMessage == null
-                    ? _MapDesign.muted
-                    : const Color(0xFFB91C1C),
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0,
-              ),
-            ),
-          ],
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: _ToolActionButton(
-                  label: text.t('回到总览'),
-                  icon: Icons.my_location_outlined,
-                  onTap: onResetCamera,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _ToolActionButton(
-                  label: text.t('聚焦城区'),
-                  icon: Icons.center_focus_strong_outlined,
-                  onTap: onFocusDowntown,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ToolSection extends StatelessWidget {
-  const _ToolSection({required this.title, required this.child});
-
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: _MapDesign.ink,
-            fontSize: 14,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0,
-          ),
-        ),
-        const SizedBox(height: 10),
-        child,
-      ],
-    );
-  }
-}
-
-class _StyleOption extends StatelessWidget {
-  const _StyleOption({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => onTap(),
-      selectedColor: _MapDesign.brand,
-      labelStyle: TextStyle(
-        color: selected ? Colors.white : _MapDesign.ink,
-        fontSize: 12,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 0,
-      ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      side: BorderSide(
-        color: selected ? _MapDesign.brand : const Color(0xFFECE6EA),
-      ),
-    );
-  }
-}
-
-class _ToolActionButton extends StatelessWidget {
-  const _ToolActionButton({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return FilledButton.tonalIcon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 18),
-      label: Text(label),
-      style: FilledButton.styleFrom(
-        backgroundColor: const Color(0xFFFFEDF7),
-        foregroundColor: _MapDesign.brand,
-        textStyle: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0,
-        ),
-      ),
-    );
-  }
-}
-
-class _LayerStatusChip extends StatelessWidget {
-  const _LayerStatusChip({
-    required this.label,
-    required this.loaded,
-    required this.color,
-  });
-
-  final String label;
-  final bool loaded;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: loaded ? color.withValues(alpha: 0.11) : const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: loaded
-              ? color.withValues(alpha: 0.26)
-              : const Color(0xFFE2E8F0),
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            loaded ? Icons.check_circle : Icons.pending_outlined,
-            size: 15,
-            color: loaded ? color : const Color(0xFF94A3B8),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              color: loaded ? const Color(0xFF0F172A) : const Color(0xFF64748B),
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-enum MapLoadingState {
-  waiting('等待地图'),
-  loading('正在加载 marker、GeoJSON 与热力图'),
-  loaded('地图数据已加载'),
-  failed('地图数据加载失败');
-
-  const MapLoadingState(this.label);
-
-  final String label;
-}
-
-enum MapboxStyle {
-  light('浅色', MapboxStyles.LIGHT),
-  standard('标准', MapboxStyles.STANDARD),
-  streets('街道', MapboxStyles.MAPBOX_STREETS),
-  satellite('卫星', MapboxStyles.SATELLITE_STREETS),
-  dark('暗色', MapboxStyles.DARK);
-
-  const MapboxStyle(this.label, this.uri);
-
-  final String label;
-  final String uri;
-}
-
-enum MapLayerMode {
-  pointsAndHeatmap('全部', Icons.layers_outlined),
-  pointsOnly('点位', Icons.scatter_plot_outlined),
-  heatmapOnly('热力', Icons.local_fire_department_outlined);
-
-  const MapLayerMode(this.label, this.icon);
-
-  final String label;
-  final IconData icon;
-}
-
-class _MapDesign {
-  const _MapDesign._();
-
-  static const Color brand = Color(0xFF9A3D78);
-  static const Color ink = Color(0xFF252229);
-  static const Color muted = Color(0xFF9B939B);
-}
-
-class _MapAssets {
-  const _MapAssets._();
-
-  static const String pub = 'assest/地图/清吧 默认@3x.png';
-  static const String livehouse = 'assest/地图/Livehouse 默认@3x.png';
-  static const String craft = 'assest/地图/精酿 默认@3x.png';
-  static const String bistro = 'assest/地图/Bistro 默认@3x.png';
-  static const String party = 'assest/地图/派对 默认@3x.png';
-  static const String filter = 'assest/地图/筛选 默认@3x.png';
-  static const String barImage = 'assest/首页/图片素材/庙前冰室.png';
-  static const String speakLowImage = 'assest/首页/图片素材/Speak Low（彼楼）.png';
-  static const String janesImage = 'assest/首页/图片素材/酒吧 Janes and Hooch.png';
-  static const String playHouseImage = 'assest/首页/图片素材/Play House 电音夜店.png';
-}
-
-class MapCategory {
-  const MapCategory({required this.label, this.iconAsset});
-
-  final String label;
-  final String? iconAsset;
-}
-
-class MapVenue {
-  const MapVenue({
-    required this.id,
-    required this.name,
-    required this.longitude,
-    required this.latitude,
-    required this.kind,
-    required this.rating,
-    required this.address,
-    required this.distance,
-    required this.tags,
-    required this.iconAsset,
-    required this.imageAsset,
-    this.imageUrl,
-  });
-
-  final String id;
-  final String name;
-  final double longitude;
-  final double latitude;
-  final String kind;
-  final double rating;
-  final String address;
-  final String distance;
-  final List<String> tags;
-  final String iconAsset;
-  final String imageAsset;
-  final String? imageUrl;
-
-  MapPoint toMapPoint({required String idPrefix, double weightBoost = 0}) {
-    return MapPoint(
-      id: '$idPrefix-$id',
-      name: name,
-      longitude: longitude,
-      latitude: latitude,
-      kind: kind,
-      weight: rating + weightBoost,
-    );
-  }
-}
-
-class _VisibleMapData {
-  const _VisibleMapData({required this.zoom, required this.venues});
-
-  final double zoom;
-  final List<MapVenue> venues;
-}
-
-class MapPoint {
-  const MapPoint({
-    required this.id,
-    required this.name,
-    required this.longitude,
-    required this.latitude,
-    required this.kind,
-    required this.weight,
-  });
-
-  final String id;
-  final String name;
-  final double longitude;
-  final double latitude;
-  final String kind;
-  final double weight;
-
-  Point get point => _point(longitude, latitude);
-
-  Map<String, dynamic> toFeature() {
-    return {
-      'type': 'Feature',
-      'properties': {
-        'id': id,
-        'name': name,
-        'category': kind,
-        'weight': weight,
-      },
-      'geometry': {
-        'type': 'Point',
-        'coordinates': [longitude, latitude],
-      },
-    };
-  }
-}
-
-CameraOptions get _overviewCamera => CameraOptions(
-  center: _initialCenter,
-  zoom: _MapPageState._initialZoom,
-  pitch: 24,
-  bearing: -12,
-);
-
-CameraOptions _cameraForCity(String city) {
-  final center =
-      _cityCenters[city] ?? _cityCenters[SiponCityController.defaultCity]!;
-
-  return CameraOptions(center: center, zoom: 11.8, pitch: 24, bearing: -12);
-}
-
-Point get _initialCenter => _point(121.4712, 31.2227);
-
-final Map<String, Point> _cityCenters = {
-  '上海': _point(121.4712, 31.2227),
-  '北京': _point(116.4074, 39.9042),
-  '深圳': _point(114.0579, 22.5431),
-  '广州': _point(113.2644, 23.1291),
-  '成都': _point(104.0668, 30.5728),
-  '杭州': _point(120.1551, 30.2741),
-};
-
-Point _point(double longitude, double latitude) {
-  return Point(coordinates: Position(longitude, latitude));
-}
-
-String _buildFeatureCollection(List<MapPoint> points) {
-  return jsonEncode({
-    'type': 'FeatureCollection',
-    'features': points.map((point) => point.toFeature()).toList(),
-  });
-}
-
-const List<MapCategory> _mapCategoryFilters = [
-  MapCategory(label: '清吧', iconAsset: _MapAssets.pub),
-  MapCategory(label: 'Livehouse', iconAsset: _MapAssets.livehouse),
-  MapCategory(label: '精酿', iconAsset: _MapAssets.craft),
-  MapCategory(label: 'Bistro', iconAsset: _MapAssets.bistro),
-  MapCategory(label: '派对', iconAsset: _MapAssets.party),
-];
-
-MapVenue _venueFromApi(SiponBarMapItem item, int index) {
-  return MapVenue(
-    id: item.id,
-    name: item.name,
-    longitude: item.longitude!,
-    latitude: item.latitude!,
-    kind: item.kind,
-    rating: item.rating,
-    address: item.address,
-    distance: item.distance,
-    tags: item.tags,
-    iconAsset: _iconAssetForKind(item.kind),
-    imageAsset: _imageAssetForIndex(index),
-    imageUrl: item.imageUrl,
-  );
-}
-
-String _iconAssetForKind(String kind) {
-  return switch (kind) {
-    'craft' => _MapAssets.craft,
-    'bistro' => _MapAssets.bistro,
-    'party' => _MapAssets.party,
-    'livehouse' => _MapAssets.livehouse,
-    _ => _MapAssets.pub,
-  };
-}
-
-String _imageAssetForIndex(int index) {
-  const images = [
-    _MapAssets.barImage,
-    _MapAssets.speakLowImage,
-    _MapAssets.janesImage,
-    _MapAssets.playHouseImage,
-  ];
-
-  return images[index % images.length];
-}
-
-List<MapPoint> _buildMarkerPoints(
-  List<MapVenue> venues, {
-  required double zoom,
-}) {
-  return _sampleVenuesForMarkerAnnotations(venues, zoom: zoom)
-      .map((venue) => venue.toMapPoint(idPrefix: 'marker'))
-      .toList(growable: false);
-}
-
-List<MapVenue> _sampleVenuesForMarkerAnnotations(
-  List<MapVenue> venues, {
-  required double zoom,
-}) {
-  final markerLimit = mapMarkerLabelLimitForZoom(zoom);
-  if (venues.length <= markerLimit) {
-    return venues;
-  }
-
-  final step = venues.length / markerLimit;
-
-  return [
-    for (var index = 0; index < markerLimit; index++)
-      venues[(index * step).floor()],
-  ];
-}
-
-int mapMarkerLabelLimitForZoom(double zoom) {
-  if (!zoom.isFinite) {
-    return 24;
-  }
-  if (zoom < 7) {
-    return 24;
-  }
-  if (zoom < 10) {
-    return 48;
-  }
-  if (zoom < 12) {
-    return 80;
-  }
-  if (zoom < 14) {
-    return 120;
-  }
-  if (zoom < 16) {
-    return 180;
-  }
-
-  return 260;
-}
-
-List<MapPoint> _buildHeatmapPoints(List<MapPoint> geoJsonPoints) {
-  return [...geoJsonPoints, ..._fallbackExtraHeatmapPoints];
-}
-
-const List<MapVenue> _fallbackFeaturedVenues = [
-  MapVenue(
-    id: 'hope-sesame',
-    name: '庙前冰室（Hope & Sesame）',
-    longitude: 121.4718,
-    latitude: 31.2232,
-    kind: 'pub',
-    rating: 4.9,
-    address: '上海市黄浦区复兴中路 579',
-    distance: '约2.0km',
-    tags: ['鸡尾酒吧', '中式复古风'],
-    iconAsset: _MapAssets.pub,
-    imageAsset: _MapAssets.barImage,
-  ),
-  MapVenue(
-    id: 'speak-low',
-    name: 'Speak Low（彼楼）',
-    longitude: 121.4734,
-    latitude: 31.2251,
-    kind: 'bistro',
-    rating: 4.9,
-    address: '上海市黄浦区复兴中路 579',
-    distance: '约1.7km',
-    tags: ['经典吧台', 'Speakeasy'],
-    iconAsset: _MapAssets.bistro,
-    imageAsset: _MapAssets.speakLowImage,
-  ),
-  MapVenue(
-    id: 'janes-hooch',
-    name: 'Janes and Hooch',
-    longitude: 121.4686,
-    latitude: 31.2203,
-    kind: 'party',
-    rating: 4.5,
-    address: '上海市黄浦区巨鹿路 158',
-    distance: '约2.4km',
-    tags: ['派对', '经典调酒'],
-    iconAsset: _MapAssets.party,
-    imageAsset: _MapAssets.janesImage,
-  ),
-  MapVenue(
-    id: 'play-house',
-    name: 'Play House 电音夜店',
-    longitude: 121.4749,
-    latitude: 31.2208,
-    kind: 'craft',
-    rating: 4.8,
-    address: '上海市黄浦区淮海中路 333',
-    distance: '约2.8km',
-    tags: ['精酿', '现场音乐'],
-    iconAsset: _MapAssets.craft,
-    imageAsset: _MapAssets.playHouseImage,
-  ),
-];
-
-const List<MapPoint> _fallbackExtraHeatmapPoints = [
-  MapPoint(
-    id: 'heat-xintiandi-a',
-    name: '新天地热区 A',
-    longitude: 121.4726,
-    latitude: 31.2239,
-    kind: 'heat',
-    weight: 7.5,
-  ),
-  MapPoint(
-    id: 'heat-xintiandi-b',
-    name: '新天地热区 B',
-    longitude: 121.4705,
-    latitude: 31.2219,
-    kind: 'heat',
-    weight: 6.8,
-  ),
-  MapPoint(
-    id: 'heat-fuxing-a',
-    name: '复兴中路热区 A',
-    longitude: 121.4741,
-    latitude: 31.2218,
-    kind: 'heat',
-    weight: 6.0,
-  ),
-  MapPoint(
-    id: 'heat-huangpi-a',
-    name: '黄陂南路热区 A',
-    longitude: 121.4687,
-    latitude: 31.2236,
-    kind: 'heat',
-    weight: 5.5,
-  ),
-];
