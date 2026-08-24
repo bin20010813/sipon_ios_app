@@ -23,7 +23,6 @@ class VenueSheetSurface extends StatelessWidget {
     required this.bottomOverlayInset,
     required this.onExpand,
     required this.onCollapse,
-    required this.onShowOnMap,
   });
 
   /// 收起态卡片的最大宽度，与顶部搜索栏保持一致。
@@ -46,7 +45,6 @@ class VenueSheetSurface extends StatelessWidget {
   final double bottomOverlayInset;
   final VoidCallback onExpand;
   final VoidCallback onCollapse;
-  final VoidCallback onShowOnMap;
 
   @override
   Widget build(BuildContext context) {
@@ -88,24 +86,22 @@ class VenueSheetSurface extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            SingleChildScrollView(
-              controller: scrollController,
-              physics: const BouncingScrollPhysics(
-                parent: AlwaysScrollableScrollPhysics(),
-              ),
-              child: _VenueSheetLayer(
-                opacity: selected == null ? 0 : expandedOpacity,
-                child: selected == null
-                    ? const SizedBox.shrink()
-                    : VenueDetailContent(
-                        venue: selected,
-                        topInset: topInset,
-                        bottomOverlayInset: bottomOverlayInset,
-                        onClose: onCollapse,
-                        onShowOnMap: onShowOnMap,
-                      ),
-              ),
-            ),
+            selected == null
+                ? CustomScrollView(
+                    controller: scrollController,
+                    physics: const BouncingScrollPhysics(
+                      parent: AlwaysScrollableScrollPhysics(),
+                    ),
+                    slivers: const [SliverFillRemaining()],
+                  )
+                : VenueDetailContent(
+                    venue: selected,
+                    scrollController: scrollController,
+                    opacity: expandedOpacity,
+                    topInset: topInset,
+                    bottomOverlayInset: bottomOverlayInset,
+                    onClose: onCollapse,
+                  ),
             // 收起态内容钉在面板顶部，不随内部滚动移动，因此不受滚动偏移影响。
             if (collapsedOpacity > 0)
               Positioned(

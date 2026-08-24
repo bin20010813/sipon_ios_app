@@ -391,13 +391,13 @@ void main() {
           venueSheetStageForExtent(extent, collapsedExtent: collapsedExtent);
 
       expect(stageOf(collapsedExtent), VenueSheetStage.collapsed);
-      // 收起态与半屏态的分界是两者中点 0.35。
-      expect(stageOf(0.34), VenueSheetStage.collapsed);
-      expect(stageOf(0.36), VenueSheetStage.half);
+      // 收起态与半屏态的分界是两者中点 0.375。
+      expect(stageOf(0.37), VenueSheetStage.collapsed);
+      expect(stageOf(0.38), VenueSheetStage.half);
       expect(stageOf(VenueSheetController.halfExtent), VenueSheetStage.half);
-      // 半屏与全屏的分界是 0.75。
-      expect(stageOf(0.74), VenueSheetStage.half);
-      expect(stageOf(0.76), VenueSheetStage.full);
+      // 半屏与全屏的分界是两者中点 0.775。
+      expect(stageOf(0.77), VenueSheetStage.half);
+      expect(stageOf(0.78), VenueSheetStage.full);
       expect(stageOf(VenueSheetController.maxExtent), VenueSheetStage.full);
     });
 
@@ -410,12 +410,12 @@ void main() {
       );
 
       expect(controller.progressFor(collapsedExtent), 0);
-      expect(controller.progressFor(0.35), closeTo(0.5, 0.001));
+      expect(controller.progressFor(0.375), closeTo(0.5, 0.001));
       expect(controller.progressFor(VenueSheetController.halfExtent), 1);
       // 继续上拖到全屏时形变进度已经饱和，交给全屏进度接手。
       expect(controller.progressFor(0.8), 1);
       expect(controller.fullscreenProgressFor(0.5), 0);
-      expect(controller.fullscreenProgressFor(0.75), closeTo(0.5, 0.001));
+      expect(controller.fullscreenProgressFor(0.775), closeTo(0.5, 0.001));
       expect(controller.fullscreenProgressFor(1), 1);
     });
 

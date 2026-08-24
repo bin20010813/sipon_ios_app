@@ -12,6 +12,9 @@ class MapDesign {
   /// 状态提示里表示「出错了」的红。
   static const Color alert = Color(0xFFB91C1C);
 
+  /// 营业状态里表示「营业中」的绿。
+  static const Color success = Color(0xFF16A34A);
+
   /// 标签、按钮用的品牌浅底。
   static const Color brandSurface = Color(0xFFFFEDF7);
   static const Color tagSurface = Color(0xFFFFE8F6);

@@ -197,12 +197,6 @@ class _MapPageState extends State<MapPage> {
     unawaited(_applyStage());
   }
 
-  /// 详情里的「在地图中查看」：全屏态先退回半屏，让地图露出来再取景。
-  Future<void> _handleShowOnMap() async {
-    await _sheet.settleToHalf();
-    await _applyStage();
-  }
-
   void _handleCityChanged() {
     final city = _cityController?.city ?? SiponCityController.defaultCity;
     if (city == _data.city) {
@@ -401,7 +395,6 @@ class _MapPageState extends State<MapPage> {
                     bottomOverlayInset: widget.bottomOverlayInset,
                     onExpand: _sheet.expand,
                     onCollapse: _sheet.collapse,
-                    onShowOnMap: _handleShowOnMap,
                   );
                 },
               ),

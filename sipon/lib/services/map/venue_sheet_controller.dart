@@ -47,7 +47,7 @@ VenueSheetStage venueSheetStageForExtent(
 /// `_cameraFramedForDetails` 五个字段 —— 其中 `_cameraFramedForDetails` 是个藏在
 /// 四个方法里的隐式状态机，现在被 [stage] 显式化了。
 class VenueSheetController extends ChangeNotifier {
-  static const double halfExtent = 0.5;
+  static const double halfExtent = 0.55;
   static const double maxExtent = 1.0;
 
   /// 收起态卡片的固定高度（拖拽手柄 + 内容 + 内边距），用来把像素高度换算成
@@ -87,9 +87,19 @@ class VenueSheetController extends ChangeNotifier {
     return value <= 0 ? _collapsedExtent : value;
   }
 
+  /// 半屏态相机下边距在 [halfExtent] 基础上的收窄量。
+  ///
+  /// Mapbox 把聚焦地点放在「扣除 bottom padding 后的可视区」中心：
+  /// 中心高度 = (屏高 - padding) / 2。按整份 [halfExtent] 让位时中心落在
+  /// 约 22.5% 屏高处，叠加 pitch 后视觉上贴顶；收窄一档把中心压回
+  /// 上半屏的视觉重心。想再往下移就增大这个值（每加 0.1 中心下移 5% 屏高）。
+  static const double cameraPaddingShrink = 0.12;
+
   /// 相机 padding 的下边距（像素）。收起态不让出空间，展开态让出下半屏。
   double get cameraBottomPadding =>
-      _stage == VenueSheetStage.collapsed ? 0 : _availableHeight * halfExtent;
+      _stage == VenueSheetStage.collapsed
+      ? 0
+      : _availableHeight * (halfExtent - cameraPaddingShrink);
 
   /// 地图 logo / 版权信息的下边距（像素）。
   ///

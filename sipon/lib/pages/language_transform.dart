@@ -88,6 +88,11 @@ class SiponAppText {
       return '${attachedScreenshotMatch.group(1)} screenshots attached';
     }
 
+    final reviewCountMatch = RegExp(r'^查看全部 (\d+) 条评价$').firstMatch(source);
+    if (reviewCountMatch != null) {
+      return 'See all ${reviewCountMatch.group(1)} reviews';
+    }
+
     final kilometerMatch = RegExp(r'^约(.+)公里$').firstMatch(source);
     if (kilometerMatch != null) {
       return 'About ${kilometerMatch.group(1)} km';
@@ -308,6 +313,77 @@ const Map<String, String> _englishText = {
   '中式复古风': 'Chinese Retro',
   '越秀区庙前西街 48 号': '48 Miaoqian West St, Yuexiu',
   '约2460公里': 'About 2,460 km',
+  '经典': 'Classic',
+  '易饮': 'Easy-drinking',
+  '层次': 'Layered',
+  '微苦': 'Bitter',
+  '安静': 'Quiet',
+  '约会推荐': 'Date Night',
+  '精酿生啤': 'Craft Beer on Tap',
+  '酒头轮换': 'Rotating Taps',
+  '啤酒爱好者': 'Beer Geek',
+  '下酒小食': 'Bar Snacks',
+  '氛围温馨': 'Cozy Vibe',
+  'DJ 驻场': 'DJ Sets',
+  '舞池': 'Dance Floor',
+  '独立乐队': 'Indie Bands',
+  '演出': 'Shows',
+  '露台座位': 'Terrace',
+  '可预订': 'Reservable',
+  '无烟区': 'Smoke-free',
+  '宠物友好': 'Pet-friendly',
+  '无障碍友好': 'Accessible',
+  '包厢': 'Private Room',
+  '室外吸烟区': 'Outdoor Smoking',
+  '波本威士忌、苦精、方糖，经典永不过时。':
+      'Bourbon, bitters, sugar — the classic never goes out of style.',
+  '干金酒与干味美思的极简平衡。': 'A minimalist balance of dry gin and dry vermouth.',
+  '波本、柠檬、糖浆，酸甜利落。': 'Bourbon, lemon, syrup — bright and sharp.',
+  '热带水果香气，酒体饱满，苦味柔和。': 'Tropical fruit aroma, full body, soft bitterness.',
+  '明快乳酸感，清爽易饮。': 'Bright lactic acidity, crisp and easy.',
+  '烘焙咖啡与黑巧克力风味，醇厚收尾。': 'Roasted coffee and dark chocolate, rich finish.',
+  '根据当季水果与香草调整的限定酒单。': 'A seasonal list built around fresh fruit and herbs.',
+  '红酒、水果与香料的西班牙式微醺。': 'Spanish-style sangria with wine, fruit and spice.',
+  '清爽气泡，搭配小食的稳妥之选。': 'Effervescent and safe bet with small bites.',
+  '多重基酒混合，派对开场经典款。': 'A mix of spirits — the classic party starter.',
+  '渐变色彩，口感甜美。': 'Sunset gradient and a sweet sip.',
+  '适合卡座分享，气氛拉满。': 'Bottle service to share, party vibe on full.',
+  '简单清爽，适合站着看演出时手持一杯。':
+      'Clean and refreshing, perfect while standing at a show.',
+  '当晚酒头轮换，具体款式请咨询吧台。': 'Tap rotation changes nightly — ask the bartender.',
+  '以演出主题命名的限定款。': 'A limited cocktail named after tonight’s show.',
+  '氛围很棒，酒单有惊喜，会再来。': 'Great vibe and a surprising menu. Will come back.',
+  '这是一家藏在城市夜色里的清吧，木质吧台与柔和烛光营造出放松的私密氛围。':
+      'A quiet lounge tucked into the city night, with a wood bar and soft candlelight.',
+  '酒单以经典调酒为骨架，调酒师擅长用本土风味重新诠释熟悉配方，适合想要安静小酌的夜晚。':
+      'The menu is built on classics, reinterpreted with local flavors — ideal for a quiet nightcap.',
+  '店内拥有多款自酿精酿与国内外小众厂牌生啤，酒头轮换频繁，每次来都能尝到新鲜味道。':
+      'House brews and niche craft taps rotate often, so there is always something new to try.',
+  '吧台前经常坐满啤酒爱好者，酒保乐于根据你的口味推荐一杯合心意的选择。':
+      'The bar is often filled with beer lovers, and the staff is happy to recommend a pint.',
+  '餐酒结合的小酒馆，菜单由主厨与调酒师共同设计，主打下酒小食与创意鸡尾酒搭配。':
+      'A bistro where food and drinks are co-designed by chef and bartender, pairing bites with creative cocktails.',
+  '空间紧凑而温馨，是下班后与朋友边吃边聊的理想落脚点。':
+      'Compact and cozy — a perfect spot for post-work bites and chats with friends.',
+  '派对氛围十足的夜场，拥有专业灯光与音响系统，周末常有 DJ 驻场与主题派对。':
+      'A full-on party venue with pro lighting and sound, plus weekend DJ sets and themed parties.',
+  '舞池宽敞，卡座区视野开阔，适合想要释放压力、尽兴跳舞的夜晚。':
+      'Spacious dance floor and open booth views for nights when you just want to let go.',
+  '以现场音乐为核心的 Livehouse，舞台不大但声场出色，经常邀请独立乐队与音乐人演出。':
+      'A livehouse built around live music: small stage, great sound, frequent indie bands and artists.',
+  '除演出时段外也提供酒水小食，提前到场还能占到靠前的位置。':
+      'Drinks and snacks are served outside showtimes; arrive early for a front-row spot.',
+  '服务热情，调酒师很专业，推荐坐在吧台。':
+      'Warm service and professional bartenders; grab a seat at the bar.',
+  '周末人比较多，建议提前预约。': 'Gets busy on weekends, book ahead.',
+  '音乐品味在线，适合放松。': 'Good music taste and a relaxing spot.',
+  '人均略高但物有所值，酒的品质在线。': 'A bit pricey but worth it; drinks are quality.',
+  '招牌酒层次很完整，第一口和收尾都有变化。':
+      'The signature drink evolves nicely from the first sip to the finish.',
+  '空间不大但座位舒服，聊天不会觉得吵。':
+      'Compact but comfortable, with a good volume for conversation.',
+  '酒保推荐得很准，下次想试试季节限定。':
+      'The bartender nailed the recommendation; I will try the seasonal menu next.',
   '清吧': 'Lounge',
   '精酿': 'Craft Beer',
   '派对': 'Party',
@@ -347,11 +423,29 @@ const Map<String, String> _englishText = {
   '地址待补充': 'Address pending',
   '距离待计算': 'Distance pending',
   '收起地点详情': 'Close place details',
-  '在地图中查看': 'Show on map',
   '类型': 'Type',
   '距离': 'Distance',
   '地点位置': 'Location',
   '未命名酒吧': 'Unnamed Bar',
+  '关于': 'About',
+  '收藏': 'Save',
+  '已收藏': 'Saved',
+  '导航': 'Navigate',
+  '电话': 'Call',
+  '营业时间': 'Opening Hours',
+  '招牌酒款': 'Signature Drinks',
+  '用户评价': 'Reviews',
+  '评价': 'Reviews',
+  '综合评分': 'Overall rating',
+  '条评价': 'reviews',
+  '更多评论': 'More reviews',
+  '添加评论': 'Add review',
+  '评论发布功能开发中（演示）': 'Review publishing is under development (demo)',
+  '营业中': 'Open now',
+  '已打烊': 'Closed',
+  '人均': 'Avg.',
+  '点击导航': 'Tap to navigate',
+  '点击拨打': 'Tap to call',
   '搜索喜欢的酒或者酒吧...': 'Search drinks or bars...',
   '记录每一次微醺': 'Record every tipsy moment',
   '正在整理你的饮酒记录...': 'Preparing your drinking records...',
