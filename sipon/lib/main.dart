@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 
 import 'pages/drink_record_page.dart';
 import 'pages/home_page.dart';
@@ -13,15 +12,7 @@ import 'services/sipon_auth_service.dart';
 import 'services/sipon_city_controller.dart';
 import 'widgets/sipon_city_picker.dart';
 
-const String _mapboxAccessToken = String.fromEnvironment(
-  'MAPBOX_ACCESS_TOKEN',
-  defaultValue:
-      'pk.eyJ1IjoiYnNndWl2enNxIiwiYSI6ImNtbmpxYjdzZzBtajcycXM0aG1xNDdoN2YifQ.WjHfteUnM7ZBkihAhI1TUw',
-);
-
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  mapbox.MapboxOptions.setAccessToken(_mapboxAccessToken);
   runApp(const SiponApp());
 }
 

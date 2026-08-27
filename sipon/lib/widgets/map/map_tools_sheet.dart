@@ -21,7 +21,7 @@ class MapToolsSheet extends StatelessWidget {
     required this.onFocusDowntown,
   });
 
-  final MapboxStyle currentStyle;
+  final MapBaseStyle currentStyle;
 
   /// 用户选的模式，驱动上面的三选一。
   final MapLayerMode currentLayerMode;
@@ -41,7 +41,7 @@ class MapToolsSheet extends StatelessWidget {
   /// 取数失败时的原始错误。只在这个诊断面板里露出，不进主界面。
   final String? failureDetail;
 
-  final ValueChanged<MapboxStyle> onStyleChanged;
+  final ValueChanged<MapBaseStyle> onStyleChanged;
   final ValueChanged<MapLayerMode> onLayerModeChanged;
   final VoidCallback onResetCamera;
   final VoidCallback onFocusDowntown;
@@ -73,7 +73,7 @@ class MapToolsSheet extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final style in MapboxStyle.values)
+                for (final style in MapBaseStyle.values)
                   _StyleOption(
                     label: text.t(style.label),
                     selected: style == currentStyle,

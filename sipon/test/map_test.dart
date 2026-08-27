@@ -190,7 +190,9 @@ void main() {
       );
       addTearDown(controller.dispose);
 
-      // zoom 5 的标签上限是 24；原来圆点跟着抽样一起缩到 24 个。
+      // zoom 5 本身低于热力图分界线（effectiveLayerMode 会变成热力），
+      // 显式选「点位」让标签抽样逻辑独立于缩放交接被验证。
+      controller.setLayerMode(MapLayerMode.pointsOnly);
       await controller.syncViewport(_shifted(0, zoom: 5));
       expect(controller.circlePoints, hasLength(300));
       expect(controller.heatmapPoints, hasLength(300));

@@ -25,7 +25,7 @@ class MapDataController extends ChangeNotifier {
   String? _selectedVenueId;
   MapDataStatus _status = MapDataStatus.idle;
   String? _failureDetail;
-  MapboxStyle _style = MapboxStyle.light;
+  MapBaseStyle _style = MapBaseStyle.standard;
   MapLayerMode _layerMode = MapLayerMode.pointsAndHeatmap;
   double _zoom = 15.05;
 
@@ -40,7 +40,7 @@ class MapDataController extends ChangeNotifier {
   MapDataStatus get status => _status;
   String? get failureDetail => _failureDetail;
   MapVenueKind? get categoryFilter => _categoryFilter;
-  MapboxStyle get style => _style;
+  MapBaseStyle get style => _style;
   MapLayerMode get layerMode => _layerMode;
   double get zoom => _zoom;
 
@@ -246,7 +246,7 @@ class MapDataController extends ChangeNotifier {
     _notify();
   }
 
-  void setStyle(MapboxStyle style) {
+  void setStyle(MapBaseStyle style) {
     if (_style == style) {
       return;
     }

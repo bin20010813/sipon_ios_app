@@ -17,6 +17,11 @@
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		B3DE956A5783C9A6306D4F5B /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0F31BC8566899C5B12F22694 /* Pods_RunnerTests.framework */; };
+		AA510001000000000000000A /* SiponMapFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA520001000000000000000A /* SiponMapFactory.swift */; };
+		AA510002000000000000000A /* SiponMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA520002000000000000000A /* SiponMapView.swift */; };
+		AA510003000000000000000A /* SiponMapChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA520003000000000000000A /* SiponMapChannel.swift */; };
+		AA510004000000000000000A /* SiponMapGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA520004000000000000000A /* SiponMapGeometry.swift */; };
+		AA510005000000000000000A /* SiponMapGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA520005000000000000000A /* SiponMapGeometryTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -67,6 +72,11 @@
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CDC176914725CAC646EC5382 /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
+		AA520001000000000000000A /* SiponMapFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiponMapFactory.swift; sourceTree = "<group>"; };
+		AA520002000000000000000A /* SiponMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiponMapView.swift; sourceTree = "<group>"; };
+		AA520003000000000000000A /* SiponMapChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiponMapChannel.swift; sourceTree = "<group>"; };
+		AA520004000000000000000A /* SiponMapGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiponMapGeometry.swift; sourceTree = "<group>"; };
+		AA520005000000000000000A /* SiponMapGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiponMapGeometryTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -93,6 +103,7 @@
 			isa = PBXGroup;
 			children = (
 				331C807B294A618700263BE5 /* RunnerTests.swift */,
+				AA520005000000000000000A /* SiponMapGeometryTests.swift */,
 			);
 			path = RunnerTests;
 			sourceTree = "<group>";
@@ -150,6 +161,7 @@
 				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
 				7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
+				AA530001000000000000000A /* SiponMap */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -165,6 +177,17 @@
 				7686E903CB03C4B71B209BA8 /* Pods-RunnerTests.profile.xcconfig */,
 			);
 			path = Pods;
+			sourceTree = "<group>";
+		};
+		AA530001000000000000000A /* SiponMap */ = {
+			isa = PBXGroup;
+			children = (
+				AA520001000000000000000A /* SiponMapFactory.swift */,
+				AA520002000000000000000A /* SiponMapView.swift */,
+				AA520003000000000000000A /* SiponMapChannel.swift */,
+				AA520004000000000000000A /* SiponMapGeometry.swift */,
+			);
+			path = SiponMap;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -372,6 +395,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */,
+				AA510005000000000000000A /* SiponMapGeometryTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -382,6 +406,10 @@
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
+				AA510001000000000000000A /* SiponMapFactory.swift in Sources */,
+				AA510002000000000000000A /* SiponMapView.swift in Sources */,
+				AA510003000000000000000A /* SiponMapChannel.swift in Sources */,
+				AA510004000000000000000A /* SiponMapGeometry.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

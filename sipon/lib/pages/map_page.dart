@@ -1,8 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart' hide Visibility;
-import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import 'package:flutter/material.dart';
 
 import '../services/map/map_data_controller.dart';
 import '../services/map/map_display_options.dart';
@@ -11,6 +10,8 @@ import '../services/map/map_scene_controller.dart';
 import '../services/map/map_venue_repository.dart';
 import '../services/map/map_viewport.dart';
 import '../services/map/mock_map_venue_repository.dart';
+import '../services/map/sipon_map_host.dart';
+import '../services/map/sipon_map_widget.dart';
 import '../services/map/venue_sheet_controller.dart';
 import '../services/sipon_city_controller.dart';
 import '../widgets/map/map_controls.dart';
@@ -27,7 +28,8 @@ const bool _useMockMapData = true;
 ///
 /// 真正的逻辑分别在：
 /// - [MapDataController]：有哪些酒吧、选中哪个、筛选了什么；
-/// - [MapSceneController]：Mapbox 的样式、图层、annotation、相机、装饰物；
+/// - [MapSceneController]：底图、annotation、相机与图层显隐（引擎为
+///   MapKit，迁移期可用 dart-define 切回 Mapbox 对照）；
 /// - [VenueSheetController]：详情面板的 extent 与吸附档位。
 class MapPage extends StatefulWidget {
   const MapPage({super.key, this.bottomOverlayInset = 0});
@@ -61,7 +63,7 @@ class _MapPageState extends State<MapPage> {
           : SiponApiMapVenueRepository(),
       city: SiponCityController.defaultCity,
     )..addListener(_handleDataChanged);
-    _scene = MapSceneController(
+    _scene = MapSceneController.create(
       onViewportSettled: _handleViewportSettled,
       onVenueTapped: _handleVenueTapped,
       // 点地图空白处就收起面板。原来这里毫无反应。
@@ -99,15 +101,12 @@ class _MapPageState extends State<MapPage> {
 
   // ------------------------------------------------------------ 地图生命周期
 
-  Future<void> _handleMapCreated(MapboxMap map) async {
-    await _scene.attach(map, city: _data.city);
+  Future<void> _handleMapCreated(SiponMapHost host) async {
+    await _scene.attach(host, city: _data.city, style: _data.style);
     await _applyStage(focusSelection: false);
-  }
 
-  /// 样式加载完成（首次进入、或切了底图）：source / layer / annotation 都没了，
-  /// 重新下发当前这一帧，并按当前视野补一次取数。
-  Future<void> _handleStyleLoaded(StyleLoadedEventData event) async {
-    _scene.handleStyleLoaded();
+    // 原「styleLoaded 回调」的职责（重下发帧 + 按当前视野补一次取数）已并入
+    // 控制器；页面只需要在 attach 完成后把首帧交给它，并补齐首次取数。
     await _pushFrame();
 
     final viewport = await _scene.readViewport();
@@ -117,8 +116,6 @@ class _MapPageState extends State<MapPage> {
 
     await _data.syncViewport(viewport);
   }
-
-  void _handleMapIdle(MapIdleEventData event) => _scene.handleMapIdle();
 
   /// 相机停稳（已在 [MapSceneController] 里去抖）。视野有没有实质变化由
   /// [MapViewport.differsMateriallyFrom] 说了算，所以自己的 `flyTo` 不会引起重拉，
@@ -209,7 +206,7 @@ class _MapPageState extends State<MapPage> {
 
   // ------------------------------------------------------------------ 工具面板
 
-  Future<void> _handleStyleChanged(MapboxStyle style) async {
+  Future<void> _handleStyleChanged(MapBaseStyle style) async {
     if (style == _data.style) {
       return;
     }
@@ -289,14 +286,10 @@ class _MapPageState extends State<MapPage> {
 
           return Stack(
             children: [
-              MapWidget(
+              SiponMapWidget(
                 key: const ValueKey('sipon_map_widget'),
-                // MapWidget 只在创建平台视图时读一次 styleUri，后续切换底图走
-                // MapSceneController.setStyle。
-                styleUri: _data.style.uri,
-                onMapCreated: _handleMapCreated,
-                onStyleLoadedListener: _handleStyleLoaded,
-                onMapIdleListener: _handleMapIdle,
+                initialStyleId: _data.style.id,
+                onHostReady: _handleMapCreated,
               ),
               _buildTopControls(),
               _buildLocateButton(
