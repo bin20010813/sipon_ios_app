@@ -8,10 +8,10 @@ import 'map_viewport.dart';
 import 'sipon_map_host.dart';
 import 'sipon_map_protocol.dart';
 
-/// MapKit 引擎实现。对外契约与迁移期的 Mapbox 版完全一致，底层是自封装的
-/// MKMapView（PlatformView），指令走 [SiponMapCommands] 描述的 MethodChannel。
+/// MapKit 引擎实现。底层是自封装的 MKMapView（PlatformView），指令走
+/// [SiponMapCommands] 描述的 MethodChannel。
 ///
-/// 与 Mapbox 版有意保留的行为差异（均为指南记录过的产品决策）：
+/// 当前 MapKit 方案的行为：
 /// - 没有样式加载期：[SiponMapEvents.onMapReady] 即视为可画，无需 styleLoaded；
 /// - 切底图后没有对应事件，控制器自己重放上一帧兜底（§3b）；
 /// - 相机动画时长随指令下发但原生不可控，落到系统默认时长（决策 D3）；
@@ -58,18 +58,18 @@ class MapkitSceneController extends MapSceneController {
       encodeSetup(city: city, style: style),
     );
     // marker 图标表一次装完，比每帧传 bytes 省（§3e）。
-    await host.invoke(
-      SiponMapCommands.registerAssets,
-      encodeMarkerAssets(),
-    );
+    await host.invoke(SiponMapCommands.registerAssets, encodeMarkerAssets());
 
     // 正常情况 onMapReady 在上面两条 invoke 返回前后就会到；超时兜底放行，
     // 避免原生异常时页面永远停在「等待地图」。
     const readyTimeout = Duration(seconds: 5);
     if (!ready.isCompleted) {
-      await ready.future.timeout(readyTimeout, onTimeout: () {
-        debugPrint('SiponMap: onMapReady timed out after $readyTimeout');
-      });
+      await ready.future.timeout(
+        readyTimeout,
+        onTimeout: () {
+          debugPrint('SiponMap: onMapReady timed out after $readyTimeout');
+        },
+      );
     }
     _readyCompleter = null;
   }
@@ -79,9 +79,7 @@ class MapkitSceneController extends MapSceneController {
     final host = _host;
     if (host != null) {
       // 尽力通知原生销毁；通道可能已经没了，失败不必上抛。
-      unawaited(
-        host.invoke(SiponMapCommands.dispose).catchError((_) => null),
-      );
+      unawaited(host.invoke(SiponMapCommands.dispose).catchError((_) => null));
     }
     super.detachCommon();
     _cancelSettleDebounce();
@@ -124,8 +122,8 @@ class MapkitSceneController extends MapSceneController {
         if (payload == null) {
           break;
         }
-        // 原生惯性滚动会连发多次，语义与旧引擎的 idle 多连发同构：
-        // 只留最新一份，去抖后在 handleViewportSettled 里回调页面。
+        // 原生惯性滚动会连发多次：只留最新一份，去抖后在
+        // handleViewportSettled 里回调页面。
         _settlingViewport = payload;
         latestZoom = payload.zoom;
         handleViewportSettledFastPath();
@@ -140,7 +138,7 @@ class MapkitSceneController extends MapSceneController {
       case SiponMapEvents.onBlankTapped:
         onBlankTapped();
       case SiponMapEvents.onStyleLoaded:
-        break; // MapKit 无此概念；该事件仅 Mapbox 回退分支使用。
+        break; // MapKit 无此概念。
       default:
         break;
     }
@@ -184,12 +182,15 @@ class MapkitSceneController extends MapSceneController {
     }
 
     try {
-      final payload = parseViewportPayload(await host.invoke(
-        SiponMapCommands.readViewport,
-      ));
+      final payload = parseViewportPayload(
+        await host.invoke(SiponMapCommands.readViewport),
+      );
       if (payload == null) {
         // 相机还没就绪：退回整个中国，语义对齐旧版的 infiniteBounds 兜底。
-        return const MapViewport(bounds: MapBoundsBox.china(), zoom: MapSceneController.cityZoom);
+        return const MapViewport(
+          bounds: MapBoundsBox.china(),
+          zoom: MapSceneController.cityZoom,
+        );
       }
 
       return MapViewport(
@@ -214,10 +215,7 @@ class MapkitSceneController extends MapSceneController {
   }
 
   @override
-  Future<void> focusOn({
-    required double longitude,
-    required double latitude,
-  }) {
+  Future<void> focusOn({required double longitude, required double latitude}) {
     return _invokeIfReady(
       SiponMapCommands.focusOn,
       encodeCameraMove(
@@ -261,7 +259,10 @@ class MapkitSceneController extends MapSceneController {
     );
   }
 
-  Future<void> _invokeIfReady(String method, [Map<String, Object?>? args]) async {
+  Future<void> _invokeIfReady(
+    String method, [
+    Map<String, Object?>? args,
+  ]) async {
     final host = _host;
     if (host == null || !_ready) {
       return;

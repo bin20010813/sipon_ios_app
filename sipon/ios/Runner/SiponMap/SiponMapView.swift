@@ -221,8 +221,9 @@ final class SiponMapEngine: NSObject {
     guard let assets = SiponMapProtocol.dict(args["assets"]) as? [String: String] else { return }
 
     for (category, assetKey) in assets {
+      let bundleKey = FlutterDartProject.lookupKey(forAsset: assetKey)
       guard markerIcons[category] == nil,
-            let path = Bundle.main.path(forAsset: assetKey, ofType: nil),
+            let path = Bundle.main.path(forResource: bundleKey, ofType: nil),
             let image = UIImage(contentsOfFile: path) else { continue }
       markerIcons[category] = image
     }
@@ -264,8 +265,8 @@ final class SiponMapEngine: NSObject {
     )
 
     // MKMapCamera 一把出：中心点(含 padding 折算)、缩放(距离折算)、
-    // heading(与 Mapbox bearing 同为顺时针度)、pitch(保守钳制 60，
-    // MapKit 有效上限约 77)。动画时长不可控，忽略 durationMs（决策 D3）。
+    // heading(顺时针度)、pitch(保守钳制 60，MapKit 有效上限约 77)。
+    // 动画时长不可控，忽略 durationMs（决策 D3）。
     let distance = SiponMapGeometry.cameraDistance(
       lat: center.latitude,
       zoom: move.zoom,
@@ -758,7 +759,7 @@ final class CirclePointAnnotation: NSObject, MKAnnotation, VenueSelecting {
 }
 
 final class MarkerAnnotation: NSObject, MKAnnotation, VenueSelecting {
-  let venueId: String
+  let venueId: String?
   @objc dynamic var coordinate: CLLocationCoordinate2D
   @objc dynamic var label: String = ""
   @objc dynamic var category: String = "pub"
@@ -817,7 +818,7 @@ final class CirclePointAnnotationView: MKAnnotationView {
 
   private let dotLayer = CALayer()
 
-  init(annotation: MKAnnotation?, reuseIdentifier: String?) {
+  override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
     super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
     layer.addSublayer(dotLayer)
     dotLayer.borderColor = UIColor.white.cgColor
@@ -839,7 +840,7 @@ final class CirclePointAnnotationView: MKAnnotationView {
     CATransaction.setDisableActions(true)
     bounds = CGRect(origin: .zero, size: CGSize(width: hitDiameter, height: hitDiameter))
     dotLayer.backgroundColor = SiponVenueStyle.color(for: category).cgColor
-    alpha = max(0, min(alpha, 1))
+    self.alpha = max(0, min(alpha, 1))
     layoutDot(visualDiameter: visualDiameter)
     CATransaction.commit()
   }
@@ -872,7 +873,7 @@ final class MarkerAnnotationView: MKAnnotationView {
   private let iconView = UIImageView(frame: .zero)
   private let label = UILabel(frame: .zero)
 
-  init(annotation: MKAnnotation?, reuseIdentifier: String?) {
+  override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
     super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
     addSubview(iconView)
     addSubview(label)
@@ -954,7 +955,7 @@ final class SelectionAnnotationView: MKAnnotationView {
   private let haloLayer = CALayer()
   private let coreLayer = CALayer()
 
-  init(annotation: MKAnnotation?, reuseIdentifier: String?) {
+  override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
     super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
     layer.addSublayer(haloLayer)
     layer.addSublayer(coreLayer)
@@ -1028,27 +1029,45 @@ final class SelectionAnnotationView: MKAnnotationView {
 // 热力密度格 overlay 与径向渐变渲染器（§3d 降级方案，参数留常量便于调优）
 // =============================================================================
 
-final class DensityCellOverlay: MKCircle {
+final class DensityCellOverlay: NSObject, MKOverlay {
   let density: Double
+  let coordinate: CLLocationCoordinate2D
+  let radiusMeters: Double
+  let boundingMapRect: MKMapRect
 
   init(cell: SiponMapGeometry.DensityCell) {
-    self.density = cell.density
-    super.init(center: cell.coordinate, radius: CLLocationDistance(cell.radiusMeters))
+    density = cell.density
+    coordinate = cell.coordinate
+    radiusMeters = cell.radiusMeters
+
+    let center = MKMapPoint(coordinate)
+    let metersPerMapPoint = MKMetersPerMapPointAtLatitude(coordinate.latitude)
+    let radiusMapPoints = radiusMeters / metersPerMapPoint
+    boundingMapRect = MKMapRect(
+      x: center.x - radiusMapPoints,
+      y: center.y - radiusMapPoints,
+      width: radiusMapPoints * 2,
+      height: radiusMapPoints * 2
+    )
+
+    super.init()
   }
 }
 
 /// 径向渐变填充：中心浓、边缘羽化到透明，替代 GPU 核密度平滑。
-final class DensityGradientRenderer: MKCircleRenderer {
+final class DensityGradientRenderer: MKOverlayRenderer {
 
   private let density: Double
 
   init(cell: DensityCellOverlay) {
     density = cell.density
-    super.init(circle: cell)
+    super.init(overlay: cell)
   }
 
-  override func draw(_ rect: CGRect, zoomScale: MKZoomScale, in context: CGContext) {
-    guard let circlePath = path else { return }
+  override func draw(_ mapRect: MKMapRect, zoomScale: MKZoomScale, in context: CGContext) {
+    let rect = self.rect(for: overlay.boundingMapRect)
+    guard !rect.isNull, rect.width > 0, rect.height > 0 else { return }
+    let circlePath = CGPath(ellipseIn: rect, transform: nil)
 
     let base = SiponHeatPalette.color(for: density)
     var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
@@ -1072,14 +1091,13 @@ final class DensityGradientRenderer: MKCircleRenderer {
       colors: colors,
       locations: [0, 0.62, 1]
     ) {
-      let box = circlePath.boundingBoxOfPath
-      let center = CGPoint(x: box.midX, y: box.midY)
+      let center = CGPoint(x: rect.midX, y: rect.midY)
       context.drawRadialGradient(
         gradient,
         startCenter: center,
         startRadius: 0,
         endCenter: center,
-        endRadius: max(box.width, box.height) * 0.52,
+        endRadius: max(rect.width, rect.height) * 0.52,
         options: [.drawsAfterEndLocation]
       )
     }

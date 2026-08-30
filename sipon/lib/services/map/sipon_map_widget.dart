@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 
-import 'map_display_options.dart';
-import 'mapbox_scene_controller.dart' show MapboxMapHost, mapboxStyleUriFor;
 import 'sipon_map_host.dart';
 import 'sipon_map_protocol.dart';
 
@@ -26,7 +23,10 @@ class ChannelMapHost implements SiponMapHost {
   }
 
   @override
-  Future<Object?> invoke(String method, [Map<String, Object?> args = const {}]) {
+  Future<Object?> invoke(
+    String method, [
+    Map<String, Object?> args = const {},
+  ]) {
     return _channel.invokeMethod(method, args.isEmpty ? null : args);
   }
 
@@ -42,9 +42,8 @@ class ChannelMapHost implements SiponMapHost {
   }
 }
 
-/// 地图页的唯一入口 Widget：内部按 [kUseMapkitMap] 决定画自封装的 MKMapView
-/// 还是迁移期回退用的旧版 MapWidget。两条路都汇成 [SiponMapHost] +
-/// 统一事件流交给页面，页面感知不到引擎差异。
+/// 地图页的唯一入口 Widget：内部画自封装的 MKMapView，并把 MethodChannel
+/// 包成 [SiponMapHost] 交给页面。
 class SiponMapWidget extends StatefulWidget {
   const SiponMapWidget({
     super.key,
@@ -65,39 +64,18 @@ class SiponMapWidget extends StatefulWidget {
 
 class _SiponMapWidgetState extends State<SiponMapWidget> {
   ChannelMapHost? _kitHost;
-  MapboxMapHost? _legacyHost;
 
   @override
   Widget build(BuildContext context) {
-    if (kUseMapkitMap) {
-      return UiKitView(
-        viewType: kSiponMapViewType,
-        onPlatformViewCreated: (viewId) {
-          // 处理器必须在创建回调里立刻挂上，否则原生首发事件会丢；
-          // 真正的 onMapReady 由 setup 命令触发，见原生侧实现。
-          final host = ChannelMapHost(
-            MethodChannel(siponMapChannelName(viewId)),
-          );
-          _kitHost = host;
-          widget.onHostReady(host);
-        },
-      );
-    }
-
-    // ------------------- 迁移期回退分支：原 MapWidget 装配 -------------------
-    return mapbox.MapWidget(
-      key: const ValueKey('sipon_map_widget'),
-      // MapWidget 只在创建平台视图时读一次 styleUri，后续切换底图走控制器。
-      styleUri: mapboxStyleUriFor(MapBaseStyle.fromId(widget.initialStyleId)),
-      onMapCreated: (controller) {
-        final host = MapboxMapHost(controller);
-        _legacyHost = host;
+    return UiKitView(
+      viewType: kSiponMapViewType,
+      onPlatformViewCreated: (viewId) {
+        // 处理器必须在创建回调里立刻挂上，否则原生首发事件会丢；
+        // 真正的 onMapReady 由 setup 命令触发，见原生侧实现。
+        final host = ChannelMapHost(MethodChannel(siponMapChannelName(viewId)));
+        _kitHost = host;
         widget.onHostReady(host);
       },
-      onStyleLoadedListener: (event) =>
-          _legacyHost?.emitEvent(SiponMapEvents.onStyleLoaded, null),
-      onMapIdleListener: (event) =>
-          _legacyHost?.emitEvent(SiponMapEvents.onViewportSettled, null),
     );
   }
 
@@ -105,7 +83,6 @@ class _SiponMapWidgetState extends State<SiponMapWidget> {
   void dispose() {
     _kitHost?.dispose();
     _kitHost = null;
-    _legacyHost = null;
     super.dispose();
   }
 }

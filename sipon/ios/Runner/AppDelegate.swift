@@ -20,6 +20,6 @@ import UIKit
   private func registerSiponMapView() {
     guard let registrar = registrar(forPlugin: "SiponMapFactory") else { return }
     let factory = SiponMapFactory(messenger: registrar.messenger())
-    registrar.register(factory, forView: SiponMapProtocol.viewType)
+    registrar.register(factory, withId: SiponMapProtocol.viewType)
   }
 }

@@ -11,13 +11,6 @@ import 'map_scene_controller.dart';
 /// PlatformView 注册用的 viewType，同时也是原生 factory 的注册名。
 const String kSiponMapViewType = 'sipon/mapkit';
 
-/// 双引擎总开关（迁移期）。默认走 MapKit；回退 Mapbox 用
-/// `--dart-define=USE_MAPKIT_MAP=false`。唯一的定义点，widget 与控制器共用。
-const bool kUseMapkitMap = bool.fromEnvironment(
-  'USE_MAPKIT_MAP',
-  defaultValue: true,
-);
-
 /// 每个平台视图实例独享一条通道，避免多实例串台。
 String siponMapChannelName(int viewId) => 'sipon/mapkit_$viewId';
 
@@ -42,7 +35,7 @@ abstract final class SiponMapEvents {
   static const String onVenueTapped = 'onVenueTapped';
   static const String onBlankTapped = 'onBlankTapped';
 
-  /// 仅 Mapbox 引擎使用：插件样式加载完成，控制器收到后重放上一帧。
+  /// 预留的样式加载事件；MapKit 当前不会发送。
   static const String onStyleLoaded = 'onStyleLoaded';
 }
 
@@ -53,10 +46,7 @@ abstract final class SiponMapEvents {
 Map<String, Object?> encodeSetup({
   required String city,
   required MapBaseStyle style,
-}) => {
-  'city': city,
-  'styleId': style.id,
-};
+}) => {'city': city, 'styleId': style.id};
 
 Map<String, Object?> encodeStyle(String styleId) => {'styleId': styleId};
 
@@ -67,8 +57,8 @@ Map<String, Object?> encodeGestures() => <String, Object?>{
   'panEnabled': true,
 };
 
-/// 相机指令共用参数。[bottomPadding] 是 Mapbox padding.bottom 的等价物：
-/// 让目标点出现在「去掉底部面板后的区域」中心。
+/// 相机指令共用参数。[bottomPadding] 让目标点出现在「去掉底部面板后的区域」
+/// 中心。
 Map<String, Object?> encodeCameraMove({
   required double longitude,
   required double latitude,
@@ -85,15 +75,14 @@ Map<String, Object?> encodeCameraMove({
   'bottomPadding': bottomPadding,
 };
 
-Map<String, Object?> encodeApplyStage({required double bottomPadding}) =>
-    {'bottomPadding': bottomPadding};
+Map<String, Object?> encodeApplyStage({required double bottomPadding}) => {
+  'bottomPadding': bottomPadding,
+};
 
 /// marker 图标资产表：kind.id → Flutter 资产 key。原生启动时一次性装载，
 /// 比每帧传 bytes 省。
 Map<String, Object?> encodeMarkerAssets() => {
-  'assets': {
-    for (final kind in MapVenueKind.values) kind.id: kind.iconAsset,
-  },
+  'assets': {for (final kind in MapVenueKind.values) kind.id: kind.iconAsset},
 };
 
 /// [SiponMapCommands.renderFrame] 载荷（对应 [MapSceneFrame]）。
@@ -101,8 +90,10 @@ Map<String, Object?> encodeMarkerAssets() => {
 /// 约定：列表传全量，原生按 id diff；Dart 侧五套指纹保证没变的帧根本
 /// 不会发出这条消息（见基类 [MapSceneController.render]）。
 /// [zoom] 是最近一次视野上报的缩放，用来算圆点淡入透明度。
-Map<String, Object?> encodeRenderFrame(MapSceneFrame frame,
-    {required double zoom}) {
+Map<String, Object?> encodeRenderFrame(
+  MapSceneFrame frame, {
+  required double zoom,
+}) {
   final fade = mapCircleFadeForZoom(zoom);
   return {
     'layerMode': frame.layerMode.name,

@@ -1,13 +1,10 @@
 import 'dart:async';
 
-/// 双引擎共用的地图句柄。
+/// Dart 侧共用的地图句柄。
 ///
 /// - MapKit 实现（`ChannelMapHost`，见 `sipon_map_widget.dart`）：
 ///   [invoke] 走 MethodChannel 到原生；[onNativeCall] 注册的是
 ///   原生反向调用的唯一入口。
-/// - Mapbox 实现：包一层已有的 `MapboxMap` 实例，[invoke] 基本不适用
-///   （Mapbox 走插件 API），[onNativeCall] 只用于转发 styleLoaded / idle 等
-///   插件事件，让两个引擎的事件在 [MapSceneController] 里汇成同一条路。
 abstract class SiponMapHost {
   /// 向地图引擎下发一条指令。方法名与载荷见 `SiponMapProtocol`。
   ///

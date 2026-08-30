@@ -28,8 +28,7 @@ const bool _useMockMapData = true;
 ///
 /// 真正的逻辑分别在：
 /// - [MapDataController]：有哪些酒吧、选中哪个、筛选了什么；
-/// - [MapSceneController]：底图、annotation、相机与图层显隐（引擎为
-///   MapKit，迁移期可用 dart-define 切回 Mapbox 对照）；
+/// - [MapSceneController]：底图、annotation、相机与图层显隐（MapKit 引擎）；
 /// - [VenueSheetController]：详情面板的 extent 与吸附档位。
 class MapPage extends StatefulWidget {
   const MapPage({super.key, this.bottomOverlayInset = 0});

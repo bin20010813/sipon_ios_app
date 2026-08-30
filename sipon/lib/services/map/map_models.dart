@@ -1,6 +1,6 @@
-/// 地图域的数据模型。这一层刻意不依赖 `mapbox_maps_flutter`：
-/// 坐标一律用裸 double，GeoJSON 也只是普通 Map，转成 Mapbox 的 `Point`
-/// 是 [MapSceneController] 的活儿。这样模型可以被纯 Dart 测试直接构造。
+/// 地图域的数据模型。这一层刻意不依赖具体地图引擎：
+/// 坐标一律用裸 double，GeoJSON 也只是普通 Map。这样模型可以被纯 Dart
+/// 测试直接构造。
 library;
 
 /// 酒吧类型。原来 `kind` 是裸 String，图标、中文名、圆点配色各写一处 switch，
@@ -34,7 +34,9 @@ enum MapVenueKind {
     if (kind.isEmpty) {
       return MapVenueKind.pub;
     }
-    if (kind.contains('craft') || kind.contains('精酿') || kind.contains('beer')) {
+    if (kind.contains('craft') ||
+        kind.contains('精酿') ||
+        kind.contains('beer')) {
       return MapVenueKind.craft;
     }
     if (kind.contains('bistro') || kind.contains('餐酒')) {

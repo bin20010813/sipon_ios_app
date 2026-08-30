@@ -7,15 +7,17 @@ import 'map_viewport.dart';
 
 /// 地图页的数据与筛选状态。
 ///
-/// 这里只管「有哪些酒吧、选中哪个、显示哪些」，完全不碰 Mapbox：地图侧的事情
+/// 这里只管「有哪些酒吧、选中哪个、显示哪些」，完全不碰地图引擎：地图侧的事情
 /// 在 [MapSceneController]，面板动画在 [VenueSheetController]。
 ///
 /// 取数用「单飞 + 最后一次胜出」：并发的相机停顿不会叠出多个请求，也不会像原来
 /// 那样在 `finally` 里递归调用自己。
 class MapDataController extends ChangeNotifier {
-  MapDataController({required MapVenueRepository repository, required String city})
-    : _repository = repository,
-      _city = city;
+  MapDataController({
+    required MapVenueRepository repository,
+    required String city,
+  }) : _repository = repository,
+       _city = city;
 
   final MapVenueRepository _repository;
 
@@ -56,7 +58,9 @@ class MapDataController extends ChangeNotifier {
       return _venues;
     }
 
-    return _venues.where((venue) => venue.kind == filter).toList(growable: false);
+    return _venues
+        .where((venue) => venue.kind == filter)
+        .toList(growable: false);
   }
 
   /// 要画文字标签的那一批（按当前缩放抽样）。

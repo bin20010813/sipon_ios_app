@@ -53,9 +53,9 @@ enum SiponMapGeometry {
 
   // MARK: - padding → 中心点折算（§5.2）
 
-  /// Mapbox 的 `padding.bottom` 让目标点出现在「去掉底部 padding 后的区域」中心；
-  /// MapKit 无此概念，折算成把真实中心向南移。`bottomPx` 是本次相机调用
-  /// 显式携带的 padding 下边距。
+  /// 让目标点出现在「去掉底部 padding 后的区域」中心；MapKit 无此概念，
+  /// 折算成把真实中心向南移。`bottomPx` 是本次相机调用显式携带的 padding
+  /// 下边距。
   static func center(
     lat: Double,
     lng: Double,

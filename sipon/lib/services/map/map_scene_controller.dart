@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'map_display_options.dart';
 import 'map_models.dart';
 import 'map_viewport.dart';
-import 'mapbox_scene_controller.dart';
 import 'mapkit_scene_controller.dart';
 import 'sipon_map_host.dart';
 
@@ -44,8 +43,8 @@ class MapSceneFrame {
 ///
 /// 它是整个地图页里**唯一**碰地图引擎的地方。页面不再直接碰引擎，
 /// 于是「相机为什么动了」永远只有实现类里的几个方法可查。这里只放契约、
-/// 相机常量与两个引擎共享的帧指纹机制；Mapbox 细节在
-/// [MapboxSceneController]，MapKit 细节在 [MapkitSceneController]。
+/// 相机常量与 MapKit 引擎共享的帧指纹机制；MapKit 细节在
+/// [MapkitSceneController]。
 ///
 /// 三个回调把地图事件翻译成业务意图交回页面：
 /// - [onViewportSettled]：相机停稳（已去抖）后的视野，页面拿去决定要不要取数；
@@ -62,28 +61,17 @@ abstract class MapSceneController {
   final void Function(String venueId) onVenueTapped;
   final VoidCallback onBlankTapped;
 
-  /// 迁移期双引擎开关，仿照页面里现成的 `_useMockMapData` 模式。
-  ///
-  /// 默认走 MapKit；验收有问题时用
-  /// `--dart-define=USE_MAPKIT_MAP=false` 切回 Mapbox 对照。
+  /// 当前只使用 MapKit 引擎。
   static MapSceneController create({
     required void Function(MapViewport viewport) onViewportSettled,
     required void Function(String venueId) onVenueTapped,
     required VoidCallback onBlankTapped,
   }) {
-    const useMapkit = bool.fromEnvironment('USE_MAPKIT_MAP', defaultValue: true);
-
-    return useMapkit
-        ? MapkitSceneController(
-            onViewportSettled: onViewportSettled,
-            onVenueTapped: onVenueTapped,
-            onBlankTapped: onBlankTapped,
-          )
-        : MapboxSceneController(
-            onViewportSettled: onViewportSettled,
-            onVenueTapped: onVenueTapped,
-            onBlankTapped: onBlankTapped,
-          );
+    return MapkitSceneController(
+      onViewportSettled: onViewportSettled,
+      onVenueTapped: onVenueTapped,
+      onBlankTapped: onBlankTapped,
+    );
   }
 
   /// 相机停下后再等这么久才回调。一次飞行会连着抛好几个 idle，
@@ -126,7 +114,7 @@ abstract class MapSceneController {
   @protected
   double cameraBottomPadding = 0;
 
-  /// 装饰物下边距。MapKit 没有装饰物，只有 Mapbox 版还在消费它。
+  /// 装饰物下边距。MapKit 没有装饰物，保留字段只为兼容页面调用。
   @protected
   double ornamentBottomMargin = 184;
 
@@ -169,10 +157,7 @@ abstract class MapSceneController {
   }
 
   /// 把某个坐标居中（附带聚焦缩放/俯仰/朝向）。
-  Future<void> focusOn({
-    required double longitude,
-    required double latitude,
-  });
+  Future<void> focusOn({required double longitude, required double latitude});
 
   Future<void> flyToCity(String city, {required double zoom});
 

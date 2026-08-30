@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 
-/// 可切换的底图样式。MapKit 只有三种真实配置，档位从 Mapbox 时代的 5 收敛到
-/// 3（+暗色近似）：
+/// 可切换的底图样式。MapKit 当前提供 3 个档位：
 /// - `standard` 同时承接原来的 light 与 streets；
 /// - `muted` 用 muted emphasis + 强制深色界面近似原来的 dark；
 /// - `satellite` 用带路名的混合影像，对应原 SATELLITE_STREETS 的观感。
 ///
-/// 这一文件刻意不依赖任何地图引擎包：[MapBaseStyle.id] 是双引擎共用的
-/// 协议值（见 `SiponMapChannel`），由各引擎实现自己翻译成底图配置。
+/// 这一文件刻意不依赖任何地图引擎包：[MapBaseStyle.id] 是 MethodChannel 的
+/// 协议值（见 `SiponMapChannel`），由原生侧翻译成底图配置。
 enum MapBaseStyle {
   standard('标准'),
   muted('暗色'),
@@ -48,11 +47,10 @@ enum MapLayerMode {
 const double mapHeatmapHandoffZoom = 12;
 
 /// 圆点恢复到完全不透明的层级。与 [mapHeatmapHandoffZoom] 之间是淡入淡出区间，
-/// 原来由 Mapbox 的 zoom 表达式逐帧插值；MapKit 版改为 Dart 算好透明度下发、
-/// 原生按最新缩放执行，语义不变。
+/// Dart 侧算好透明度下发，原生按最新缩放执行。
 const double mapPointsRestoredZoom = 13.2;
 
-/// 圆点完全显现时的不透明度。原来是渲染层的私有常量，双引擎都要用，提上来。
+/// 圆点完全显现时的不透明度。
 const double mapCircleFullOpacity = 0.92;
 
 /// 在淡入淡出区间内按缩放线性插值出圆点的当前透明度；区间外截断到两端。

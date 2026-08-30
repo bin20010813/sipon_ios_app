@@ -1,4 +1,4 @@
-# Mapbox Maps Flutter requires iOS 14.0 or newer.
+# MapKit-backed Flutter map uses the project iOS deployment target.
 platform :ios, '14.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.

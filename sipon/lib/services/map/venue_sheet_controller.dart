@@ -89,15 +89,14 @@ class VenueSheetController extends ChangeNotifier {
 
   /// 半屏态相机下边距在 [halfExtent] 基础上的收窄量。
   ///
-  /// Mapbox 把聚焦地点放在「扣除 bottom padding 后的可视区」中心：
-  /// 中心高度 = (屏高 - padding) / 2。按整份 [halfExtent] 让位时中心落在
-  /// 约 22.5% 屏高处，叠加 pitch 后视觉上贴顶；收窄一档把中心压回
-  /// 上半屏的视觉重心。想再往下移就增大这个值（每加 0.1 中心下移 5% 屏高）。
+  /// 聚焦地点会放在「扣除 bottom padding 后的可视区」中心：中心高度 =
+  /// (屏高 - padding) / 2。按整份 [halfExtent] 让位时中心落在约 22.5%
+  /// 屏高处，叠加 pitch 后视觉上贴顶；收窄一档把中心压回上半屏的视觉重心。
+  /// 想再往下移就增大这个值（每加 0.1 中心下移 5% 屏高）。
   static const double cameraPaddingShrink = 0.12;
 
   /// 相机 padding 的下边距（像素）。收起态不让出空间，展开态让出下半屏。
-  double get cameraBottomPadding =>
-      _stage == VenueSheetStage.collapsed
+  double get cameraBottomPadding => _stage == VenueSheetStage.collapsed
       ? 0
       : _availableHeight * (halfExtent - cameraPaddingShrink);
 

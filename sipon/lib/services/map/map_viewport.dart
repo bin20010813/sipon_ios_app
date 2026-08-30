@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-/// 一个经纬度点。纯 Dart，避免把 `mapbox_maps_flutter` 的 `Position` 渗到数据层。
+/// 一个经纬度点。纯 Dart，避免把地图引擎类型渗到数据层。
 class MapLatLng {
   const MapLatLng({required this.longitude, required this.latitude});
 
@@ -30,7 +30,7 @@ class MapBoundsBox {
     required this.north,
   });
 
-  /// 相机还没就绪时 Mapbox 会给出无穷大范围，这时退回整个中国。
+  /// 相机还没就绪时退回整个中国。
   const MapBoundsBox.china() : west = 73, south = 18, east = 135, north = 54;
 
   final double west;
