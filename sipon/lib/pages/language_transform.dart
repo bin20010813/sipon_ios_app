@@ -118,6 +118,11 @@ class SiponAppText {
   String get route => t('酒鬼线路');
   String get drinkBudget => t('喝酒本金');
   String get addRecord => t('记一笔');
+  String get plusSheetTitle => t('想做什么？');
+  String get plusSheetHint => t('挑一个开始今晚的微醺');
+  String get plusWriteReview => t('写评论');
+  String get plusCheckInBar => t('打卡酒吧');
+  String get plusPlanRoute => t('规划路线');
   String get monthlySpend => t('本月支出');
   String get monthlyDeltaPrefix => t('较上月  ');
   String get monthlyBudget => t('本月预算');
@@ -212,6 +217,11 @@ const Map<String, String> _englishText = {
   '酒鬼线路': 'Bar Route',
   '喝酒本金': 'Drink Fund',
   '记一笔': 'Add',
+  '想做什么？': 'What do you want to do?',
+  '挑一个开始今晚的微醺': 'Pick one to start tonight',
+  '写评论': 'Write a Review',
+  '打卡酒吧': 'Check in at a Bar',
+  '规划路线': 'Plan a Route',
   '本月支出': 'Monthly Spend',
   '较上月  ': 'vs last month  ',
   '本月预算': 'Monthly Budget',
