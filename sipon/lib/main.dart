@@ -245,6 +245,9 @@ class _SiponShell extends StatefulWidget {
 class _SiponShellState extends State<_SiponShell> {
   static const double _navigationReserveHeight = 86;
 
+  double get _effectiveNavigationReserveHeight =>
+      _navigationReserveHeight + MediaQuery.paddingOf(context).bottom;
+
   int _currentIndex = 0;
   bool _recordRouteOpening = false;
 
@@ -276,6 +279,36 @@ class _SiponShellState extends State<_SiponShell> {
     _recordRouteOpening = false;
   }
 
+  void _openPlusSheet() {
+    Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        opaque: false,
+        barrierColor: const Color(0x66000000),
+        barrierDismissible: true,
+        transitionDuration: const Duration(milliseconds: 280),
+        reverseTransitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (_, __, ___) => const _SiponPlusSheet(),
+        transitionsBuilder: (_, animation, __, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          );
+          return FadeTransition(
+            opacity: curved,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.06),
+                end: Offset.zero,
+              ).animate(curved),
+              child: child,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -286,12 +319,12 @@ class _SiponShellState extends State<_SiponShell> {
             index: _currentIndex,
             children: [
               HomePage(
-                bottomOverlayInset: _navigationReserveHeight,
+                bottomOverlayInset: _effectiveNavigationReserveHeight,
                 onRecordPressed: _openDrinkRecord,
               ),
-              const MapPage(bottomOverlayInset: _navigationReserveHeight),
+              MapPage(bottomOverlayInset: _effectiveNavigationReserveHeight),
               ProfilePage(
-                bottomOverlayInset: _navigationReserveHeight,
+                bottomOverlayInset: _effectiveNavigationReserveHeight,
                 onRecordPressed: _openDrinkRecord,
                 onLogoutSucceeded: widget.onLogoutSucceeded,
               ),
@@ -304,6 +337,7 @@ class _SiponShellState extends State<_SiponShell> {
               child: _SiponBottomJumpBar(
                 currentIndex: _currentIndex,
                 onTabSelected: _selectTab,
+                onPlusPressed: _openPlusSheet,
               ),
             ),
           ),
@@ -317,6 +351,7 @@ class _SiponBottomJumpBar extends StatelessWidget {
   const _SiponBottomJumpBar({
     required this.currentIndex,
     required this.onTabSelected,
+    required this.onPlusPressed,
   });
 
   static const Color _activeColor = Color(0xFF9A3D78);
@@ -324,6 +359,7 @@ class _SiponBottomJumpBar extends StatelessWidget {
 
   final int currentIndex;
   final ValueChanged<int> onTabSelected;
+  final VoidCallback onPlusPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -331,49 +367,100 @@ class _SiponBottomJumpBar extends StatelessWidget {
 
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 420),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.94),
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: const Color(0x14FFFFFF)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x1F9A3D78),
-              blurRadius: 24,
-              offset: Offset(0, 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Expanded(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.94),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(color: const Color(0x14FFFFFF)),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x1F9A3D78),
+                    blurRadius: 24,
+                    offset: Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: SizedBox(
+                height: 62,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _SiponBottomJumpItem(
+                      tooltip: text.homeTab,
+                      icon: Icons.home_rounded,
+                      selected: currentIndex == 0,
+                      activeColor: _activeColor,
+                      inactiveColor: _inactiveColor,
+                      onPressed: () => onTabSelected(0),
+                    ),
+                    _SiponBottomJumpItem(
+                      tooltip: text.mapTab,
+                      icon: Icons.map_rounded,
+                      selected: currentIndex == 1,
+                      activeColor: _activeColor,
+                      inactiveColor: _inactiveColor,
+                      onPressed: () => onTabSelected(1),
+                    ),
+                    _SiponBottomJumpItem(
+                      tooltip: text.profileTab,
+                      icon: Icons.person_rounded,
+                      selected: currentIndex == 2,
+                      activeColor: _activeColor,
+                      inactiveColor: _inactiveColor,
+                      onPressed: () => onTabSelected(2),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ],
-        ),
-        child: SizedBox(
-          height: 62,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _SiponBottomJumpItem(
-                tooltip: text.homeTab,
-                icon: Icons.home_rounded,
-                selected: currentIndex == 0,
-                activeColor: _activeColor,
-                inactiveColor: _inactiveColor,
-                onPressed: () => onTabSelected(0),
-              ),
-              _SiponBottomJumpItem(
-                tooltip: text.mapTab,
-                icon: Icons.map_rounded,
-                selected: currentIndex == 1,
-                activeColor: _activeColor,
-                inactiveColor: _inactiveColor,
-                onPressed: () => onTabSelected(1),
-              ),
-              _SiponBottomJumpItem(
-                tooltip: text.profileTab,
-                icon: Icons.person_rounded,
-                selected: currentIndex == 2,
-                activeColor: _activeColor,
-                inactiveColor: _inactiveColor,
-                onPressed: () => onTabSelected(2),
-              ),
-            ],
+          ),
+          const SizedBox(width: 10),
+          _SiponBottomPlusButton(onPressed: onPlusPressed),
+        ],
+      ),
+    );
+  }
+}
+
+class _SiponBottomPlusButton extends StatelessWidget {
+  const _SiponBottomPlusButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: '更多操作',
+      child: Material(
+        color: Colors.transparent,
+        child: InkResponse(
+          onTap: onPressed,
+          radius: 32,
+          highlightShape: BoxShape.circle,
+          child: Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 14,
+                  offset: Offset(0, 6),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.add_rounded,
+              color: Color(0xFF8F8790),
+              size: 28,
+            ),
           ),
         ),
       ),
@@ -558,6 +645,283 @@ class _SiponSplashScreen extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SiponPlusSheet extends StatelessWidget {
+  const _SiponPlusSheet();
+
+  static const Color _cardBg = Colors.white;
+  static const Color _muted = Color(0xFF8F8790);
+
+  @override
+  Widget build(BuildContext context) {
+    final text = SiponLanguageScope.textOf(context);
+    final mediaQuery = MediaQuery.of(context);
+    final viewInsets = mediaQuery.viewInsets.bottom;
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => Navigator.of(context).maybePop(),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + viewInsets),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7F2F5),
+                    borderRadius: BorderRadius.circular(28),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x33000000),
+                        blurRadius: 24,
+                        offset: Offset(0, 12),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 22),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 44,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: const Color(0x22000000),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        text.plusSheetTitle,
+                        style: TextStyle(
+                          color: Color(0xFF252229),
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        text.plusSheetHint,
+                        style: TextStyle(
+                          color: _muted,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      const _SiponPlusSheetGrid(),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SiponPlusSheetGrid extends StatefulWidget {
+  const _SiponPlusSheetGrid();
+
+  @override
+  State<_SiponPlusSheetGrid> createState() => _SiponPlusSheetGridState();
+}
+
+class _SiponPlusSheetGridState extends State<_SiponPlusSheetGrid>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 720),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Widget _animatedCard({required int index, required Widget child}) {
+    final start = index * 0.16;
+    final animation = CurvedAnimation(
+      parent: _controller,
+      curve: Interval(start, 0.72 + index * 0.1, curve: Curves.easeOutBack),
+    );
+
+    return AnimatedBuilder(
+      animation: animation,
+      child: child,
+      builder: (context, child) {
+        final progress = animation.value;
+        return Opacity(
+          opacity: progress.clamp(0.0, 1.0),
+          child: Transform.translate(
+            offset: Offset(0, 18 * (1 - progress)),
+            child: Transform.scale(
+              scale: 0.9 + progress * 0.1,
+              alignment: Alignment.bottomCenter,
+              child: child,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = SiponLanguageScope.textOf(context);
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _animatedCard(
+                index: 0,
+                child: _SiponPlusActionCard(
+                  icon: Icons.edit_note_rounded,
+                  title: text.plusWriteReview,
+                  accent: Color(0xFF9A3D78),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _animatedCard(
+                index: 1,
+                child: _SiponPlusActionCard(
+                  icon: Icons.local_bar_rounded,
+                  title: text.plusCheckInBar,
+                  accent: Color(0xFFE08A3C),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _animatedCard(
+          index: 2,
+          child: _SiponPlusActionCard(
+            icon: Icons.alt_route_rounded,
+            title: text.plusPlanRoute,
+            accent: Color(0xFF3F7CA8),
+            fullWidth: true,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SiponPlusActionCard extends StatelessWidget {
+  const _SiponPlusActionCard({
+    required this.icon,
+    required this.title,
+    required this.accent,
+    this.fullWidth = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final Color accent;
+  final bool fullWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 78,
+      child: Material(
+        color: _SiponPlusSheet._cardBg,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => Navigator.of(context).maybePop(),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: BoxDecoration(
+              color: _SiponPlusSheet._cardBg,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0x11000000)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x0F000000),
+                  blurRadius: 10,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                _PlusIconBubble(icon: icon, color: accent),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      color: Color(0xFF252229),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+                if (fullWidth)
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Color(0xFFB8AEB7),
+                    size: 22,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlusIconBubble extends StatelessWidget {
+  const _PlusIconBubble({required this.icon, required this.color});
+
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(icon, color: color, size: 22),
     );
   }
 }
