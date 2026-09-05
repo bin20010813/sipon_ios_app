@@ -805,9 +805,9 @@ class _SiponPlusSheetGridState extends State<_SiponPlusSheetGrid>
               child: _animatedCard(
                 index: 0,
                 child: _SiponPlusActionCard(
-                  icon: Icons.edit_note_rounded,
-                  title: text.plusWriteReview,
-                  accent: Color(0xFF9A3D78),
+                  icon: Icons.alt_route_rounded,
+                  title: text.plusPlanRoute,
+                  accent: Color(0xFF3F7CA8),
                 ),
               ),
             ),
@@ -823,16 +823,6 @@ class _SiponPlusSheetGridState extends State<_SiponPlusSheetGrid>
               ),
             ),
           ],
-        ),
-        const SizedBox(height: 12),
-        _animatedCard(
-          index: 2,
-          child: _SiponPlusActionCard(
-            icon: Icons.alt_route_rounded,
-            title: text.plusPlanRoute,
-            accent: Color(0xFF3F7CA8),
-            fullWidth: true,
-          ),
         ),
       ],
     );
