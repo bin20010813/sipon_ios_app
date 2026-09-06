@@ -118,6 +118,11 @@ class SiponAppText {
   String get route => t('酒鬼线路');
   String get drinkBudget => t('喝酒本金');
   String get addRecord => t('记一笔');
+  String get plusSheetTitle => t('想做什么？');
+  String get plusSheetHint => t('挑一个开始今晚的微醺');
+  String get plusWriteReview => t('写评论');
+  String get plusCheckInBar => t('打卡酒吧');
+  String get plusPlanRoute => t('规划路线');
   String get monthlySpend => t('本月支出');
   String get monthlyDeltaPrefix => t('较上月  ');
   String get monthlyBudget => t('本月预算');
@@ -138,7 +143,7 @@ class SiponAppText {
   String get achievementsUnlocked => t('已解锁8枚');
   String get settingsSupport => t('设置与支持');
   String get feedbackAdvice => t('反馈与建议');
-  String get languageTransformEntry => t('语言翻译');
+  String get languageTransformEntry => t('语言/Language');
   String get reviewEntry => t('评价与反馈');
   String get accountSecurity => t('账号安全');
   String get preferenceSelection => t('偏好选择');
@@ -163,7 +168,6 @@ class SiponAppText {
   String get submitFeedback => t('提交反馈');
   String get feedbackRequired => t('请输入反馈内容');
   String get feedbackSent => t('反馈已提交');
-  String get feedbackEmpty => t('暂无反馈');
   String get rateTitle => t('为我们评分');
   String get ratingPrompt => t('选择你的评分');
   String get submitRating => t('提交评分');
@@ -212,6 +216,11 @@ const Map<String, String> _englishText = {
   '酒鬼线路': 'Bar Route',
   '喝酒本金': 'Drink Fund',
   '记一笔': 'Add',
+  '想做什么？': 'What do you want to do?',
+  '挑一个开始今晚的微醺': 'Pick one to start tonight',
+  '写评论': 'Write a Review',
+  '打卡酒吧': 'Check in at a Bar',
+  '规划路线': 'Plan a Route',
   '本月支出': 'Monthly Spend',
   '较上月  ': 'vs last month  ',
   '本月预算': 'Monthly Budget',
@@ -257,7 +266,7 @@ const Map<String, String> _englishText = {
   '已解锁8枚': '8 unlocked',
   '设置与支持': 'Settings & Support',
   '反馈与建议': 'Feedback',
-  '语言翻译': 'Language',
+  '语言/Language': '语言/Language',
   '评价与反馈': 'Reviews & Feedback',
   '账号安全': 'Account Security',
   '偏好选择': 'Preferences',
@@ -271,7 +280,7 @@ const Map<String, String> _englishText = {
   '返回': 'Back',
   '语言': 'Language',
   '当前语言': 'Current Language',
-  '中文': 'Chinese',
+  '中文': '中文',
   '英文': 'English',
   '语言已切换': 'Language updated',
   '用户反馈板': 'Feedback Board',
@@ -280,8 +289,7 @@ const Map<String, String> _englishText = {
   '提交反馈': 'Submit Feedback',
   '请输入反馈内容': 'Please enter feedback first',
   '反馈已提交': 'Feedback submitted',
-  '暂无反馈': 'No feedback yet',
-  '添加截图': 'Add Screenshots',
+  '添加截图或者视频': 'Add Screenshots or Videos',
   '最多上传 3 张问题截图，便于我们定位页面和异常。':
       'Upload up to 3 issue screenshots so we can locate the page and problem.',
   '最多添加 3 张截图': 'You can add up to 3 screenshots',
@@ -616,8 +624,8 @@ const Map<String, String> _englishText = {
   '写下使用体验': 'Write Your Experience',
   '告诉我们哪一刻让你觉得好用': 'Tell us what felt useful',
   '填写': 'Write',
-  '记录饮酒偏好，发现附近好酒吧，管理每一次微醺。':
-      'Track drink preferences, find nearby bars, and manage every tipsy moment.',
+  'Turn the SIP ON，开饮 就现在':
+      'Turn the SIP ON，开饮 就现在.',
   '产品信息': 'Product Info',
   '版本': 'Version',
   '服务邮箱': 'Support Email',

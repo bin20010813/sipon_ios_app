@@ -259,9 +259,7 @@ class _FeedbackSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          if (feedbackItems.isEmpty)
-            _EmptyFeedback(text: text)
-          else
+          if (feedbackItems.isNotEmpty)
             Column(
               children: [
                 for (var index = 0; index < feedbackItems.length; index++) ...[
@@ -300,7 +298,7 @@ class _ScreenshotPicker extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          text.t('添加截图'),
+          text.t('添加截图或者视频'),
           style: const TextStyle(
             color: _ReviewPageState._ink,
             fontSize: 14,
@@ -443,35 +441,6 @@ class _AddScreenshotTile extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyFeedback extends StatelessWidget {
-  const _EmptyFeedback({required this.text});
-
-  final SiponAppText text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFCF8FA),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _ReviewPageState._line),
-      ),
-      child: Text(
-        text.feedbackEmpty,
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          color: _ReviewPageState._muted,
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0,
         ),
       ),
     );

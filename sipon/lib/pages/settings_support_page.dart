@@ -527,7 +527,7 @@ class _AboutUsPage extends StatelessWidget {
           icon: Icons.local_bar_rounded,
           assetPath: 'assest/logo.png',
           title: text.appTitle,
-          subtitle: text.t('记录饮酒偏好，发现附近好酒吧，管理每一次微醺。'),
+          subtitle: text.t('Turn the SIP ON，开饮 就现在'),
           centered: true,
         ),
         const SizedBox(height: 16),
