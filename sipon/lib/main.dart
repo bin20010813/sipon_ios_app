@@ -4,7 +4,9 @@ import 'pages/drink_record_page.dart';
 import 'pages/home_page.dart';
 import 'pages/language_transform.dart';
 import 'pages/map_page.dart';
+import 'pages/check_in_page.dart';
 import 'pages/profile_page.dart';
+import 'pages/route_planning_page.dart';
 import 'pages/sipon_launch_page.dart';
 import 'pages/sms_login_page.dart';
 import 'services/drink_budget_store.dart';
@@ -287,8 +289,11 @@ class _SiponShellState extends State<_SiponShell> {
         barrierDismissible: true,
         transitionDuration: const Duration(milliseconds: 280),
         reverseTransitionDuration: const Duration(milliseconds: 220),
-        pageBuilder: (_, __, ___) => const _SiponPlusSheet(),
-        transitionsBuilder: (_, animation, __, child) {
+        pageBuilder: (_, _, _) => _SiponPlusSheet(
+          onPlanRoute: _openRoutePlanning,
+          onCheckIn: _openCheckIn,
+        ),
+        transitionsBuilder: (_, animation, _, child) {
           final curved = CurvedAnimation(
             parent: animation,
             curve: Curves.easeOutCubic,
@@ -308,6 +313,14 @@ class _SiponShellState extends State<_SiponShell> {
       ),
     );
   }
+
+  Future<void> _openRoutePlanning() => Navigator.of(
+    context,
+  ).push(MaterialPageRoute<void>(builder: (_) => const RoutePlanningPage()));
+
+  Future<void> _openCheckIn() => Navigator.of(
+    context,
+  ).push(MaterialPageRoute<void>(builder: (_) => const CheckInPage()));
 
   @override
   Widget build(BuildContext context) {
@@ -650,10 +663,13 @@ class _SiponSplashScreen extends StatelessWidget {
 }
 
 class _SiponPlusSheet extends StatelessWidget {
-  const _SiponPlusSheet();
+  const _SiponPlusSheet({required this.onPlanRoute, required this.onCheckIn});
 
   static const Color _cardBg = Colors.white;
   static const Color _muted = Color(0xFF8F8790);
+
+  final VoidCallback onPlanRoute;
+  final VoidCallback onCheckIn;
 
   @override
   Widget build(BuildContext context) {
@@ -727,7 +743,10 @@ class _SiponPlusSheet extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 18),
-                      const _SiponPlusSheetGrid(),
+                      _SiponPlusSheetGrid(
+                        onPlanRoute: onPlanRoute,
+                        onCheckIn: onCheckIn,
+                      ),
                     ],
                   ),
                 ),
@@ -741,7 +760,13 @@ class _SiponPlusSheet extends StatelessWidget {
 }
 
 class _SiponPlusSheetGrid extends StatefulWidget {
-  const _SiponPlusSheetGrid();
+  const _SiponPlusSheetGrid({
+    required this.onPlanRoute,
+    required this.onCheckIn,
+  });
+
+  final VoidCallback onPlanRoute;
+  final VoidCallback onCheckIn;
 
   @override
   State<_SiponPlusSheetGrid> createState() => _SiponPlusSheetGridState();
@@ -808,6 +833,7 @@ class _SiponPlusSheetGridState extends State<_SiponPlusSheetGrid>
                   icon: Icons.alt_route_rounded,
                   title: text.plusPlanRoute,
                   accent: Color(0xFF3F7CA8),
+                  onTap: widget.onPlanRoute,
                 ),
               ),
             ),
@@ -819,6 +845,7 @@ class _SiponPlusSheetGridState extends State<_SiponPlusSheetGrid>
                   icon: Icons.local_bar_rounded,
                   title: text.plusCheckInBar,
                   accent: Color(0xFFE08A3C),
+                  onTap: widget.onCheckIn,
                 ),
               ),
             ),
@@ -834,13 +861,13 @@ class _SiponPlusActionCard extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.accent,
-    this.fullWidth = false,
+    required this.onTap,
   });
 
   final IconData icon;
   final String title;
   final Color accent;
-  final bool fullWidth;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -851,7 +878,10 @@ class _SiponPlusActionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
-          onTap: () => Navigator.of(context).maybePop(),
+          onTap: () {
+            Navigator.of(context).pop();
+            Future<void>.delayed(Duration.zero, onTap);
+          },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             decoration: BoxDecoration(
@@ -881,12 +911,6 @@ class _SiponPlusActionCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (fullWidth)
-                  const Icon(
-                    Icons.chevron_right_rounded,
-                    color: Color(0xFFB8AEB7),
-                    size: 22,
-                  ),
               ],
             ),
           ),
