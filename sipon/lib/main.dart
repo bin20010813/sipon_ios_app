@@ -318,9 +318,13 @@ class _SiponShellState extends State<_SiponShell> {
     context,
   ).push(MaterialPageRoute<void>(builder: (_) => const RoutePlanningPage()));
 
-  Future<void> _openCheckIn() => Navigator.of(
-    context,
-  ).push(MaterialPageRoute<void>(builder: (_) => const CheckInPage()));
+  Future<void> _openCheckIn() => showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    barrierColor: const Color(0x66000000),
+    builder: (_) => const CheckInPage(),
+  );
 
   @override
   Widget build(BuildContext context) {
