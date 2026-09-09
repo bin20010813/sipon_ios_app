@@ -13,27 +13,32 @@ class SiponApiClient {
   final SiponApiConfig config;
   final http.Client _httpClient;
   static String? _sharedSessionAccessToken;
-  String? _sessionAccessToken;
+  static SiponSessionRefresher? _sharedSessionRefresher;
+  static Future<String?>? _refreshingSession;
 
-  static void setSessionAccessToken(String? accessToken) {
+  static void setSessionAccessToken(
+    String? accessToken, {
+    SiponSessionRefresher? refresher,
+  }) {
     final normalized = accessToken?.trim();
     _sharedSessionAccessToken = normalized?.isNotEmpty == true
         ? normalized
         : null;
+    _sharedSessionRefresher = _sharedSessionAccessToken == null
+        ? null
+        : refresher;
+  }
+
+  static void clearSession() {
+    _sharedSessionAccessToken = null;
+    _sharedSessionRefresher = null;
   }
 
   Future<dynamic> getJson(
     String path, {
     Map<String, Object?> queryParameters = const {},
   }) async {
-    final response = await _sendWithAuthRetry(
-      () => _httpClient.get(
-        config.uri(path, queryParameters),
-        headers: config.headers(
-          accessTokenOverride: _sessionAccessToken ?? _sharedSessionAccessToken,
-        ),
-      ),
-    );
+    final response = await _send('GET', path, queryParameters: queryParameters);
 
     return _decode(response);
   }
@@ -43,114 +48,226 @@ class SiponApiClient {
     Object? body,
     Map<String, Object?> queryParameters = const {},
   }) async {
-    final response = await _sendWithAuthRetry(
-      () => _httpClient.post(
-        config.uri(path, queryParameters),
-        headers: config.headers(
-          jsonBody: true,
-          accessTokenOverride: _sessionAccessToken ?? _sharedSessionAccessToken,
-        ),
-        body: body == null ? null : jsonEncode(body),
-      ),
+    final response = await _send(
+      'POST',
+      path,
+      body: body,
+      queryParameters: queryParameters,
     );
 
     return _decode(response);
   }
 
   Future<dynamic> postUnauthenticatedJson(String path, {Object? body}) async {
-    final response = await _httpClient
-        .post(
-          config.uri(path),
-          headers: config.headers(jsonBody: true, includeAuth: false),
-          body: body == null ? null : jsonEncode(body),
-        )
-        .timeout(config.timeout);
+    final response = await _send('POST', path, body: body, includeAuth: false);
 
     return _decode(response);
   }
 
-  Future<dynamic> postAdminJson(
+  Future<dynamic> putJson(
     String path, {
     Object? body,
     Map<String, Object?> queryParameters = const {},
   }) async {
-    final response = await _httpClient
-        .post(
-          config.uri(path, queryParameters),
-          headers: config.headers(
-            jsonBody: true,
-            includeAuth: false,
-            includeAdminToken: true,
-          ),
-          body: body == null ? null : jsonEncode(body),
-        )
-        .timeout(config.timeout);
+    final response = await _send(
+      'PUT',
+      path,
+      body: body,
+      queryParameters: queryParameters,
+    );
 
     return _decode(response);
   }
 
-  Future<http.Response> _sendWithAuthRetry(
-    Future<http.Response> Function() send,
-  ) async {
-    var response = await send().timeout(config.timeout);
-    if (response.statusCode != 401 || !config.canLogin) {
-      return response;
-    }
+  Future<dynamic> patchJson(
+    String path, {
+    Object? body,
+    Map<String, Object?> queryParameters = const {},
+  }) async {
+    final response = await _send(
+      'PATCH',
+      path,
+      body: body,
+      queryParameters: queryParameters,
+    );
 
-    _sessionAccessToken = await _login();
-    response = await send().timeout(config.timeout);
-
-    return response;
+    return _decode(response);
   }
 
-  Future<String?> _login() async {
-    final response = await _httpClient
-        .post(
-          config.uri('/api/auth/login'),
-          headers: config.headers(
-            jsonBody: true,
-            includeAuth: false,
-            includeAdminToken: false,
-          ),
-          body: jsonEncode({
-            'username': config.loginUsername,
-            'password': config.loginPassword,
-          }),
-        )
-        .timeout(config.timeout);
-    final json = _decode(response);
+  Future<dynamic> deleteJson(
+    String path, {
+    Object? body,
+    Map<String, Object?> queryParameters = const {},
+  }) async {
+    final response = await _send(
+      'DELETE',
+      path,
+      body: body,
+      queryParameters: queryParameters,
+    );
 
-    if (json is Map) {
-      final accessToken = json['accessToken']?.toString().trim();
-      if (accessToken != null && accessToken.isNotEmpty) {
-        return accessToken;
+    return _decode(response);
+  }
+
+  Future<List<int>> getBytes(String path) async {
+    final response = await _send('GET', path, acceptJson: false);
+    _throwForError(response);
+    return response.bodyBytes;
+  }
+
+  Future<dynamic> postMultipart(
+    String path, {
+    required List<int> fileBytes,
+    required String filename,
+    required String mimeType,
+    Map<String, String> fields = const {},
+  }) async {
+    final request = http.MultipartRequest('POST', config.uri(path));
+    request.headers.addAll(
+      config.headers(accessTokenOverride: _sharedSessionAccessToken),
+    );
+    request.fields.addAll(fields);
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'file',
+        fileBytes,
+        filename: filename,
+        contentType: http.MediaType.parse(mimeType),
+      ),
+    );
+
+    var response = await http.Response.fromStream(
+      await _httpClient.send(request).timeout(config.timeout),
+    ).timeout(config.timeout);
+    if (response.statusCode == 401 && await _refreshSession()) {
+      final retry = http.MultipartRequest('POST', config.uri(path));
+      retry.headers.addAll(
+        config.headers(accessTokenOverride: _sharedSessionAccessToken),
+      );
+      retry.fields.addAll(fields);
+      retry.files.add(
+        http.MultipartFile.fromBytes(
+          'file',
+          fileBytes,
+          filename: filename,
+          contentType: http.MediaType.parse(mimeType),
+        ),
+      );
+      response = await http.Response.fromStream(
+        await _httpClient.send(retry).timeout(config.timeout),
+      ).timeout(config.timeout);
+    }
+    return _decode(response);
+  }
+
+  Future<http.Response> _send(
+    String method,
+    String path, {
+    Object? body,
+    Map<String, Object?> queryParameters = const {},
+    bool includeAuth = true,
+    bool acceptJson = true,
+  }) async {
+    Future<http.Response> sendOnce() async {
+      final request = http.Request(method, config.uri(path, queryParameters));
+      request.headers.addAll(
+        config.headers(
+          jsonBody: body != null,
+          includeAuth: includeAuth,
+          accessTokenOverride: _sharedSessionAccessToken,
+        ),
+      );
+      if (!acceptJson) {
+        request.headers['Accept'] = '*/*';
       }
+      if (body != null) {
+        request.body = jsonEncode(body);
+      }
+      return http.Response.fromStream(
+        await _httpClient.send(request).timeout(config.timeout),
+      ).timeout(config.timeout);
     }
 
-    return null;
+    var response = await sendOnce();
+    if (!includeAuth ||
+        response.statusCode != 401 ||
+        !await _refreshSession()) {
+      return response;
+    }
+    return sendOnce();
+  }
+
+  static Future<bool> _refreshSession() async {
+    final refresher = _sharedSessionRefresher;
+    if (refresher == null || _sharedSessionAccessToken == null) return false;
+    final pending = _refreshingSession ??= refresher();
+    try {
+      final accessToken = await pending;
+      return accessToken?.trim().isNotEmpty == true;
+    } finally {
+      if (identical(_refreshingSession, pending)) {
+        _refreshingSession = null;
+      }
+    }
   }
 
   dynamic _decode(http.Response response) {
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw SiponApiException(
-        statusCode: response.statusCode,
-        message: response.body.isEmpty ? response.reasonPhrase : response.body,
-      );
-    }
+    _throwForError(response);
+    final body = _bodyText(response);
 
-    if (response.body.trim().isEmpty) {
+    if (body.trim().isEmpty) {
       return null;
     }
 
-    return jsonDecode(response.body);
+    return jsonDecode(body);
   }
+
+  void _throwForError(http.Response response) {
+    if (response.statusCode >= 200 && response.statusCode < 300) return;
+    final body = _bodyText(response);
+    final payload = _tryDecodeObject(body);
+    throw SiponApiException(
+      statusCode: response.statusCode,
+      code: payload?['code']?.toString(),
+      message:
+          payload?['message']?.toString() ??
+          (body.isEmpty ? response.reasonPhrase : body),
+      path: payload?['path']?.toString(),
+      requestId:
+          payload?['requestId']?.toString() ?? response.headers['x-request-id'],
+    );
+  }
+
+  Map<String, dynamic>? _tryDecodeObject(String body) {
+    if (body.trim().isEmpty) return null;
+    try {
+      final value = jsonDecode(body);
+      return value is Map ? value.cast<String, dynamic>() : null;
+    } on FormatException {
+      return null;
+    }
+  }
+
+  String _bodyText(http.Response response) =>
+      utf8.decode(response.bodyBytes, allowMalformed: true);
 }
 
+typedef SiponSessionRefresher = Future<String?> Function();
+
 class SiponApiException implements Exception {
-  const SiponApiException({required this.statusCode, required this.message});
+  const SiponApiException({
+    required this.statusCode,
+    required this.message,
+    this.code,
+    this.path,
+    this.requestId,
+  });
 
   final int statusCode;
   final String? message;
+  final String? code;
+  final String? path;
+  final String? requestId;
 
   @override
   String toString() {
@@ -159,6 +276,9 @@ class SiponApiException implements Exception {
       return 'HTTP $statusCode';
     }
 
-    return 'HTTP $statusCode: $detail';
+    final errorCode = code?.trim();
+    return errorCode == null || errorCode.isEmpty
+        ? 'HTTP $statusCode: $detail'
+        : '$errorCode (HTTP $statusCode): $detail';
   }
 }

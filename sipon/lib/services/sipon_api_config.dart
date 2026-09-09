@@ -6,14 +6,6 @@ class SiponApiConfig {
     ),
     this.accessToken = const String.fromEnvironment('SIPON_ACCESS_TOKEN'),
     this.adminToken = const String.fromEnvironment('SIPON_ADMIN_TOKEN'),
-    this.loginUsername = const String.fromEnvironment(
-      'SIPON_LOGIN_USERNAME',
-      defaultValue: 'apifox_user',
-    ),
-    this.loginPassword = const String.fromEnvironment(
-      'SIPON_LOGIN_PASSWORD',
-      defaultValue: 'password123',
-    ),
     this.timeout = const Duration(seconds: 12),
   });
 
@@ -22,12 +14,7 @@ class SiponApiConfig {
   final String baseUrl;
   final String accessToken;
   final String adminToken;
-  final String loginUsername;
-  final String loginPassword;
   final Duration timeout;
-
-  bool get canLogin =>
-      loginUsername.trim().isNotEmpty && loginPassword.trim().isNotEmpty;
 
   Uri uri(String path, [Map<String, Object?> queryParameters = const {}]) {
     final normalizedBaseUrl = baseUrl.endsWith('/')
@@ -45,6 +32,14 @@ class SiponApiConfig {
     }
 
     return uri.replace(queryParameters: query.isEmpty ? null : query);
+  }
+
+  Uri resolveUri(String urlOrPath) {
+    final parsedUri = Uri.parse(urlOrPath);
+    if (parsedUri.hasScheme) {
+      return parsedUri;
+    }
+    return uri(urlOrPath);
   }
 
   Map<String, String> headers({

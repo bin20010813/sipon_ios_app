@@ -9,7 +9,6 @@ import '../services/map/map_models.dart';
 import '../services/map/map_scene_controller.dart';
 import '../services/map/map_venue_repository.dart';
 import '../services/map/map_viewport.dart';
-import '../services/map/mock_map_venue_repository.dart';
 import '../services/map/sipon_map_host.dart';
 import '../services/map/sipon_map_widget.dart';
 import '../services/map/venue_sheet_controller.dart';
@@ -19,10 +18,6 @@ import '../widgets/map/map_tools_sheet.dart';
 import '../widgets/map/venue_sheet.dart';
 import '../widgets/sipon_city_picker.dart';
 import 'language_transform.dart';
-
-/// 地图数据源开关。后端接口就绪后改成 false 就切到 [SiponApiMapVenueRepository]，
-/// 页面代码一行都不用动。
-const bool _useMockMapData = true;
 
 /// 地图页只做组装：把三个控制器接到一起，再把它们的状态摊给几个展示组件。
 ///
@@ -57,9 +52,7 @@ class _MapPageState extends State<MapPage> {
   void initState() {
     super.initState();
     _data = MapDataController(
-      repository: _useMockMapData
-          ? MockMapVenueRepository()
-          : SiponApiMapVenueRepository(),
+      repository: SiponApiMapVenueRepository(),
       city: SiponCityController.defaultCity,
     )..addListener(_handleDataChanged);
     _scene = MapSceneController.create(

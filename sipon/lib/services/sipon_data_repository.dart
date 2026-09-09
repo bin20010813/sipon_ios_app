@@ -24,8 +24,14 @@ class SiponDataRepository {
         .toList(growable: false);
   }
 
-  Future<List<SiponBarMapItem>> fetchHomeBars() {
-    return fetchMapBars(bounds: const SiponMapBounds.china(), zoom: 5);
+  Future<List<SiponBarMapItem>> fetchHomeBars({String? city}) async {
+    final json = await _apiClient.getJson(
+      '/api/bars',
+      queryParameters: {'city': city, 'limit': 20, 'offset': 0},
+    );
+    return SiponBarMapResponse.fromJson(
+      json,
+    ).items.where((item) => !item.cluster).toList(growable: false);
   }
 
   Future<List<String>> fetchCities() async {
@@ -46,9 +52,5 @@ class SiponDataRepository {
         .where((city) => city.isNotEmpty)
         .toSet()
         .toList(growable: false);
-  }
-
-  Future<void> refreshMapClusters() async {
-    await _apiClient.postAdminJson('/api/admin/map/clusters/refresh');
   }
 }

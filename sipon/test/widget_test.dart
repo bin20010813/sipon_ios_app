@@ -29,13 +29,13 @@ void main() {
     await tester.tap(find.byIcon(Icons.settings_outlined));
     await tester.pumpAndSettle();
 
-    expect(find.text('语言翻译'), findsOneWidget);
+    expect(find.text('语言/Language'), findsOneWidget);
 
     await tester.tap(find.text('En'));
     await tester.pumpAndSettle();
 
     expect(controller.language, SiponLanguage.en);
-    expect(find.text('Language'), findsOneWidget);
+    expect(find.text('语言/Language'), findsOneWidget);
     expect(find.text('Account Security'), findsOneWidget);
   });
 

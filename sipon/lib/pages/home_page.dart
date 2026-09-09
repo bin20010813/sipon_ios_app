@@ -90,7 +90,9 @@ class _HomePageState extends State<HomePage> {
 
   Future<_HomeBarsData> _loadHomeBars() async {
     try {
-      final bars = await SiponDataRepository.instance.fetchHomeBars();
+      final bars = await SiponDataRepository.instance.fetchHomeBars(
+        city: _cityController?.city ?? SiponCityController.defaultCity,
+      );
       if (bars.isEmpty) {
         return const _HomeBarsData(
           bars: _fallbackHomeBars,
