@@ -1,7 +1,9 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../services/sipon_api_client.dart';
 import '../services/sipon_auth_service.dart';
+import 'agreement_pages.dart';
 import 'language_transform.dart';
 
 const siponLoginLogoHeroTag = 'sipon-login-logo';
@@ -20,8 +22,11 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _authService = SiponAuthService.instance;
+  late final TapGestureRecognizer _userAgreementRecognizer;
+  late final TapGestureRecognizer _privacyPolicyRecognizer;
   bool _submitting = false;
   bool _obscurePassword = true;
+  bool _agreed = false;
 
   bool get _canSubmit =>
       _usernameController.text.trim().isNotEmpty &&
@@ -29,14 +34,107 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
       !_submitting;
 
   @override
+  void initState() {
+    super.initState();
+    _userAgreementRecognizer = TapGestureRecognizer()
+      ..onTap = () => _openAgreement(SiponAgreementType.userAgreement);
+    _privacyPolicyRecognizer = TapGestureRecognizer()
+      ..onTap = () => _openAgreement(SiponAgreementType.privacyPolicy);
+  }
+
+  @override
   void dispose() {
+    _userAgreementRecognizer.dispose();
+    _privacyPolicyRecognizer.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
+  /// 打开对应类型的协议页面（用户协议 / 隐私政策）。
+  void _openAgreement(SiponAgreementType type) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SiponAgreementPage(type: type),
+      ),
+    );
+  }
+
+  /// 未勾选协议时，弹出阅读协议确认弹窗，返回用户是否选择同意。
+  Future<bool> _confirmAgreement() async {
+    final text = SiponLanguageScope.textOf(context);
+    final agreed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: Text(text.t('阅读并同意协议')),
+          content: Text.rich(
+            TextSpan(
+              text: text.t('请阅读并同意'),
+              style: const TextStyle(
+                color: Color(0xFF5C565D),
+                fontSize: 14,
+                height: 1.6,
+              ),
+              children: [
+                TextSpan(
+                  text: text.t('用户协议'),
+                  style: const TextStyle(
+                    color: _brand,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  recognizer: _userAgreementRecognizer,
+                ),
+                TextSpan(text: text.t('和')),
+                TextSpan(
+                  text: text.t('隐私政策'),
+                  style: const TextStyle(
+                    color: _brand,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  recognizer: _privacyPolicyRecognizer,
+                ),
+                TextSpan(text: text.t('，点击协议名称可查看完整内容。')),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(text.t('不同意')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: _brand,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(text.t('同意并继续')),
+            ),
+          ],
+        );
+      },
+    );
+
+    return agreed == true;
+  }
+
   Future<void> _login() async {
     if (!_canSubmit) return;
+
+    if (!_agreed) {
+      final agreed = await _confirmAgreement();
+      if (!mounted || !agreed) return;
+      setState(() => _agreed = true);
+    }
+
     await _runAuthAction(
       () => _authService.login(
         username: _usernameController.text.trim(),
@@ -208,7 +306,9 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 14),
+                      _buildAgreementCheckboxRow(text),
+                      const SizedBox(height: 16),
                       SizedBox(
                         width: double.infinity,
                         height: 52,
@@ -239,17 +339,6 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
                                 ),
                         ),
                       ),
-                      const SizedBox(height: 18),
-                      Center(
-                        child: Text(
-                          text.t('登录即代表你已阅读并同意用户协议和隐私政策'),
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Color(0xFFAAA2A8),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -257,6 +346,70 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// 构建协议勾选行：勾选框 + 可点击的《用户协议》《隐私政策》链接。
+  Widget _buildAgreementCheckboxRow(SiponAppText text) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() => _agreed = !_agreed),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 24,
+            height: 24,
+            child: Checkbox(
+              value: _agreed,
+              onChanged: (value) => setState(() => _agreed = value ?? false),
+              fillColor: WidgetStateProperty.resolveWith(
+                (states) => states.contains(WidgetState.selected)
+                    ? _brand
+                    : Colors.white,
+              ),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(5),
+              ),
+              side: const BorderSide(color: Color(0xFFD5CDD2), width: 1.4),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                text: text.t('我已阅读并同意'),
+                style: const TextStyle(
+                  color: Color(0xFF8E8790),
+                  fontSize: 12,
+                  height: 1.4,
+                ),
+                children: [
+                  TextSpan(
+                    text: text.t('用户协议'),
+                    style: const TextStyle(
+                      color: _brand,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    recognizer: _userAgreementRecognizer,
+                  ),
+                  TextSpan(text: text.t('和')),
+                  TextSpan(
+                    text: text.t('隐私政策'),
+                    style: const TextStyle(
+                      color: _brand,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    recognizer: _privacyPolicyRecognizer,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

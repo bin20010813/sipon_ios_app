@@ -201,8 +201,13 @@ const Map<String, String> _englishText = {
   '显示密码': 'Show password',
   '隐藏密码': 'Hide password',
   '登录': 'Sign In',
-  '登录即代表你已阅读并同意用户协议和隐私政策':
-      'By signing in, you agree to the User Agreement and Privacy Policy',
+  '我已阅读并同意': 'I have read and agree to the ',
+  '和': ' and ',
+  '阅读并同意协议': 'Read & Agree',
+  '请阅读并同意': 'Please read and agree to the ',
+  '，点击协议名称可查看完整内容。': '. Tap a name to view the full text.',
+  '不同意': 'Disagree',
+  '同意并继续': 'Agree & Continue',
   '请求失败，请稍后重试。': 'Request failed. Please try again later.',
   '网络异常，请检查网络和服务地址。':
       'Network error. Please check your connection and server address.',

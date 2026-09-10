@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/sipon_auth_service.dart';
+import 'agreement_pages.dart';
 import 'language_transform.dart';
 import 'review_page.dart';
 
@@ -516,6 +517,13 @@ class _PraiseUsPage extends StatelessWidget {
 class _AboutUsPage extends StatelessWidget {
   const _AboutUsPage();
 
+  /// 打开对应类型的协议页面（用户协议 / 隐私政策）。
+  void _openAgreementPage(BuildContext context, SiponAgreementType type) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => SiponAgreementPage(type: type)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
@@ -548,12 +556,20 @@ class _AboutUsPage extends StatelessWidget {
               title: text.t('用户协议'),
               subtitle: text.t('查看 Sipon 服务条款'),
               trailing: text.t('查看'),
+              onTap: () => _openAgreementPage(
+                context,
+                SiponAgreementType.userAgreement,
+              ),
             ),
             _SupportActionRow(
               icon: Icons.policy_outlined,
               title: text.t('隐私政策'),
               subtitle: text.t('了解数据收集与使用方式'),
               trailing: text.t('查看'),
+              onTap: () => _openAgreementPage(
+                context,
+                SiponAgreementType.privacyPolicy,
+              ),
             ),
           ],
         ),
