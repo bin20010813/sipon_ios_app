@@ -104,6 +104,13 @@ class SiponAuthService {
     }
   }
 
+  /// 注销当前账号：请求后端删除账号，成功后才清除本地会话。
+  /// 请求失败时抛出异常且保留本地会话，便于页面提示用户重试。
+  Future<void> deleteAccount() async {
+    await _apiClient.deleteJson('/api/users/me');
+    await _clearSession();
+  }
+
   Future<void> _authenticate(String path, Map<String, Object?> body) async {
     final response = await _apiClient.postUnauthenticatedJson(path, body: body);
     final session = SiponAuthSession.fromResponse(response);

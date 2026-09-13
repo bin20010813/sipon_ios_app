@@ -88,6 +88,13 @@ class SiponAppText {
       return '${attachedScreenshotMatch.group(1)} screenshots attached';
     }
 
+    final attachedImagesMatch = RegExp(r'^已附带 (\d+) 张图片$').firstMatch(
+      source,
+    );
+    if (attachedImagesMatch != null) {
+      return '${attachedImagesMatch.group(1)} image(s) attached';
+    }
+
     final reviewCountMatch = RegExp(r'^查看全部 (\d+) 条评价$').firstMatch(source);
     if (reviewCountMatch != null) {
       return 'See all ${reviewCountMatch.group(1)} reviews';
@@ -299,6 +306,23 @@ const Map<String, String> _englishText = {
       'Upload up to 3 issue screenshots so we can locate the page and problem.',
   '最多添加 3 张截图': 'You can add up to 3 screenshots',
   '已添加截图占位': 'Screenshot placeholder added',
+  '添加图片': 'Add Images',
+  '选择图片来源': 'Choose Image Source',
+  '从相册选择': 'Choose from Album',
+  '拍照': 'Take Photo',
+  '图片选择失败，请重试': 'Failed to pick image. Please retry.',
+  '图片上传失败，请重试': 'Image upload failed. Please retry.',
+  '图片超过 10MiB 限制，请更换图片': 'Image exceeds 10MiB limit. Please pick another.',
+  '提交中...': 'Submitting...',
+  '提交失败，请稍后重试': 'Submit failed. Please try again later.',
+  '历史反馈': 'Feedback History',
+  '历史反馈加载失败': 'Failed to load feedback history',
+  '重新加载': 'Reload',
+  '暂无反馈记录': 'No feedback yet',
+  '功能建议': 'Feature Request',
+  '问题反馈': 'Bug Report',
+  '处理中': 'Pending',
+  '已处理': 'Resolved',
   '添加': 'Add',
   '为我们评分': 'Rate Us',
   '选择你的评分': 'Choose your rating',
@@ -641,4 +665,14 @@ const Map<String, String> _englishText = {
   '查看': 'View',
   '隐私政策': 'Privacy Policy',
   '了解数据收集与使用方式': 'Learn how data is collected and used',
+  '危险操作': 'Danger Zone',
+  '注销账号': 'Delete Account',
+  '永久删除账号与全部本地数据':
+      'Permanently delete your account and all local data',
+  '删除': 'Delete',
+  '删除中': 'Deleting',
+  '注销后账号数据将被永久删除，且无法恢复。':
+      'Your account data will be permanently deleted and cannot be recovered.',
+  '账号已注销': 'Account deleted',
+  '账号注销失败，请稍后重试': 'Failed to delete account. Please try again later.',
 };

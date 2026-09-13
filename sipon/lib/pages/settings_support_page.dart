@@ -14,6 +14,7 @@ class SettingsSupportPage extends StatelessWidget {
   static const Color _ink = Color(0xFF292B32);
   static const Color _muted = Color(0xFF8E8790);
   static const Color _line = Color(0xFFF1EBEF);
+  static const Color _danger = Color(0xFFD64F5A);
 
   static const String _settingsAsset = 'assest/我的/设置@3x.png';
 
@@ -175,6 +176,78 @@ class _AccountSecurityPageState extends State<_AccountSecurityPage> {
   bool _biometric = true;
   bool _loginAlert = true;
   bool _loggingOut = false;
+  bool _deleting = false;
+
+  void _showMessage(BuildContext context, String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      );
+  }
+
+  /// 弹出确认对话框，用户确认后注销当前账号。
+  Future<void> _confirmDeleteAccount() async {
+    final text = SiponLanguageScope.textOf(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: Text(text.t('注销账号')),
+          content: Text(text.t('注销后账号数据将被永久删除，且无法恢复。')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(text.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: SettingsSupportPage._danger,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(text.t('删除')),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      await _deleteAccount();
+    }
+  }
+
+  /// 调用后端注销账号，成功后清除本地会话并返回首页。
+  Future<void> _deleteAccount() async {
+    if (_deleting) return;
+
+    setState(() => _deleting = true);
+    try {
+      await SiponAuthService.instance.deleteAccount();
+      if (!mounted) return;
+
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      widget.onLogoutSucceeded?.call();
+      if (!mounted) return;
+      _showMessage(context, SiponLanguageScope.textOf(context).t('账号已注销'));
+    } on Exception {
+      if (!mounted) return;
+      setState(() => _deleting = false);
+      _showMessage(
+        context,
+        SiponLanguageScope.textOf(context).t('账号注销失败，请稍后重试'),
+      );
+    }
+  }
 
   Future<void> _confirmLogout() async {
     final text = SiponLanguageScope.textOf(context);
@@ -270,6 +343,20 @@ class _AccountSecurityPageState extends State<_AccountSecurityPage> {
               subtitle: text.t('清除本机登录状态'),
               trailing: _loggingOut ? text.t('退出中') : text.t('退出'),
               onTap: _loggingOut ? null : _confirmLogout,
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _SupportPanel(
+          title: text.t('危险操作'),
+          children: [
+            _SupportActionRow(
+              icon: Icons.person_remove_outlined,
+              title: text.t('注销账号'),
+              subtitle: text.t('永久删除账号与全部本地数据'),
+              trailing: _deleting ? text.t('删除中') : text.t('删除'),
+              onTap: _deleting ? null : _confirmDeleteAccount,
+              danger: true,
             ),
           ],
         ),
@@ -821,6 +908,7 @@ class _SupportActionRow extends StatelessWidget {
     required this.subtitle,
     required this.trailing,
     this.onTap,
+    this.danger = false,
   });
 
   final IconData icon;
@@ -829,20 +917,28 @@ class _SupportActionRow extends StatelessWidget {
   final String trailing;
   final VoidCallback? onTap;
 
+  /// 危险操作样式：图标与文案使用警示色。
+  final bool danger;
+
   @override
   Widget build(BuildContext context) {
+    final highlightColor = danger
+        ? SettingsSupportPage._danger
+        : SettingsSupportPage._brand;
+
     return _SupportBaseRow(
       icon: icon,
       title: title,
       subtitle: subtitle,
       onTap: onTap,
+      highlightColor: highlightColor,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             trailing,
-            style: const TextStyle(
-              color: SettingsSupportPage._brand,
+            style: TextStyle(
+              color: highlightColor,
               fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: 0,
@@ -898,6 +994,7 @@ class _SupportBaseRow extends StatelessWidget {
     required this.subtitle,
     required this.trailing,
     this.onTap,
+    this.highlightColor = SettingsSupportPage._brand,
   });
 
   final IconData icon;
@@ -905,6 +1002,9 @@ class _SupportBaseRow extends StatelessWidget {
   final String subtitle;
   final Widget trailing;
   final VoidCallback? onTap;
+
+  /// 图标高亮色，默认使用品牌色；危险操作传入警示色。
+  final Color highlightColor;
 
   @override
   Widget build(BuildContext context) {
@@ -922,7 +1022,7 @@ class _SupportBaseRow extends StatelessWidget {
                 color: const Color(0xFFFFF6FB),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: SettingsSupportPage._brand, size: 20),
+              child: Icon(icon, color: highlightColor, size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(
