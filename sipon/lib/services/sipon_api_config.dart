@@ -2,7 +2,7 @@ class SiponApiConfig {
   const SiponApiConfig({
     this.baseUrl = const String.fromEnvironment(
       'SIPON_API_BASE_URL',
-      defaultValue: 'http://106.53.119.216:8081',
+      defaultValue: 'https://api.tanjeek.cn',
     ),
     this.accessToken = const String.fromEnvironment('SIPON_ACCESS_TOKEN'),
     this.adminToken = const String.fromEnvironment('SIPON_ADMIN_TOKEN'),

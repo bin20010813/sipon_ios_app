@@ -1,16 +1,18 @@
+import 'api_venue_detail_repository.dart';
 import 'venue_detail_models.dart';
 import 'map_models.dart';
 
 /// 地点详情的 Mock 数据源。
 ///
 /// 根据 [MapVenue.id] 稳定生成同一套详情数据，方便在无后端时预览页面效果。
-class MockVenueDetailRepository {
+class MockVenueDetailRepository implements VenueDetailRepository {
   /// 创建 Mock 详情仓库。
   const MockVenueDetailRepository();
 
   /// 异步获取指定酒吧的详情。
   ///
   /// [latency] 用于模拟网络请求，测试可传 [Duration.zero]。
+  @override
   Future<VenueDetail> fetchDetail(
     MapVenue venue, {
     Duration latency = const Duration(milliseconds: 200),

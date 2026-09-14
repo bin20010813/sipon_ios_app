@@ -1,16 +1,23 @@
 import 'package:flutter/material.dart' hide Visibility;
 
 import '../../pages/language_transform.dart';
+import '../../services/map/api_venue_detail_repository.dart';
 import '../../services/map/map_models.dart';
 import '../../services/map/mock_venue_detail_repository.dart';
 import '../../services/map/venue_detail_models.dart';
+import '../../services/sipon_api_config.dart';
 import 'map_theme.dart';
 import 'venue_common.dart';
+
+/// 判断详情数据里的图片路径是否是网络地址（相对路径也算，交给 VenueImage 拼接）。
+bool _isRemoteImage(String path) =>
+    path.startsWith('http') || path.startsWith('/');
 
 /// 展开态的详情内容。
 ///
 /// 由 [VenueSheetSurface] 里唯一的滚动视图承载，方便整体做透明度动画。
-/// 目前后端详情接口尚未接入，内部通过 [MockVenueDetailRepository] 获取 Mock 数据。
+/// 数据源通过 [repository] 注入：默认 [MockVenueDetailRepository] 保持现状，
+/// 后端联调时传入 [SiponApiVenueDetailRepository]，页面代码零改动。
 class VenueDetailContent extends StatefulWidget {
   /// 创建地点详情内容。
   const VenueDetailContent({
@@ -21,6 +28,7 @@ class VenueDetailContent extends StatefulWidget {
     required this.topInset,
     required this.bottomOverlayInset,
     required this.onClose,
+    this.repository,
   });
 
   /// 当前选中的酒吧基础信息。
@@ -41,6 +49,9 @@ class VenueDetailContent extends StatefulWidget {
   /// 点击关闭按钮的回调。
   final VoidCallback onClose;
 
+  /// 详情数据源；为 null 时使用 Mock，保持既有演示行为。
+  final VenueDetailRepository? repository;
+
   @override
   State<VenueDetailContent> createState() => _VenueDetailContentState();
 }
@@ -49,12 +60,15 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
   static const double _pagePadding = 20;
   static const double _tabsHeight = 56;
 
-  /// Mock 详情数据源。
-  final MockVenueDetailRepository _repository =
-      const MockVenueDetailRepository();
+  /// 详情数据源，默认 Mock；调用方注入 API 实现后即可联调真实接口。
+  late final VenueDetailRepository _repository =
+      widget.repository ?? const MockVenueDetailRepository();
 
   /// 当前加载到的详情数据。
   VenueDetail? _detail;
+
+  /// 加载失败时的错误文案；为 null 表示没有错误。
+  String? _loadError;
 
   bool _favorite = false;
   int _galleryPage = 0;
@@ -91,6 +105,7 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
     }
     if (oldWidget.venue.id != widget.venue.id) {
       _detail = null;
+      _loadError = null;
       _favorite = false;
       _galleryPage = 0;
       _detailTabIndex = 0;
@@ -100,13 +115,22 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
     }
   }
 
-  /// 异步加载当前酒吧的详情数据。
+  /// 异步加载当前酒吧的详情数据；失败时展示错误态而不是卡在占位上。
   Future<void> _loadDetail() async {
-    final detail = await _repository.fetchDetail(widget.venue);
-    if (mounted) {
-      setState(() {
-        _detail = detail;
-      });
+    try {
+      final detail = await _repository.fetchDetail(widget.venue);
+      if (mounted) {
+        setState(() {
+          _detail = detail;
+          _loadError = null;
+        });
+      }
+    } on Exception catch (error) {
+      if (mounted) {
+        setState(() {
+          _loadError = error.toString();
+        });
+      }
     }
   }
 
@@ -262,18 +286,22 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
                 sliver: SliverMainAxisGroup(
                   slivers: [
                     SliverToBoxAdapter(child: _buildHero(context)),
-                    SliverToBoxAdapter(child: _buildOverview(context)),
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        key: _tabsKey,
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                        child: _VenueDetailTabs(
-                          selectedIndex: _detailTabIndex,
-                          onSelected: _scrollToSection,
+                    if (_loadError != null && _detail == null)
+                      SliverToBoxAdapter(child: _buildLoadError(context))
+                    else ...[
+                      SliverToBoxAdapter(child: _buildOverview(context)),
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          key: _tabsKey,
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                          child: _VenueDetailTabs(
+                            selectedIndex: _detailTabIndex,
+                            onSelected: _scrollToSection,
+                          ),
                         ),
                       ),
-                    ),
-                    SliverToBoxAdapter(child: _buildSections(context)),
+                      SliverToBoxAdapter(child: _buildSections(context)),
+                    ],
                   ],
                 ),
               ),
@@ -313,6 +341,61 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
     );
   }
 
+  /// 详情加载失败的错误态：给出错误文案与重试入口，断网时不至于白屏。
+  Widget _buildLoadError(BuildContext context) {
+    final text = SiponLanguageScope.textOf(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(_pagePadding, 32, _pagePadding, 32),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.wifi_off_rounded,
+            color: MapDesign.muted,
+            size: 32,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            text.t('详情加载失败'),
+            style: const TextStyle(
+              color: MapDesign.ink,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _loadError ?? '',
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: MapDesign.muted,
+              fontSize: 12,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: () {
+              setState(() => _loadError = null);
+              _loadDetail();
+            },
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: Text(text.t('重试')),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: MapDesign.brand,
+              side: const BorderSide(color: MapDesign.brand),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// 沉浸式封面轮播：关闭按钮与页码悬浮在图上，不再单独占一行。
   Widget _buildHero(BuildContext context) {
     final images = _detail?.gallery ?? [widget.venue.imageAsset];
@@ -326,9 +409,11 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
             itemCount: images.length,
             onPageChanged: (index) => setState(() => _galleryPage = index),
             itemBuilder: (context, index) {
+              final path = images[index];
+              final remote = _isRemoteImage(path);
               return VenueImage(
-                imageUrl: null,
-                assetPath: images[index],
+                imageUrl: remote ? path : null,
+                assetPath: remote ? widget.venue.imageAsset : path,
                 width: double.infinity,
                 height: double.infinity,
               );
@@ -1192,12 +1277,20 @@ class _VenueDrinks extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      VenueImage(
-                        imageUrl: null,
-                        assetPath:
-                            drink.imageAsset ?? MapAssets.coverForIndex(index),
-                        width: double.infinity,
-                        height: 132,
+                      Builder(
+                        builder: (_) {
+                          final path =
+                              drink.imageAsset ?? MapAssets.coverForIndex(index);
+                          final remote = _isRemoteImage(path);
+                          return VenueImage(
+                            imageUrl: remote ? path : null,
+                            assetPath: remote
+                                ? MapAssets.coverForIndex(index)
+                                : path,
+                            width: double.infinity,
+                            height: 132,
+                          );
+                        },
                       ),
                       Expanded(
                         child: Padding(
@@ -1566,17 +1659,7 @@ class _ReviewItem extends StatelessWidget {
       children: [
         Row(
           children: [
-            ClipOval(
-              child: review.avatarAsset != null
-                  ? Image.asset(
-                      review.avatarAsset!,
-                      width: 36,
-                      height: 36,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => _defaultAvatar(),
-                    )
-                  : _defaultAvatar(),
-            ),
+            ClipOval(child: _buildAvatar(review)),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -1637,11 +1720,13 @@ class _ReviewItem extends StatelessWidget {
               itemCount: review.imageAssets.length,
               separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemBuilder: (context, index) {
+                final path = review.imageAssets[index];
+                final remote = _isRemoteImage(path);
                 return ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: VenueImage(
-                    imageUrl: null,
-                    assetPath: review.imageAssets[index],
+                    imageUrl: remote ? path : null,
+                    assetPath: remote ? MapAssets.coverForIndex(index) : path,
                     width: 112,
                     height: 92,
                   ),
@@ -1651,6 +1736,30 @@ class _ReviewItem extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+
+  /// 头像：网络图优先，加载失败或缺失时用默认占位。
+  Widget _buildAvatar(VenueReview review) {
+    final avatar = review.avatarAsset;
+    if (avatar == null || avatar.isEmpty) {
+      return _defaultAvatar();
+    }
+    if (_isRemoteImage(avatar)) {
+      return Image.network(
+        SiponApiConfig.instance.resolveUri(avatar).toString(),
+        width: 36,
+        height: 36,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => _defaultAvatar(),
+      );
+    }
+    return Image.asset(
+      avatar,
+      width: 36,
+      height: 36,
+      fit: BoxFit.cover,
+      errorBuilder: (_, _, _) => _defaultAvatar(),
     );
   }
 

@@ -70,6 +70,75 @@ class SiponAuthService {
       'displayName': displayName!.trim(),
   });
 
+  // ------------------------------------------------------------ 邮箱认证
+
+  /// 向指定邮箱发送6位登录/注册验证码（POST /api/auth/email/code）。
+  Future<void> requestEmailCode(String email) async {
+    await _apiClient.postUnauthenticatedJson(
+      '/api/auth/email/code',
+      body: {'email': _normalizeEmail(email)},
+    );
+  }
+
+  /// 邮箱验证码登录（POST /api/auth/email/login）。
+  Future<void> emailLogin({
+    required String email,
+    required String code,
+    String? displayName,
+  }) => _authenticate('/api/auth/email/login', {
+    'email': _normalizeEmail(email),
+    'code': code.trim(),
+    if (displayName?.trim().isNotEmpty == true)
+      'displayName': displayName!.trim(),
+  });
+
+  /// 邮箱密码登录（POST /api/auth/email/password-login）。
+  Future<void> emailPasswordLogin({
+    required String email,
+    required String password,
+  }) => _authenticate('/api/auth/email/password-login', {
+    'email': _normalizeEmail(email),
+    'password': password,
+  });
+
+  /// 邮箱验证码注册（POST /api/auth/email/register）。
+  Future<void> emailRegister({
+    required String email,
+    required String code,
+    required String password,
+    String? displayName,
+  }) => _authenticate('/api/auth/email/register', {
+    'email': _normalizeEmail(email),
+    'code': code.trim(),
+    'password': password,
+    if (displayName?.trim().isNotEmpty == true)
+      'displayName': displayName!.trim(),
+  });
+
+  /// 发送邮箱重置密码验证码（POST /api/auth/email/password-reset/code）。
+  Future<void> requestEmailPasswordResetCode(String email) async {
+    await _apiClient.postUnauthenticatedJson(
+      '/api/auth/email/password-reset/code',
+      body: {'email': _normalizeEmail(email)},
+    );
+  }
+
+  /// 校验验证码并重置密码（POST /api/auth/email/password-reset/confirm）。
+  Future<void> resetEmailPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    await _apiClient.postUnauthenticatedJson(
+      '/api/auth/email/password-reset/confirm',
+      body: {
+        'email': _normalizeEmail(email),
+        'code': code.trim(),
+        'newPassword': newPassword,
+      },
+    );
+  }
+
   Future<void> requestPhoneCode(String phone) async {
     await _apiClient.postUnauthenticatedJson(
       '/api/auth/phone/code',
@@ -116,6 +185,9 @@ class SiponAuthService {
     final session = SiponAuthSession.fromResponse(response);
     await _persistSession(session);
   }
+
+  /// 邮箱统一 trim 后转小写，与后端 `EmailCodeRequest` 规则保持一致。
+  String _normalizeEmail(String email) => email.trim().toLowerCase();
 
   Future<String?> _refreshAccessToken() async {
     final refreshed = await _refreshSession();

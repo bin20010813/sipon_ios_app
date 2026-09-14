@@ -1,12 +1,20 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import '../services/sipon_agreement_links.dart';
 import '../services/sipon_api_client.dart';
 import '../services/sipon_auth_service.dart';
-import 'agreement_pages.dart';
 import 'language_transform.dart';
 
 const siponLoginLogoHeroTag = 'sipon-login-logo';
+
+/// 登录界面内的两种方式：密码登录 / 验证码登录。
+enum _LoginMethod { password, code }
+
+/// 认证页面的三种视图：登录 / 注册 / 重置密码。
+enum _AuthPage { login, register, reset }
 
 class SmsLoginPage extends StatefulWidget {
   const SmsLoginPage({super.key, required this.onLoginSucceeded});
@@ -19,45 +27,78 @@ class SmsLoginPage extends StatefulWidget {
 
 class _SmsLoginPageState extends State<SmsLoginPage> {
   static const _brand = Color(0xFF9A3D78);
-  final _usernameController = TextEditingController();
+  static const _codeCooldownSeconds = 60;
+
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _codeController = TextEditingController();
   final _authService = SiponAuthService.instance;
   late final TapGestureRecognizer _userAgreementRecognizer;
   late final TapGestureRecognizer _privacyPolicyRecognizer;
+  _LoginMethod _method = _LoginMethod.password;
+
+  /// 当前认证视图（登录/注册/重置密码）。
+  _AuthPage _page = _AuthPage.login;
   bool _submitting = false;
+  bool _sendingCode = false;
   bool _obscurePassword = true;
   bool _agreed = false;
+  Timer? _codeTimer;
+  int _codeCountdown = 0;
 
-  bool get _canSubmit =>
-      _usernameController.text.trim().isNotEmpty &&
-      _passwordController.text.length >= 6 &&
-      !_submitting;
+  /// 当前视图是否可以提交。
+  bool get _canSubmit {
+    if (_emailController.text.trim().isEmpty || _submitting) return false;
+    if (_page != _AuthPage.login) {
+      return _codeController.text.trim().length == 6 &&
+          _passwordController.text.length >= 8;
+    }
+    switch (_method) {
+      case _LoginMethod.password:
+        return _passwordController.text.length >= 6;
+      case _LoginMethod.code:
+        return _codeController.text.trim().length == 6;
+    }
+  }
+
+  /// 切换认证视图（登录/注册/重置密码）时重置表单与倒计时，避免窜数据。
+  void _switchPage(_AuthPage page) {
+    setState(() {
+      _page = page;
+      _codeController.clear();
+      _passwordController.clear();
+      _obscurePassword = true;
+      _codeTimer?.cancel();
+      _codeCountdown = 0;
+    });
+  }
 
   @override
   void initState() {
     super.initState();
     _userAgreementRecognizer = TapGestureRecognizer()
-      ..onTap = () => _openAgreement(SiponAgreementType.userAgreement);
+      ..onTap = () => _openAgreement(kSiponUserAgreementUrl);
     _privacyPolicyRecognizer = TapGestureRecognizer()
-      ..onTap = () => _openAgreement(SiponAgreementType.privacyPolicy);
+      ..onTap = () => _openAgreement(kSiponPrivacyPolicyUrl);
   }
 
   @override
   void dispose() {
+    _codeTimer?.cancel();
     _userAgreementRecognizer.dispose();
     _privacyPolicyRecognizer.dispose();
-    _usernameController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
+    _codeController.dispose();
     super.dispose();
   }
 
-  /// 打开对应类型的协议页面（用户协议 / 隐私政策）。
-  void _openAgreement(SiponAgreementType type) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => SiponAgreementPage(type: type),
-      ),
-    );
+  /// 在系统浏览器中打开指定协议官网地址，失败时给出提示。
+  Future<void> _openAgreement(String url) async {
+    final opened = await openAgreementInBrowser(url);
+    if (!opened && mounted) {
+      _showMessage(SiponLanguageScope.textOf(context).t('无法打开链接，请稍后重试。'));
+    }
   }
 
   /// 未勾选协议时，弹出阅读协议确认弹窗，返回用户是否选择同意。
@@ -126,7 +167,14 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
     return agreed == true;
   }
 
-  Future<void> _login() async {
+  /// 邮箱基本格式校验（含 @ 且点在 @ 之后）。
+  bool _isValidEmail(String email) {
+    final at = email.indexOf('@');
+    return at > 0 && email.indexOf('.', at) > at + 1;
+  }
+
+  /// 提交当前界面动作：登录（密码/验证码）或注册。
+  Future<void> _submit() async {
     if (!_canSubmit) return;
 
     if (!_agreed) {
@@ -135,15 +183,96 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
       setState(() => _agreed = true);
     }
 
+    final email = _emailController.text.trim();
+    final text = SiponLanguageScope.textOf(context);
+    if (!_isValidEmail(email)) {
+      _showMessage(text.t('请填写正确的邮箱地址'));
+      return;
+    }
+
+    Future<void> action;
+    switch (_page) {
+      case _AuthPage.login:
+        switch (_method) {
+          case _LoginMethod.password:
+            action = _authService.emailPasswordLogin(
+              email: email,
+              password: _passwordController.text,
+            );
+          case _LoginMethod.code:
+            action = _authService.emailLogin(
+              email: email,
+              code: _codeController.text.trim(),
+            );
+        }
+      case _AuthPage.register:
+        action = _authService.emailRegister(
+          email: email,
+          code: _codeController.text.trim(),
+          password: _passwordController.text,
+        );
+      case _AuthPage.reset:
+        action = _authService.resetEmailPassword(
+          email: email,
+          code: _codeController.text.trim(),
+          newPassword: _passwordController.text,
+        );
+    }
+
     await _runAuthAction(
-      () => _authService.login(
-        username: _usernameController.text.trim(),
-        password: _passwordController.text,
-      ),
-      successMessage: null,
+      () => action,
+      successMessage: switch (_page) {
+        _AuthPage.register => text.t('注册成功'),
+        _AuthPage.reset => text.t('密码已重置，请重新登录'),
+        _AuthPage.login => null,
+      },
     );
+    // 重置成功（未登录）后切回登录视图，方便直接用新密码登录。
+    if (mounted && _page == _AuthPage.reset) {
+      _switchPage(_AuthPage.login);
+    }
   }
 
+  /// 请求发送验证码：校验邮箱后调后端，成功后进入 60s 倒计时。
+  Future<void> _sendCode() async {
+    final email = _emailController.text.trim();
+    final text = SiponLanguageScope.textOf(context);
+    if (email.isEmpty || !_isValidEmail(email)) {
+      _showMessage(text.t('请填写正确的邮箱地址'));
+      return;
+    }
+    if (_sendingCode || _codeCountdown > 0) return;
+
+    setState(() => _sendingCode = true);
+    try {
+      await _authService.requestEmailCode(email);
+      if (!mounted) return;
+      _showMessage(text.t('验证码已发送，请查收邮箱'));
+      setState(() {
+        _codeCountdown = _codeCooldownSeconds;
+        _codeTimer?.cancel();
+        _codeTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+          if (_codeCountdown <= 1) {
+            timer.cancel();
+            if (mounted) {
+              setState(() => _codeCountdown = 0);
+            }
+          } else if (mounted) {
+            setState(() => _codeCountdown -= 1);
+          }
+        });
+      });
+    } on Exception {
+      if (!mounted) return;
+      _showMessage(text.t('验证码发送失败，请稍后重试'));
+    } finally {
+      if (mounted) {
+        setState(() => _sendingCode = false);
+      }
+    }
+  }
+
+  /// 统一执行认证动作：成功回调登入，失败按异常类型提示。
   Future<void> _runAuthAction(
     Future<void> Function() action, {
     required String? successMessage,
@@ -207,7 +336,7 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(28, 34, 28, 28),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Center(
                         child: Column(
@@ -259,26 +388,25 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 42),
+                      const SizedBox(height: 34),
                       Text(
-                        text.t('用户名'),
+                        text.t(
+                          switch (_page) {
+                            _AuthPage.login => '登录',
+                            _AuthPage.register => '注册',
+                            _AuthPage.reset => '重置密码',
+                          },
+                        ),
                         style: const TextStyle(
                           color: Color(0xFF292B32),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0,
                         ),
-                      ),
-                      const SizedBox(height: 9),
-                      _inputField(
-                        controller: _usernameController,
-                        hint: text.t('请输入用户名'),
-                        icon: Icons.person_outline_rounded,
-                        obscureText: false,
-                        textInputAction: TextInputAction.next,
                       ),
                       const SizedBox(height: 22),
                       Text(
-                        text.t('密码'),
+                        text.t('邮箱'),
                         style: const TextStyle(
                           color: Color(0xFF292B32),
                           fontSize: 14,
@@ -287,25 +415,71 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
                       ),
                       const SizedBox(height: 9),
                       _inputField(
-                        controller: _passwordController,
-                        hint: text.t('请输入密码（至少 6 位）'),
-                        icon: Icons.lock_outline_rounded,
-                        obscureText: _obscurePassword,
-                        textInputAction: TextInputAction.done,
-                        onSubmitted: (_) => _login(),
-                        suffixIcon: IconButton(
-                          tooltip: text.t(_obscurePassword ? '显示密码' : '隐藏密码'),
-                          onPressed: () => setState(
-                            () => _obscurePassword = !_obscurePassword,
-                          ),
-                          icon: Icon(
-                            _obscurePassword
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
-                            size: 20,
-                          ),
-                        ),
+                        controller: _emailController,
+                        hint: text.t('请输入邮箱'),
+                        icon: Icons.mail_outline_rounded,
+                        obscureText: false,
+                        textInputAction: TextInputAction.next,
+                        keyboardType: TextInputType.emailAddress,
                       ),
+                      const SizedBox(height: 22),
+                      if (_page != _AuthPage.login ||
+                          _method == _LoginMethod.code) ...[
+                        _FieldLabelRow(
+                          label: text.t('验证码'),
+                          actionLabel: _page == _AuthPage.login
+                              ? text.t('密码登录')
+                              : null,
+                          actionIcon: _page == _AuthPage.login
+                              ? Icons.lock_outline_rounded
+                              : null,
+                          onAction: () =>
+                              setState(() => _method = _LoginMethod.password),
+                        ),
+                        const SizedBox(height: 9),
+                        _codeField(text),
+                        const SizedBox(height: 22),
+                      ],
+                      if (_page != _AuthPage.login ||
+                          _method == _LoginMethod.password) ...[
+                        _FieldLabelRow(
+                          label: text.t('密码'),
+                          actionLabel: _page == _AuthPage.login
+                              ? text.t('验证码登录')
+                              : null,
+                          actionIcon: _page == _AuthPage.login
+                              ? Icons.email_outlined
+                              : null,
+                          onAction: () =>
+                              setState(() => _method = _LoginMethod.code),
+                        ),
+                        const SizedBox(height: 9),
+                        _passwordField(text),
+                        // 忘记密码入口放在密码框右下角，仅登录·密码模式展示。
+                        if (_page == _AuthPage.login &&
+                            _method == _LoginMethod.password) ...[
+                          const SizedBox(height: 2),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: () => _switchPage(_AuthPage.reset),
+                              style: TextButton.styleFrom(
+                                foregroundColor: const Color(0xFF8E8790),
+                                minimumSize: const Size(0, 30),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                ),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                textStyle: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              child: Text(text.t('忘记密码？')),
+                            ),
+                          ),
+                        ],
+                      ],
                       const SizedBox(height: 14),
                       _buildAgreementCheckboxRow(text),
                       const SizedBox(height: 16),
@@ -313,7 +487,7 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
                         width: double.infinity,
                         height: 52,
                         child: FilledButton(
-                          onPressed: _canSubmit ? _login : null,
+                          onPressed: _canSubmit ? _submit : null,
                           style: FilledButton.styleFrom(
                             backgroundColor: _brand,
                             disabledBackgroundColor: const Color(0xFFE9D8E2),
@@ -331,12 +505,44 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
                                   ),
                                 )
                               : Text(
-                                  text.t('登录'),
+                                  text.t(
+                                    switch (_page) {
+                                      _AuthPage.login => '登录',
+                                      _AuthPage.register => '注册',
+                                      _AuthPage.reset => '重置密码',
+                                    },
+                                  ),
                                   style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w800,
                                   ),
                                 ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Center(
+                        child: TextButton(
+                          onPressed: () => _switchPage(
+                            _page == _AuthPage.login
+                                ? _AuthPage.register
+                                : _AuthPage.login,
+                          ),
+                          style: TextButton.styleFrom(
+                            foregroundColor: _brand,
+                            textStyle: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          child: Text(
+                            text.t(
+                              switch (_page) {
+                                _AuthPage.login => '还没有账号？立即注册',
+                                _AuthPage.register => '已有账号？去登录',
+                                _AuthPage.reset => '返回登录',
+                              },
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -345,6 +551,73 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// 验证码输入行：6 位数字 + 右侧获取/重发按钮（带倒计时）。
+  Widget _codeField(SiponAppText text) {
+    return Row(
+      children: [
+        Expanded(
+          child: _inputField(
+            controller: _codeController,
+            hint: text.t('请输入验证码'),
+            icon: Icons.shield_outlined,
+            obscureText: false,
+            maxLength: 6,
+            keyboardType: TextInputType.number,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _submit(),
+          ),
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          height: 52,
+          child: OutlinedButton(
+            onPressed: _sendingCode || _codeCountdown > 0 ? null : _sendCode,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _brand,
+              side: const BorderSide(color: _brand),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            child: Text(
+              _codeCountdown > 0
+                  ? '$_codeCountdown s'
+                  : text.t(_sendingCode ? '发送中…' : '获取验证码'),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 密码输入行：默认隐藏明文，右上角可切换。
+  Widget _passwordField(SiponAppText text) {
+    return _inputField(
+      controller: _passwordController,
+      hint: text.t(
+        _page == _AuthPage.login ? '请输入密码（至少 6 位）' : '请输入密码（至少 8 位）',
+      ),
+      icon: Icons.lock_outline_rounded,
+      obscureText: _obscurePassword,
+      textInputAction: TextInputAction.done,
+      onSubmitted: (_) => _submit(),
+      suffixIcon: IconButton(
+        tooltip: text.t(_obscurePassword ? '显示密码' : '隐藏密码'),
+        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+        icon: Icon(
+          _obscurePassword
+              ? Icons.visibility_outlined
+              : Icons.visibility_off_outlined,
+          size: 20,
         ),
       ),
     );
@@ -422,6 +695,8 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
     TextInputAction textInputAction = TextInputAction.next,
     ValueChanged<String>? onSubmitted,
     Widget? suffixIcon,
+    TextInputType keyboardType = TextInputType.text,
+    int? maxLength,
   }) {
     return TextField(
       controller: controller,
@@ -429,11 +704,14 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
       obscureText: obscureText,
       textInputAction: textInputAction,
       onSubmitted: onSubmitted,
+      keyboardType: keyboardType,
+      maxLength: maxLength,
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(color: Color(0xFFAAA3AA)),
         prefixIcon: Icon(icon, size: 21, color: const Color(0xFF8E8790)),
         suffixIcon: suffixIcon,
+        counterText: maxLength == null ? null : '',
         filled: true,
         fillColor: Colors.white,
         contentPadding: const EdgeInsets.symmetric(
@@ -453,6 +731,56 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
           borderSide: const BorderSide(color: _brand, width: 1.4),
         ),
       ),
+    );
+  }
+}
+
+/// 字段标题行：左侧标题，右侧可选的切换按钮（带图标，如「验证码登录」）。
+class _FieldLabelRow extends StatelessWidget {
+  const _FieldLabelRow({
+    required this.label,
+    this.actionLabel,
+    this.actionIcon,
+    this.onAction,
+  });
+
+  final String label;
+  final String? actionLabel;
+  final IconData? actionIcon;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final action = actionLabel;
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF292B32),
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        if (action != null && onAction != null)
+          TextButton.icon(
+            onPressed: onAction,
+            icon: Icon(actionIcon ?? Icons.swap_horiz_rounded, size: 15),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF9A3D78),
+              minimumSize: const Size(0, 28),
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              textStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            label: Text(action),
+          ),
+      ],
     );
   }
 }

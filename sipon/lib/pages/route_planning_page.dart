@@ -7,6 +7,7 @@ import '../services/map/map_models.dart';
 import '../services/map/map_scene_controller.dart';
 import '../services/map/sipon_map_host.dart';
 import '../services/map/sipon_map_widget.dart';
+import '../services/sipon_api_service.dart';
 
 class RoutePlanningPage extends StatefulWidget {
   const RoutePlanningPage({super.key});
@@ -20,7 +21,12 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
   static const _ink = Color(0xFF252229);
   static const _muted = Color(0xFF8F8790);
 
-  final List<_BarPlace> _nearbyBars = const [
+  /// 可选酒吧的中心点：与打卡页共用同一片演示锚点。
+  static const _centerLongitude = 121.4718;
+  static const _centerLatitude = 31.2232;
+
+  /// 接口拉取失败时兜底的演示数据（无 barId，保存时会被拦截）。
+  static const _fallbackBars = [
     _BarPlace(
       '庙前冰室（Hope & Sesame）',
       '黄浦区复兴中路 579',
@@ -63,10 +69,15 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
     ),
   ];
 
+  final SiponApiService _api = SiponApiService();
+
+  List<_BarPlace> _nearbyBars = _fallbackBars;
+
   _BarPlace? _start;
   _BarPlace? _end;
   final List<_BarPlace?> _stops = [];
   bool _showRemoveActions = false;
+  bool _saving = false;
   late final MapSceneController _scene;
 
   @override
@@ -77,12 +88,32 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
       onVenueTapped: (_) {},
       onBlankTapped: () {},
     );
+    _loadNearbyBars();
   }
 
   @override
   void dispose() {
     _scene.detach();
     super.dispose();
+  }
+
+  /// 拉取附近真实酒吧作为可选项；失败时保留演示数据，保存时会被拦截。
+  Future<void> _loadNearbyBars() async {
+    try {
+      final list = await _api.getNearbyBars(
+        longitude: _centerLongitude,
+        latitude: _centerLatitude,
+        radiusMeters: 5000,
+      );
+      final parsed = [
+        for (final item in list.whereType<Map>())
+          _BarPlace.tryParse(item.cast<String, dynamic>()),
+      ].whereType<_BarPlace>().toList();
+      if (!mounted || parsed.isEmpty) return;
+      setState(() => _nearbyBars = parsed);
+    } on Exception {
+      // 演示数据兜底，页面照常可用。
+    }
   }
 
   Future<void> _handleMapCreated(SiponMapHost host) async {
@@ -175,15 +206,111 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
   Set<_BarPlace> get _usedPlaces =>
       {_start, _end, ..._stops}.whereType<_BarPlace>().toSet();
 
-  void _createRoute() {
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// 保存路线：校验起终点后弹出标题输入，再 POST /api/users/me/routes。
+  Future<void> _createRoute() async {
+    final places = _routeItems.whereType<_BarPlace>().toList();
     if (_start == null || _end == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('请先选择起点酒吧和终点酒吧')));
+      _showMessage('请先选择起点酒吧和终点酒吧');
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('已规划 ${_start!.name} 至 ${_end!.name} 的路线')),
+    final barIds = [
+      for (final place in places)
+        if (place.barId != null) place.barId!,
+    ];
+    if (barIds.length != places.length) {
+      _showMessage('演示数据暂不支持保存，请从真实酒吧中选择');
+      return;
+    }
+    if (barIds.toSet().length != barIds.length ||
+        barIds.length < 2 ||
+        barIds.length > 5) {
+      _showMessage('路线需要 2-5 家互不相同的酒吧');
+      return;
+    }
+
+    final title = await _promptRouteTitle();
+    if (title == null || title.isEmpty || !mounted) {
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      final today = DateTime.now();
+      final dateKey =
+          '${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+      await _api.createDrinkingRoute({
+        'title': title,
+        'barIds': barIds,
+        'localStartDate': dateKey,
+        'localEndDate': dateKey,
+        'timezone': 'Asia/Shanghai',
+        'visibility': 'private',
+      });
+      if (!mounted) return;
+      _showMessage('路线「$title」已保存');
+    } on Exception catch (error) {
+      if (!mounted) return;
+      _showMessage('保存失败：$error');
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
+  }
+
+  /// 弹出路线标题输入框，默认取起点酒吧名。
+  Future<String?> _promptRouteTitle() {
+    final controller = TextEditingController(text: '${_start!.name} 夜饮路线');
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: const Text(
+            '保存路线',
+            style: TextStyle(
+              color: _ink,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLength: 200,
+            decoration: InputDecoration(
+              hintText: '给这条路线起个名字',
+              filled: true,
+              fillColor: const Color(0xFFF3F3F3),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(controller.text.trim()),
+              style: FilledButton.styleFrom(backgroundColor: _brand),
+              child: const Text('保存'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -272,7 +399,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
                         ),
                       ),
                       FilledButton.icon(
-                        onPressed: _createRoute,
+                        onPressed: _saving ? null : _createRoute,
                         icon: const Icon(Icons.send_rounded, size: 18),
                         label: const Text('出发'),
                         style: FilledButton.styleFrom(
@@ -316,9 +443,9 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
                 border: Border(top: BorderSide(color: Color(0xFFEDE5E9))),
               ),
               child: FilledButton.icon(
-                onPressed: _createRoute,
+                onPressed: _saving ? null : _createRoute,
                 icon: const Icon(Icons.alt_route_rounded),
-                label: const Text('保存为我的酒馆路线'),
+                label: Text(_saving ? '保存中…' : '保存为我的酒馆路线'),
                 style: FilledButton.styleFrom(
                   backgroundColor: _brand,
                   minimumSize: const Size.fromHeight(48),
@@ -344,14 +471,48 @@ class _BarPlace {
     this.distance,
     this.longitude,
     this.latitude,
-    this.kind,
-  );
+    this.kind, {
+    this.barId,
+  });
   final String name;
   final String address;
   final String distance;
   final double longitude;
   final double latitude;
   final MapVenueKind kind;
+
+  /// 后端酒吧 id；为 null 的是演示数据，不能用于保存路线。
+  final int? barId;
+
+  /// 从 getNearbyBars 响应解析；缺关键字段（id/名称/坐标）时返回 null。
+  static _BarPlace? tryParse(Map<String, dynamic> map) {
+    final id = (map['id'] as num?)?.toInt() ?? (map['barId'] as num?)?.toInt();
+    final name = map['name']?.toString().trim();
+    final longitude = (map['longitude'] as num?)?.toDouble();
+    final latitude = (map['latitude'] as num?)?.toDouble();
+    if (id == null || name == null || name.isEmpty) {
+      return null;
+    }
+    if (longitude == null || latitude == null) {
+      return null;
+    }
+    final meters = (map['distanceMeters'] as num?)?.toDouble();
+    return _BarPlace(
+      name,
+      map['address']?.toString() ?? '',
+      meters == null
+          ? ''
+          : meters >= 1000
+          ? '约${(meters / 1000).toStringAsFixed(1)}km'
+          : '约${meters.round()}m',
+      longitude,
+      latitude,
+      MapVenueKind.fromRaw(
+        map['barSubtype']?.toString() ?? map['subtype']?.toString(),
+      ),
+      barId: id,
+    );
+  }
 }
 
 class _RoutePlaceTile extends StatelessWidget {

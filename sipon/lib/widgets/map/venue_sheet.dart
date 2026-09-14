@@ -3,10 +3,20 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart' hide Visibility;
 
 import '../../pages/language_transform.dart';
+import '../../services/map/api_venue_detail_repository.dart';
 import '../../services/map/map_models.dart';
+import '../../services/map/mock_venue_detail_repository.dart';
 import 'map_theme.dart';
 import 'venue_common.dart';
 import 'venue_detail_view.dart';
+
+/// 详情数据源开关：联调期走真接口，后端异常时改回 true 一键回滚 Mock。
+const bool _useMockVenueDetail = false;
+
+/// 当前生效的详情仓库；API 实现内部对非数字 id（演示数据）自动回退 Mock。
+final VenueDetailRepository _venueDetailRepository = _useMockVenueDetail
+    ? const MockVenueDetailRepository()
+    : SiponApiVenueDetailRepository();
 
 /// 收起态卡片与展开态详情共用的同一块面板。
 ///
@@ -101,6 +111,7 @@ class VenueSheetSurface extends StatelessWidget {
                     topInset: topInset,
                     bottomOverlayInset: bottomOverlayInset,
                     onClose: onCollapse,
+                    repository: _venueDetailRepository,
                   ),
             // 收起态内容钉在面板顶部，不随内部滚动移动，因此不受滚动偏移影响。
             if (collapsedOpacity > 0)

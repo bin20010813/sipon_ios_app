@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../services/drink_budget_store.dart';
@@ -133,10 +135,17 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
       note: _noteController.text.trim(),
     );
     await DrinkBudgetStore.instance.addRecord(record);
+    // 后台再做一次全量合并，把其他设备的记录拉下来。
+    unawaited(DrinkBudgetStore.instance.ensureSynced());
 
     widget.onSaved?.call(draft);
 
-    _showMessage(text.t('饮酒记录已保存'));
+    // addRecord 内部已尽力同步；仍有待同步记录说明当前离线，给个提示。
+    _showMessage(
+      DrinkBudgetStore.instance.hasPendingSync
+          ? text.t('饮酒记录已保存，待同步')
+          : text.t('饮酒记录已保存'),
+    );
     _resetForm();
   }
 

@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../services/drink_budget_store.dart';
+import '../services/sipon_api_config.dart';
+import '../services/sipon_api_service.dart';
 import 'language_transform.dart';
 import 'settings_support_page.dart';
 
@@ -108,16 +110,19 @@ class ProfilePage extends StatelessWidget {
                             _ProfileListRow(
                               assetPath: _memberAsset,
                               title: text.membership,
+                              onTap: () => _showMembershipSheet(context),
                             ),
                             _ProfileListRow(
                               assetPath: _couponAsset,
                               title: text.vouchers,
                               badge: text.vouchersBadge,
+                              onTap: () => _showCouponList(context),
                             ),
                             _ProfileListRow(
                               assetPath: _achievementAsset,
                               title: text.achievements,
                               trailingText: text.achievementsUnlocked,
+                              onTap: () => _showAchievementList(context),
                             ),
                           ],
                         ),
@@ -366,8 +371,49 @@ class _ProfileAvatar extends StatelessWidget {
   }
 }
 
-class _QuickEntryCard extends StatelessWidget {
+class _QuickEntryCard extends StatefulWidget {
   const _QuickEntryCard();
+
+  @override
+  State<_QuickEntryCard> createState() => _QuickEntryCardState();
+}
+
+class _QuickEntryCardState extends State<_QuickEntryCard> {
+  final SiponApiService _api = SiponApiService();
+
+  /// 三个入口的计数；为 null 表示尚未加载或加载失败，展示不带数字的文案。
+  int? _drankCount;
+  int? _wishCount;
+  int? _routeCount;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCounts();
+  }
+
+  /// 分别拉取三类列表的首页来估计计数；任一失败只影响对应入口，互不阻塞。
+  Future<void> _loadCounts() async {
+    Future<int?> safeCount(Future<List<dynamic>> Function() call) async {
+      try {
+        return (await call()).length;
+      } on Exception {
+        return null;
+      }
+    }
+
+    final results = await Future.wait([
+      safeCount(_api.getMyCheckIns),
+      safeCount(_api.getWishlistBars),
+      safeCount(_api.getMyDrinkingRoutes),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _drankCount = results[0];
+      _wishCount = results[1];
+      _routeCount = results[2];
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -390,24 +436,24 @@ class _QuickEntryCard extends StatelessWidget {
             Expanded(
               child: _QuickEntryItem(
                 assetPath: ProfilePage._drunkAsset,
-                label: '喝过2家',
-                onTap: () => _showMockList(context, _MockListType.drank),
+                label: _drankCount == null ? '喝过' : '喝过$_drankCount家',
+                onTap: () => _showProfileList(context, _ProfileListType.drank),
               ),
             ),
             const _VerticalDivider(),
             Expanded(
               child: _QuickEntryItem(
                 assetPath: ProfilePage._wishAsset,
-                label: '2家想喝',
-                onTap: () => _showMockList(context, _MockListType.wish),
+                label: _wishCount == null ? '想喝' : '$_wishCount家想喝',
+                onTap: () => _showProfileList(context, _ProfileListType.wish),
               ),
             ),
             const _VerticalDivider(),
             Expanded(
               child: _QuickEntryItem(
                 assetPath: ProfilePage._routeAsset,
-                label: '2条路线',
-                onTap: () => _showMockList(context, _MockListType.route),
+                label: _routeCount == null ? '路线' : '$_routeCount条路线',
+                onTap: () => _showProfileList(context, _ProfileListType.route),
               ),
             ),
           ],
@@ -456,91 +502,537 @@ class _QuickEntryItem extends StatelessWidget {
   }
 }
 
-enum _MockListType { drank, wish, route }
+enum _ProfileListType { drank, wish, route }
 
-class _MockListItem {
-  const _MockListItem({
+/// 我的页列表条目：名称、描述、meta 与可选网络封面图。
+class _ProfileListEntry {
+  const _ProfileListEntry({
     required this.name,
     required this.description,
     required this.meta,
-    required this.imagePath,
+    this.imageUrl,
+    this.isPrivate = false,
+    this.viewCount,
   });
 
   final String name;
   final String description;
   final String meta;
-  final String imagePath;
+
+  /// 后端返回的封面图（相对或绝对地址）；为空或加载失败时用 [fallbackImagePath]。
+  final String? imageUrl;
+
+  /// 封面加载失败时的本地兜底素材。
+  String get fallbackImagePath => 'assest/首页/图片素材/酒吧1.png';
+
+  /// 路线可见性：仅路线卡片使用。
+  final bool isPrivate;
+  final int? viewCount;
 }
 
-void _showMockList(BuildContext context, _MockListType type) {
-  final title = switch (type) {
-    _MockListType.drank => '喝过的酒吧',
-    _MockListType.wish => '想喝的酒吧',
-    _MockListType.route => '我的酒鬼路线',
-  };
-  final items = switch (type) {
-    _MockListType.drank => const [
-      _MockListItem(
-        name: 'Janes and Hooch',
-        description: '精酿啤酒与经典调酒，适合夜晚小聚。',
-        meta: '上海 · 静安',
-        imagePath: 'assest/首页/图片素材/酒吧 Janes and Hooch.png',
-      ),
-      _MockListItem(
-        name: 'Speak Low',
-        description: '藏在街角的经典鸡尾酒酒吧。',
-        meta: '上海 · 黄浦',
-        imagePath: 'assest/首页/图片素材/Speak Low（彼楼）.png',
-      ),
-    ],
-    _MockListType.wish => const [
-      _MockListItem(
-        name: 'Play House',
-        description: '音乐、舞池和一杯值得期待的特调。',
-        meta: '上海 · 长宁',
-        imagePath: 'assest/首页/图片素材/Play House 电音夜店.png',
-      ),
-      _MockListItem(
-        name: 'Matt Hasting',
-        description: '收藏清单中的下一站，等你来探索。',
-        meta: '北京 · 朝阳',
-        imagePath: 'assest/首页/图片素材/Matt Hasting.png',
-      ),
-    ],
-    _MockListType.route => const [
-      _MockListItem(
-        name: '外滩夜饮路线',
-        description: '05.17 至 05.17 1 天',
-        meta: '3 个地点',
-        imagePath: 'assest/首页/图片素材/酒吧1.png',
-      ),
-      _MockListItem(
-        name: '鸡尾酒探索路线',
-        description: '06.08 至 06.09 2 天 1 晚',
-        meta: '4 个地点',
-        imagePath: 'assest/首页/图片素材/鸡尾酒系列1.png',
-      ),
-    ],
+/// 打开喝过/想喝/酒鬼路线列表弹窗，数据源为真实后端接口。
+void _showProfileList(BuildContext context, _ProfileListType type) {
+  final api = SiponApiService();
+  final (title, loader, emptyText) = switch (type) {
+    _ProfileListType.drank => (
+      '喝过的酒吧',
+      () => _loadCheckInEntries(api),
+      '还没有喝过记录，去打卡第一家酒吧吧',
+    ),
+    _ProfileListType.wish => (
+      '想喝的酒吧',
+      () => _loadWishlistEntries(api),
+      '还没有想喝的酒吧，去地图上收藏一家吧',
+    ),
+    _ProfileListType.route => (
+      '我的酒鬼路线',
+      () => _loadRouteEntries(api),
+      '还没有酒鬼路线，去规划一条吧',
+    ),
   };
 
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => _MockListSheet(title: title, items: items, type: type),
+    builder: (_) => _ProfileListSheet(
+      title: title,
+      loader: loader,
+      emptyText: emptyText,
+      routeStyle: type == _ProfileListType.route,
+    ),
   );
 }
 
-class _MockListSheet extends StatelessWidget {
-  const _MockListSheet({
+/// 从 map 里按候选键读取非空字符串。
+String? _pickString(Map<String, dynamic> map, List<String> keys) {
+  for (final key in keys) {
+    final value = map[key];
+    if (value == null) continue;
+    final text = value.toString().trim();
+    if (text.isNotEmpty) return text;
+  }
+  return null;
+}
+
+/// 从 map 里按候选键读取数字。
+num? _pickNum(Map<String, dynamic> map, List<String> keys) {
+  for (final key in keys) {
+    final value = map[key];
+    if (value is num) return value;
+    if (value is String) {
+      final parsed = num.tryParse(value.trim());
+      if (parsed != null) return parsed;
+    }
+  }
+  return null;
+}
+
+/// 从 map 里按候选键读取列表。
+List<dynamic>? _pickList(Map<String, dynamic> map, List<String> keys) {
+  for (final key in keys) {
+    final value = map[key];
+    if (value is List) return value;
+  }
+  return null;
+}
+
+/// 从图集/媒体列表里提取第一个 URL：元素可能是字符串或带 url 字段的对象。
+String? _pickFirstUrl(Map<String, dynamic> map, List<String> keys) {
+  final list = _pickList(map, keys);
+  if (list == null) return null;
+  for (final item in list) {
+    if (item is String && item.trim().isNotEmpty) return item.trim();
+    if (item is Map) {
+      final url = _pickString(item.cast<String, dynamic>(), [
+        'url',
+        'imageUrl',
+        'path',
+        'src',
+        'contentUrl',
+      ]);
+      if (url != null) return url;
+    }
+  }
+  return null;
+}
+
+/// ISO 时间截断为 `yyyy-MM-dd` 日期文案。
+String _shortDate(String? iso) {
+  if (iso == null || iso.length < 10) return '';
+  return iso.substring(0, 10);
+}
+
+/// 喝过的酒吧：GET /api/users/me/check-ins，元素为 CheckIn 结构。
+Future<List<_ProfileListEntry>> _loadCheckInEntries(SiponApiService api) async {
+  final list = await api.getMyCheckIns();
+  return [
+    for (final item in list.whereType<Map>())
+      () {
+        final map = item.cast<String, dynamic>();
+        final name = _pickString(map, ['barName', 'name', 'barTitle']);
+        if (name == null) return null;
+        final city = _pickString(map, ['city']) ?? '';
+        final date = _shortDate(
+          _pickString(map, ['visitedAt', 'createdAt']),
+        );
+        final meta = [
+          if (city.isNotEmpty) city,
+          if (date.isNotEmpty) date,
+        ].join(' · ');
+        return _ProfileListEntry(
+          name: name,
+          description: _pickString(map, ['content']) ?? '',
+          meta: meta,
+          imageUrl: _pickFirstUrl(map, ['mediaUrls', 'media', 'gallery']),
+        );
+      }(),
+  ].whereType<_ProfileListEntry>().toList(growable: false);
+}
+
+/// 想喝的酒吧：GET /api/users/me/wishlist/bars，元素为 Bar 结构。
+Future<List<_ProfileListEntry>> _loadWishlistEntries(SiponApiService api) async {
+  final list = await api.getWishlistBars();
+  return [
+    for (final item in list.whereType<Map>())
+      () {
+        final map = item.cast<String, dynamic>();
+        final name = _pickString(map, ['name', 'barName', 'title']);
+        if (name == null) return null;
+        final rating = _pickNum(map, ['averageRating', 'rating', 'score']);
+        final meta = [
+          ?_pickString(map, ['city']),
+          if (rating != null) '${rating.toStringAsFixed(1)} 分',
+        ].join(' · ');
+        return _ProfileListEntry(
+          name: name,
+          description: _pickString(map, ['address', 'description']) ?? '',
+          meta: meta,
+          imageUrl:
+              _pickString(map, ['imageUrl', 'image', 'cover', 'coverUrl']) ??
+              _pickFirstUrl(map, ['gallery']),
+        );
+      }(),
+  ].whereType<_ProfileListEntry>().toList(growable: false);
+}
+
+/// 我的酒鬼路线：GET /api/users/me/routes，元素为 DrinkingRoute 结构。
+Future<List<_ProfileListEntry>> _loadRouteEntries(SiponApiService api) async {
+  final list = await api.getMyDrinkingRoutes();
+  return [
+    for (final item in list.whereType<Map>())
+      () {
+        final map = item.cast<String, dynamic>();
+        final title = _pickString(map, ['title', 'name']);
+        if (title == null) return null;
+        final start = _shortDate(
+          _pickString(map, ['localStartDate', 'startDate']),
+        );
+        final end = _shortDate(_pickString(map, ['localEndDate', 'endDate']));
+        final barCount = _pickList(map, ['barIds', 'bars'])?.length ?? 0;
+        return _ProfileListEntry(
+          name: title,
+          description: start.isEmpty ? '' : '$start 至 $end',
+          meta: '$barCount 个地点',
+          isPrivate:
+              _pickString(map, ['visibility'])?.toLowerCase() != 'public',
+          viewCount: _pickNum(map, ['viewCount', 'views'])?.toInt(),
+        );
+      }(),
+  ].whereType<_ProfileListEntry>().toList(growable: false);
+}
+
+/// 打开「我的礼券」列表弹窗：GET /api/users/me/coupons。
+void _showCouponList(BuildContext context) {
+  final api = SiponApiService();
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _ProfileListSheet(
+      title: '我的礼券',
+      emptyText: '暂无可用礼券',
+      loader: () async {
+        final list = await api.getCoupons();
+        return [
+          for (final item in list.whereType<Map>())
+            () {
+              final map = item.cast<String, dynamic>();
+              final name = _pickString(map, ['title', 'name', 'couponName']);
+              if (name == null) return null;
+              final amount = _pickNum(map, ['amount', 'discount', 'value']);
+              final validTo = _shortDate(
+                _pickString(map, ['validTo', 'expireAt', 'expiredAt']),
+              );
+              return _ProfileListEntry(
+                name: name,
+                description:
+                    _pickString(map, ['description', 'rule', 'condition']) ??
+                    '',
+                meta: [
+                  if (amount != null) '¥${amount.toStringAsFixed(0)}',
+                  if (validTo.isNotEmpty) '有效期至 $validTo',
+                ].join(' · '),
+              );
+            }(),
+        ].whereType<_ProfileListEntry>().toList(growable: false);
+      },
+    ),
+  );
+}
+
+/// 打开「成就勋章」列表弹窗：GET /api/users/me/achievements。
+void _showAchievementList(BuildContext context) {
+  final api = SiponApiService();
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _ProfileListSheet(
+      title: '成就勋章',
+      emptyText: '还没有解锁任何成就',
+      loader: () async {
+        final list = await api.getAchievements();
+        return [
+          for (final item in list.whereType<Map>())
+            () {
+              final map = item.cast<String, dynamic>();
+              final name = _pickString(map, ['name', 'title', 'badgeName']);
+              if (name == null) return null;
+              final unlocked =
+                  map['unlocked'] == true ||
+                  map['achieved'] == true ||
+                  map['isUnlocked'] == true;
+              return _ProfileListEntry(
+                name: name,
+                description: _pickString(map, ['description', 'desc']) ?? '',
+                meta: unlocked ? '已解锁' : '未解锁',
+              );
+            }(),
+        ].whereType<_ProfileListEntry>().toList(growable: false);
+      },
+    ),
+  );
+}
+
+/// 打开「Sipon 会员」摘要弹窗：GET /api/users/me/membership。
+void _showMembershipSheet(BuildContext context) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => const _MembershipSheet(),
+  );
+}
+
+/// 会员卡摘要：后端字段以真实响应为准，这里把所有基础类型字段逐行展示，
+/// 常见键给出中文标签。
+class _MembershipSheet extends StatefulWidget {
+  const _MembershipSheet();
+
+  @override
+  State<_MembershipSheet> createState() => _MembershipSheetState();
+}
+
+class _MembershipSheetState extends State<_MembershipSheet> {
+  static const _keyLabels = {
+    'level': '会员等级',
+    'levelName': '会员等级',
+    'status': '状态',
+    'balance': '余额',
+    'points': '积分',
+    'integral': '积分',
+    'growthValue': '成长值',
+    'expireAt': '有效期至',
+    'expiredAt': '有效期至',
+    'validTo': '有效期至',
+    'cardNo': '卡号',
+  };
+
+  final SiponApiService _api = SiponApiService();
+  Map<String, dynamic>? _membership;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  /// 拉取会员信息；错误统一展示异常文案。
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final data = await _api.getMembership();
+      if (!mounted) return;
+      setState(() {
+        _membership = data is Map ? data.cast<String, dynamic>() : const {};
+        _loading = false;
+      });
+    } on Exception catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Container(
+        constraints: const BoxConstraints(maxHeight: 480),
+        decoration: const BoxDecoration(
+          color: Color(0xFFF5F6F8),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFD1D3D8),
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Sipon 会员',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF292B32),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            Flexible(child: _buildBody()),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 48),
+        child: Center(
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: ProfilePage._brand,
+          ),
+        ),
+      );
+    }
+
+    final error = _error;
+    if (error != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              error,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF858991), fontSize: 13),
+            ),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: _load,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('重试'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: ProfilePage._brand,
+                side: const BorderSide(color: ProfilePage._brand),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // 只展示基础类型字段，嵌套对象/数组暂不展开。
+    final entries = [
+      for (final entry in (_membership ?? const {}).entries)
+        if (entry.value is! Map && entry.value is! List) entry,
+    ];
+    if (entries.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 48),
+        child: Center(
+          child: Text('暂未开通会员', style: TextStyle(color: Color(0xFF858991))),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      shrinkWrap: true,
+      itemCount: entries.length,
+      separatorBuilder: (_, _) =>
+          const Divider(height: 1, color: Color(0xFFE8E4E9)),
+      itemBuilder: (_, index) {
+        final entry = entries[index];
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _keyLabels[entry.key] ?? entry.key,
+                  style: const TextStyle(
+                    color: Color(0xFF858991),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Text(
+                '${entry.value}',
+                style: const TextStyle(
+                  color: Color(0xFF292B32),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// 我的页通用列表弹窗：loading / empty / error（带重试）三态齐全，
+/// 数据由 [loader] 提供，路线列表用 [routeStyle] 切换卡片样式。
+class _ProfileListSheet extends StatefulWidget {
+  const _ProfileListSheet({
     required this.title,
-    required this.items,
-    required this.type,
+    required this.loader,
+    required this.emptyText,
+    this.routeStyle = false,
   });
 
   final String title;
-  final List<_MockListItem> items;
-  final _MockListType type;
+  final Future<List<_ProfileListEntry>> Function() loader;
+  final String emptyText;
+  final bool routeStyle;
+
+  @override
+  State<_ProfileListSheet> createState() => _ProfileListSheetState();
+}
+
+class _ProfileListSheetState extends State<_ProfileListSheet> {
+  List<_ProfileListEntry> _items = const [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  /// 拉取列表数据；错误统一展示 SiponApiException 文案。
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final items = await widget.loader();
+      if (!mounted) return;
+      setState(() {
+        _items = items;
+        _loading = false;
+      });
+    } on Exception catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.toString();
+        _loading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -559,7 +1051,7 @@ class _MockListSheet extends StatelessWidget {
               width: 38,
               height: 4,
               decoration: BoxDecoration(
-                color: Color(0xFFD1D3D8),
+                color: const Color(0xFFD1D3D8),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -568,7 +1060,7 @@ class _MockListSheet extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    title,
+                    widget.title,
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
@@ -582,26 +1074,106 @@ class _MockListSheet extends StatelessWidget {
                 ),
               ],
             ),
-            Flexible(
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: items.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 12),
-                itemBuilder: (_, index) => type == _MockListType.route
-                    ? _MockRouteCard(item: items[index], index: index)
-                    : _MockListCard(item: items[index]),
-              ),
-            ),
+            Flexible(child: _buildBody()),
           ],
         ),
       ),
     );
   }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 60),
+        child: Center(
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: ProfilePage._brand,
+          ),
+        ),
+      );
+    }
+
+    final error = _error;
+    if (error != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              error,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF858991), fontSize: 13),
+            ),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: _load,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('重试'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: ProfilePage._brand,
+                side: const BorderSide(color: ProfilePage._brand),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_items.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 60),
+        child: Center(
+          child: Text(
+            widget.emptyText,
+            style: const TextStyle(color: Color(0xFF858991), fontSize: 13),
+          ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      shrinkWrap: true,
+      itemCount: _items.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
+      itemBuilder: (_, index) => widget.routeStyle
+          ? _MockRouteCard(item: _items[index], index: index)
+          : _MockListCard(item: _items[index]),
+    );
+  }
+}
+
+/// 条目封面图：有网络图先用网络图，失败或没有就退回本地资产。
+Widget _entryImage(
+  _ProfileListEntry item, {
+  required double width,
+  required double height,
+}) {
+  final url = item.imageUrl;
+  if (url != null && url.isNotEmpty) {
+    return Image.network(
+      SiponApiConfig.instance.resolveUri(url).toString(),
+      width: width,
+      height: height,
+      fit: BoxFit.cover,
+      errorBuilder: (_, _, _) =>
+          Image.asset(item.fallbackImagePath, width: width, height: height, fit: BoxFit.cover),
+    );
+  }
+  return Image.asset(
+    item.fallbackImagePath,
+    width: width,
+    height: height,
+    fit: BoxFit.cover,
+  );
 }
 
 class _MockListCard extends StatelessWidget {
   const _MockListCard({required this.item});
-  final _MockListItem item;
+  final _ProfileListEntry item;
 
   @override
   Widget build(BuildContext context) {
@@ -615,12 +1187,7 @@ class _MockListCard extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Image.asset(
-              item.imagePath,
-              width: 88,
-              height: 88,
-              fit: BoxFit.cover,
-            ),
+            child: _entryImage(item, width: 88, height: 88),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -676,7 +1243,7 @@ class _MockListCard extends StatelessWidget {
 class _MockRouteCard extends StatelessWidget {
   const _MockRouteCard({required this.item, required this.index});
 
-  final _MockListItem item;
+  final _ProfileListEntry item;
   final int index;
 
   static const _routeImages = [
@@ -688,12 +1255,13 @@ class _MockRouteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isPrivate = index == 0;
+    final isPrivate = item.isPrivate;
     final backgroundColor = index.isEven
         ? const Color(0xFFFFE6B8)
         : const Color(0xFFDDE5FF);
+    // 路线暂时没有各站点封面，沿用本地素材做装饰性叠图。
     final routeImages = [
-      item.imagePath,
+      item.fallbackImagePath,
       _routeImages[(index * 2) % _routeImages.length],
       _routeImages[(index * 2 + 1) % _routeImages.length],
     ];
@@ -771,7 +1339,7 @@ class _MockRouteCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 3),
                     Text(
-                      isPrivate ? '12' : '86',
+                      '${item.viewCount ?? 0}',
                       style: const TextStyle(
                         color: Color(0xFF7B7580),
                         fontSize: 12,
@@ -857,7 +1425,8 @@ class _BudgetCardState extends State<_BudgetCard> {
   void initState() {
     super.initState();
     _store.addListener(_onStoreChanged);
-    _store.ensureLoaded();
+    // 账本卡片进入时先读本地缓存，再后台与后端做一次全量合并。
+    _store.ensureLoaded().then((_) => _store.ensureSynced());
   }
 
   @override
@@ -1297,6 +1866,8 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
     super.initState();
     _selectedDate = DateTime.now();
     _store.addListener(_onStoreChanged);
+    // 进入账单页时与后端对齐一次，保证跨设备数据一致。
+    _store.ensureLoaded().then((_) => _store.ensureSynced());
   }
 
   @override
@@ -2647,16 +3218,18 @@ class _ProfileListRow extends StatelessWidget {
     required this.title,
     this.badge,
     this.trailingText,
+    this.onTap,
   });
 
   final String assetPath;
   final String title;
   final String? badge;
   final String? trailingText;
+  final VoidCallback? onTap;
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: null,
+      onTap: onTap,
       borderRadius: BorderRadius.circular(14),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 16),
