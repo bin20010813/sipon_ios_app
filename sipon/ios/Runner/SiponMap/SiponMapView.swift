@@ -191,7 +191,7 @@ final class SiponMapEngine: NSObject {
       }
       let start = MKMapItem(placemark: MKPlacemark(coordinate: coordinates[legIndex]))
       let end = MKMapItem(placemark: MKPlacemark(coordinate: coordinates[legIndex + 1]))
-      let request = MKDirectionsRequest()
+      let request = MKDirections.Request()
       request.source = start
       request.destination = end
       request.transportType = .automobile
