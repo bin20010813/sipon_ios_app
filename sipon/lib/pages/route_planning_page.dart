@@ -1,7 +1,5 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
-
 import '../services/map/map_display_options.dart';
 import '../services/map/map_models.dart';
 import '../services/map/map_scene_controller.dart';
@@ -173,6 +171,9 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
 
   void _reorderRoute(int oldIndex, int newIndex) {
     _invalidatePlanning();
+    if (newIndex > oldIndex) {
+      newIndex -= 1;
+    }
     final items = _routeItems;
     final item = items.removeAt(oldIndex);
     items.insert(newIndex, item);
@@ -254,9 +255,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
         _planning = false;
         _planned = ok;
       });
-      _showMessage(
-        ok ? '路线已规划，可以保存为我的路线了' : '路径规划失败，请检查站点或稍后重试',
-      );
+      _showMessage(ok ? '路线已规划，可以保存为我的路线了' : '路径规划失败，请检查站点或稍后重试');
       if (ok) {
         // 折线绘制后再重画一次点位，保证编号 marker 落在折线上层。
         unawaited(_renderMap());
@@ -406,7 +405,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
                     physics: const NeverScrollableScrollPhysics(),
                     clipBehavior: Clip.none,
                     itemCount: _routeItems.length,
-                    onReorderItem: _reorderRoute,
+                    onReorder: _reorderRoute,
                     itemBuilder: (context, index) {
                       final isStart = index == 0;
                       final isEnd = index == _routeItems.length - 1;
