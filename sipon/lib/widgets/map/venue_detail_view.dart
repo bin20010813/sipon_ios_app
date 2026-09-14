@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' hide Visibility;
 
 import '../../pages/language_transform.dart';
+import '../../services/external_map_launcher.dart';
 import '../../services/map/api_venue_detail_repository.dart';
 import '../../services/map/map_models.dart';
 import '../../services/map/mock_venue_detail_repository.dart';
@@ -149,6 +150,18 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
           duration: const Duration(milliseconds: 1200),
         ),
       );
+  }
+
+  Future<void> _openAmapNavigation() async {
+    final result = await ExternalMapLauncher.openAmapNavigation(
+      name: widget.venue.name,
+      longitude: widget.venue.longitude,
+      latitude: widget.venue.latitude,
+    );
+    if (!mounted) {
+      return;
+    }
+    _showMockToast(SiponLanguageScope.textOf(context).t(result.message));
   }
 
   void _syncTabWithScroll() {
@@ -348,11 +361,7 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
       padding: const EdgeInsets.fromLTRB(_pagePadding, 32, _pagePadding, 32),
       child: Column(
         children: [
-          const Icon(
-            Icons.wifi_off_rounded,
-            color: MapDesign.muted,
-            size: 32,
-          ),
+          const Icon(Icons.wifi_off_rounded, color: MapDesign.muted, size: 32),
           const SizedBox(height: 12),
           Text(
             text.t('详情加载失败'),
@@ -497,13 +506,13 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
             detail: detail,
             favorite: _favorite,
             onToggleFavorite: () => setState(() => _favorite = !_favorite),
-            onNavigate: () => _showMockToast(text.t('已唤起地图导航（演示）')),
+            onNavigate: _openAmapNavigation,
             onShare: () => _showMockToast(text.t('已分享地点（演示）')),
           ),
           const SizedBox(height: 18),
           _VenueInfoCard(
             detail: detail,
-            onOpenMap: () => _showMockToast(text.t('已唤起地图导航（演示）')),
+            onOpenMap: _openAmapNavigation,
             onCall: () =>
                 _showMockToast(text.t('正在拨打 ${detail?.phone ?? ''}（演示）')),
           ),
@@ -1280,7 +1289,8 @@ class _VenueDrinks extends StatelessWidget {
                       Builder(
                         builder: (_) {
                           final path =
-                              drink.imageAsset ?? MapAssets.coverForIndex(index);
+                              drink.imageAsset ??
+                              MapAssets.coverForIndex(index);
                           final remote = _isRemoteImage(path);
                           return VenueImage(
                             imageUrl: remote ? path : null,
@@ -1413,15 +1423,13 @@ class _VenueReviewsSection extends StatelessWidget {
           (a, b) => _parseDate(b.date).compareTo(_parseDate(a.date)),
         );
       case _ReviewFilter.good:
-        filteredReviews = filteredReviews
-            .where((review) => review.rating >= 4)
-            .toList()
-          ..sort((a, b) => b.rating.compareTo(a.rating));
+        filteredReviews =
+            filteredReviews.where((review) => review.rating >= 4).toList()
+              ..sort((a, b) => b.rating.compareTo(a.rating));
       case _ReviewFilter.bad:
-        filteredReviews = filteredReviews
-            .where((review) => review.rating < 3)
-            .toList()
-          ..sort((a, b) => a.rating.compareTo(b.rating));
+        filteredReviews =
+            filteredReviews.where((review) => review.rating < 3).toList()
+              ..sort((a, b) => a.rating.compareTo(b.rating));
     }
     final visibleReviews = filteredReviews.take(visibleCount).toList();
 
