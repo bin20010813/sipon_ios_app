@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../services/map/map_display_options.dart';
 import '../services/map/map_models.dart';
 import '../services/map/map_scene_controller.dart';
+import '../services/map/map_viewport.dart';
 import '../services/map/sipon_map_host.dart';
 import '../services/map/sipon_map_widget.dart';
 import '../services/sipon_api_service.dart';
@@ -154,6 +155,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
   }
 
   void _select(_RouteStopType type, _BarPlace selected, {int? stopIndex}) {
+    _invalidatePlanning();
     setState(() {
       switch (type) {
         case _RouteStopType.start:
@@ -170,6 +172,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
   List<_BarPlace?> get _routeItems => [_start, ..._stops, _end];
 
   void _reorderRoute(int oldIndex, int newIndex) {
+    _invalidatePlanning();
     final items = _routeItems;
     final item = items.removeAt(oldIndex);
     items.insert(newIndex, item);
@@ -184,6 +187,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
   }
 
   void _removeRouteItem(int index) {
+    _invalidatePlanning();
     final items = _routeItems..removeAt(index);
     if (items.length == 1) {
       if (index == 0) {
@@ -206,14 +210,71 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
   Set<_BarPlace> get _usedPlaces =>
       {_start, _end, ..._stops}.whereType<_BarPlace>().toSet();
 
+  /// 是否已完成路径规划：规划成功前不允许保存为我的路线。
+  bool _planned = false;
+  bool _planning = false;
+
   void _showMessage(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  /// 保存路线：校验起终点后弹出标题输入，再 POST /api/users/me/routes。
-  Future<void> _createRoute() async {
+  /// 站点编排变更后清除已规划的路线，必须重新规划才能保存。
+  void _invalidatePlanning() {
+    if (!_planned) return;
+    _scene.clearRoute();
+    setState(() => _planned = false);
+  }
+
+  /// 点击「出发」：按已选站点顺序调用原生路径规划（MKDirections）
+  /// 并在地图上绘制路线折线；规划成功后才允许保存为我的路线。
+  Future<void> _planRoute() async {
+    if (_planning) return;
+    if (!_scene.isAttached) {
+      _showMessage('地图还没准备好，请稍后再试');
+      return;
+    }
+    final places = _routeItems.whereType<_BarPlace>().toList();
+    if (places.length < 2) {
+      _showMessage('请先选择起点和终点酒吧');
+      return;
+    }
+
+    setState(() => _planning = true);
+    try {
+      final ok = await _scene.planRoute(
+        points: [
+          for (final place in places)
+            MapLatLng(longitude: place.longitude, latitude: place.latitude),
+        ],
+      );
+      if (!mounted) return;
+      setState(() {
+        _planning = false;
+        _planned = ok;
+      });
+      _showMessage(
+        ok ? '路线已规划，可以保存为我的路线了' : '路径规划失败，请检查站点或稍后重试',
+      );
+      if (ok) {
+        // 折线绘制后再重画一次点位，保证编号 marker 落在折线上层。
+        unawaited(_renderMap());
+      }
+    } on Exception catch (error) {
+      if (!mounted) return;
+      setState(() => _planning = false);
+      _showMessage('路径规划失败：$error');
+    }
+  }
+
+  /// 点击「保存为我的酒馆路线」：必须已完成路径规划，之后走 POST 创建。
+  Future<void> _saveRoute() async {
+    if (!_planned) {
+      _showMessage('请先点击「出发」规划路线');
+      return;
+    }
+    if (_saving) return;
     final places = _routeItems.whereType<_BarPlace>().toList();
     if (_start == null || _end == null) {
       _showMessage('请先选择起点酒吧和终点酒吧');
@@ -399,9 +460,9 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
                         ),
                       ),
                       FilledButton.icon(
-                        onPressed: _saving ? null : _createRoute,
+                        onPressed: _planning ? null : _planRoute,
                         icon: const Icon(Icons.send_rounded, size: 18),
-                        label: const Text('出发'),
+                        label: Text(_planning ? '规划中…' : '出发'),
                         style: FilledButton.styleFrom(
                           backgroundColor: _brand,
                           minimumSize: const Size(0, 40),
@@ -442,17 +503,37 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
                 color: Colors.white,
                 border: Border(top: BorderSide(color: Color(0xFFEDE5E9))),
               ),
-              child: FilledButton.icon(
-                onPressed: _saving ? null : _createRoute,
-                icon: const Icon(Icons.alt_route_rounded),
-                label: Text(_saving ? '保存中…' : '保存为我的酒馆路线'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: _brand,
-                  minimumSize: const Size.fromHeight(48),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (!_planned)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Text(
+                        '先点击「出发」规划路线，才能保存为我的路线',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Color(0xFF8F8790),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ),
+                  FilledButton.icon(
+                    onPressed: (!_planned || _saving) ? null : _saveRoute,
+                    icon: const Icon(Icons.alt_route_rounded),
+                    label: Text(_saving ? '保存中…' : '保存为我的酒馆路线'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _brand,
+                      minimumSize: const Size.fromHeight(48),
+                      disabledBackgroundColor: const Color(0xFFE6D3DF),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
           ],

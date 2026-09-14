@@ -246,6 +246,35 @@ class MapkitSceneController extends MapSceneController {
     );
   }
 
+  // ------------------------------------------------------------------ 路径规划
+
+  @override
+  Future<bool> planRoute({required List<MapLatLng> points}) async {
+    final host = _host;
+    if (host == null || !_ready || points.length < 2) {
+      return false;
+    }
+
+    try {
+      final result = await host.invoke(
+        SiponMapCommands.drawRoute,
+        encodeRoutePoints(points),
+      );
+      return result is bool && result;
+    } catch (error) {
+      assert(() {
+        debugPrint('SiponMap: planRoute failed: $error');
+        return true;
+      }());
+      return false;
+    }
+  }
+
+  @override
+  void clearRoute() {
+    unawaited(_invokeIfReady(SiponMapCommands.clearRoute));
+  }
+
   // -------------------------------------------------------------------- 渲染
 
   @override

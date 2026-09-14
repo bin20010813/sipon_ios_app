@@ -250,6 +250,9 @@ class _SiponShellState extends State<_SiponShell> {
   double get _effectiveNavigationReserveHeight =>
       _navigationReserveHeight + MediaQuery.paddingOf(context).bottom;
 
+  /// 我的页状态引用，用于切回 tab / 规划路线 / 打卡返回后刷新快捷入口计数。
+  final GlobalKey<ProfilePageState> _profilePageKey = GlobalKey<ProfilePageState>();
+
   int _currentIndex = 0;
   bool _recordRouteOpening = false;
 
@@ -263,10 +266,17 @@ class _SiponShellState extends State<_SiponShell> {
 
   void _selectTab(int index) {
     if (index == _currentIndex) {
+      // 重复点击当前 tab：视为手动刷新。
+      if (index == 2) {
+        _profilePageKey.currentState?.refreshCounts();
+      }
       return;
     }
 
     setState(() => _currentIndex = index);
+    if (index == 2) {
+      _profilePageKey.currentState?.refreshCounts();
+    }
   }
 
   Future<void> _openDrinkRecord() async {
@@ -314,17 +324,25 @@ class _SiponShellState extends State<_SiponShell> {
     );
   }
 
-  Future<void> _openRoutePlanning() => Navigator.of(
-    context,
-  ).push(MaterialPageRoute<void>(builder: (_) => const RoutePlanningPage()));
+  /// 打开路线规划；返回后刷新我的页计数（新增/变化的路线立即反映）。
+  Future<void> _openRoutePlanning() async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const RoutePlanningPage()));
+    _profilePageKey.currentState?.refreshCounts();
+  }
 
-  Future<void> _openCheckIn() => showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    barrierColor: const Color(0x66000000),
-    builder: (_) => const CheckInPage(),
-  );
+  /// 打开打卡弹窗；关闭后刷新我的页计数（打卡记录可能新增）。
+  Future<void> _openCheckIn() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0x66000000),
+      builder: (_) => const CheckInPage(),
+    );
+    _profilePageKey.currentState?.refreshCounts();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -341,6 +359,7 @@ class _SiponShellState extends State<_SiponShell> {
               ),
               MapPage(bottomOverlayInset: _effectiveNavigationReserveHeight),
               ProfilePage(
+                key: _profilePageKey,
                 bottomOverlayInset: _effectiveNavigationReserveHeight,
                 onRecordPressed: _openDrinkRecord,
                 onLogoutSucceeded: widget.onLogoutSucceeded,

@@ -161,6 +161,13 @@ abstract class MapSceneController {
 
   Future<void> flyToCity(String city, {required double zoom});
 
+  /// 按 [points] 顺序请求原生路径规划（方向服务）并绘制路线折线。
+  /// 规划成功返回 true；任意一段失败或引擎未就绪返回 false。
+  Future<bool> planRoute({required List<MapLatLng> points});
+
+  /// 清除已绘制的路线折线（站点变更后调用，避免旧路线残留）。
+  void clearRoute();
+
   /// 把一帧内容下发到地图。整帧没变就直接返回。
   Future<void> render(MapSceneFrame frame) async {
     lastFrame = frame;

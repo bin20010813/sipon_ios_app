@@ -35,6 +35,12 @@ final class SiponMapView: NSObject, FlutterPlatformView {
         result(FlutterError(code: "sipon_map", message: "view released", details: nil))
         return
       }
+      if call.method == SiponMapProtocol.Command.drawRoute {
+        // 路径规划是异步的（MKDirections 方向服务），把 result 交给引擎，
+        // 规划完成后再回调 Dart。
+        self.engine.planRoute(arguments: call.arguments, result: result)
+        return
+      }
       result(self.engine.handle(method: call.method, arguments: call.arguments))
     }
   }
@@ -71,6 +77,8 @@ final class SiponMapEngine: NSObject {
   private var markersByVenueId: [String: MarkerAnnotation] = [:]
   private var selectionAnnotation: SelectionAnnotation?
   private var heatOverlaysByKey: [SiponMapGeometry.GridKey: DensityCellOverlay] = [:]
+  /// 路径规划出的路线折线（单独成池，不受 renderFrame 的 id diff 影响）。
+  private var routeOverlay: MKPolyline?
 
   /// marker 图标资产缓存（kind.id → UIImage）与选中 halo 色环缓存。
   private var markerIcons: [String: UIImage] = [:]
@@ -139,11 +147,109 @@ final class SiponMapEngine: NSObject {
     case SiponMapProtocol.Command.registerAssets:
       registerMarkerAssets(SiponMapProtocol.dict(arguments) ?? [:])
       return nil
+    case SiponMapProtocol.Command.clearRoute:
+      clearRouteOverlay()
+      return nil
     case SiponMapProtocol.Command.dispose:
       resetPools()
       return nil
     default:
       return nil
+    }
+  }
+
+  // ------------------------------------------------------------------ 路径规划
+
+  /// flutter 端调用：按站点顺序逐段 MKDirections 规划，把各段折线拼成一条
+  /// 并绘制到地图上，完成后通过 [result] 回调 Bool（成功/失败）。
+  func planRoute(arguments: Any?, result: @escaping FlutterResult) {
+    guard let args = SiponMapProtocol.dict(arguments),
+          let rawPoints = args["points"] as? [[String: Any]] else {
+      result(FlutterError(code: "sipon_route", message: "invalid points payload", details: nil))
+      return
+    }
+
+    var coordinates: [CLLocationCoordinate2D] = []
+    for raw in rawPoints {
+      let lat = SiponMapProtocol.double(raw, "lat", fallback: .nan)
+      let lng = SiponMapProtocol.double(raw, "lng", fallback: .nan)
+      guard lat.isFinite, lng.isFinite else { continue }
+      coordinates.append(CLLocationCoordinate2D(latitude: lat, longitude: lng))
+    }
+    guard coordinates.count >= 2 else {
+      result(FlutterError(code: "sipon_route", message: "need at least 2 stops", details: nil))
+      return
+    }
+
+    // 旧的 completion 式 API，兼容 iOS 14 部署目标；局部函数支持递归。
+    var legs: [MKPolyline] = []
+    var legIndex = 0
+    func planNext() {
+      guard legIndex < coordinates.count - 1 else {
+        finishRoute(legs: legs, result: result)
+        return
+      }
+      let start = MKMapItem(placemark: MKPlacemark(coordinate: coordinates[legIndex]))
+      let end = MKMapItem(placemark: MKPlacemark(coordinate: coordinates[legIndex + 1]))
+      let request = MKDirectionsRequest()
+      request.source = start
+      request.destination = end
+      request.transportType = .automobile
+      request.requestsAlternateRoutes = false
+
+      let directions = MKDirections(request: request)
+      directions.calculate { [weak self] response, error in
+        guard let self = self else { return }
+        if error != nil {
+          // 单段规划失败（离线/无路网/坐标异常）→ 整体视为失败。
+          result(false)
+          return
+        }
+        guard let leg = response?.routes.first?.polyline else {
+          result(false)
+          return
+        }
+        legs.append(leg)
+        legIndex += 1
+        planNext()
+      }
+    }
+    planNext()
+  }
+
+  /// 把各段折线拼成一条并绘制、取景。
+  private func finishRoute(legs: [MKPolyline], result: @escaping FlutterResult) {
+    var all: [CLLocationCoordinate2D] = []
+    for (legNumber, leg) in legs.enumerated() {
+      let points = leg.points()
+      // 跳过与上一段重复的衔接点（首段从 0 开始）。
+      let start = legNumber == 0 ? 0 : 1
+      for i in start..<Int(leg.pointCount) {
+        all.append(points[i].coordinate)
+      }
+    }
+    guard all.count >= 2 else {
+      result(false)
+      return
+    }
+
+    clearRouteOverlay()
+    let polyline = MKPolyline(coordinates: &all, count: all.count)
+    routeOverlay = polyline
+    mapView.addOverlay(polyline, level: .aboveRoads)
+    mapView.setVisibleMapRect(
+      polyline.boundingMapRect,
+      edgePadding: UIEdgeInsets(top: 90, left: 60, bottom: 140, right: 60),
+      animated: true
+    )
+    result(true)
+  }
+
+  /// 移除已绘制的路线折线。
+  private func clearRouteOverlay() {
+    if let route = routeOverlay {
+      mapView.removeOverlay(route)
+      routeOverlay = nil
     }
   }
 
@@ -564,11 +670,15 @@ final class SiponMapEngine: NSObject {
       mapView.removeAnnotation(selection)
     }
     mapView.removeOverlays(Array(heatOverlaysByKey.values))
+    if let route = routeOverlay {
+      mapView.removeOverlay(route)
+    }
 
     circlesById.removeAll()
     markersByVenueId.removeAll()
     selectionAnnotation = nil
     heatOverlaysByKey.removeAll()
+    routeOverlay = nil
     lastFrameArguments = nil
   }
 
@@ -686,6 +796,19 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
   ) -> MKOverlayRenderer {
     if let cell = overlay as? DensityCellOverlay {
       return DensityGradientRenderer(cell: cell)
+    }
+    if let polyline = overlay as? MKPolyline {
+      let renderer = MKPolylineRenderer(polyline: polyline)
+      renderer.strokeColor = UIColor(
+        red: 0x9A / 255.0,
+        green: 0x3D / 255.0,
+        blue: 0x78 / 255.0,
+        alpha: 1
+      )
+      renderer.lineWidth = 5
+      renderer.lineCap = .round
+      renderer.lineJoin = .round
+      return renderer
     }
     return MKOverlayRenderer(overlay: overlay)
   }

@@ -2,14 +2,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../services/map/api_venue_detail_repository.dart';
 import '../services/map/map_display_options.dart';
 import '../services/map/map_models.dart';
 import '../services/map/map_scene_controller.dart';
 import '../services/map/sipon_map_host.dart';
 import '../services/map/sipon_map_widget.dart';
 import '../services/sipon_api_service.dart';
-import '../widgets/map/venue_detail_view.dart';
+import '../widgets/map/venue_detail_page.dart';
 
 /// 一级入口以底部弹窗展示，二级的记录页面仍然通过路由全屏打开。
 class CheckInPage extends StatefulWidget {
@@ -275,8 +274,7 @@ class _NearbyBar {
 
   /// 从 getNearbyBars 响应解析；缺关键字段（id/名称/坐标）时返回 null。
   static _NearbyBar? tryParse(Map<String, dynamic> map) {
-    final id =
-        (map['id'] as num?)?.toInt() ?? (map['barId'] as num?)?.toInt();
+    final id = (map['id'] as num?)?.toInt() ?? (map['barId'] as num?)?.toInt();
     final name = map['name']?.toString().trim();
     final longitude = (map['longitude'] as num?)?.toDouble();
     final latitude = (map['latitude'] as num?)?.toDouble();
@@ -348,7 +346,7 @@ class _NearbyBarTile extends StatelessWidget {
       visualDensity: const VisualDensity(vertical: -2),
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => _VenueDetailPage(venue: bar.venue),
+          builder: (_) => VenueDetailPage(venue: bar.venue),
         ),
       ),
       title: Text(
@@ -395,44 +393,6 @@ class _NearbyBarTile extends StatelessWidget {
                 child: const Text('打卡'),
               ),
       ),
-    ),
-  );
-}
-
-class _VenueDetailPage extends StatefulWidget {
-  const _VenueDetailPage({required this.venue});
-
-  final MapVenue venue;
-
-  @override
-  State<_VenueDetailPage> createState() => _VenueDetailPageState();
-}
-
-class _VenueDetailPageState extends State<_VenueDetailPage> {
-  final _scrollController = ScrollController();
-
-  /// 详情数据源：数字 id 走真接口，演示数据自动回退 Mock。
-  final _repository = SiponApiVenueDetailRepository();
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: Colors.white,
-    body: VenueDetailContent(
-      venue: widget.venue,
-      scrollController: _scrollController,
-      opacity: 1,
-      // 独立详情页没有地图面板负责传递状态栏高度，关闭按钮和吸顶标签栏
-      // 需要自行避开 iOS 刘海区域。
-      topInset: MediaQuery.paddingOf(context).top,
-      bottomOverlayInset: 0,
-      onClose: () => Navigator.of(context).pop(),
-      repository: _repository,
     ),
   );
 }

@@ -7,6 +7,7 @@ library;
 import 'map_display_options.dart';
 import 'map_models.dart';
 import 'map_scene_controller.dart';
+import 'map_viewport.dart';
 
 /// PlatformView 注册用的 viewType，同时也是原生 factory 的注册名。
 const String kSiponMapViewType = 'sipon/mapkit';
@@ -25,6 +26,8 @@ abstract final class SiponMapCommands {
   static const String applyStage = 'applyStage';
   static const String renderFrame = 'renderFrame';
   static const String registerAssets = 'registerAssets';
+  static const String drawRoute = 'drawRoute';
+  static const String clearRoute = 'clearRoute';
   static const String dispose = 'dispose';
 }
 
@@ -49,6 +52,14 @@ Map<String, Object?> encodeSetup({
 }) => {'city': city, 'styleId': style.id};
 
 Map<String, Object?> encodeStyle(String styleId) => {'styleId': styleId};
+
+/// `drawRoute` 载荷：按站点顺序传入的经纬度数组，原生用方向服务逐段规划。
+Map<String, Object?> encodeRoutePoints(List<MapLatLng> points) => {
+  'points': [
+    for (final point in points)
+      {'lat': point.latitude, 'lng': point.longitude},
+  ],
+};
 
 Map<String, Object?> encodeGestures() => <String, Object?>{
   // 与原 GesturesSettings(rotate/pinch/scroll 全开) 一致。

@@ -21,6 +21,8 @@ enum SiponMapProtocol {
     static let applyStage = "applyStage"
     static let renderFrame = "renderFrame"
     static let registerAssets = "registerAssets"
+    static let drawRoute = "drawRoute"
+    static let clearRoute = "clearRoute"
     static let dispose = "dispose"
   }
 

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../services/map/map_models.dart';
 import '../services/sipon_api_models.dart';
 import '../services/sipon_city_controller.dart';
 import '../services/sipon_data_repository.dart';
+import '../widgets/map/venue_detail_page.dart';
 import '../widgets/sipon_city_picker.dart';
 import 'language_transform.dart';
 
@@ -331,7 +333,10 @@ class _HomeDataSections extends StatelessWidget {
         const SizedBox(height: 14),
         Padding(
           padding: const EdgeInsets.only(right: 23),
-          child: _FeaturedBarCard(bar: data.featuredBar),
+          child: _FeaturedBarCard(
+            bar: data.featuredBar,
+            onTap: () => _pushVenueDetail(context, data.featuredBar),
+          ),
         ),
         const SizedBox(height: 14),
         const _CategoryScroller(),
@@ -378,6 +383,15 @@ class _HomeDataStatus extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 全屏打开某个酒吧/地点的详情页。
+void _pushVenueDetail(BuildContext context, _HomeBar bar) {
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => VenueDetailPage(venue: bar.toVenue()),
+    ),
+  );
 }
 
 class _DrinkCarousel extends StatelessWidget {
@@ -864,143 +878,149 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _FeaturedBarCard extends StatelessWidget {
-  const _FeaturedBarCard({required this.bar});
+  const _FeaturedBarCard({required this.bar, required this.onTap});
 
   final _HomeBar bar;
+
+  /// 点击卡片后的回调，用于跳转到对应地点详情页。
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7F7F7),
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0F000000),
-            blurRadius: 16,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                AspectRatio(
-                  aspectRatio: 1.84,
-                  child: _HomeVenueImage(
-                    imageUrl: bar.imageUrl,
-                    assetPath: bar.imageAsset,
-                  ),
-                ),
-                Positioned(
-                  left: 12,
-                  right: 12,
-                  top: 10,
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final tag in bar.tags.take(2))
-                        _OverlayTag(label: text.t(tag)),
-                    ],
-                  ),
-                ),
-              ],
+    return GestureDetector(
+      onTap: onTap,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F7F7),
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x0F000000),
+              blurRadius: 16,
+              offset: Offset(0, 8),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          text.t(bar.name),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: HomePage.ink,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            bar.rating.toStringAsFixed(1),
+                  AspectRatio(
+                    aspectRatio: 1.84,
+                    child: _HomeVenueImage(
+                      imageUrl: bar.imageUrl,
+                      assetPath: bar.imageAsset,
+                    ),
+                  ),
+                  Positioned(
+                    left: 12,
+                    right: 12,
+                    top: 10,
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final tag in bar.tags.take(2))
+                          _OverlayTag(label: text.t(tag)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            text.t(bar.name),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              color: Color(0xFF6F6870),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
+                              color: HomePage.ink,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
                               letterSpacing: 0,
                             ),
                           ),
-                          const SizedBox(width: 3),
-                          const Icon(
-                            Icons.star_rounded,
-                            color: HomePage.brand,
-                            size: 16,
+                        ),
+                        const SizedBox(width: 10),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              bar.rating.toStringAsFixed(1),
+                              style: const TextStyle(
+                                color: Color(0xFF6F6870),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                            const SizedBox(width: 3),
+                            const Icon(
+                              Icons.star_rounded,
+                              color: HomePage.brand,
+                              size: 16,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final tag in bar.tags.take(3))
+                          _LightTag(label: text.t(tag)),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.location_on_outlined,
+                          color: HomePage.muted,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 3),
+                        Expanded(
+                          child: Text(
+                            text.t(bar.address),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: HomePage.muted,
+                              fontSize: 12,
+                              letterSpacing: 0,
+                            ),
                           ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final tag in bar.tags.take(3))
-                        _LightTag(label: text.t(tag)),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.location_on_outlined,
-                        color: HomePage.muted,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 3),
-                      Expanded(
-                        child: Text(
-                          text.t(bar.address),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          text.t(bar.distance),
                           style: const TextStyle(
                             color: HomePage.muted,
                             fontSize: 12,
                             letterSpacing: 0,
                           ),
                         ),
-                      ),
-                      Text(
-                        text.t(bar.distance),
-                        style: const TextStyle(
-                          color: HomePage.muted,
-                          fontSize: 12,
-                          letterSpacing: 0,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1371,12 +1391,20 @@ class _TopBarsSection extends StatelessWidget {
           _RankingCard(
             title: text.t('全国TOP10酒吧'),
             items: primaryBars.map((bar) => bar.toRankingItem(text)).toList(),
+            onItemTap: [
+              for (final bar in primaryBars)
+                () => _pushVenueDetail(context, bar),
+            ],
           ),
           const SizedBox(width: 16),
           _RankingCard(
             title: text.t('广州Top10'),
             compact: true,
             items: secondaryBars.map((bar) => bar.toRankingItem(text)).toList(),
+            onItemTap: [
+              for (final bar in secondaryBars)
+                () => _pushVenueDetail(context, bar),
+            ],
           ),
           const SizedBox(width: 23),
         ],
@@ -1389,12 +1417,16 @@ class _RankingCard extends StatelessWidget {
   const _RankingCard({
     required this.title,
     required this.items,
+    this.onItemTap,
     this.compact = false,
   });
 
   final String title;
   final List<_RankingItem> items;
   final bool compact;
+
+  /// 与 [items] 一一对应的点击回调，用于跳转到对应地点详情页。
+  final List<VoidCallback>? onItemTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1436,8 +1468,12 @@ class _RankingCard extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    for (final item in items)
-                      _RankingTile(item: item, compact: compact),
+                    for (var i = 0; i < items.length; i++)
+                      _RankingTile(
+                        item: items[i],
+                        compact: compact,
+                        onTap: onItemTap?[i],
+                      ),
                   ],
                 ),
               ),
@@ -1450,59 +1486,66 @@ class _RankingCard extends StatelessWidget {
 }
 
 class _RankingTile extends StatelessWidget {
-  const _RankingTile({required this.item, required this.compact});
+  const _RankingTile({required this.item, required this.compact, this.onTap});
 
   final _RankingItem item;
   final bool compact;
 
+  /// 点击这一行动项时的回调，用于跳转到对应地点详情页。
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: _HomeVenueImage(
-            imageUrl: item.imageUrl,
-            assetPath: item.imagePath,
-            width: compact ? 58 : 60,
-            height: compact ? 58 : 60,
-          ),
-        ),
-        if (!compact) ...[
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  item.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: HomePage.ink,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  item.description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: HomePage.muted,
-                    fontSize: 12,
-                    height: 1.25,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ],
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: _HomeVenueImage(
+              imageUrl: item.imageUrl,
+              assetPath: item.imagePath,
+              width: compact ? 58 : 60,
+              height: compact ? 58 : 60,
             ),
           ),
+          if (!compact) ...[
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: HomePage.ink,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    item.description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: HomePage.muted,
+                      fontSize: 12,
+                      height: 1.25,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
@@ -1625,6 +1668,10 @@ class _HomeBar {
     required this.distance,
     required this.tags,
     required this.description,
+    this.id = '',
+    this.kind = '',
+    this.longitude,
+    this.latitude,
     this.imageUrl,
   });
 
@@ -1637,10 +1684,24 @@ class _HomeBar {
   final List<String> tags;
   final String description;
 
+  /// 接口返回的地点 id；本地演示数据为空，详情数据源会回退 Mock。
+  final String id;
+
+  /// 接口返回的地点类型串（craft/bistro/party/...），可能与展示标签不一致。
+  final String kind;
+
+  /// 接口返回的坐标；演示数据无坐标时为 null。
+  final double? longitude;
+  final double? latitude;
+
   factory _HomeBar.fromApi(SiponBarMapItem item, int index) {
     final tags = item.tags.isEmpty ? [_displayKind(item.kind)] : item.tags;
 
     return _HomeBar(
+      id: item.id,
+      kind: item.kind,
+      longitude: item.longitude,
+      latitude: item.latitude,
       name: item.name,
       imageAsset: _homeImageAssetForIndex(index),
       imageUrl: item.imageUrl,
@@ -1649,6 +1710,23 @@ class _HomeBar {
       distance: item.distance,
       tags: tags,
       description: tags.take(2).join(' · '),
+    );
+  }
+
+  /// 转成地图地点模型，供详情页使用；无 id/坐标时用名称兜底并走 Mock 详情。
+  MapVenue toVenue() {
+    return MapVenue(
+      id: id.isEmpty ? name : id,
+      name: name,
+      longitude: longitude ?? 0,
+      latitude: latitude ?? 0,
+      kind: MapVenueKind.fromRaw(kind),
+      rating: rating,
+      address: address,
+      distance: distance,
+      tags: tags,
+      imageAsset: imageAsset,
+      imageUrl: imageUrl,
     );
   }
 
