@@ -152,8 +152,81 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
       );
   }
 
-  Future<void> _openAmapNavigation() async {
-    final result = await ExternalMapLauncher.openAmapNavigation(
+  Future<void> _showMapAppPicker() async {
+    final text = SiponLanguageScope.textOf(context);
+    final apps = await ExternalMapLauncher.availableRouteApps();
+    if (!mounted) {
+      return;
+    }
+
+    final selected = await showModalBottomSheet<ExternalMapApp>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  text.t('选择地图应用'),
+                  style: const TextStyle(
+                    color: MapDesign.ink,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  text.t('将打开地图应用并显示到该地点的路线'),
+                  style: const TextStyle(
+                    color: MapDesign.muted,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                for (final app in apps)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(_mapAppIcon(app), color: MapDesign.brand),
+                    title: Text(
+                      text.t(app.label),
+                      style: const TextStyle(
+                        color: MapDesign.ink,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right_rounded,
+                      color: MapDesign.muted,
+                    ),
+                    onTap: () => Navigator.of(sheetContext).pop(app),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (selected == null) {
+      return;
+    }
+
+    final result = await ExternalMapLauncher.openRoutePlan(
+      app: selected,
       name: widget.venue.name,
       longitude: widget.venue.longitude,
       latitude: widget.venue.latitude,
@@ -161,7 +234,16 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
     if (!mounted) {
       return;
     }
-    _showMockToast(SiponLanguageScope.textOf(context).t(result.message));
+    _showMockToast(text.t(result.message));
+  }
+
+  IconData _mapAppIcon(ExternalMapApp app) {
+    return switch (app) {
+      ExternalMapApp.amap => Icons.near_me_rounded,
+      ExternalMapApp.baidu => Icons.map_rounded,
+      ExternalMapApp.tencent => Icons.assistant_direction_rounded,
+      ExternalMapApp.apple => Icons.explore_rounded,
+    };
   }
 
   void _syncTabWithScroll() {
@@ -506,13 +588,13 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
             detail: detail,
             favorite: _favorite,
             onToggleFavorite: () => setState(() => _favorite = !_favorite),
-            onNavigate: _openAmapNavigation,
+            onNavigate: _showMapAppPicker,
             onShare: () => _showMockToast(text.t('已分享地点（演示）')),
           ),
           const SizedBox(height: 18),
           _VenueInfoCard(
             detail: detail,
-            onOpenMap: _openAmapNavigation,
+            onOpenMap: _showMapAppPicker,
             onCall: () =>
                 _showMockToast(text.t('正在拨打 ${detail?.phone ?? ''}（演示）')),
           ),
