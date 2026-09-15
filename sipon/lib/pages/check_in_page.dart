@@ -71,8 +71,23 @@ class _CheckInPageState extends State<CheckInPage> {
 
   final SiponApiService _api = SiponApiService();
 
+  /// 附近酒吧每页条数。
+  static const int _nearbyPageSize = 20;
+
+  /// 附近酒吧列表（已加载的全部，可跨页追加）。
   List<_NearbyBar> _bars = _fallbackBars;
+
+  /// 是否还有下一页附近酒吧可加载。
+  bool _hasMoreBars = true;
+
+  /// 正在加载下一批附近酒吧。
+  bool _loadingMoreBars = false;
+
+  /// 首屏是否还在加载（展示「正在加载附近酒吧…」）。
   bool _loadingBars = true;
+
+  /// 附近酒吧列表的滚动控制器，用于触底自动翻页。
+  final ScrollController _barsController = ScrollController();
 
   late final MapSceneController _scene;
 
@@ -84,22 +99,38 @@ class _CheckInPageState extends State<CheckInPage> {
       onVenueTapped: (_) {},
       onBlankTapped: () {},
     );
+    _barsController.addListener(_onBarsScroll);
     _loadNearbyBars();
   }
 
   @override
   void dispose() {
+    _barsController
+      ..removeListener(_onBarsScroll)
+      ..dispose();
     _scene.detach();
     super.dispose();
   }
 
-  /// 拉取附近真实酒吧；失败时保留演示数据，页面可用但不能真正打卡。
+  /// 滚动接近底部时自动加载下一页附近酒吧。
+  void _onBarsScroll() {
+    if (!_barsController.hasClients) {
+      return;
+    }
+    if (_barsController.position.extentAfter < 200) {
+      _loadMoreNearbyBars();
+    }
+  }
+
+  /// 拉取附近真实酒吧第一页；失败时保留演示数据，页面可用但不能真正打卡。
   Future<void> _loadNearbyBars() async {
     try {
       final list = await _api.getNearbyBars(
         longitude: _centerLongitude,
         latitude: _centerLatitude,
         radiusMeters: 3000,
+        // 第一页只取必要数量，后续由触底翻页补齐。
+        page: const SiponPage(limit: _nearbyPageSize),
       );
       final parsed = [
         for (final item in list.whereType<Map>())
@@ -109,13 +140,57 @@ class _CheckInPageState extends State<CheckInPage> {
       setState(() {
         if (parsed.isNotEmpty) {
           _bars = parsed;
+          // 拉满一页视为还有更多，交给触底翻页继续。
+          _hasMoreBars = parsed.length >= _nearbyPageSize;
+        } else {
+          _hasMoreBars = false;
         }
         _loadingBars = false;
       });
       await _renderBars();
     } on Exception {
       if (mounted) {
-        setState(() => _loadingBars = false);
+        setState(() {
+          _loadingBars = false;
+          // 首屏失败保留演示数据，不再尝试翻页。
+          _hasMoreBars = false;
+        });
+      }
+    }
+  }
+
+  /// 触底加载下一页附近酒吧，追加进列表并同步地图图层。
+  Future<void> _loadMoreNearbyBars() async {
+    if (_loadingBars || _loadingMoreBars || !_hasMoreBars) {
+      return;
+    }
+
+    setState(() => _loadingMoreBars = true);
+    try {
+      final list = await _api.getNearbyBars(
+        longitude: _centerLongitude,
+        latitude: _centerLatitude,
+        radiusMeters: 3000,
+        page: SiponPage(limit: _nearbyPageSize, offset: _bars.length),
+      );
+      final parsed = [
+        for (final item in list.whereType<Map>())
+          _NearbyBar.tryParse(item.cast<String, dynamic>()),
+      ].whereType<_NearbyBar>().toList();
+      if (!mounted) return;
+      setState(() {
+        _bars = [..._bars, ...parsed];
+        _hasMoreBars = parsed.length >= _nearbyPageSize;
+        _loadingMoreBars = false;
+      });
+      await _renderBars();
+    } on Exception {
+      if (mounted) {
+        setState(() {
+          _loadingMoreBars = false;
+          // 翻页失败停止继续尝试，避免触底无限重试。
+          _hasMoreBars = false;
+        });
       }
     }
   }
@@ -233,15 +308,60 @@ class _CheckInPageState extends State<CheckInPage> {
               ),
               Expanded(
                 child: ListView.builder(
+                  controller: _barsController,
                   padding: const EdgeInsets.fromLTRB(18, 0, 18, 20),
-                  itemCount: _bars.length,
-                  itemBuilder: (context, index) =>
-                      _NearbyBarTile(bar: _bars[index], brand: _brand),
+                  itemCount:
+                      _bars.length + (_hasMoreBars || _loadingMoreBars ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (index >= _bars.length) {
+                      return _NearbyBarsFooter(
+                        loading: _loadingMoreBars,
+                        onLoadMore: _loadMoreNearbyBars,
+                      );
+                    }
+                    return _NearbyBarTile(
+                      bar: _bars[index],
+                      brand: _brand,
+                    );
+                  },
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 附近酒吧列表的尾部：加载中显示转圈，空闲时可点击手动翻页。
+class _NearbyBarsFooter extends StatelessWidget {
+  const _NearbyBarsFooter({required this.loading, required this.onLoadMore});
+
+  final bool loading;
+  final VoidCallback onLoadMore;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Center(
+        child: loading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : TextButton(
+                onPressed: onLoadMore,
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF9A3D78),
+                ),
+                child: const Text(
+                  '上拉加载更多',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                ),
+              ),
       ),
     );
   }

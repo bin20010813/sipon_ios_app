@@ -61,6 +61,9 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
   static const double _pagePadding = 20;
   static const double _tabsHeight = 56;
 
+  /// 评价每页条数：详情首屏与「更多评论」翻页共用。
+  static const int _reviewPageSize = 10;
+
   /// 详情数据源，默认 Mock；调用方注入 API 实现后即可联调真实接口。
   late final VenueDetailRepository _repository =
       widget.repository ?? const MockVenueDetailRepository();
@@ -68,13 +71,24 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
   /// 当前加载到的详情数据。
   VenueDetail? _detail;
 
+  /// 已加载的评价列表（详情首屏 + 分页追加）。
+  List<VenueReview> _reviews = const [];
+
+  /// 评价总数（来自详情/分页响应的汇总字段）。
+  int _reviewTotal = 0;
+
+  /// 是否还有下一页评价可加载。
+  bool _reviewsHasMore = false;
+
+  /// 正在翻页加载评价。
+  bool _reviewsLoading = false;
+
   /// 加载失败时的错误文案；为 null 表示没有错误。
   String? _loadError;
 
   bool _favorite = false;
   int _galleryPage = 0;
   int _detailTabIndex = 0;
-  int _visibleReviewCount = 5;
   _ReviewFilter _reviewFilter = _ReviewFilter.standard;
   bool _scrollingToTab = false;
   bool _tabsPinned = false;
@@ -110,7 +124,10 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
       _favorite = false;
       _galleryPage = 0;
       _detailTabIndex = 0;
-      _visibleReviewCount = 5;
+      _reviews = const [];
+      _reviewTotal = 0;
+      _reviewsHasMore = false;
+      _reviewsLoading = false;
       _tabsPinned = false;
       _loadDetail();
     }
@@ -124,6 +141,10 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
         setState(() {
           _detail = detail;
           _loadError = null;
+          _reviews = detail.reviews;
+          _reviewTotal = detail.reviewCount;
+          _reviewsHasMore = _reviews.length < detail.reviewCount;
+          _reviewsLoading = false;
         });
       }
     } on Exception catch (error) {
@@ -247,38 +268,56 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
     return box.size.height + 12;
   }
 
-  void _showMoreReviews() {
-    final reviewCount = _detail?.reviews.length ?? 0;
-    if (_visibleReviewCount >= reviewCount) {
+  /// 翻页加载下一批评价；成功后把新内容带进视野。
+  Future<void> _loadMoreReviews() async {
+    if (_reviewsLoading || !_reviewsHasMore) {
       return;
     }
 
-    final previousOffset = widget.scrollController.offset;
-    _scrollingToTab = true;
-    setState(() {
-      _detailTabIndex = 2;
-      final nextCount = _visibleReviewCount + 3;
-      _visibleReviewCount = nextCount < reviewCount ? nextCount : reviewCount;
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
+    setState(() => _reviewsLoading = true);
+    try {
+      final page = await _repository.fetchReviews(
+        widget.venue,
+        offset: _reviews.length,
+        limit: _reviewPageSize,
+      );
       if (!mounted) {
         return;
       }
-      final target = (previousOffset + 220).clamp(
-        0.0,
-        widget.scrollController.position.maxScrollExtent,
-      );
-      try {
-        await widget.scrollController.animateTo(
-          target,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOutCubic,
+      final previousOffset = widget.scrollController.offset;
+      setState(() {
+        _reviews = [..._reviews, ...page.reviews];
+        _reviewTotal = page.totalCount;
+        _reviewsHasMore = page.hasMore && page.reviews.isNotEmpty;
+        _reviewsLoading = false;
+      });
+      _scrollingToTab = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) {
+          return;
+        }
+        final target = (previousOffset + 220).clamp(
+          0.0,
+          widget.scrollController.position.maxScrollExtent,
         );
-      } finally {
-        _scrollingToTab = false;
-        _syncTabWithScroll();
+        try {
+          await widget.scrollController.animateTo(
+            target,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutCubic,
+          );
+        } finally {
+          _scrollingToTab = false;
+          _syncTabWithScroll();
+        }
+      });
+    } on Exception {
+      if (!mounted) {
+        return;
       }
-    });
+      setState(() => _reviewsLoading = false);
+      _showMockToast(SiponLanguageScope.textOf(context).t('加载更多评价失败，请重试'));
+    }
   }
 
   @override
@@ -552,13 +591,14 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
           KeyedSubtree(
             key: _sectionKeys[2],
             child: _VenueReviewsSection(
-              reviews: detail?.reviews ?? const [],
-              visibleCount: _visibleReviewCount,
-              totalCount: detail?.reviewCount ?? 0,
+              reviews: _reviews,
+              totalCount: _reviewTotal,
+              hasMoreReviews: _reviewsHasMore,
+              reviewsLoading: _reviewsLoading,
               sort: _reviewFilter,
               onSortChanged: (filter) => setState(() => _reviewFilter = filter),
               onAddReview: () => _showMockToast(text.t('评论发布功能开发中（演示）')),
-              onViewMore: _showMoreReviews,
+              onViewMore: _loadMoreReviews,
               headingKey: _reviewsHeadingKey,
             ),
           ),
@@ -1373,8 +1413,9 @@ class _VenueReviewsSection extends StatelessWidget {
   /// 创建用户评价区。
   const _VenueReviewsSection({
     required this.reviews,
-    required this.visibleCount,
     required this.totalCount,
+    required this.hasMoreReviews,
+    required this.reviewsLoading,
     required this.sort,
     required this.onSortChanged,
     required this.onAddReview,
@@ -1382,9 +1423,18 @@ class _VenueReviewsSection extends StatelessWidget {
     this.headingKey,
   });
 
+  /// 已加载的评价列表。
   final List<VenueReview> reviews;
-  final int visibleCount;
+
+  /// 评价总数（用于顶部统计展示）。
   final int totalCount;
+
+  /// 是否还有下一页可加载。
+  final bool hasMoreReviews;
+
+  /// 正在翻页加载评价。
+  final bool reviewsLoading;
+
   final _ReviewFilter sort;
   final ValueChanged<_ReviewFilter> onSortChanged;
   final VoidCallback onAddReview;
@@ -1431,7 +1481,8 @@ class _VenueReviewsSection extends StatelessWidget {
             filteredReviews.where((review) => review.rating < 3).toList()
               ..sort((a, b) => a.rating.compareTo(b.rating));
     }
-    final visibleReviews = filteredReviews.take(visibleCount).toList();
+    // 已加载即全量展示，翻页加载的新评价直接追加到列表尾部。
+    final visibleReviews = filteredReviews;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1567,20 +1618,33 @@ class _VenueReviewsSection extends StatelessWidget {
               ),
             _ReviewItem(review: visibleReviews[i]),
           ],
-          if (visibleCount < reviews.length) ...[
+          if (hasMoreReviews) ...[
             const SizedBox(height: 6),
             Center(
               child: TextButton.icon(
-                onPressed: onViewMore,
+                onPressed: reviewsLoading ? null : onViewMore,
                 style: TextButton.styleFrom(
                   foregroundColor: MapDesign.brand,
+                  disabledForegroundColor: MapDesign.brand,
                   textStyle: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0,
                   ),
                 ),
-                icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+                icon: reviewsLoading
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: MapDesign.brand,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 18,
+                      ),
                 label: Text(text.t('更多评论')),
               ),
             ),

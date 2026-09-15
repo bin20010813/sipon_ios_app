@@ -24,13 +24,35 @@ class MockVenueDetailRepository implements VenueDetailRepository {
     return _buildDetail(venue);
   }
 
+  /// 分页拉取评价：从全量 Mock 评价里按 offset/limit 切片。
+  @override
+  Future<VenueReviewPage> fetchReviews(
+    MapVenue venue, {
+    int offset = 0,
+    int limit = 10,
+    Duration latency = const Duration(milliseconds: 200),
+  }) async {
+    if (latency > Duration.zero) {
+      await Future<void>.delayed(latency);
+    }
+    final all = _allReviews(_stableHash(venue.id));
+    final slice = offset >= all.length
+        ? const <VenueReview>[]
+        : all.skip(offset).take(limit).toList(growable: false);
+    return VenueReviewPage(
+      reviews: slice,
+      totalCount: all.length,
+      hasMore: offset + slice.length < all.length,
+    );
+  }
+
   VenueDetail _buildDetail(MapVenue venue) {
     final seed = _stableHash(venue.id);
     final kind = venue.kind;
     final descriptions = _descriptionsForKind(kind);
     final drinks = _drinksForKind(kind, seed);
     final features = _featuresForKind(kind, seed);
-    final reviews = _reviews(seed);
+    final allReviews = _allReviews(seed);
 
     final now = DateTime.now();
     const dayKeys = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
@@ -50,7 +72,8 @@ class MockVenueDetailRepository implements VenueDetailRepository {
       priceLevel: '¥' * (2 + seed % 3),
       features: features,
       signatureDrinks: drinks,
-      reviews: reviews,
+      // 首屏只带第一页评价，后续由「更多评论」分页补足。
+      reviews: allReviews.take(10).toList(growable: false),
       gallery: [
         venue.imageAsset,
         MapAssets.coverForIndex(seed),
@@ -60,7 +83,7 @@ class MockVenueDetailRepository implements VenueDetailRepository {
       openNow: _isOpenAt(now, businessHours, dayKeys),
       todayKey: todayKey,
       todayHoursLabel: todayHoursLabel,
-      reviewCount: 24 + seed % 176,
+      reviewCount: allReviews.length,
     );
   }
 
@@ -211,7 +234,10 @@ class MockVenueDetailRepository implements VenueDetailRepository {
     return [...base, extras[seed % extras.length]];
   }
 
-  List<VenueReview> _reviews(int seed) {
+  /// 生成该地点全部 Mock 评价，总数与 [VenueDetail.reviewCount] 一致，
+  /// 供详情首屏与分页翻页共用同一份数据。
+  List<VenueReview> _allReviews(int seed) {
+    final total = 24 + seed % 176;
     const reviewers = [
       ('琥珀鉴赏家', 'assest/首页/图片素材/Aki Wang.png'),
       ('Matt Hasting', 'assest/首页/图片素材/Matt Hasting.png'),
@@ -229,7 +255,7 @@ class MockVenueDetailRepository implements VenueDetailRepository {
     ];
 
     return [
-      for (var i = 0; i < 8; i++)
+      for (var i = 0; i < total; i++)
         VenueReview(
           nickname: reviewers[(seed + i) % reviewers.length].$1,
           rating: 4.2 + (seed + i) % 8 * 0.1,

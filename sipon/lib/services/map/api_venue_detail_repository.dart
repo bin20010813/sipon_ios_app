@@ -10,6 +10,15 @@ import 'venue_detail_models.dart';
 abstract interface class VenueDetailRepository {
   /// 拉取 [venue] 的完整详情。
   Future<VenueDetail> fetchDetail(MapVenue venue);
+
+  /// 分页拉取 [venue] 的评价，从 [offset] 开始取 [limit] 条。
+  ///
+  /// 详情页「更多评论」翻页时调用；mock 与真接口都支持。
+  Future<VenueReviewPage> fetchReviews(
+    MapVenue venue, {
+    int offset = 0,
+    int limit = 10,
+  });
 }
 
 /// 真接口实现：包一层现有的 [SiponApiService]。
@@ -31,6 +40,9 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
 
   static const List<String> _dayKeys = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
+  /// 评价每页条数：详情首屏与「更多评论」翻页共用。
+  static const int _reviewPageSize = 10;
+
   @override
   Future<VenueDetail> fetchDetail(MapVenue venue) async {
     final barId = int.tryParse(venue.id);
@@ -41,15 +53,20 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
     // 详情主数据必须成功；兜底板块各自容错，失败按空列表处理。
     final bar = _asMap(await _api.getBarById(barId));
     final results = await Future.wait([
-      _guarded(() => _api.getBarReviews(barId)),
+      _guarded(
+        () => _api.getBarReviews(
+          barId,
+          page: SiponPage(limit: _reviewPageSize),
+        ),
+      ),
       _guarded(() => _api.getBarHours(barId)),
       _guarded(() => _api.getBarDrinks(barId)),
       _guarded(() => _api.getBarMedia(barId)),
     ]);
-    final reviewJson = results[0];
-    final hoursJson = results[1];
-    final drinksJson = results[2];
-    final mediaJson = results[3];
+    final reviewJson = results[0] ?? const <dynamic>[];
+    final hoursJson = results[1] ?? const <dynamic>[];
+    final drinksJson = results[2] ?? const <dynamic>[];
+    final mediaJson = results[3] ?? const <dynamic>[];
 
     final mergedVenue = _mergeVenue(venue, bar);
     final businessHours = _parseBusinessHours(bar, hoursJson);
@@ -77,13 +94,45 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
     );
   }
 
-  /// 兜底板块容错：失败返回空列表，不阻断详情整体加载。
-  Future<List<dynamic>> _guarded(Future<List<dynamic>> Function() call) async {
+  /// 兜底板块容错：失败返回 null，不阻断详情整体加载。
+  Future<T?> _guarded<T>(Future<T> Function() call) async {
     try {
       return await call();
     } on Exception {
-      return const [];
+      return null;
     }
+  }
+
+  @override
+  Future<VenueReviewPage> fetchReviews(
+    MapVenue venue, {
+    int offset = 0,
+    int limit = _reviewPageSize,
+  }) async {
+    final barId = int.tryParse(venue.id);
+    if (barId == null) {
+      return _fallback.fetchReviews(venue, offset: offset, limit: limit);
+    }
+
+    final reviewJson = await _guarded(
+      () => _api.getBarReviews(
+        barId,
+        page: SiponPage(limit: limit, offset: offset),
+      ),
+    );
+    final reviews = [
+      for (final item in (reviewJson ?? const <dynamic>[]).whereType<Map>())
+        _parseReview(item.cast<String, dynamic>()),
+    ].whereType<VenueReview>().toList(growable: false);
+
+    // 总数优先取 Bar 汇总字段；拿不到时用「已拉取条数」兜底（拉满一页视为还有）。
+    final bar = _asMap(await _guarded(() => _api.getBarById(barId)));
+    final total = _parseReviewCount(bar, offset + reviews.length);
+    return VenueReviewPage(
+      reviews: reviews,
+      totalCount: total,
+      hasMore: offset + reviews.length < total,
+    );
   }
 
   /// 用 Bar 响应里的字段刷新基础信息，缺失字段保留地图列表带来的值。

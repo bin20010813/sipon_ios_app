@@ -122,7 +122,8 @@ class SiponApiService {
       'longitude': longitude,
       'latitude': latitude,
       'radiusMeters': radiusMeters,
-      'limit': page.limit,
+      // limit/offset 一起下发，保证分页翻页有效。
+      ...page.queryParameters,
     },
   );
 

@@ -592,24 +592,36 @@ class _RouteStop {
   final MapVenueKind kind;
 }
 
-/// 打开喝过/想喝/酒鬼路线列表弹窗，数据源为真实后端接口。
+/// 打开喝过/想喝/酒鬼路线列表弹窗，数据源为真实后端接口，列表按页加载。
 /// 返回的 Future 在弹窗关闭后完成，便于调用方刷新计数。
 Future<void> _showProfileList(BuildContext context, _ProfileListType type) {
   final api = SiponApiService();
   final (title, loader, emptyText) = switch (type) {
     _ProfileListType.drank => (
       '喝过的酒吧',
-      () => _loadCheckInEntries(api),
+      (int offset, int limit) => _loadCheckInEntries(
+        api,
+        offset: offset,
+        limit: limit,
+      ),
       '还没有喝过记录，去打卡第一家酒吧吧',
     ),
     _ProfileListType.wish => (
       '想喝的酒吧',
-      () => _loadWishlistEntries(api),
+      (int offset, int limit) => _loadWishlistEntries(
+        api,
+        offset: offset,
+        limit: limit,
+      ),
       '还没有想喝的酒吧，去地图上收藏一家吧',
     ),
     _ProfileListType.route => (
       '我的酒鬼路线',
-      () => _loadRouteEntries(api),
+      (int offset, int limit) => _loadRouteEntries(
+        api,
+        offset: offset,
+        limit: limit,
+      ),
       '还没有酒鬼路线，去规划一条吧',
     ),
   };
@@ -761,10 +773,16 @@ String _shortDate(String? iso) {
   return iso.substring(0, 10);
 }
 
-/// 喝过的酒吧：GET /api/users/me/check-ins，元素为 CheckIn 结构。
-Future<List<_ProfileListEntry>> _loadCheckInEntries(SiponApiService api) async {
-  final list = await api.getMyCheckIns();
-  return [
+/// 喝过的酒吧：GET /api/users/me/check-ins，元素为 CheckIn 结构，按页拉取。
+Future<_ProfileListPage> _loadCheckInEntries(
+  SiponApiService api, {
+  required int offset,
+  required int limit,
+}) async {
+  final list = await api.getMyCheckIns(
+    page: SiponPage(limit: limit, offset: offset),
+  );
+  final entries = [
     for (final item in list.whereType<Map>())
       () {
         final map = item.cast<String, dynamic>();
@@ -786,12 +804,23 @@ Future<List<_ProfileListEntry>> _loadCheckInEntries(SiponApiService api) async {
         );
       }(),
   ].whereType<_ProfileListEntry>().toList(growable: false);
+  // 拉满一页视为还有更多，由弹窗滚动触底继续翻页。
+  return _ProfileListPage(
+    items: entries,
+    hasMore: list.length >= limit,
+  );
 }
 
-/// 想喝的酒吧：GET /api/users/me/wishlist/bars，元素为 Bar 结构。
-Future<List<_ProfileListEntry>> _loadWishlistEntries(SiponApiService api) async {
-  final list = await api.getWishlistBars();
-  return [
+/// 想喝的酒吧：GET /api/users/me/wishlist/bars，元素为 Bar 结构，按页拉取。
+Future<_ProfileListPage> _loadWishlistEntries(
+  SiponApiService api, {
+  required int offset,
+  required int limit,
+}) async {
+  final list = await api.getWishlistBars(
+    page: SiponPage(limit: limit, offset: offset),
+  );
+  final entries = [
     for (final item in list.whereType<Map>())
       () {
         final map = item.cast<String, dynamic>();
@@ -812,13 +841,23 @@ Future<List<_ProfileListEntry>> _loadWishlistEntries(SiponApiService api) async 
         );
       }(),
   ].whereType<_ProfileListEntry>().toList(growable: false);
+  return _ProfileListPage(
+    items: entries,
+    hasMore: list.length >= limit,
+  );
 }
 
-/// 我的酒鬼路线：GET /api/users/me/routes，元素为 DrinkingRoute 结构。
+/// 我的酒鬼路线：GET /api/users/me/routes，元素为 DrinkingRoute 结构，按页拉取。
 /// 站点数取自接口契约的 stops 数组（兜底 barIds/bars）。
-Future<List<_ProfileListEntry>> _loadRouteEntries(SiponApiService api) async {
-  final list = await api.getMyDrinkingRoutes();
-  return [
+Future<_ProfileListPage> _loadRouteEntries(
+  SiponApiService api, {
+  required int offset,
+  required int limit,
+}) async {
+  final list = await api.getMyDrinkingRoutes(
+    page: SiponPage(limit: limit, offset: offset),
+  );
+  final entries = [
     for (final item in list.whereType<Map>())
       () {
         final map = item.cast<String, dynamic>();
@@ -841,6 +880,10 @@ Future<List<_ProfileListEntry>> _loadRouteEntries(SiponApiService api) async {
         );
       }(),
   ].whereType<_ProfileListEntry>().toList(growable: false);
+  return _ProfileListPage(
+    items: entries,
+    hasMore: list.length >= limit,
+  );
 }
 
 /// 打开「我的礼券」列表弹窗：GET /api/users/me/coupons。
@@ -853,30 +896,34 @@ void _showCouponList(BuildContext context) {
     builder: (_) => _ProfileListSheet(
       title: '我的礼券',
       emptyText: '暂无可用礼券',
-      loader: () async {
+      // 礼券接口暂不分页，一次性拉取并标记无更多。
+      loader: (int _, int _) async {
         final list = await api.getCoupons();
-        return [
-          for (final item in list.whereType<Map>())
-            () {
-              final map = item.cast<String, dynamic>();
-              final name = _pickString(map, ['title', 'name', 'couponName']);
-              if (name == null) return null;
-              final amount = _pickNum(map, ['amount', 'discount', 'value']);
-              final validTo = _shortDate(
-                _pickString(map, ['validTo', 'expireAt', 'expiredAt']),
-              );
-              return _ProfileListEntry(
-                name: name,
-                description:
-                    _pickString(map, ['description', 'rule', 'condition']) ??
-                    '',
-                meta: [
-                  if (amount != null) '¥${amount.toStringAsFixed(0)}',
-                  if (validTo.isNotEmpty) '有效期至 $validTo',
-                ].join(' · '),
-              );
-            }(),
-        ].whereType<_ProfileListEntry>().toList(growable: false);
+        return _ProfileListPage(
+          hasMore: false,
+          items: [
+            for (final item in list.whereType<Map>())
+              () {
+                final map = item.cast<String, dynamic>();
+                final name = _pickString(map, ['title', 'name', 'couponName']);
+                if (name == null) return null;
+                final amount = _pickNum(map, ['amount', 'discount', 'value']);
+                final validTo = _shortDate(
+                  _pickString(map, ['validTo', 'expireAt', 'expiredAt']),
+                );
+                return _ProfileListEntry(
+                  name: name,
+                  description:
+                      _pickString(map, ['description', 'rule', 'condition']) ??
+                      '',
+                  meta: [
+                    if (amount != null) '¥${amount.toStringAsFixed(0)}',
+                    if (validTo.isNotEmpty) '有效期至 $validTo',
+                  ].join(' · '),
+                );
+              }(),
+          ].whereType<_ProfileListEntry>().toList(growable: false),
+        );
       },
     ),
   );
@@ -892,25 +939,29 @@ void _showAchievementList(BuildContext context) {
     builder: (_) => _ProfileListSheet(
       title: '成就勋章',
       emptyText: '还没有解锁任何成就',
-      loader: () async {
+      // 成就接口暂不分页，一次性拉取并标记无更多。
+      loader: (int _, int _) async {
         final list = await api.getAchievements();
-        return [
-          for (final item in list.whereType<Map>())
-            () {
-              final map = item.cast<String, dynamic>();
-              final name = _pickString(map, ['name', 'title', 'badgeName']);
-              if (name == null) return null;
-              final unlocked =
-                  map['unlocked'] == true ||
-                  map['achieved'] == true ||
-                  map['isUnlocked'] == true;
-              return _ProfileListEntry(
-                name: name,
-                description: _pickString(map, ['description', 'desc']) ?? '',
-                meta: unlocked ? '已解锁' : '未解锁',
-              );
-            }(),
-        ].whereType<_ProfileListEntry>().toList(growable: false);
+        return _ProfileListPage(
+          hasMore: false,
+          items: [
+            for (final item in list.whereType<Map>())
+              () {
+                final map = item.cast<String, dynamic>();
+                final name = _pickString(map, ['name', 'title', 'badgeName']);
+                if (name == null) return null;
+                final unlocked =
+                    map['unlocked'] == true ||
+                    map['achieved'] == true ||
+                    map['isUnlocked'] == true;
+                return _ProfileListEntry(
+                  name: name,
+                  description: _pickString(map, ['description', 'desc']) ?? '',
+                  meta: unlocked ? '已解锁' : '未解锁',
+                );
+              }(),
+          ].whereType<_ProfileListEntry>().toList(growable: false),
+        );
       },
     ),
   );
@@ -1123,8 +1174,16 @@ class _MembershipSheetState extends State<_MembershipSheet> {
   }
 }
 
+/// 个人中心列表的单页数据：条目 + 是否还有下一页。
+class _ProfileListPage {
+  const _ProfileListPage({required this.items, required this.hasMore});
+
+  final List<_ProfileListEntry> items;
+  final bool hasMore;
+}
+
 /// 我的页通用列表弹窗：loading / empty / error（带重试）三态齐全，
-/// 数据由 [loader] 提供，路线列表用 [routeStyle] 切换卡片样式。
+/// 数据由 [loader] 按页提供，列表触底自动翻页；路线列表用 [routeStyle] 切换卡片样式。
 class _ProfileListSheet extends StatefulWidget {
   const _ProfileListSheet({
     required this.title,
@@ -1134,7 +1193,7 @@ class _ProfileListSheet extends StatefulWidget {
   });
 
   final String title;
-  final Future<List<_ProfileListEntry>> Function() loader;
+  final Future<_ProfileListPage> Function(int offset, int limit) loader;
   final String emptyText;
   final bool routeStyle;
 
@@ -1143,27 +1202,62 @@ class _ProfileListSheet extends StatefulWidget {
 }
 
 class _ProfileListSheetState extends State<_ProfileListSheet> {
+  /// 每页条数。
+  static const int _pageSize = 20;
+
+  /// 已加载的条目（首屏 + 触底翻页追加）。
   List<_ProfileListEntry> _items = const [];
+
   bool _loading = true;
+
+  /// 正在翻页加载下一批。
+  bool _loadingMore = false;
+
+  /// 是否还有下一页可加载。
+  bool _hasMore = true;
+
   String? _error;
+
+  /// 列表滚动控制器，用于触底自动翻页。
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _load();
   }
 
-  /// 拉取列表数据；错误统一展示 SiponApiException 文案。
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_onScroll)
+      ..dispose();
+    super.dispose();
+  }
+
+  /// 滚动接近底部时自动加载下一页。
+  void _onScroll() {
+    if (!_scrollController.hasClients) {
+      return;
+    }
+    if (_scrollController.position.extentAfter < 200) {
+      _loadMore();
+    }
+  }
+
+  /// 拉取列表第一页；错误统一展示 SiponApiException 文案。
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final items = await widget.loader();
+      final page = await widget.loader(0, _pageSize);
       if (!mounted) return;
       setState(() {
-        _items = items;
+        _items = page.items;
+        _hasMore = page.items.isNotEmpty && page.hasMore;
         _loading = false;
       });
     } on Exception catch (error) {
@@ -1171,6 +1265,31 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
       setState(() {
         _error = error.toString();
         _loading = false;
+      });
+    }
+  }
+
+  /// 触底翻页，追加下一页条目。
+  Future<void> _loadMore() async {
+    if (_loading || _loadingMore || !_hasMore) {
+      return;
+    }
+
+    setState(() => _loadingMore = true);
+    try {
+      final page = await widget.loader(_items.length, _pageSize);
+      if (!mounted) return;
+      setState(() {
+        _items = [..._items, ...page.items];
+        _hasMore = page.items.isNotEmpty && page.hasMore;
+        _loadingMore = false;
+      });
+    } on Exception {
+      if (!mounted) return;
+      setState(() {
+        _loadingMore = false;
+        // 翻页失败停止继续尝试，避免触底无限重试。
+        _hasMore = false;
       });
     }
   }
@@ -1281,12 +1400,54 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
     }
 
     return ListView.separated(
+      controller: _scrollController,
       shrinkWrap: true,
-      itemCount: _items.length,
+      itemCount: _items.length + (_hasMore || _loadingMore ? 1 : 0),
       separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (_, index) => widget.routeStyle
-          ? _MockRouteCard(item: _items[index], index: index)
-          : _MockListCard(item: _items[index]),
+      itemBuilder: (_, index) {
+        if (index >= _items.length) {
+          return _ProfileListFooter(
+            loading: _loadingMore,
+            onLoadMore: _loadMore,
+          );
+        }
+        return widget.routeStyle
+            ? _MockRouteCard(item: _items[index], index: index)
+            : _MockListCard(item: _items[index]);
+      },
+    );
+  }
+}
+
+/// 个人中心列表弹窗的尾部：加载中显示转圈，空闲时可点击手动翻页。
+class _ProfileListFooter extends StatelessWidget {
+  const _ProfileListFooter({required this.loading, required this.onLoadMore});
+
+  final bool loading;
+  final VoidCallback onLoadMore;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Center(
+        child: loading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : TextButton(
+                onPressed: onLoadMore,
+                style: TextButton.styleFrom(
+                  foregroundColor: ProfilePage._brand,
+                ),
+                child: const Text(
+                  '加载更多',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                ),
+              ),
+      ),
     );
   }
 }

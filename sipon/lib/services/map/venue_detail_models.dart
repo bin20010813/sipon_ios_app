@@ -89,6 +89,27 @@ class VenueDrink {
   final String? imageAsset;
 }
 
+/// 分页拉取到的评价结果。
+///
+/// 详情首屏与「更多评论」翻页共用，[hasMore] 由仓库根据总数判定。
+class VenueReviewPage {
+  /// 创建分页评价结果。
+  const VenueReviewPage({
+    required this.reviews,
+    required this.totalCount,
+    required this.hasMore,
+  });
+
+  /// 本页评价列表。
+  final List<VenueReview> reviews;
+
+  /// 评价总数（服务端汇总字段或按已拉取量兜底）。
+  final int totalCount;
+
+  /// 是否还有下一页评价可加载。
+  final bool hasMore;
+}
+
 /// 单条用户评价。
 class VenueReview {
   /// 创建评价模型。
