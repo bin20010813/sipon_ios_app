@@ -366,6 +366,17 @@ class _SiponShellState extends State<_SiponShell> {
               ),
             ],
           ),
+          // 底部过渡层：从导航条下方一直铺到屏幕物理底（含 Home Indicator
+          // 安全区 34pt），用与导航条一致的白色统一底部，
+          // 避免各 tab 在安全区露出与内容脱节的 Scaffold 背景「白边」。
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Container(
+              width: double.infinity,
+              height: MediaQuery.paddingOf(context).bottom + 16,
+              color: Colors.white,
+            ),
+          ),
           Align(
             alignment: Alignment.bottomCenter,
             child: SafeArea(

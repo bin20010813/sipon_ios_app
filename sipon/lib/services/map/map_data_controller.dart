@@ -68,6 +68,9 @@ class MapDataController extends ChangeNotifier {
   /// 到了热力图层级就直接给空表：标注是 `PointAnnotation`，没有按缩放隐藏的
   /// 接口，索性不生成。手动选「热力」也走这条 —— 原来那种模式下圆点藏了，
   /// 文字标签却还赖在图上。
+  ///
+  /// 分界线现在是 11（低于进页的 11.8），所以进页就是「点位 + 热力」混合模式，
+  /// 标注按 `mapMarkerLabelLimitForZoom` 抽样后立刻可见。
   List<MapVenue> get markerVenues => effectiveLayerMode.showsPoints
       ? sampleVenuesForMarkers(visibleVenues, zoom: _zoom)
       : const [];

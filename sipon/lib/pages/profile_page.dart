@@ -91,6 +91,8 @@ class ProfilePageState extends State<ProfilePage> {
     final onLogoutSucceeded = widget.onLogoutSucceeded;
 
     return Scaffold(
+      // 背景显式设为渐变末端同色（白色），保证底部安全区不再露出米白底色条带。
+      backgroundColor: Colors.white,
       body: DecoratedBox(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -101,6 +103,9 @@ class ProfilePageState extends State<ProfilePage> {
           ),
         ),
         child: SafeArea(
+          // 底部不进安全区：渐变背景自然延伸到底，避免安全区露出一条
+          // 与渐变脱节的底色带；底部空间由 bottomOverlayInset 预留。
+          bottom: false,
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 430),

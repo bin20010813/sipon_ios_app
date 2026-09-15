@@ -57,6 +57,10 @@ class MapkitSceneController extends MapSceneController {
       SiponMapCommands.setup,
       encodeSetup(city: city, style: style),
     );
+    // 手势显式下一次：原来 [encodeGestures] 与原生 setGestures 分支都在，
+    // 但没有任何调用点，等于「靠原生默认值恰好是开着的」。补齐这条，缩放/拖拽
+    // 不再依赖平台默认行为（协议 §3.1 setGestures）。
+    await host.invoke(SiponMapCommands.setGestures, encodeGestures());
     // marker 图标表一次装完，比每帧传 bytes 省（§3e）。
     await host.invoke(SiponMapCommands.registerAssets, encodeMarkerAssets());
 

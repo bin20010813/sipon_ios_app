@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+// PlatformViewHitTestBehavior 在 rendering 层，material.dart 不转出它。
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 import 'sipon_map_host.dart';
@@ -69,6 +71,10 @@ class _SiponMapWidgetState extends State<SiponMapWidget> {
   Widget build(BuildContext context) {
     return UiKitView(
       viewType: kSiponMapViewType,
+      // opaque：地图必须自己吃掉落在它身上的触摸。默认值虽是 opaque，但显式写上，
+      // 免得哪天被改成 deferToChild —— 那会让拖拽/捏合被外层手势竞技场抢走，
+      // 表现就是「地图不能移动、不能缩放」。
+      hitTestBehavior: PlatformViewHitTestBehavior.opaque,
       onPlatformViewCreated: (viewId) {
         // 处理器必须在创建回调里立刻挂上，否则原生首发事件会丢；
         // 真正的 onMapReady 由 setup 命令触发，见原生侧实现。

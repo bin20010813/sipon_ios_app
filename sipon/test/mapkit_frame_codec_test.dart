@@ -118,11 +118,16 @@ void main() {
 
     test('circleFade 按最新缩放在淡入区间内插值（§5.3 曲线）', () {
       // 分界线以下完全透明，恢复线以上到达满透明度，中间线性。
-      expect(encodeRenderFrame(frame, zoom: 12)['circleFade'], 0.0);
-      final mid = encodeRenderFrame(frame, zoom: 12.6);
+      expect(encodeRenderFrame(frame, zoom: 11)['circleFade'], 0.0);
+      final mid = encodeRenderFrame(frame, zoom: 11.6);
       expect(mid['circleFade'], closeTo(mapCircleFullOpacity / 2, 1e-9));
-      expect(encodeRenderFrame(frame, zoom: 13.2)['circleFade'],
+      expect(encodeRenderFrame(frame, zoom: 12)['circleFade'],
           mapCircleFullOpacity);
+      // 进页的城市级视野（11.8）要已经能看见圆点：高于分界线 11。
+      expect(
+        encodeRenderFrame(frame, zoom: 11.8)['circleFade'],
+        greaterThan(0),
+      );
       expect(encodeRenderFrame(frame, zoom: 16)['circleFade'],
           mapCircleFullOpacity);
     });

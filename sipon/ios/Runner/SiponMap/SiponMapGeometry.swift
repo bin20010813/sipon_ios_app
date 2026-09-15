@@ -51,6 +51,25 @@ enum SiponMapGeometry {
     return max(mpp * height, 50)
   }
 
+  /// 相机距离 → zoom（[cameraDistance] 的逆运算），读视野时用它反算缩放。
+  ///
+  /// **不要用 `region.span` 反推 zoom。** `region` 是「透视 + 旋转之后」的外接
+  /// 矩形：相机带 pitch 24 / heading -12 时（进页与「聚焦城区」都是这个姿态），
+  /// 它的跨度比真实可见跨度大约 1.4 倍，反推出的 zoom 系统性偏低半档以上。
+  /// 后果是圆点淡入与热力交接的阈值全被推迟——用户明明把地图放大了，
+  /// 点位和文字标注却还不出来，看起来就像标注功能失效。
+  /// [cameraDistance] 本身不受俯仰与朝向影响，用它反算与命令下发口径自洽。
+  ///
+  /// 注：[cameraDistance] 在极小距离上有 50m 下限，那一档反算会有偏差，
+  /// 但远低于本项目用到的 9~17 层级区间。
+  static func zoom(distance: Double, lat: Double, viewportHeight: CGFloat) -> Double {
+    guard distance.isFinite, distance > 0, viewportHeight > 0 else { return .nan }
+    let clampedLat = max(-85.05, min(85.05, lat.isFinite ? lat : 0))
+    let mpp = distance / Double(viewportHeight)
+    guard mpp.isFinite, mpp > 0 else { return .nan }
+    return log2(earthEquatorMeters * cos(clampedLat * .pi / 180) / (tileSize * mpp))
+  }
+
   // MARK: - padding → 中心点折算（§5.2）
 
   /// 让目标点出现在「去掉底部 padding 后的区域」中心；MapKit 无此概念，
@@ -110,8 +129,10 @@ enum SiponMapGeometry {
 
   // MARK: - 淡入曲线（§5.3）
 
-  static let handoffZoom = 12.0          // 对齐 Dart 的 mapHeatmapHandoffZoom
-  static let restoredZoom = 13.2         // 对齐 mapPointsRestoredZoom
+  /// 分界线必须低于 [initialCityZoom]（11.8）：高过它的话进页就是纯热力图、
+  /// 一个标注都没有（旧值 12 的后果）。对齐 Dart 的 mapHeatmapHandoffZoom。
+  static let handoffZoom = 11.0
+  static let restoredZoom = 12.0         // 对齐 mapPointsRestoredZoom
   static let fullOpacity = 0.92          // 对齐 mapCircleFullOpacity
 
   /// 进页的初始城市级视野（对齐 Dart MapSceneController.cityZoom）。

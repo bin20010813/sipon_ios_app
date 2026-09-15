@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sipon/services/map/map_data_controller.dart';
 import 'package:sipon/services/map/map_display_options.dart';
 import 'package:sipon/services/map/map_models.dart';
+import 'package:sipon/services/map/map_scene_controller.dart';
 import 'package:sipon/services/map/map_venue_repository.dart';
 import 'package:sipon/services/map/map_viewport.dart';
 import 'package:sipon/services/map/mock_map_venue_repository.dart';
@@ -288,11 +289,27 @@ void main() {
       MapLayerMode modeAt(double zoom) =>
           mapEffectiveLayerMode(MapLayerMode.pointsAndHeatmap, zoom);
 
-      // 分界线是 mapHeatmapHandoffZoom（12）。
-      expect(modeAt(11.8), MapLayerMode.heatmapOnly, reason: '城市总览就该是热力图');
-      expect(modeAt(11.99), MapLayerMode.heatmapOnly);
-      expect(modeAt(12), MapLayerMode.pointsAndHeatmap);
+      // 分界线是 mapHeatmapHandoffZoom（11），必须低于进页缩放 11.8。
+      expect(modeAt(10.99), MapLayerMode.heatmapOnly);
+      expect(modeAt(11), MapLayerMode.pointsAndHeatmap);
       expect(modeAt(15.05), MapLayerMode.pointsAndHeatmap);
+    });
+
+    test('进页的城市级视野不能落进热力图层级，否则首屏一个标注都没有', () {
+      // 这条是回归闸门：分界线一旦被调回进页缩放之上，地图首屏就只剩热力图，
+      // 看起来跟「标注功能坏了」完全一样。
+      expect(
+        MapSceneController.cityZoom,
+        greaterThanOrEqualTo(mapHeatmapHandoffZoom),
+        reason: '进页缩放必须不低于热力图分界线',
+      );
+      expect(
+        mapEffectiveLayerMode(
+          MapLayerMode.pointsAndHeatmap,
+          MapSceneController.cityZoom,
+        ),
+        MapLayerMode.pointsAndHeatmap,
+      );
     });
 
     test('显式选「点位」时缩放不接手，否则会剩一张空地图', () {
@@ -329,7 +346,7 @@ void main() {
       );
       addTearDown(controller.dispose);
 
-      await controller.syncViewport(_shifted(0, zoom: 11.5));
+      await controller.syncViewport(_shifted(0, zoom: 10.5));
       expect(controller.effectiveLayerMode, MapLayerMode.heatmapOnly);
       expect(controller.markerVenues, isEmpty, reason: '文字标注要全部退场');
       expect(controller.heatmapPoints, hasLength(50), reason: '热力图反倒要全量');
@@ -338,6 +355,23 @@ void main() {
 
       await controller.syncViewport(_shifted(0, zoom: 13.5));
       expect(controller.markerVenues, hasLength(50), reason: '推回街区尺度标注要回来');
+    });
+
+    test('进页（城市级视野）就有文字标注，不必先放大', () async {
+      final controller = MapDataController(
+        repository: _StubRepository([
+          for (var index = 0; index < 50; index++) _venue('venue-$index'),
+        ]),
+        city: '上海',
+      );
+      addTearDown(controller.dispose);
+
+      await controller.syncViewport(
+        _shifted(0, zoom: MapSceneController.cityZoom),
+      );
+
+      expect(controller.effectiveLayerMode, MapLayerMode.pointsAndHeatmap);
+      expect(controller.markerVenues, isNotEmpty, reason: '首屏就该看得到酒吧名');
     });
 
     test('手动选「热力」时文字标注也一并退场', () async {
@@ -359,15 +393,15 @@ void main() {
       final controller = MapDataController(repository: repository, city: '上海');
       addTearDown(controller.dispose);
 
-      await controller.syncViewport(_shifted(0, zoom: 12.2));
+      await controller.syncViewport(_shifted(0, zoom: 11.2));
       expect(repository.callCount, 1);
 
       var notifications = 0;
       controller.addListener(() => notifications++);
 
-      // 12.2 → 11.9 只有 0.3 的缩放差，够不上重拉的门槛（0.35），
-      // 但跨过了热力图分界线。
-      await controller.syncViewport(_shifted(0, zoom: 11.9));
+      // 11.2 → 10.9 只有 0.3 的缩放差，够不上重拉的门槛（0.35），
+      // 但跨过了热力图分界线（11）。
+      await controller.syncViewport(_shifted(0, zoom: 10.9));
       expect(repository.callCount, 1, reason: '不该重新取数');
       expect(notifications, 1, reason: '但要通知一次，让标注退场');
       expect(controller.effectiveLayerMode, MapLayerMode.heatmapOnly);

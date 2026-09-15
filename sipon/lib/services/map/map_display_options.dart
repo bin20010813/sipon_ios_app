@@ -42,13 +42,15 @@ enum MapLayerMode {
 
 /// 缩放小于这个层级就把画面交给热力图：圆点与文字标注全部退场。
 ///
-/// 取 12 是因为它略高于 `MapSceneController.cityZoom`（11.8）——「聚焦城区」之后
-/// 看到的就是一整张热力图，往里推到街区尺度点位才登场。
-const double mapHeatmapHandoffZoom = 12;
+/// 取 11 是为了让它**低于** `MapSceneController.cityZoom`（11.8）。分界线一旦
+/// 高于进页缩放，首屏就是一张纯热力图、一个酒吧标注都没有——旧值 12 正是这个
+/// 后果（进页 11.8 < 12 → `heatmapOnly`），看起来像「标注功能坏了」。
+/// 热力总览仍然保留，只是要到 11 以下才独占画面。
+const double mapHeatmapHandoffZoom = 11;
 
 /// 圆点恢复到完全不透明的层级。与 [mapHeatmapHandoffZoom] 之间是淡入淡出区间，
 /// Dart 侧算好透明度下发，原生按最新缩放执行。
-const double mapPointsRestoredZoom = 13.2;
+const double mapPointsRestoredZoom = 12;
 
 /// 圆点完全显现时的不透明度。
 const double mapCircleFullOpacity = 0.92;

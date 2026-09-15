@@ -226,6 +226,40 @@ class SiponApiService {
 
   Future<void> deleteDrinkingRoute(int id) => _deleteEmpty('/api/routes/$id');
 
+  // 鸡尾酒与配料百科
+  /// 搜索/分页拉取鸡尾酒列表（GET /api/cocktails）。
+  Future<List<dynamic>> searchCocktails({
+    String? keyword,
+    SiponPage page = const SiponPage(),
+  }) => _getList(
+    '/api/cocktails',
+    queryParameters: {'keyword': keyword, ...page.queryParameters},
+  );
+
+  /// 获取鸡尾酒详情（GET /api/cocktails/{id}）。
+  Future<dynamic> getCocktailDetail(int id) => _get('/api/cocktails/$id');
+
+  /// 按分类/分页拉取配料列表（GET /api/ingredients）。
+  Future<List<dynamic>> searchIngredients({
+    String? category,
+    SiponPage page = const SiponPage(),
+  }) => _getList(
+    '/api/ingredients',
+    queryParameters: {'category': category, ...page.queryParameters},
+  );
+
+  /// 获取配料详情（GET /api/ingredients/{id}）。
+  Future<dynamic> getIngredientDetail(int id) => _get('/api/ingredients/$id');
+
+  /// 获取可用该配料调制的鸡尾酒列表（GET /api/ingredients/{id}/cocktails）。
+  Future<List<dynamic>> getCocktailsByIngredient(
+    int id, {
+    SiponPage page = const SiponPage(),
+  }) => _getList(
+    '/api/ingredients/$id/cocktails',
+    queryParameters: page.queryParameters,
+  );
+
   // 文件上传、下载与反馈
   Future<dynamic> uploadMedia({
     required List<int> fileBytes,

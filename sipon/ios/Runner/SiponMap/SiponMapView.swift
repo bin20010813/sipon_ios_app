@@ -294,9 +294,11 @@ final class SiponMapEngine: NSObject {
     mapView.isPitchEnabled = true
     mapView.isScrollEnabled = true
     mapView.isZoomEnabled = true
-    if #available(iOS 13.0, *) {
-      mapView.pointOfInterestFilter = .includingAll
-    }
+
+    // 底图 POI（餐厅、地铁、地标）的开关放在 apply(styleId:) 里，跟着
+    // MKMapConfiguration 一起设。这里设 `mapView.pointOfInterestFilter` 在
+    // iOS 16+ 上会被随后赋值的 preferredConfiguration 覆盖掉，等于没设。
+    // 旧版 iOS 走 mapType 分支，那时才需要在这里兜底（见 apply(styleId:)）。
   }
 
   /// 底图三档切换。iOS 16+ 用 MKMapConfiguration（muted emphasis +
@@ -307,19 +309,29 @@ final class SiponMapEngine: NSObject {
     mapView.overrideUserInterfaceStyle = .unspecified
 
     if #available(iOS 16.0, *) {
+      // POI 过滤必须设在 configuration 上：在 iOS 16+ 里 mapView 自身那个
+      // pointOfInterestFilter 会被 preferredConfiguration 顶掉，写在那里不生效，
+      // 结果就是底图上连便利店、地铁站的名称都没有。
       switch styleId {
       case "satellite":
-        mapView.preferredConfiguration = MKHybridMapConfiguration()
+        let configuration = MKHybridMapConfiguration()
+        configuration.pointOfInterestFilter = .includingAll
+        mapView.preferredConfiguration = configuration
       case "muted":
         let configuration = MKStandardMapConfiguration()
         configuration.emphasisStyle = .muted
+        configuration.pointOfInterestFilter = .includingAll
         mapView.preferredConfiguration = configuration
         mapView.overrideUserInterfaceStyle = .dark
       default:
-        mapView.preferredConfiguration = MKStandardMapConfiguration()
+        let configuration = MKStandardMapConfiguration()
+        configuration.pointOfInterestFilter = .includingAll
+        mapView.preferredConfiguration = configuration
       }
     } else {
+      // 老版本没有配置对象，POI 开关就是 mapView 自己的属性。
       mapView.mapType = (styleId == "satellite") ? .hybrid : .standard
+      mapView.pointOfInterestFilter = .includingAll
     }
   }
 
@@ -350,15 +362,29 @@ final class SiponMapEngine: NSObject {
     return UIScreen.main.bounds.size
   }
 
+  /// 当前缩放：用相机距离反算（与 `moveCamera` 的下发口径同源）。
+  ///
+  /// 不要退回 `region.span` 反推：region 含俯仰与朝向的外接放大，会低估半档以上，
+  /// 直接导致圆点淡入与文字标注的显隐阈值全部被推迟。详见
+  /// [SiponMapGeometry.zoom(distance:lat:viewportHeight:)]。
   private func currentZoomEstimate() -> Double {
+    let size = viewportSize()
+
+    let fromDistance = SiponMapGeometry.zoom(
+      distance: mapView.camera.centerCoordinateDistance,
+      lat: mapView.region.center.latitude,
+      viewportHeight: size.height
+    )
+    if fromDistance.isFinite {
+      return fromDistance
+    }
+
+    // 相机尚未装配（距离读不到）时的兜底：退回跨度反推，宁可偏保守也别给 NaN。
     let spanDelta = mapView.region.span.longitudeDelta
     guard spanDelta.isFinite, spanDelta > 0 else {
       return SiponMapGeometry.initialCityZoom
     }
-    return SiponMapGeometry.zoom(
-      longitudeDelta: spanDelta,
-      width: viewportSize().width
-    )
+    return SiponMapGeometry.zoom(longitudeDelta: spanDelta, width: size.width)
   }
 
   private func moveCamera(_ move: SiponMapProtocol.CameraMove, animated: Bool) {

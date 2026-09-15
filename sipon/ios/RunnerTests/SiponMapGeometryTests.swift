@@ -81,14 +81,14 @@ final class SiponMapGeometryTests: XCTestCase {
 
   func testCircleFadeCurve() {
     // 区间外截断：分界线以下全透明，恢复线以上满透明度，中间线性。
-    XCTAssertEqual(SiponMapGeometry.circleFade(zoom: 12, heatmapArmed: true), 0, accuracy: 1e-9)
+    XCTAssertEqual(SiponMapGeometry.circleFade(zoom: 11, heatmapArmed: true), 0, accuracy: 1e-9)
     XCTAssertEqual(
-      SiponMapGeometry.circleFade(zoom: 13.2, heatmapArmed: true),
+      SiponMapGeometry.circleFade(zoom: 12, heatmapArmed: true),
       0.92,
       accuracy: 1e-9
     )
     XCTAssertEqual(
-      SiponMapGeometry.circleFade(zoom: 12.6, heatmapArmed: true),
+      SiponMapGeometry.circleFade(zoom: 11.6, heatmapArmed: true),
       0.46,
       accuracy: 1e-9
     )
@@ -97,6 +97,54 @@ final class SiponMapGeometryTests: XCTestCase {
       SiponMapGeometry.circleFade(zoom: 5, heatmapArmed: false),
       0.92,
       accuracy: 1e-9
+    )
+    // 进页停在 initialCityZoom，必须已经高于分界线，否则首屏只有热力图。
+    XCTAssertGreaterThan(SiponMapGeometry.initialCityZoom, SiponMapGeometry.handoffZoom)
+    XCTAssertGreaterThan(
+      SiponMapGeometry.circleFade(zoom: SiponMapGeometry.initialCityZoom, heatmapArmed: true),
+      0.5
+    )
+  }
+
+  /// 命令下发（zoom → 相机距离）与视野回读（相机距离 → zoom）必须同一口径。
+  /// 两侧一旦不一致，圆点淡入与文字标注的阈值就会被推迟到「怎么放大都不出来」。
+  func testZoomCameraDistanceRoundTrip() {
+    let height: CGFloat = 700
+    let lat = 31.2227
+    for zoom in stride(from: 9.0, through: 17.0, by: 0.5) {
+      let distance = SiponMapGeometry.cameraDistance(
+        lat: lat,
+        zoom: zoom,
+        viewportHeight: height
+      )
+      let recovered = SiponMapGeometry.zoom(
+        distance: distance,
+        lat: lat,
+        viewportHeight: height
+      )
+      XCTAssertEqual(recovered, zoom, accuracy: 1e-6, "zoom \(zoom) 距离往返失真")
+    }
+  }
+
+  /// 俯仰 + 朝向会让 `region.span` 变成外接矩形（约 1.4×），用跨度反推 zoom
+  /// 会系统性偏低——这正是「地图明明放大了，标注却还不出来」的根因。
+  /// 这条测试把两个口径的差值钉死，防止有人把实现改回跨度反推。
+  func testRotatedRegionFormulaUnderreportsZoom() {
+    let width: CGFloat = 390
+    let zoom = SiponMapGeometry.initialCityZoom
+    let flat = SiponMapGeometry.longitudeDelta(zoom: zoom, width: width)
+    let fromRotatedRegion = SiponMapGeometry.zoom(longitudeDelta: flat * 1.4, width: width)
+
+    XCTAssertEqual(fromRotatedRegion, zoom - log2(1.4), accuracy: 1e-9)
+    XCTAssertLessThan(fromRotatedRegion, zoom - 0.4, "跨度反推至少要低 0.4 档")
+
+    // 相机距离口径则与下发值严格一致。
+    let height: CGFloat = 700
+    let distance = SiponMapGeometry.cameraDistance(lat: 31.2227, zoom: zoom, viewportHeight: height)
+    XCTAssertEqual(
+      SiponMapGeometry.zoom(distance: distance, lat: 31.2227, viewportHeight: height),
+      zoom,
+      accuracy: 1e-6
     )
   }
 

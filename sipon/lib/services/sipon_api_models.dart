@@ -1,3 +1,5 @@
+import 'sipon_api_config.dart';
+
 class SiponMapBounds {
   const SiponMapBounds({
     required this.west,
@@ -388,4 +390,168 @@ String _formatDistanceMeters(double? meters) {
   }
 
   return '约${meters.round()}m';
+}
+
+/// 鸡尾酒列表项 / 详情基础信息（对应 GET /api/cocktails 系列接口）。
+class CocktailInfo {
+  const CocktailInfo({
+    this.id,
+    this.code,
+    this.name,
+    this.nameEn,
+    this.description,
+    this.imageUrl,
+    this.starRating,
+    this.ingredientCount,
+    this.difficulty,
+  });
+
+  factory CocktailInfo.fromJson(dynamic value) {
+    final map = _asMap(value);
+    return CocktailInfo(
+      id: _readInt(map, ['id']),
+      code: _readString(map, ['code']),
+      name: _readString(map, ['name']),
+      nameEn: _readString(map, ['nameEn']),
+      description: _readString(map, ['description']),
+      imageUrl: _readString(map, ['imageUrl', 'image']),
+      starRating: _readInt(map, ['starRating', 'rating', 'star']),
+      ingredientCount: _readInt(map, ['ingredientCount']),
+      difficulty: _readString(map, ['difficulty']),
+    );
+  }
+
+  factory CocktailInfo.fromMap(Map<String, dynamic> map) =>
+      CocktailInfo.fromJson(map);
+
+  static List<CocktailInfo> listFromJson(Object? value) {
+    final list = _asList(value);
+    if (list == null) return const [];
+    return [
+      for (final item in list.whereType<Map>())
+        CocktailInfo.fromJson(item.cast<String, dynamic>()),
+    ];
+  }
+
+  final int? id;
+  final String? code;
+  final String? name;
+  final String? nameEn;
+  final String? description;
+  final String? imageUrl;
+  final int? starRating;
+  final int? ingredientCount;
+  final String? difficulty;
+
+  /// 把后端可能返回的相对路径图片地址解析为完整 URL；为空时返回 null。
+  String? resolvedImageUrl([SiponApiConfig? config]) {
+    final raw = imageUrl;
+    if (raw == null || raw.trim().isEmpty) return null;
+    return (config ?? SiponApiConfig.instance).resolveUri(raw).toString();
+  }
+}
+
+/// 鸡尾酒详情（对应 GET /api/cocktails/{id}），含配方用料行。
+class CocktailDetailInfo {
+  const CocktailDetailInfo({
+    required this.summary,
+    this.story,
+    this.ingredients = const [],
+  });
+
+  factory CocktailDetailInfo.fromJson(dynamic value) {
+    final map = _asMap(value);
+    return CocktailDetailInfo(
+      summary: CocktailInfo.fromJson(map),
+      story: _readString(map, ['story']),
+      ingredients: RecipeLine.listFromJson(map['ingredients']),
+    );
+  }
+
+  final CocktailInfo summary;
+  final String? story;
+
+  /// 配方用料（按 sortOrder 升序排列后的副本）。
+  final List<RecipeLine> ingredients;
+
+  List<RecipeLine> get sortedIngredients {
+    final sorted = [...ingredients]
+      ..sort((a, b) => (a.sortOrder ?? 0).compareTo(b.sortOrder ?? 0));
+    return sorted;
+  }
+}
+
+/// 配方中的单行用料（仅用量文本 + 排序；无配料子对象，不做跳转）。
+class RecipeLine {
+  const RecipeLine({this.amountText, this.sortOrder});
+
+  factory RecipeLine.fromJson(dynamic value) {
+    final map = _asMap(value);
+    return RecipeLine(
+      amountText: _readString(map, ['amountText', 'amount', 'text']),
+      sortOrder: _readInt(map, ['sortOrder', 'order']),
+    );
+  }
+
+  static List<RecipeLine> listFromJson(Object? value) {
+    final list = _asList(value);
+    if (list == null) return const [];
+    return [
+      for (final item in list.whereType<Map>())
+        RecipeLine.fromJson(item.cast<String, dynamic>()),
+    ];
+  }
+
+  final String? amountText;
+  final int? sortOrder;
+}
+
+/// 配料信息（对应 GET /api/ingredients 系列接口）。
+class IngredientInfo {
+  const IngredientInfo({
+    this.id,
+    this.code,
+    this.name,
+    this.nameEn,
+    this.category,
+    this.imageUrl,
+    this.baseSpirit,
+  });
+
+  factory IngredientInfo.fromJson(dynamic value) {
+    final map = _asMap(value);
+    return IngredientInfo(
+      id: _readInt(map, ['id']),
+      code: _readString(map, ['code']),
+      name: _readString(map, ['name']),
+      nameEn: _readString(map, ['nameEn']),
+      category: _readString(map, ['category']),
+      imageUrl: _readString(map, ['imageUrl', 'image']),
+      baseSpirit: _readBool(map, ['baseSpirit', 'isBaseSpirit']),
+    );
+  }
+
+  static List<IngredientInfo> listFromJson(Object? value) {
+    final list = _asList(value);
+    if (list == null) return const [];
+    return [
+      for (final item in list.whereType<Map>())
+        IngredientInfo.fromJson(item.cast<String, dynamic>()),
+    ];
+  }
+
+  final int? id;
+  final String? code;
+  final String? name;
+  final String? nameEn;
+  final String? category;
+  final String? imageUrl;
+  final bool? baseSpirit;
+
+  /// 把后端可能返回的相对路径图片地址解析为完整 URL；为空时返回 null。
+  String? resolvedImageUrl([SiponApiConfig? config]) {
+    final raw = imageUrl;
+    if (raw == null || raw.trim().isEmpty) return null;
+    return (config ?? SiponApiConfig.instance).resolveUri(raw).toString();
+  }
 }

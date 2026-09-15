@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../services/map/map_models.dart';
 import '../services/sipon_api_models.dart';
+import '../services/sipon_api_service.dart';
 import '../services/sipon_city_controller.dart';
 import '../services/sipon_data_repository.dart';
 import '../widgets/map/venue_detail_page.dart';
 import '../widgets/sipon_city_picker.dart';
+import 'cocktail_detail_page.dart';
+import 'cocktail_list_page.dart';
+import 'ingredient_list_page.dart';
 import 'language_transform.dart';
 
 class HomePage extends StatefulWidget {
@@ -121,6 +125,9 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
+        // 底部不进安全区：页面背景（白色）自然延伸到底，避免安全区露出
+        // 与内容脱节的 Scaffold 底色条带；底部空间由 bottomOverlayInset 预留。
+        bottom: false,
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
@@ -355,13 +362,25 @@ class _HomeDataSections extends StatelessWidget {
         const SizedBox(height: 24),
         Padding(
           padding: const EdgeInsets.only(right: 23),
-          child: _SectionHeader(title: text.t('鸡尾酒推荐')),
+          child: _SectionHeader(
+            title: text.t('鸡尾酒推荐'),
+            onMorePressed: () => _pushCocktailList(context),
+          ),
         ),
         const SizedBox(height: 14),
         const _CocktailScroller(),
       ],
     );
   }
+}
+
+/// 全屏打开鸡尾酒百科列表页。
+void _pushCocktailList(BuildContext context) {
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => const CocktailListPage(),
+    ),
+  );
 }
 
 class _HomeDataStatus extends StatelessWidget {
@@ -432,7 +451,7 @@ class _DrinkCarousel extends StatelessWidget {
       subtitle: '草本香气',
       label: 'GIN',
       tint: Color(0xFF7DCBB5),
-      kind: _DrinkVisualKind.vodka,
+      kind: _DrinkVisualKind.gin,
     ),
   ];
 
@@ -449,6 +468,7 @@ class _DrinkCarousel extends StatelessWidget {
             onPageChanged: onPageChanged,
             itemBuilder: (context, index) {
               final selected = index == currentIndex;
+              final product = _products[index];
               return AnimatedScale(
                 scale: selected ? 1 : 0.9,
                 duration: const Duration(milliseconds: 220),
@@ -456,8 +476,9 @@ class _DrinkCarousel extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: _DrinkProductCard(
-                    product: _products[index],
+                    product: product,
                     selected: selected,
+                    onTap: () => _openIngredientList(context, product.kind),
                   ),
                 ),
               );
@@ -489,14 +510,77 @@ class _DrinkCarousel extends StatelessWidget {
 }
 
 class _DrinkProductCard extends StatelessWidget {
-  const _DrinkProductCard({required this.product, required this.selected});
+  const _DrinkProductCard({
+    required this.product,
+    required this.selected,
+    this.onTap,
+  });
 
   final _DrinkProduct product;
   final bool selected;
 
+  /// 点击回调（如跳转配料百科）。
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+
+    final content = Padding(
+      padding: const EdgeInsets.fromLTRB(17, 16, 13, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      text.t(product.title),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: HomePage.ink,
+                        fontSize: 19,
+                        height: 1,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      text.t(product.subtitle),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFFB7B1B7),
+                        fontSize: 11,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Text(
+                'SIPON',
+                style: TextStyle(
+                  color: Color(0xFFC8C4C8),
+                  fontSize: 8,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          ),
+          Expanded(
+            child: Center(child: _DrinkVisual(product: product)),
+          ),
+        ],
+      ),
+    );
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -512,63 +596,30 @@ class _DrinkProductCard extends StatelessWidget {
               ]
             : null,
       ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(17, 16, 13, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        text.t(product.title),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: HomePage.ink,
-                          fontSize: 19,
-                          height: 1,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        text.t(product.subtitle),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFFB7B1B7),
-                          fontSize: 11,
-                          letterSpacing: 0,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Text(
-                  'SIPON',
-                  style: TextStyle(
-                    color: Color(0xFFC8C4C8),
-                    fontSize: 8,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ],
+      child: onTap == null
+          ? content
+          : InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(10),
+              child: content,
             ),
-            Expanded(
-              child: Center(child: _DrinkVisual(product: product)),
-            ),
-          ],
-        ),
-      ),
     );
   }
+}
+
+/// 从首页酒水卡片进入配料百科：按酒水种类预选分类。
+void _openIngredientList(BuildContext context, _DrinkVisualKind kind) {
+  final category = switch (kind) {
+    _DrinkVisualKind.rum => 'rum',
+    _DrinkVisualKind.vodka => 'vodka',
+    _DrinkVisualKind.gin => 'gin',
+    _DrinkVisualKind.ice => null, // 冰块未归入固定分类，展示全部配料
+  };
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => IngredientListPage(initialCategory: category),
+    ),
+  );
 }
 
 class _DrinkVisual extends StatelessWidget {
@@ -581,6 +632,7 @@ class _DrinkVisual extends StatelessWidget {
     return switch (product.kind) {
       _DrinkVisualKind.rum => _RumBottle(product: product),
       _DrinkVisualKind.vodka => _VodkaBottle(product: product),
+      _DrinkVisualKind.gin => _VodkaBottle(product: product),
       _DrinkVisualKind.ice => _IceCubes(color: product.tint),
     };
   }
@@ -832,9 +884,12 @@ class _IceCube extends StatelessWidget {
 }
 
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title});
+  const _SectionHeader({required this.title, this.onMorePressed});
 
   final String title;
+
+  /// 右侧"更多"点击回调；为空时保持不可用的空操作。
+  final VoidCallback? onMorePressed;
 
   @override
   Widget build(BuildContext context) {
@@ -854,7 +909,7 @@ class _SectionHeader extends StatelessWidget {
           ),
         ),
         TextButton(
-          onPressed: () {},
+          onPressed: onMorePressed ?? () {},
           style: TextButton.styleFrom(
             foregroundColor: HomePage.muted,
             padding: EdgeInsets.zero,
@@ -1550,10 +1605,16 @@ class _RankingTile extends StatelessWidget {
   }
 }
 
-class _CocktailScroller extends StatelessWidget {
+class _CocktailScroller extends StatefulWidget {
   const _CocktailScroller();
 
-  static const List<_CocktailItem> _items = [
+  @override
+  State<_CocktailScroller> createState() => _CocktailScrollerState();
+}
+
+class _CocktailScrollerState extends State<_CocktailScroller> {
+  /// 加载失败/返回为空时回退渲染的静态素材卡片。
+  static const List<_CocktailItem> _fallbackItems = [
     _CocktailItem(
       imagePath: HomePage.cocktailOneAsset,
       title: '白俄罗斯',
@@ -1571,35 +1632,97 @@ class _CocktailScroller extends StatelessWidget {
     ),
   ];
 
+  final SiponApiService _api = SiponApiService();
+  List<CocktailInfo> _cocktails = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  /// 拉取首页推荐鸡尾酒真实数据；失败/为空时静默回退静态素材，不打扰首页。
+  Future<void> _load() async {
+    try {
+      final list = await _api.searchCocktails(page: const SiponPage(limit: 8));
+      if (!mounted) return;
+      setState(() => _cocktails = CocktailInfo.listFromJson(list));
+    } on Exception {
+      // 网络异常时保持静态素材展示。
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+
+    final slides = List<Widget>.generate(
+      _cocktails.isEmpty ? _fallbackItems.length : _cocktails.length,
+      (index) {
+        if (_cocktails.isEmpty) {
+          // 加载中/失败时回退静态素材；点击进入鸡尾酒百科列表页。
+          return _CocktailCard(
+            item: _fallbackItems[index].translated(text),
+            onTap: () => _pushCocktailList(context),
+          );
+        }
+        final cocktail = _cocktails[index];
+        return _CocktailCard(
+          item: _CocktailItem(
+            imagePath: HomePage.cocktailOneAsset,
+            title: cocktail.name ?? cocktail.nameEn ?? '',
+            subtitle: cocktail.nameEn ?? cocktail.difficulty ?? '',
+          ),
+          imageUrl: cocktail.resolvedImageUrl(),
+          onTap: () => _openDetail(cocktail),
+        );
+      },
+    );
 
     return SizedBox(
       height: 262,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
-        itemCount: _items.length + 1,
+        itemCount: slides.length + 1,
         separatorBuilder: (_, _) => const SizedBox(width: 14),
         itemBuilder: (context, index) {
-          if (index == _items.length) {
+          if (index == slides.length) {
             return const SizedBox(width: 23);
           }
-          return _CocktailCard(item: _items[index].translated(text));
+          return slides[index];
         },
+      ),
+    );
+  }
+
+  /// 打开鸡尾酒百科详情页。
+  void _openDetail(CocktailInfo cocktail) {
+    final id = cocktail.id;
+    if (id == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CocktailDetailPage(cocktailId: id),
       ),
     );
   }
 }
 
+/// 鸡尾酒推荐卡：上方图 + 下方标题/副标题的竖卡。
 class _CocktailCard extends StatelessWidget {
-  const _CocktailCard({required this.item});
+  const _CocktailCard({required this.item, this.imageUrl, this.onTap});
 
   final _CocktailItem item;
 
+  /// 真实数据时的网络图片地址；为空时使用 [item] 的本地素材图。
+  final String? imageUrl;
+
+  /// 点击回调；为空时卡片不可点击。
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
+    final url = imageUrl;
     return SizedBox(
       width: 142,
       child: Material(
@@ -1607,13 +1730,20 @@ class _CocktailCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: () {},
+          onTap: onTap,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               AspectRatio(
                 aspectRatio: 0.82,
-                child: Image.asset(item.imagePath, fit: BoxFit.cover),
+                child: (url != null && url.isNotEmpty)
+                    ? Image.network(
+                        url,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) =>
+                            Image.asset(item.imagePath, fit: BoxFit.cover),
+                      )
+                    : Image.asset(item.imagePath, fit: BoxFit.cover),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
@@ -1848,7 +1978,7 @@ class _DrinkProduct {
   final _DrinkVisualKind kind;
 }
 
-enum _DrinkVisualKind { rum, vodka, ice }
+enum _DrinkVisualKind { rum, vodka, gin, ice }
 
 class _RankingItem {
   const _RankingItem({
