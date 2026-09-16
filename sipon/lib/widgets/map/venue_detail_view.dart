@@ -760,7 +760,7 @@ class _VenueDetailTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
-    final labels = [text.t('关于'), text.t('招牌酒款'), text.t('评价')];
+    final labels = [text.t('关于'), text.t('菜单'), text.t('评价')];
 
     return SizedBox(
       height: 34,
@@ -776,21 +776,54 @@ class _VenueDetailTabs extends StatelessWidget {
                     children: [
                       Align(
                         alignment: Alignment.topCenter,
-                        child: Text(
-                          labels[index],
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: selectedIndex == index
-                                ? MapDesign.brand
-                                : MapDesign.muted,
-                            fontSize: 14,
-                            fontWeight: selectedIndex == index
-                                ? FontWeight.w900
-                                : FontWeight.w700,
-                            letterSpacing: 0,
-                          ),
-                        ),
+                        child: index == 0
+                            ? Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    labels[index],
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: selectedIndex == index
+                                          ? MapDesign.brand
+                                          : MapDesign.muted,
+                                      fontSize: 14,
+                                      fontWeight: selectedIndex == index
+                                          ? FontWeight.w900
+                                          : FontWeight.w700,
+                                      letterSpacing: 0,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    text.t('最新动态'),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: MapDesign.muted,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 0,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Text(
+                                labels[index],
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: selectedIndex == index
+                                      ? MapDesign.brand
+                                      : MapDesign.muted,
+                                  fontSize: 14,
+                                  fontWeight: selectedIndex == index
+                                      ? FontWeight.w900
+                                      : FontWeight.w700,
+                                  letterSpacing: 0,
+                                ),
+                              ),
                       ),
                       Positioned(
                         left: 12,

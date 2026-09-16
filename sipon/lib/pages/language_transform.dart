@@ -508,6 +508,7 @@ const Map<String, String> _englishText = {
   '地点位置': 'Location',
   '未命名酒吧': 'Unnamed Bar',
   '关于': 'About',
+  '最新动态': 'Latest Updates',
   '收藏': 'Save',
   '已收藏': 'Saved',
   '导航': 'Navigate',
