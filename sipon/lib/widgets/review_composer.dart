@@ -95,112 +95,123 @@ class _ReviewComposerState extends State<ReviewComposer> {
   }
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.all(20),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          widget.venueName,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF252229),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          widget.venueAddress,
-          style: const TextStyle(color: Color(0xFF8F8790)),
-        ),
-        const SizedBox(height: 28),
-        const Text('本次体验', style: TextStyle(fontWeight: FontWeight.w700)),
-        Row(
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => SingleChildScrollView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      padding: EdgeInsets.fromLTRB(
+        20,
+        20,
+        20,
+        20 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: constraints.maxHeight - 40),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (var index = 1; index <= 5; index++)
-              IconButton(
-                onPressed: () => setState(() => _rating = index),
-                icon: Icon(
-                  index <= _rating
-                      ? Icons.star_rounded
-                      : Icons.star_outline_rounded,
-                  color: const Color(0xFFE09A35),
-                  size: 30,
-                ),
-                tooltip: '$index 星',
+            Text(
+              widget.venueName,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF252229),
               ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: _controller,
-          minLines: 5,
-          maxLines: 8,
-          decoration: const InputDecoration(
-            hintText: '写下这次的酒、音乐或遇见的人...',
-            filled: true,
-            fillColor: Colors.white,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.all(Radius.circular(8)),
-              borderSide: BorderSide(color: Color(0xFFF0E9ED)),
             ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          height: 76,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: [
-              for (var index = 0; index < _images.length; index++)
-                _imageTile(index),
-              if (_images.length < _maxImages)
-                InkWell(
-                  onTap: _pickImage,
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    width: 76,
-                    height: 76,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: const Color(0xFFF0E9ED)),
+            const SizedBox(height: 6),
+            Text(
+              widget.venueAddress,
+              style: const TextStyle(color: Color(0xFF8F8790)),
+            ),
+            const SizedBox(height: 28),
+            const Text('本次体验', style: TextStyle(fontWeight: FontWeight.w700)),
+            Row(
+              children: [
+                for (var index = 1; index <= 5; index++)
+                  IconButton(
+                    onPressed: () => setState(() => _rating = index),
+                    icon: Icon(
+                      index <= _rating
+                          ? Icons.star_rounded
+                          : Icons.star_outline_rounded,
+                      color: const Color(0xFFE09A35),
+                      size: 30,
+                    ),
+                    tooltip: '$index 星',
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _controller,
+              minLines: 5,
+              maxLines: 8,
+              decoration: const InputDecoration(
+                hintText: '写下这次的酒、音乐或遇见的人...',
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(8)),
+                  borderSide: BorderSide(color: Color(0xFFF0E9ED)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 76,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  for (var index = 0; index < _images.length; index++)
+                    _imageTile(index),
+                  if (_images.length < _maxImages)
+                    InkWell(
+                      onTap: _pickImage,
                       borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        width: 76,
+                        height: 76,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          border: Border.all(color: const Color(0xFFF0E9ED)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.add_photo_alternate_outlined,
+                          color: Color(0xFF9A3D78),
+                        ),
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.add_photo_alternate_outlined,
-                      color: Color(0xFF9A3D78),
-                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _submitting ? null : _submit,
+                icon: _submitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.check_rounded),
+                label: Text(_submitting ? '提交中...' : widget.submitLabel),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF9A3D78),
+                  minimumSize: const Size.fromHeight(50),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-            ],
-          ),
-        ),
-        const Spacer(),
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton.icon(
-            onPressed: _submitting ? null : _submit,
-            icon: _submitting
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.check_rounded),
-            label: Text(_submitting ? '提交中...' : widget.submitLabel),
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF9A3D78),
-              minimumSize: const Size.fromHeight(50),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
               ),
             ),
-          ),
+          ],
         ),
-      ],
+      ),
     ),
   );
 

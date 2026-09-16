@@ -9,6 +9,7 @@ class VenueDetail {
   const VenueDetail({
     required this.venue,
     required this.description,
+    required this.latestUpdates,
     required this.businessHours,
     required this.phone,
     required this.priceLevel,
@@ -27,6 +28,9 @@ class VenueDetail {
 
   /// 酒吧简介，支持多段。
   final List<String> description;
+
+  /// 地点最新动态。
+  final List<String> latestUpdates;
 
   /// 每日营业时间，key 为星期文案，value 为时间段。
   final Map<String, String> businessHours;

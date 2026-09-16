@@ -86,6 +86,7 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
     return VenueDetail(
       venue: mergedVenue,
       description: _parseDescription(bar),
+      latestUpdates: _parseLatestUpdates(bar),
       businessHours: businessHours,
       phone: _readStr(bar, ['phoneNumber', 'phone', 'tel']) ?? '暂无电话',
       priceLevel: _readStr(bar, ['priceRange', 'priceLevel']) ?? '¥¥',
@@ -178,6 +179,18 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
         .map((line) => line.trim())
         .where((line) => line.isNotEmpty)
         .toList(growable: false);
+  }
+
+  List<String> _parseLatestUpdates(Map<String, dynamic> bar) {
+    final raw = bar['latestUpdates'] ?? bar['latest_updates'] ?? bar['updates'];
+    if (raw is List) {
+      return raw
+          .whereType<String>()
+          .where((item) => item.trim().isNotEmpty)
+          .toList();
+    }
+    final single = _readStr(bar, ['latestUpdate', 'latest_update']);
+    return single == null ? const [] : [single];
   }
 
   /// 特色标签：优先 Bar.tags，其次沿用地图列表的 tags。
