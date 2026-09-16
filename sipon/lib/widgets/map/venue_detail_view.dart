@@ -7,6 +7,7 @@ import '../../services/map/map_models.dart';
 import '../../services/map/mock_venue_detail_repository.dart';
 import '../../services/map/venue_detail_models.dart';
 import '../../services/sipon_api_config.dart';
+import '../../services/sipon_api_service.dart';
 import 'map_theme.dart';
 import '../review_composer.dart';
 import 'venue_common.dart';
@@ -68,6 +69,7 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
   /// 详情数据源，默认 Mock；调用方注入 API 实现后即可联调真实接口。
   late final VenueDetailRepository _repository =
       widget.repository ?? const MockVenueDetailRepository();
+  final SiponApiService _api = SiponApiService();
 
   /// 当前加载到的详情数据。
   VenueDetail? _detail;
@@ -148,12 +150,55 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
           _reviewsLoading = false;
         });
       }
+      await _loadFavorite();
     } on Exception catch (error) {
       if (mounted) {
         setState(() {
           _loadError = error.toString();
         });
       }
+    }
+  }
+
+  Future<void> _loadFavorite() async {
+    final barId = int.tryParse(widget.venue.id);
+    if (barId == null) return;
+    try {
+      final wishlist = await _api.getWishlistBars(
+        page: const SiponPage(limit: 100),
+      );
+      final favorite = wishlist.whereType<Map>().any((item) {
+        final map = item.cast<String, dynamic>();
+        final id =
+            (map['id'] as num?)?.toInt() ?? (map['barId'] as num?)?.toInt();
+        return id == barId;
+      });
+      if (mounted) setState(() => _favorite = favorite);
+    } on Exception {
+      // 详情仍可用，收藏状态保持默认值。
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    final barId = int.tryParse(widget.venue.id);
+    if (barId == null) {
+      _showMockToast(SiponLanguageScope.textOf(context).t('暂不支持收藏'));
+      return;
+    }
+    final nextFavorite = !_favorite;
+    setState(() => _favorite = nextFavorite);
+    try {
+      if (nextFavorite) {
+        await _api.addWishlistBar(barId);
+      } else {
+        await _api.removeWishlistBar(barId);
+      }
+    } on Exception catch (error) {
+      if (!mounted) return;
+      setState(() => _favorite = !nextFavorite);
+      _showMockToast(
+        '${SiponLanguageScope.textOf(context).t('收藏操作失败')}：$error',
+      );
     }
   }
 
@@ -574,7 +619,7 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
             venue: widget.venue,
             detail: detail,
             favorite: _favorite,
-            onToggleFavorite: () => setState(() => _favorite = !_favorite),
+            onToggleFavorite: _toggleFavorite,
             onNavigate: _openAmapNavigation,
             onShare: () => _showMockToast(text.t('已分享地点（演示）')),
           ),
