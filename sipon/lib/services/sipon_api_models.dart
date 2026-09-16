@@ -344,6 +344,13 @@ double? _toDouble(dynamic value) {
 
 String _normalizeKind(String rawKind) {
   final kind = rawKind.trim().toLowerCase();
+  if (kind.contains('cocktail') ||
+      kind.contains('鸡尾') ||
+      kind.contains('清吧') ||
+      kind == 'pub' ||
+      kind == 'bar') {
+    return 'pub';
+  }
   if (kind.contains('craft') || kind.contains('精酿') || kind.contains('beer')) {
     return 'craft';
   }

@@ -34,6 +34,13 @@ enum MapVenueKind {
     if (kind.isEmpty) {
       return MapVenueKind.pub;
     }
+    if (kind.contains('cocktail') ||
+        kind.contains('鸡尾') ||
+        kind.contains('清吧') ||
+        kind == 'pub' ||
+        kind == 'bar') {
+      return MapVenueKind.pub;
+    }
     if (kind.contains('craft') ||
         kind.contains('精酿') ||
         kind.contains('beer')) {
@@ -164,6 +171,7 @@ class MapMarkerSpec {
     required this.longitude,
     required this.latitude,
     required this.kind,
+    this.sequence,
   });
 
   final String venueId;
@@ -172,9 +180,12 @@ class MapMarkerSpec {
   final double latitude;
   final MapVenueKind kind;
 
+  /// 路线页可选的顺序编号；普通 POI 为 null，仍显示酒吧名称。
+  final int? sequence;
+
   /// 参与 marker 重建判定的全部字段。任一变化才值得 `deleteAll` + 重建。
   String get signaturePart =>
-      [venueId, label, longitude, latitude, kind.id].join('|');
+      [venueId, label, longitude, latitude, kind.id, sequence ?? ''].join('|');
 }
 
 /// 顶部分类筛选 pill。

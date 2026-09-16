@@ -1930,7 +1930,7 @@ class _RouteDetailMapPageState extends State<_RouteDetailMapPage> {
     return '上海';
   }
 
-  /// 把站点以「顺序编号 marker + 圆点」渲染到地图。
+  /// 把站点以「分类图标 + 顺序编号 marker + 圆点」渲染到地图。
   Future<void> _renderStops() async {
     if (!_scene.isAttached || _stops.isEmpty) return;
     final points = <MapPoint>[];
@@ -1954,10 +1954,11 @@ class _RouteDetailMapPageState extends State<_RouteDetailMapPage> {
       markers.add(
         MapMarkerSpec(
           venueId: 'route-stop-$index',
-          label: '${index + 1}',
+          label: stop.name,
           longitude: longitude,
           latitude: latitude,
           kind: stop.kind,
+          sequence: index + 1,
         ),
       );
     }

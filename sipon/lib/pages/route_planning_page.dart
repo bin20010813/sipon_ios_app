@@ -138,13 +138,15 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
             ),
         ],
         markers: [
-          for (final place in places)
+          for (var index = 0; index < places.length; index++)
             MapMarkerSpec(
-              venueId: place.name,
-              label: place.name,
-              longitude: place.longitude,
-              latitude: place.latitude,
-              kind: place.kind,
+              venueId:
+                  'route-point-$index-${places[index].barId ?? places[index].name}',
+              label: places[index].name,
+              longitude: places[index].longitude,
+              latitude: places[index].latitude,
+              kind: places[index].kind,
+              sequence: index + 1,
             ),
         ],
       ),
