@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'pages/drink_record_page.dart';
 import 'pages/home_page.dart';
@@ -15,6 +18,18 @@ import 'services/sipon_city_controller.dart';
 import 'widgets/sipon_city_picker.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarDividerColor: Colors.transparent,
+      systemNavigationBarIconBrightness: Brightness.dark,
+      systemStatusBarContrastEnforced: false,
+      systemNavigationBarContrastEnforced: false,
+    ),
+  );
   runApp(const SiponApp());
 }
 
@@ -245,13 +260,14 @@ class _SiponShell extends StatefulWidget {
 }
 
 class _SiponShellState extends State<_SiponShell> {
-  static const double _navigationReserveHeight = 86;
+  static const double _navigationBarHeight = 62;
 
   double get _effectiveNavigationReserveHeight =>
-      _navigationReserveHeight + MediaQuery.paddingOf(context).bottom;
+      _navigationBarHeight + math.max(MediaQuery.paddingOf(context).bottom, 4);
 
   /// 我的页状态引用，用于切回 tab / 规划路线 / 打卡返回后刷新快捷入口计数。
-  final GlobalKey<ProfilePageState> _profilePageKey = GlobalKey<ProfilePageState>();
+  final GlobalKey<ProfilePageState> _profilePageKey =
+      GlobalKey<ProfilePageState>();
 
   int _currentIndex = 0;
   bool _recordRouteOpening = false;
@@ -347,7 +363,6 @@ class _SiponShellState extends State<_SiponShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBody: true,
       body: Stack(
         children: [
           IndexedStack(
@@ -365,17 +380,6 @@ class _SiponShellState extends State<_SiponShell> {
                 onLogoutSucceeded: widget.onLogoutSucceeded,
               ),
             ],
-          ),
-          // 底部过渡层：从导航条下方一直铺到屏幕物理底（含 Home Indicator
-          // 安全区 34pt），用与导航条一致的白色统一底部，
-          // 避免各 tab 在安全区露出与内容脱节的 Scaffold 背景「白边」。
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Container(
-              width: double.infinity,
-              height: MediaQuery.paddingOf(context).bottom + 16,
-              color: Colors.white,
-            ),
           ),
           Align(
             alignment: Alignment.bottomCenter,
