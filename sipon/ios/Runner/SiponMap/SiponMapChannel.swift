@@ -125,38 +125,17 @@ enum SiponMapProtocol {
 
   /// 整帧解析结果。列表约定为全量下发，原生按 id diff。
   struct Frame {
-    let showsPoints: Bool
-    let showsHeatmap: Bool
-    let circleFade: Double
     let circles: [CirclePoint]
-    let heatSamples: [SiponMapGeometry.HeatSample]
     let markers: [MarkerSpec]
     let selected: SelectedSpec?
 
     static func parse(_ arguments: Any?) -> Frame? {
       guard let payload = SiponMapProtocol.dict(arguments) else { return nil }
 
-      // 图层三档名与 Dart MapLayerMode.name 一致；
-      // 决策在 Dart 算好，这里只认最终模式。
-      let layerMode = SiponMapProtocol.string(payload, "layerMode") ?? "pointsAndHeatmap"
-
       var circles: [CirclePoint] = []
       if let rawList = payload["circles"] as? [[String: Any]] {
         circles = rawList.compactMap(CirclePoint.parse).filter {
           $0.coordinate.latitude.isFinite && $0.coordinate.longitude.isFinite
-        }
-      }
-
-      var samples: [SiponMapGeometry.HeatSample] = []
-      if let rawList = payload["heatmap"] as? [[String: Any]] {
-        for raw in rawList {
-          let lat = SiponMapProtocol.double(raw, "lat", fallback: .nan)
-          let lng = SiponMapProtocol.double(raw, "lng", fallback: .nan)
-          guard lat.isFinite, lng.isFinite else { continue }
-          samples.append(SiponMapGeometry.HeatSample(
-            coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lng),
-            weight: SiponMapProtocol.double(raw, "weight", fallback: 0)
-          ))
         }
       }
 
@@ -182,11 +161,7 @@ enum SiponMapProtocol {
       }
 
       return Frame(
-        showsPoints: layerMode != "heatmapOnly",
-        showsHeatmap: layerMode != "pointsOnly",
-        circleFade: SiponMapProtocol.double(payload, "circleFade", fallback: 0),
         circles: circles,
-        heatSamples: samples,
         markers: markers,
         selected: selected
       )

@@ -18,16 +18,6 @@ void main() {
           venueId: 'v1',
         ),
       ],
-      heatmapPoints: [
-        MapPoint(
-          id: 'heat-v1',
-          name: '庙前冰室',
-          longitude: 121.4712,
-          latitude: 31.2227,
-          kind: MapVenueKind.craft,
-          weight: 4.5,
-        ),
-      ],
       markers: [
         MapMarkerSpec(
           venueId: 'v1',
@@ -37,7 +27,6 @@ void main() {
           kind: MapVenueKind.bistro,
         ),
       ],
-      layerMode: MapLayerMode.pointsAndHeatmap,
       selected: MapPoint(
         id: 'selected-v1',
         name: '庙前冰室',
@@ -49,11 +38,8 @@ void main() {
       ),
     );
 
-    test('载荷包含四组图层的全量字段，snake_case 键与原生约定一致', () {
+    test('载荷包含点位、标签和选中态字段', () {
       final payload = encodeRenderFrame(frame, zoom: 15);
-
-      expect(payload['layerMode'], 'pointsAndHeatmap');
-      expect(payload['circleFade'], isA<double>());
 
       expect(
         (payload['circles']! as List).single,
@@ -65,15 +51,7 @@ void main() {
           containsPair('venueId', 'v1'),
         ),
       );
-      expect(
-        (payload['heatmap']! as List).single,
-        allOf(
-          containsPair('id', 'heat-v1'),
-          containsPair('weight', 4.5),
-          // 协议约定（指南 §3.2）：热力点不携带 category。
-          isNot(contains('category')),
-        ),
-      );
+      expect(payload.containsKey('heatmap'), isFalse);
       expect(
         (payload['markers']! as List).single,
         allOf(
@@ -105,31 +83,13 @@ void main() {
               weight: 0,
             ),
           ],
-          heatmapPoints: const [],
           markers: const [],
-          layerMode: MapLayerMode.heatmapOnly,
         ),
         zoom: 11,
       );
 
       expect(payload['selected'], isNull);
       expect((payload['circles']! as List).single, isNot(contains('venueId')));
-    });
-
-    test('circleFade 按最新缩放在淡入区间内插值（§5.3 曲线）', () {
-      // 分界线以下完全透明，恢复线以上到达满透明度，中间线性。
-      expect(encodeRenderFrame(frame, zoom: 11)['circleFade'], 0.0);
-      final mid = encodeRenderFrame(frame, zoom: 11.6);
-      expect(mid['circleFade'], closeTo(mapCircleFullOpacity / 2, 1e-9));
-      expect(encodeRenderFrame(frame, zoom: 12)['circleFade'],
-          mapCircleFullOpacity);
-      // 进页的城市级视野（11.8）要已经能看见圆点：高于分界线 11。
-      expect(
-        encodeRenderFrame(frame, zoom: 11.8)['circleFade'],
-        greaterThan(0),
-      );
-      expect(encodeRenderFrame(frame, zoom: 16)['circleFade'],
-          mapCircleFullOpacity);
     });
   });
 
@@ -218,7 +178,6 @@ void main() {
     test('语言切换只改标签也必须判定整帧变化', () {
       final zh = MapSceneFrame(
         circlePoints: const [],
-        heatmapPoints: const [],
         markers: [
           MapMarkerSpec(
             venueId: 'v1',
@@ -228,11 +187,9 @@ void main() {
             kind: MapVenueKind.pub,
           ),
         ],
-        layerMode: MapLayerMode.pointsAndHeatmap,
       );
       final en = MapSceneFrame(
         circlePoints: const [],
-        heatmapPoints: const [],
         markers: [
           MapMarkerSpec(
             venueId: 'v1',
@@ -242,7 +199,6 @@ void main() {
             kind: MapVenueKind.pub,
           ),
         ],
-        layerMode: MapLayerMode.pointsAndHeatmap,
       );
 
       expect(zh.signature, zh.signature);

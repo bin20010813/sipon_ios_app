@@ -19,6 +19,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
   static const _brand = Color(0xFF9A3D78);
   static const _ink = Color(0xFF252229);
   static const _muted = Color(0xFF8F8790);
+  static const _maxStops = 10;
 
   /// 可选酒吧的中心点：与打卡页共用同一片演示锚点。
   static const _centerLongitude = 121.4718;
@@ -136,7 +137,6 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
               weight: 1,
             ),
         ],
-        heatmapPoints: const [],
         markers: [
           for (final place in places)
             MapMarkerSpec(
@@ -147,7 +147,6 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
               kind: place.kind,
             ),
         ],
-        layerMode: MapLayerMode.pointsOnly,
       ),
     );
   }
@@ -289,8 +288,8 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
     }
     if (barIds.toSet().length != barIds.length ||
         barIds.length < 2 ||
-        barIds.length > 5) {
-      _showMessage('路线需要 2-5 家互不相同的酒吧');
+        barIds.length > _maxStops + 2) {
+      _showMessage('路线需要 2-${_maxStops + 2} 家互不相同的酒吧');
       return;
     }
 
@@ -391,105 +390,123 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
         child: Column(
           children: [
             Expanded(
-              child: ListView(
-                clipBehavior: Clip.none,
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+              child: Column(
                 children: [
-                  const Text(
-                    '按顺序安排今晚的酒吧行程',
-                    style: TextStyle(color: _muted, fontSize: 13),
-                  ),
-                  const SizedBox(height: 10),
-                  ReorderableListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    clipBehavior: Clip.none,
-                    itemCount: _routeItems.length,
-                    onReorder: _reorderRoute,
-                    itemBuilder: (context, index) {
-                      final isStart = index == 0;
-                      final isEnd = index == _routeItems.length - 1;
-                      final stopIndex = index - 1;
-                      return _RoutePlaceTile(
-                        key: ValueKey(
-                          'route-$index-${_routeItems[index]?.name ?? 'empty'}',
+                  Expanded(
+                    child: ListView(
+                      clipBehavior: Clip.none,
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                      children: [
+                        const Text(
+                          '按顺序安排今晚的酒吧行程',
+                          style: TextStyle(color: _muted, fontSize: 13),
                         ),
-                        dotColor: isStart
-                            ? const Color(0xFFD95151)
-                            : isEnd
-                            ? const Color(0xFF39A568)
-                            : const Color(0xFFB8AEB4),
-                        bar: _routeItems[index],
-                        placeholder: isStart || isEnd ? '请输入起终点' : '请输入途径酒吧',
-                        bars: _nearbyBars,
-                        used: _usedPlaces,
-                        onSelected: (bar) => _select(
-                          isStart
-                              ? _RouteStopType.start
-                              : isEnd
-                              ? _RouteStopType.end
-                              : _RouteStopType.stop,
-                          bar,
-                          stopIndex: isStart || isEnd ? null : stopIndex,
+                        const SizedBox(height: 10),
+                        ReorderableListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          clipBehavior: Clip.none,
+                          itemCount: _routeItems.length,
+                          onReorder: _reorderRoute,
+                          itemBuilder: (context, index) {
+                            final isStart = index == 0;
+                            final isEnd = index == _routeItems.length - 1;
+                            final stopIndex = index - 1;
+                            return _RoutePlaceTile(
+                              key: ValueKey(
+                                'route-$index-${_routeItems[index]?.name ?? 'empty'}',
+                              ),
+                              dotColor: isStart
+                                  ? const Color(0xFFD95151)
+                                  : isEnd
+                                  ? const Color(0xFF39A568)
+                                  : const Color(0xFFB8AEB4),
+                              bar: _routeItems[index],
+                              placeholder: isStart || isEnd
+                                  ? '请输入起终点'
+                                  : '请输入途径酒吧',
+                              bars: _nearbyBars,
+                              used: _usedPlaces,
+                              onSelected: (bar) => _select(
+                                isStart
+                                    ? _RouteStopType.start
+                                    : isEnd
+                                    ? _RouteStopType.end
+                                    : _RouteStopType.stop,
+                                bar,
+                                stopIndex: isStart || isEnd ? null : stopIndex,
+                              ),
+                              onRemove: _showRemoveActions
+                                  ? () => _removeRouteItem(index)
+                                  : null,
+                              dragIndex: index,
+                            );
+                          },
                         ),
-                        onRemove: _showRemoveActions
-                            ? () => _removeRouteItem(index)
-                            : null,
-                        dragIndex: index,
-                      );
-                    },
-                  ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextButton.icon(
-                          onPressed: _stops.length >= 3
-                              ? null
-                              : () => setState(() {
-                                  _showRemoveActions = true;
-                                  _stops.add(null);
-                                }),
-                          icon: const Icon(Icons.add_rounded, size: 18),
-                          label: const Text('添加途径酒吧'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: _brand,
-                            alignment: Alignment.centerLeft,
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextButton.icon(
+                                onPressed: _stops.length >= _maxStops
+                                    ? null
+                                    : () => setState(() {
+                                        _showRemoveActions = true;
+                                        _stops.add(null);
+                                      }),
+                                icon: const Icon(Icons.add_rounded, size: 18),
+                                label: const Text('添加途径酒吧'),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: _brand,
+                                  alignment: Alignment.centerLeft,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            FilledButton.icon(
+                              onPressed: _planning ? null : _planRoute,
+                              icon: const Icon(Icons.send_rounded, size: 18),
+                              label: Text(_planning ? '规划中…' : '出发'),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: _brand,
+                                minimumSize: const Size(0, 40),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      FilledButton.icon(
-                        onPressed: _planning ? null : _planRoute,
-                        icon: const Icon(Icons.send_rounded, size: 18),
-                        label: Text(_planning ? '规划中…' : '出发'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: _brand,
-                          minimumSize: const Size(0, 40),
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    '路线预览',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: _ink,
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 250,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: SiponMapWidget(
-                        initialStyleId: MapBaseStyle.standard.id,
-                        onHostReady: _handleMapCreated,
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: const Text(
+                        '路线预览',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: _ink,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: SiponMapWidget(
+                          initialStyleId: MapBaseStyle.standard.id,
+                          onHostReady: _handleMapCreated,
+                        ),
                       ),
                     ),
                   ),

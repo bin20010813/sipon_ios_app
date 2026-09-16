@@ -4,35 +4,25 @@ import '../../pages/language_transform.dart';
 import '../../services/map/map_display_options.dart';
 import 'map_theme.dart';
 
-/// 「筛选」按钮弹出的地图工具面板：底图样式、数据图层、当前数据概览、相机快捷键。
+/// 「筛选」按钮弹出的地图工具面板：底图样式、当前数据概览、相机快捷键。
 class MapToolsSheet extends StatelessWidget {
   const MapToolsSheet({
     super.key,
     required this.currentStyle,
-    required this.currentLayerMode,
-    required this.effectiveLayerMode,
     required this.status,
     required this.visibleCount,
     required this.markerCount,
     required this.failureDetail,
     required this.onStyleChanged,
-    required this.onLayerModeChanged,
     required this.onResetCamera,
     required this.onFocusDowntown,
   });
 
   final MapBaseStyle currentStyle;
 
-  /// 用户选的模式，驱动上面的三选一。
-  final MapLayerMode currentLayerMode;
-
-  /// 叠上当前缩放之后真正画出来的模式，驱动下面的状态徽标。缩到城市视野时它会
-  /// 是「热力」，哪怕用户选的是「全部」。
-  final MapLayerMode effectiveLayerMode;
-
   final MapDataStatus status;
 
-  /// 当前筛选下的点位总数（圆点与热力用的就是这一份）。
+  /// 当前筛选下的点位总数。
   final int visibleCount;
 
   /// 其中画了文字标签的数量（按缩放抽样后的结果）。
@@ -42,7 +32,6 @@ class MapToolsSheet extends StatelessWidget {
   final String? failureDetail;
 
   final ValueChanged<MapBaseStyle> onStyleChanged;
-  final ValueChanged<MapLayerMode> onLayerModeChanged;
   final VoidCallback onResetCamera;
   final VoidCallback onFocusDowntown;
 
@@ -82,38 +71,7 @@ class MapToolsSheet extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 18),
-          _ToolSection(
-            title: text.t('数据图层'),
-            child: SegmentedButton<MapLayerMode>(
-              segments: [
-                for (final mode in MapLayerMode.values)
-                  ButtonSegment<MapLayerMode>(
-                    value: mode,
-                    icon: Icon(mode.icon),
-                    label: Text(text.t(mode.label)),
-                  ),
-              ],
-              selected: {currentLayerMode},
-              showSelectedIcon: false,
-              onSelectionChanged: (selection) =>
-                  onLayerModeChanged(selection.first),
-            ),
-          ),
-          if (effectiveLayerMode != currentLayerMode) ...[
-            const SizedBox(height: 8),
-            Text(
-              text.t('已缩小到城市视野，当前只画热力图'),
-              style: const TextStyle(
-                color: MapDesign.muted,
-                fontSize: 11,
-                letterSpacing: 0,
-              ),
-            ),
-          ],
           const SizedBox(height: 16),
-          // 原来这里是 marker / geojson / heatmap 三个"已加载"勾勾，
-          // 但三个状态永远一起变，看不出任何信息。换成真正在变的数字。
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -121,7 +79,7 @@ class MapToolsSheet extends StatelessWidget {
               _LayerStatusChip(
                 label: text.t('点位'),
                 value: '$visibleCount',
-                active: effectiveLayerMode.showsPoints && visibleCount > 0,
+                active: visibleCount > 0,
                 color: MapDesign.brand,
               ),
               _LayerStatusChip(
@@ -129,14 +87,6 @@ class MapToolsSheet extends StatelessWidget {
                 value: '$markerCount',
                 active: markerCount > 0,
                 color: const Color(0xFF10B981),
-              ),
-              _LayerStatusChip(
-                label: text.t('热力'),
-                value: effectiveLayerMode.showsHeatmap
-                    ? text.t('开')
-                    : text.t('关'),
-                active: effectiveLayerMode.showsHeatmap,
-                color: const Color(0xFFDC2626),
               ),
             ],
           ),

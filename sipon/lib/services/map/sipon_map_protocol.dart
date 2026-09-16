@@ -56,8 +56,7 @@ Map<String, Object?> encodeStyle(String styleId) => {'styleId': styleId};
 /// `drawRoute` 载荷：按站点顺序传入的经纬度数组，原生用方向服务逐段规划。
 Map<String, Object?> encodeRoutePoints(List<MapLatLng> points) => {
   'points': [
-    for (final point in points)
-      {'lat': point.latitude, 'lng': point.longitude},
+    for (final point in points) {'lat': point.latitude, 'lng': point.longitude},
   ],
 };
 
@@ -105,11 +104,7 @@ Map<String, Object?> encodeRenderFrame(
   MapSceneFrame frame, {
   required double zoom,
 }) {
-  final fade = mapCircleFadeForZoom(zoom);
   return {
-    'layerMode': frame.layerMode.name,
-    // handoff→restored 区间内 Dart 预先算好的透明度；区间外原生按最新缩放自插值。
-    'circleFade': fade,
     'circles': [
       for (final point in frame.circlePoints)
         {
@@ -118,15 +113,6 @@ Map<String, Object?> encodeRenderFrame(
           'lng': point.longitude,
           'category': point.kind.id,
           if (point.venueId != null) 'venueId': point.venueId,
-        },
-    ],
-    'heatmap': [
-      for (final point in frame.heatmapPoints)
-        {
-          'id': point.id,
-          'lat': point.latitude,
-          'lng': point.longitude,
-          'weight': point.weight,
         },
     ],
     'markers': [

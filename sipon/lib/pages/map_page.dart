@@ -138,7 +138,6 @@ class _MapPageState extends State<MapPage> {
     await _scene.render(
       MapSceneFrame(
         circlePoints: _data.circlePoints,
-        heatmapPoints: _data.heatmapPoints,
         markers: [
           for (final venue in _data.markerVenues)
             MapMarkerSpec(
@@ -149,7 +148,6 @@ class _MapPageState extends State<MapPage> {
               kind: venue.kind,
             ),
         ],
-        layerMode: _data.layerMode,
         selected: _data.selectedPoint,
       ),
     );
@@ -230,14 +228,11 @@ class _MapPageState extends State<MapPage> {
           listenable: _data,
           builder: (context, _) => MapToolsSheet(
             currentStyle: _data.style,
-            currentLayerMode: _data.layerMode,
-            effectiveLayerMode: _data.effectiveLayerMode,
             status: _data.status,
             visibleCount: _data.visibleVenues.length,
             markerCount: _data.markerVenues.length,
             failureDetail: _data.failureDetail,
             onStyleChanged: _handleStyleChanged,
-            onLayerModeChanged: _data.setLayerMode,
             onResetCamera: _handleResetCamera,
             onFocusDowntown: _handleFocusDowntown,
           ),
@@ -348,43 +343,48 @@ class _MapPageState extends State<MapPage> {
     required double collapsedBottomGap,
   }) {
     return Positioned.fill(
-      child: NotificationListener<DraggableScrollableNotification>(
-        onNotification: _sheet.handleNotification,
-        child: DraggableScrollableSheet(
-          controller: _sheet.sheet,
-          initialChildSize: collapsedExtent,
-          minChildSize: collapsedExtent,
-          maxChildSize: VenueSheetController.maxExtent,
-          snap: true,
-          snapSizes: const [VenueSheetController.halfExtent],
-          snapAnimationDuration: VenueSheetController.motionDuration,
-          builder: (context, scrollController) {
-            // builder 只在面板重建时调用，缓存下来供收起时归零滚动位置。
-            _sheet.attachScrollController(scrollController);
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: NotificationListener<DraggableScrollableNotification>(
+          onNotification: _sheet.handleNotification,
+          child: DraggableScrollableSheet(
+            controller: _sheet.sheet,
+            // 只让面板实际占用的区域参与命中测试，露出的地图区域继续接收手势。
+            expand: false,
+            initialChildSize: collapsedExtent,
+            minChildSize: collapsedExtent,
+            maxChildSize: VenueSheetController.maxExtent,
+            snap: true,
+            snapSizes: const [VenueSheetController.halfExtent],
+            snapAnimationDuration: VenueSheetController.motionDuration,
+            builder: (context, scrollController) {
+              // builder 只在面板重建时调用，缓存下来供收起时归零滚动位置。
+              _sheet.attachScrollController(scrollController);
 
-            // 两条来源不同的重建：数据换了（选中的酒吧、内容）走 _data，
-            // 拖拽过程中的形变走 extent。
-            return ListenableBuilder(
-              listenable: _data,
-              builder: (context, _) => ValueListenableBuilder<double>(
-                valueListenable: _sheet.extent,
-                builder: (context, rawExtent, _) {
-                  final extent = rawExtent <= 0 ? collapsedExtent : rawExtent;
+              // 两条来源不同的重建：数据换了（选中的酒吧、内容）走 _data，
+              // 拖拽过程中的形变走 extent。
+              return ListenableBuilder(
+                listenable: _data,
+                builder: (context, _) => ValueListenableBuilder<double>(
+                  valueListenable: _sheet.extent,
+                  builder: (context, rawExtent, _) {
+                    final extent = rawExtent <= 0 ? collapsedExtent : rawExtent;
 
-                  return VenueSheetSurface(
-                    venue: _data.selectedVenue,
-                    scrollController: scrollController,
-                    progress: _sheet.progressFor(extent),
-                    fullscreenProgress: _sheet.fullscreenProgressFor(extent),
-                    collapsedBottomGap: collapsedBottomGap,
-                    bottomOverlayInset: widget.bottomOverlayInset,
-                    onExpand: _sheet.expand,
-                    onCollapse: _sheet.collapse,
-                  );
-                },
-              ),
-            );
-          },
+                    return VenueSheetSurface(
+                      venue: _data.selectedVenue,
+                      scrollController: scrollController,
+                      progress: _sheet.progressFor(extent),
+                      fullscreenProgress: _sheet.fullscreenProgressFor(extent),
+                      collapsedBottomGap: collapsedBottomGap,
+                      bottomOverlayInset: widget.bottomOverlayInset,
+                      onExpand: _sheet.expand,
+                      onCollapse: _sheet.collapse,
+                    );
+                  },
+                ),
+              );
+            },
+          ),
         ),
       ),
     );

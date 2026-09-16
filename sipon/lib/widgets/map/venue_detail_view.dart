@@ -628,9 +628,8 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
               onSortChanged: (filter) => setState(() => _reviewFilter = filter),
               onAddReview: _openReviewComposer,
               onViewMore: _loadMoreReviews,
-              onReviewAction: (action) => _showMockToast(
-                SiponLanguageScope.textOf(context).t(action),
-              ),
+              onReviewAction: (action) =>
+                  _showMockToast(SiponLanguageScope.textOf(context).t(action)),
               headingKey: _reviewsHeadingKey,
             ),
           ),
@@ -1650,10 +1649,7 @@ class _VenueReviewsSection extends StatelessWidget {
                 margin: const EdgeInsets.symmetric(vertical: 12),
                 color: MapDesign.hairline,
               ),
-            _ReviewItem(
-              review: visibleReviews[i],
-              onAction: onReviewAction,
-            ),
+            _ReviewItem(review: visibleReviews[i], onAction: onReviewAction),
           ],
           if (hasMoreReviews) ...[
             const SizedBox(height: 6),

@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-
 /// 可切换的底图样式。MapKit 当前提供 3 个档位：
 /// - `standard` 同时承接原来的 light 与 streets；
 /// - `muted` 用 muted emphasis + 强制深色界面近似原来的 dark；
@@ -25,71 +23,12 @@ enum MapBaseStyle {
   );
 }
 
-/// 数据图层的显示组合。
-enum MapLayerMode {
-  pointsAndHeatmap('全部', Icons.layers_outlined),
-  pointsOnly('点位', Icons.scatter_plot_outlined),
-  heatmapOnly('热力', Icons.local_fire_department_outlined);
-
-  const MapLayerMode(this.label, this.icon);
-
-  final String label;
-  final IconData icon;
-
-  bool get showsPoints => this != MapLayerMode.heatmapOnly;
-  bool get showsHeatmap => this != MapLayerMode.pointsOnly;
-}
-
-/// 缩放小于这个层级就把画面交给热力图：圆点与文字标注全部退场。
-///
-/// 取 11 是为了让它**低于** `MapSceneController.cityZoom`（11.8）。分界线一旦
-/// 高于进页缩放，首屏就是一张纯热力图、一个酒吧标注都没有——旧值 12 正是这个
-/// 后果（进页 11.8 < 12 → `heatmapOnly`），看起来像「标注功能坏了」。
-/// 热力总览仍然保留，只是要到 11 以下才独占画面。
-const double mapHeatmapHandoffZoom = 11;
-
-/// 圆点恢复到完全不透明的层级。与 [mapHeatmapHandoffZoom] 之间是淡入淡出区间，
-/// Dart 侧算好透明度下发，原生按最新缩放执行。
-const double mapPointsRestoredZoom = 12;
-
 /// 圆点完全显现时的不透明度。
 const double mapCircleFullOpacity = 0.92;
 
-/// 在淡入淡出区间内按缩放线性插值出圆点的当前透明度；区间外截断到两端。
-double mapCircleFadeForZoom(double zoom) {
-  if (!zoom.isFinite || zoom <= mapHeatmapHandoffZoom) {
-    return 0;
-  }
-  if (zoom >= mapPointsRestoredZoom) {
-    return mapCircleFullOpacity;
-  }
-
-  final t =
-      (zoom - mapHeatmapHandoffZoom) /
-      (mapPointsRestoredZoom - mapHeatmapHandoffZoom);
-  return t * mapCircleFullOpacity;
-}
-
-/// 手动选的图层模式叠上当前缩放，得到真正画出来的模式。
-///
-/// 抽成顶层纯函数是为了能直接测：这条规则决定地图在哪个层级换脸。
-MapLayerMode mapEffectiveLayerMode(MapLayerMode selected, double zoom) {
-  if (!selected.showsHeatmap) {
-    // 显式选了「点位」：没有热力图能接手，缩小了也得把点留着，
-    // 否则只剩一张空地图。
-    return selected;
-  }
-  if (zoom.isFinite && zoom < mapHeatmapHandoffZoom) {
-    return MapLayerMode.heatmapOnly;
-  }
-
-  return selected;
-}
-
 /// 地图数据的加载态。
 ///
-/// 原来有 `_markersLoaded` / `_geoJsonLoaded` / `_heatmapLoaded` 三个 bool，
-/// 但它们永远同时置位，等价于一个状态；合并成这个枚举。
+/// 原来有多个独立加载 bool，但它们永远同时置位，等价于一个状态；合并成这个枚举。
 enum MapDataStatus {
   idle('等待地图'),
   loading('正在加载地图数据'),

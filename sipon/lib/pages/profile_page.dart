@@ -1907,9 +1907,7 @@ class _RouteDetailMapPageState extends State<_RouteDetailMapPage> {
     await _scene.render(
       MapSceneFrame(
         circlePoints: points,
-        heatmapPoints: const [],
         markers: markers,
-        layerMode: MapLayerMode.pointsOnly,
       ),
     );
   }

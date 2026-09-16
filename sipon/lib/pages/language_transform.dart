@@ -104,9 +104,7 @@ class SiponAppText {
       return '${attachedScreenshotMatch.group(1)} screenshots attached';
     }
 
-    final attachedImagesMatch = RegExp(r'^已附带 (\d+) 张图片$').firstMatch(
-      source,
-    );
+    final attachedImagesMatch = RegExp(r'^已附带 (\d+) 张图片$').firstMatch(source);
     if (attachedImagesMatch != null) {
       return '${attachedImagesMatch.group(1)} image(s) attached';
     }
@@ -568,11 +566,9 @@ const Map<String, String> _englishText = {
   '暗色': 'Dark',
   '全部': 'All',
   '点位': 'Points',
-  '热力': 'Heatmap',
   '标签': 'Labels',
   '开': 'On',
   '关': 'Off',
-  '已缩小到城市视野，当前只画热力图': 'Zoomed out to city view — heatmap only',
   // 地图 mock 数据按类型派生的标签，补齐还没出现过的几条。
   '自酿啤酒': 'House Brew',
   '微醺小食': 'Small Bites',
@@ -698,8 +694,7 @@ const Map<String, String> _englishText = {
   '写下使用体验': 'Write Your Experience',
   '告诉我们哪一刻让你觉得好用': 'Tell us what felt useful',
   '填写': 'Write',
-  'Turn the SIP ON，开饮 就现在':
-      'Turn the SIP ON，开饮 就现在.',
+  'Turn the SIP ON，开饮 就现在': 'Turn the SIP ON，开饮 就现在.',
   '产品信息': 'Product Info',
   '版本': 'Version',
   '服务邮箱': 'Support Email',
@@ -712,8 +707,7 @@ const Map<String, String> _englishText = {
   '了解数据收集与使用方式': 'Learn how data is collected and used',
   '危险操作': 'Danger Zone',
   '注销账号': 'Delete Account',
-  '永久删除账号与全部本地数据':
-      'Permanently delete your account and all local data',
+  '永久删除账号与全部本地数据': 'Permanently delete your account and all local data',
   '删除': 'Delete',
   '删除中': 'Deleting',
   '注销后账号数据将被永久删除，且无法恢复。':

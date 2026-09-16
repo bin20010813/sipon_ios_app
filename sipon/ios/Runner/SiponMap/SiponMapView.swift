@@ -47,12 +47,11 @@ final class SiponMapView: NSObject, FlutterPlatformView {
 
   func view() -> UIView { mapView }
 }
-
 // =============================================================================
 // SiponMapEngine —— MKMapView 的唯一业务负责人。
 //
 // 渲染走「整帧下发、按 id diff」的约定（指南 §3i）；分级显隐的决策由 Dart
-// 算好（layerMode / 淡入区间常量），原生只负责执行与捏合过程中的连续插值。
+// 算好，原生只负责执行地图内容。
 // =============================================================================
 
 final class SiponMapEngine: NSObject {
@@ -67,16 +66,12 @@ final class SiponMapEngine: NSObject {
 
   private var styleId = "standard"
 
-  /// 当前生效的图层模式（Dart 决策结果的镜像）。
-  private var showsPoints = true
-  private var showsHeatmap = true
   private var lastFrameArguments: Any?
 
   // 各池：协议约定全量下发、原生按 id diff。
   private var circlesById: [String: CirclePointAnnotation] = [:]
   private var markersByVenueId: [String: MarkerAnnotation] = [:]
   private var selectionAnnotation: SelectionAnnotation?
-  private var heatOverlaysByKey: [SiponMapGeometry.GridKey: DensityCellOverlay] = [:]
   /// 路径规划出的路线折线（单独成池，不受 renderFrame 的 id diff 影响）。
   private var routeOverlay: MKPolyline?
 
@@ -110,7 +105,7 @@ final class SiponMapEngine: NSObject {
          let incoming = SiponMapProtocol.string(args, "styleId") {
         apply(styleId: incoming)
         // 切配置可能移除 overlays（iOS16 配置切换行为）；重放上一帧，
-        // 让幂等的 id-diff 把热力等建回来（§3b 兜底）。
+        // 让幂等的 id-diff 把地图内容建回来。
         if lastFrameArguments != nil {
           DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
@@ -263,7 +258,7 @@ final class SiponMapEngine: NSObject {
     apply(styleId: styleId)
 
     // 初始相机对齐旧版 attach 的语义：城市级视野一眼看到整片城区
-    // （zoom 11.8 略低于热力分界线，进页即见整张热力图）。
+    // （zoom 11.8 为城市级视野）。
     let center = SiponMapGeometry.cityCenter(named: city)
     moveCamera(
       SiponMapProtocol.CameraMove(dict: [
@@ -446,13 +441,9 @@ final class SiponMapEngine: NSObject {
     guard alive, configured,
           let frame = SiponMapProtocol.Frame.parse(arguments) else { return }
 
-    showsPoints = frame.showsPoints
-    showsHeatmap = frame.showsHeatmap
-
     diffCircles(frame.circles)
     diffMarkers(frame.markers)
     diffSelection(frame.selected)
-    diffHeatmap(frame.heatSamples)
 
     refreshDynamicStyling()
   }
@@ -510,7 +501,7 @@ final class SiponMapEngine: NSObject {
         view.apply(
           category: annotation.category,
           radius: SiponMapGeometry.circleRadius(zoom: zoom),
-          alpha: CGFloat(currentCircleFade())
+          alpha: CGFloat(SiponMapGeometry.fullOpacity)
         )
       }
     }
@@ -586,48 +577,14 @@ final class SiponMapEngine: NSObject {
     }
   }
 
-  // MARK: 热力 diff（先聚合 → 格 key 对比 → overlay 增删）
-
-  private func diffHeatmap(_ samples: [SiponMapGeometry.HeatSample]) {
-    let aggregated = SiponMapGeometry.aggregateHeatmap(samples, zoom: currentZoomEstimate())
-
-    // 手动锁「点位」时目标集合清空而不是删数据：下一帧带热力自然重建。
-    let targetKeys = showsHeatmap ? Set(aggregated.keys) : Set<SiponMapGeometry.GridKey>()
-
-    var toRemove: [MKOverlay] = []
-    for (key, overlay) in heatOverlaysByKey where !targetKeys.contains(key) {
-      toRemove.append(overlay)
-      heatOverlaysByKey.removeValue(forKey: key)
-    }
-
-    var toAdd: [MKOverlay] = []
-    for key in targetKeys.sorted(by: { $0.column < $1.column }) {
-      guard let cell = aggregated[key], heatOverlaysByKey[key] == nil else { continue }
-      let overlay = DensityCellOverlay(cell: cell)
-      heatOverlaysByKey[key] = overlay
-      toAdd.append(overlay)
-    }
-
-    if !toRemove.isEmpty { mapView.removeOverlays(toRemove) }
-    if !toAdd.isEmpty { mapView.addOverlays(toAdd) }
-  }
-
   // ------------------------------------------------------- 动态样式（缩放联动）
 
-  /// 「热力图可接手」= 手动没锁「点位」，与 Dart _applyZoomHandoff(armed:) 同义：
-  /// 分界线以下圆点退场的前提是有热力图来接手画面。
-  private var heatmapArmed: Bool { showsHeatmap }
-
-  private func currentCircleFade() -> Double {
-    SiponMapGeometry.circleFade(zoom: currentZoomEstimate(), heatmapArmed: heatmapArmed)
-  }
-
   private func circlesCurrentlyHidden() -> Bool {
-    !showsPoints || currentCircleFade() <= 0.02
+    false
   }
 
   private func markersCurrentlyHidden() -> Bool {
-    !showsPoints || (heatmapArmed && currentZoomEstimate() < SiponMapGeometry.handoffZoom)
+    false
   }
 
   private func refreshSelection(
@@ -654,12 +611,11 @@ final class SiponMapEngine: NSObject {
   /// 决策仍全部来自 Dart 已同步的模式与区间常量，原生不做规则判断。
   ///
   /// 圆点在淡出阈值之下直接 `isHidden`：透明度为 0 的圆点照样命中点击，
-  /// 会「在热力图上点到看不见的酒吧」（原 668 行注释的同款问题）。
+  /// 始终保持点位可见并可点击。
   func refreshDynamicStyling() {
     guard alive, configured else { return }
 
     let zoom = currentZoomEstimate()
-    let fade = currentCircleFade()
     let circlesHidden = circlesCurrentlyHidden()
 
     for (_, annotation) in circlesById {
@@ -669,7 +625,7 @@ final class SiponMapEngine: NSObject {
         view.apply(
           category: annotation.category,
           radius: SiponMapGeometry.circleRadius(zoom: zoom),
-          alpha: CGFloat(fade)
+          alpha: CGFloat(SiponMapGeometry.fullOpacity)
         )
       }
     }
@@ -695,7 +651,6 @@ final class SiponMapEngine: NSObject {
     if let selection = selectionAnnotation {
       mapView.removeAnnotation(selection)
     }
-    mapView.removeOverlays(Array(heatOverlaysByKey.values))
     if let route = routeOverlay {
       mapView.removeOverlay(route)
     }
@@ -703,7 +658,6 @@ final class SiponMapEngine: NSObject {
     circlesById.removeAll()
     markersByVenueId.removeAll()
     selectionAnnotation = nil
-    heatOverlaysByKey.removeAll()
     routeOverlay = nil
     lastFrameArguments = nil
   }
@@ -711,7 +665,6 @@ final class SiponMapEngine: NSObject {
   // ---- 给同文件内的 delegate proxy 的内部访问面（file-scope 可见）----
 
   fileprivate var currentZoomSnapshot: Double { currentZoomEstimate() }
-  fileprivate var circleFadeSnapshot: Double { currentCircleFade() }
   fileprivate var circlesHiddenSnapshot: Bool { circlesCurrentlyHidden() }
   fileprivate var markersHiddenSnapshot: Bool { markersCurrentlyHidden() }
   fileprivate var shouldProcessEvents: Bool { alive && configured }
@@ -741,7 +694,6 @@ final class SiponMapEngine: NSObject {
     }
   }
 }
-
 // =============================================================================
 // EngineDelegateProxy —— MKMapViewDelegate / UIGestureRecognizerDelegate。
 // 单独一层是为了让引擎类型保持干净；所有系统回调都从这里转进引擎。
@@ -767,7 +719,7 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
 
   func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
     let zoom = engine.currentZoomSnapshot
-    let fade = CGFloat(engine.circleFadeSnapshot)
+    let fade = CGFloat(SiponMapGeometry.fullOpacity)
 
     switch annotation {
     case let circle as CirclePointAnnotation:
@@ -806,7 +758,7 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
         coreRadius: SiponMapGeometry.selectionCoreRadius(zoom: zoom),
         haloRadius: SiponMapGeometry.selectionHaloRadius(zoom: zoom)
       )
-      // 高亮必须置顶；热力层级下它仍是唯一可点击的点（原 352 行注释）。
+      // 高亮必须置顶，保证详情状态清晰可见。
       view.displayPriority = .required
       return view
     default:
@@ -814,15 +766,10 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
     }
   }
 
-  // MARK: 热力渲染器
-
   func mapView(
     _ mapView: MKMapView,
     rendererFor overlay: MKOverlay
   ) -> MKOverlayRenderer {
-    if let cell = overlay as? DensityCellOverlay {
-      return DensityGradientRenderer(cell: cell)
-    }
     if let polyline = overlay as? MKPolyline {
       let renderer = MKPolylineRenderer(polyline: polyline)
       renderer.strokeColor = UIColor(
@@ -1174,120 +1121,3 @@ final class SelectionAnnotationView: MKAnnotationView {
   }
 }
 
-// =============================================================================
-// 热力密度格 overlay 与径向渐变渲染器（§3d 降级方案，参数留常量便于调优）
-// =============================================================================
-
-final class DensityCellOverlay: NSObject, MKOverlay {
-  let density: Double
-  let coordinate: CLLocationCoordinate2D
-  let radiusMeters: Double
-  let boundingMapRect: MKMapRect
-
-  init(cell: SiponMapGeometry.DensityCell) {
-    density = cell.density
-    coordinate = cell.coordinate
-    radiusMeters = cell.radiusMeters
-
-    let center = MKMapPoint(coordinate)
-    let metersPerMapPoint = MKMetersPerMapPointAtLatitude(coordinate.latitude)
-    let radiusMapPoints = radiusMeters / metersPerMapPoint
-    boundingMapRect = MKMapRect(
-      x: center.x - radiusMapPoints,
-      y: center.y - radiusMapPoints,
-      width: radiusMapPoints * 2,
-      height: radiusMapPoints * 2
-    )
-
-    super.init()
-  }
-}
-
-/// 径向渐变填充：中心浓、边缘羽化到透明，替代 GPU 核密度平滑。
-final class DensityGradientRenderer: MKOverlayRenderer {
-
-  private let density: Double
-
-  init(cell: DensityCellOverlay) {
-    density = cell.density
-    super.init(overlay: cell)
-  }
-
-  override func draw(_ mapRect: MKMapRect, zoomScale: MKZoomScale, in context: CGContext) {
-    let rect = self.rect(for: overlay.boundingMapRect)
-    guard !rect.isNull, rect.width > 0, rect.height > 0 else { return }
-    let circlePath = CGPath(ellipseIn: rect, transform: nil)
-
-    let base = SiponHeatPalette.color(for: density)
-    var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
-    base.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
-
-    // 低密度也保一点可见度，避免大量空格子隐形成斑驳噪点。
-    let strength = max(density, 0.12)
-
-    context.saveGState()
-    context.addPath(circlePath)
-    context.clip()
-
-    let colors = [
-      UIColor(red: red, green: green, blue: blue, alpha: 0.62 * strength).cgColor,
-      UIColor(red: red, green: green, blue: blue, alpha: 0.34 * strength).cgColor,
-      UIColor(red: red, green: green, blue: blue, alpha: 0).cgColor,
-    ] as CFArray
-
-    if let gradient = CGGradient(
-      colorsSpace: CGColorSpaceCreateDeviceRGB(),
-      colors: colors,
-      locations: [0, 0.62, 1]
-    ) {
-      let center = CGPoint(x: rect.midX, y: rect.midY)
-      context.drawRadialGradient(
-        gradient,
-        startCenter: center,
-        startRadius: 0,
-        endCenter: center,
-        endRadius: max(rect.width, rect.height) * 0.52,
-        options: [.drawsAfterEndLocation]
-      )
-    }
-
-    context.restoreGState()
-  }
-}
-
-/// 原版 heatmapColorExpression 六档色带抄录（低密度冷蓝 → 高密度红）。
-enum SiponHeatPalette {
-  static func color(for t: Double) -> UIColor {
-    let value = t.isFinite ? max(0, min(1, t)) : 0
-    switch value {
-    case ..<0.2:
-      return lerp(from: stopRGB(33, 102, 172, alpha: 0), to: stopRGB(103, 169, 207), t: value / 0.2)
-    case ..<0.4:
-      return lerp(from: stopRGB(103, 169, 207), to: stopRGB(209, 229, 240), t: (value - 0.2) / 0.2)
-    case ..<0.6:
-      return lerp(from: stopRGB(209, 229, 240), to: stopRGB(253, 219, 199), t: (value - 0.4) / 0.2)
-    case ..<0.8:
-      return lerp(from: stopRGB(253, 219, 199), to: stopRGB(239, 138, 98), t: (value - 0.6) / 0.2)
-    default:
-      return lerp(from: stopRGB(239, 138, 98), to: stopRGB(178, 24, 43), t: (value - 0.8) / 0.2)
-    }
-  }
-
-  private static func stopRGB(_ r: Int, _ g: Int, _ b: Int, alpha: CGFloat = 1) -> UIColor {
-    UIColor(red: CGFloat(r) / 255, green: CGFloat(g) / 255, blue: CGFloat(b) / 255, alpha: alpha)
-  }
-
-  private static func lerp(from: UIColor, to: UIColor, t: Double) -> UIColor {
-    var fr: CGFloat = 0, fg: CGFloat = 0, fb: CGFloat = 0, fa: CGFloat = 0
-    var tr: CGFloat = 0, tg: CGFloat = 0, tb: CGFloat = 0, ta: CGFloat = 0
-    from.getRed(&fr, green: &fg, blue: &fb, alpha: &fa)
-    to.getRed(&tr, green: &tg, blue: &tb, alpha: &ta)
-    let time = CGFloat(max(0, min(t, 1)))
-    return UIColor(
-      red: fr + (tr - fr) * time,
-      green: fg + (tg - fg) * time,
-      blue: fb + (tb - fb) * time,
-      alpha: fa + (ta - fa) * time
-    )
-  }
-}

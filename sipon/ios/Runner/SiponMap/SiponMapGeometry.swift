@@ -2,7 +2,7 @@ import Foundation
 import MapKit
 
 /// 纯函数几何换算：Web Mercator 的 zoom ↔ span、padding 折算、圆点/高亮半径
-/// 插值、热力格网聚合。全部无状态、无 UIKit 依赖（除 MapKit 坐标类型外），
+/// 插值。全部无状态、无 UIKit 依赖（除 MapKit 坐标类型外），
 /// 配 RunnerTests 里的 SiponMapGeometryTests 覆盖（迁移指南 §5）。
 enum SiponMapGeometry {
 
@@ -56,8 +56,7 @@ enum SiponMapGeometry {
   /// **不要用 `region.span` 反推 zoom。** `region` 是「透视 + 旋转之后」的外接
   /// 矩形：相机带 pitch 24 / heading -12 时（进页与「聚焦城区」都是这个姿态），
   /// 它的跨度比真实可见跨度大约 1.4 倍，反推出的 zoom 系统性偏低半档以上。
-  /// 后果是圆点淡入与热力交接的阈值全被推迟——用户明明把地图放大了，
-  /// 点位和文字标注却还不出来，看起来就像标注功能失效。
+  /// 这样相机距离与命令下发口径保持一致。
   /// [cameraDistance] 本身不受俯仰与朝向影响，用它反算与命令下发口径自洽。
   ///
   /// 注：[cameraDistance] 在极小距离上有 50m 下限，那一档反算会有偏差，
@@ -89,13 +88,9 @@ enum SiponMapGeometry {
       return CLLocationCoordinate2D(latitude: lat, longitude: lng)
     }
     let deltaLat = bottomPx * mpp / 111_320.0
-    // 南移 → 目标点在屏幕上移进「面板以上」的区域中心。
     return CLLocationCoordinate2D(latitude: lat - deltaLat, longitude: lng)
   }
 
-  // MARK: - 半径插值（对照原 zoom 表达式速查表 §5.3）
-
-  /// 分段线性插值；超出两端钳制到端点。
   static func interpolate(_ stops: [(Double, Double)], at value: Double) -> Double {
     precondition(!stops.isEmpty)
     if value <= stops.first!.0 { return stops.first!.1 }
@@ -113,107 +108,15 @@ enum SiponMapGeometry {
   }
 
   static func circleRadius(zoom: Double) -> CGFloat {
-    // 圆点：9→4pt、13→7pt、16→11pt。
     CGFloat(interpolate([(9, 4), (13, 7), (16, 11)], at: zoom))
   }
 
   static func selectionHaloRadius(zoom: Double) -> CGFloat {
-    // 高亮光环：9→6pt、13→8pt、16→12pt。
     CGFloat(interpolate([(9, 6), (13, 8), (16, 12)], at: zoom))
   }
 
   static func selectionCoreRadius(zoom: Double) -> CGFloat {
-    // 高亮实心核：9→3.5pt、13→5pt、16→7.5pt。
     CGFloat(interpolate([(9, 3.5), (13, 5), (16, 7.5)], at: zoom))
-  }
-
-  // MARK: - 淡入曲线（§5.3）
-
-  /// 分界线必须低于 [initialCityZoom]（11.8）：高过它的话进页就是纯热力图、
-  /// 一个标注都没有（旧值 12 的后果）。对齐 Dart 的 mapHeatmapHandoffZoom。
-  static let handoffZoom = 11.0
-  static let restoredZoom = 12.0         // 对齐 mapPointsRestoredZoom
-  static let fullOpacity = 0.92          // 对齐 mapCircleFullOpacity
-
-  /// 进页的初始城市级视野（对齐 Dart MapSceneController.cityZoom）。
-  static let initialCityZoom = 11.8
-
-  /// handoff → restored 区间内圆点的当前透明度；区间外截断。
-  /// 由 Dart 与原生各持同一份常量：Dart 在整帧下发时算一次（协议字段
-  /// circleFade），原生在捏合过程中按最新缩放连续插值保证平滑。
-  static func circleFade(zoom: Double, heatmapArmed: Bool) -> Double {
-    guard heatmapArmed else { return fullOpacity }
-    guard zoom.isFinite else { return 0 }
-    if zoom <= handoffZoom { return 0 }
-    if zoom >= restoredZoom { return fullOpacity }
-    return (zoom - handoffZoom) / (restoredZoom - handoffZoom) * fullOpacity
-  }
-
-  // MARK: - 热力格网聚合（§3d 降级方案）
-
-  /// 一条热力采样点（对应协议里的 heatmap 数组项）。
-  struct HeatSample {
-    let coordinate: CLLocationCoordinate2D
-    let weight: Double
-  }
-
-  /// 聚合后的密度格标识（格网坐标）。
-  struct GridKey: Hashable {
-    let column: Int
-    let row: Int
-  }
-
-  /// 单个密度格：聚合质心坐标 + 归一化密度（0...1）+ 视觉半径（米）。
-  struct DensityCell {
-    let coordinate: CLLocationCoordinate2D
-    let density: Double
-    let radiusMeters: Double
-  }
-
-  /// 把全量热力点按格网聚合成密度格。cell 边长 ≈ 300m × (12/zoom)，
-  /// 密度归一化以旧版 weight 表达式 [0..8] → [0..1] 为基准。
-  /// 参数留在常量里便于调优（决策 D1）。
-  static func aggregateHeatmap(
-    _ samples: [HeatSample],
-    zoom: Double,
-    baseCellMeters: Double = 300,
-    maxWeight: Double = 8
-  ) -> [GridKey: DensityCell] {
-    guard !samples.isEmpty else { return [:] }
-
-    let clampedZoom = max(6, min(16, zoom.isFinite ? zoom : 11.8))
-    let cellMeters = baseCellMeters * (12 / clampedZoom)
-    let degreesPerCell = cellMeters / 111_320.0
-
-    var sumByCell: [GridKey: (latSum: Double, lngSum: Double, weightSum: Double, count: Int)] = [:]
-    for sample in samples {
-      guard sample.coordinate.latitude.isFinite,
-            sample.coordinate.longitude.isFinite else { continue }
-      let column = Int(floor(sample.coordinate.longitude / degreesPerCell))
-      let row = Int(floor(sample.coordinate.latitude / degreesPerCell))
-      let key = GridKey(column: column, row: row)
-      var bucket = sumByCell[key] ?? (0, 0, 0, 0)
-      bucket.latSum += sample.coordinate.latitude
-      bucket.lngSum += sample.coordinate.longitude
-      bucket.weightSum += sample.weight
-      bucket.count += 1
-      sumByCell[key] = bucket
-    }
-
-    var cells: [GridKey: DensityCell] = [:]
-    for (key, bucket) in sumByCell {
-      let denominator = Double(max(bucket.count, 1))
-      cells[key] = DensityCell(
-        coordinate: CLLocationCoordinate2D(
-          latitude: bucket.latSum / denominator,
-          longitude: bucket.lngSum / denominator
-        ),
-        density: max(0, min(1, bucket.weightSum / maxWeight)),
-        // 视觉半径略大于格宽一半，相邻格轻微重叠以弱化网格感。
-        radiusMeters: cellMeters * 0.75
-      )
-    }
-    return cells
   }
 
   // MARK: - 城市中心表（与 Dart mapCityCenters 保持一致）

@@ -289,8 +289,12 @@ class MapkitSceneController extends MapSceneController {
     return _invokeIfReady(
       SiponMapCommands.renderFrame,
       encodeRenderFrame(frame, zoom: latestZoom),
-    );
+    ).whenComplete(() => restoreGestures());
   }
+
+  @override
+  Future<void> restoreGestures() =>
+      _invokeIfReady(SiponMapCommands.setGestures, encodeGestures());
 
   Future<void> _invokeIfReady(
     String method, [

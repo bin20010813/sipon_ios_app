@@ -115,7 +115,7 @@ class MapVenue {
   }
 }
 
-/// 送进 GeoJSON source 的一个点。圆点图层、热力图层都用它。
+/// 送进地图点位图层的一个点。
 class MapPoint {
   const MapPoint({
     required this.id,
@@ -134,7 +134,7 @@ class MapPoint {
   final MapVenueKind kind;
   final double weight;
 
-  /// 点击圆点后要选中哪家酒吧。热力点没有对应酒吧，为 null。
+  /// 点击圆点后要选中哪家酒吧。
   final String? venueId;
 
   Map<String, dynamic> toFeature() {
@@ -248,7 +248,7 @@ int mapMarkerLabelLimitForZoom(double zoom) {
 
 /// 从 venues 里等距抽样出要画文字标签的那一批。
 ///
-/// 注意只有 marker 需要抽样：圆点和热力图层用全量数据。原来两者共用抽样结果，
+/// 注意只有 marker 需要抽样，圆点使用全量数据。原来两者共用抽样结果，
 /// 导致缩小地图时圆点也跟着变少。
 List<MapVenue> sampleVenuesForMarkers(
   List<MapVenue> venues, {

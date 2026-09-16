@@ -28,7 +28,6 @@ class MapDataController extends ChangeNotifier {
   MapDataStatus _status = MapDataStatus.idle;
   String? _failureDetail;
   MapBaseStyle _style = MapBaseStyle.standard;
-  MapLayerMode _layerMode = MapLayerMode.pointsAndHeatmap;
   double _zoom = 15.05;
 
   /// 已取数的视野。下一次相机停下时拿它做「值不值得重拉」的比较。
@@ -43,15 +42,9 @@ class MapDataController extends ChangeNotifier {
   String? get failureDetail => _failureDetail;
   MapVenueKind? get categoryFilter => _categoryFilter;
   MapBaseStyle get style => _style;
-  MapLayerMode get layerMode => _layerMode;
   double get zoom => _zoom;
 
-  /// 叠上缩放之后真正画出来的图层模式。缩到 [mapHeatmapHandoffZoom] 以下就是
-  /// 纯热力图。
-  MapLayerMode get effectiveLayerMode =>
-      mapEffectiveLayerMode(_layerMode, _zoom);
-
-  /// 当前分类筛选下要显示的酒吧。圆点与热力图层用这份全量数据。
+  /// 当前分类筛选下要显示的酒吧。
   List<MapVenue> get visibleVenues {
     final filter = _categoryFilter;
     if (filter == null) {
@@ -64,16 +57,8 @@ class MapDataController extends ChangeNotifier {
   }
 
   /// 要画文字标签的那一批（按当前缩放抽样）。
-  ///
-  /// 到了热力图层级就直接给空表：标注是 `PointAnnotation`，没有按缩放隐藏的
-  /// 接口，索性不生成。手动选「热力」也走这条 —— 原来那种模式下圆点藏了，
-  /// 文字标签却还赖在图上。
-  ///
-  /// 分界线现在是 11（低于进页的 11.8），所以进页就是「点位 + 热力」混合模式，
-  /// 标注按 `mapMarkerLabelLimitForZoom` 抽样后立刻可见。
-  List<MapVenue> get markerVenues => effectiveLayerMode.showsPoints
-      ? sampleVenuesForMarkers(visibleVenues, zoom: _zoom)
-      : const [];
+  List<MapVenue> get markerVenues =>
+      sampleVenuesForMarkers(visibleVenues, zoom: _zoom);
 
   MapVenue? get selectedVenue {
     final id = _selectedVenueId;
@@ -95,14 +80,7 @@ class MapDataController extends ChangeNotifier {
       venue.toMapPoint(idPrefix: 'point').copyWithVenue(venue.id),
   ];
 
-  /// 热力点由酒吧评分派生：评分越高越热。原来还掺了 4 个写死的假热区，
-  /// 数据换城市后它们还赖在上海不走，删掉。
-  List<MapPoint> get heatmapPoints => [
-    for (final venue in visibleVenues) venue.toMapPoint(idPrefix: 'heat'),
-  ];
-
-  /// 选中的那一个点，画高亮光环用。带上 `venueId`：缩到热力图层级时圆点整层
-  /// 摘掉了，点这个高亮点仍然要能打开详情。
+  /// 选中的那一个点，画高亮光环用。
   MapPoint? get selectedPoint {
     final venue = selectedVenue;
     if (venue == null) {
@@ -116,14 +94,7 @@ class MapDataController extends ChangeNotifier {
 
   /// 相机停下后调用。视野没有实质变化就直接返回，不发请求。
   Future<void> syncViewport(MapViewport viewport, {bool force = false}) async {
-    final previousMode = effectiveLayerMode;
     _zoom = viewport.zoom;
-
-    // 缩放跨过了热力图分界线：这一帧的内容变了（文字标注要全部退场或者回来），
-    // 即使不需要重新取数也得通知一次。
-    if (effectiveLayerMode != previousMode) {
-      _notify();
-    }
 
     final loaded = _loadedViewport;
     if (!force && loaded != null && !viewport.differsMateriallyFrom(loaded)) {
@@ -241,15 +212,6 @@ class MapDataController extends ChangeNotifier {
   void toggleCategory(MapVenueKind kind) {
     _categoryFilter = _categoryFilter == kind ? null : kind;
     _reconcileSelection();
-    _notify();
-  }
-
-  void setLayerMode(MapLayerMode mode) {
-    if (_layerMode == mode) {
-      return;
-    }
-
-    _layerMode = mode;
     _notify();
   }
 

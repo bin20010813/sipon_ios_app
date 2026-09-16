@@ -216,7 +216,6 @@ class _CheckInPageState extends State<CheckInPage> {
               weight: 1,
             ),
         ],
-        heatmapPoints: const [],
         markers: [
           for (final bar in _bars)
             MapMarkerSpec(
@@ -227,7 +226,6 @@ class _CheckInPageState extends State<CheckInPage> {
               kind: bar.kind,
             ),
         ],
-        layerMode: MapLayerMode.pointsOnly,
       ),
     );
   }

@@ -79,33 +79,6 @@ final class SiponMapGeometryTests: XCTestCase {
     XCTAssertEqual(SiponMapGeometry.selectionHaloRadius(zoom: 16), 12, accuracy: 1e-9)
   }
 
-  func testCircleFadeCurve() {
-    // 区间外截断：分界线以下全透明，恢复线以上满透明度，中间线性。
-    XCTAssertEqual(SiponMapGeometry.circleFade(zoom: 11, heatmapArmed: true), 0, accuracy: 1e-9)
-    XCTAssertEqual(
-      SiponMapGeometry.circleFade(zoom: 12, heatmapArmed: true),
-      0.92,
-      accuracy: 1e-9
-    )
-    XCTAssertEqual(
-      SiponMapGeometry.circleFade(zoom: 11.6, heatmapArmed: true),
-      0.46,
-      accuracy: 1e-9
-    )
-    // 手动锁「点位」时永不淡出。
-    XCTAssertEqual(
-      SiponMapGeometry.circleFade(zoom: 5, heatmapArmed: false),
-      0.92,
-      accuracy: 1e-9
-    )
-    // 进页停在 initialCityZoom，必须已经高于分界线，否则首屏只有热力图。
-    XCTAssertGreaterThan(SiponMapGeometry.initialCityZoom, SiponMapGeometry.handoffZoom)
-    XCTAssertGreaterThan(
-      SiponMapGeometry.circleFade(zoom: SiponMapGeometry.initialCityZoom, heatmapArmed: true),
-      0.5
-    )
-  }
-
   /// 命令下发（zoom → 相机距离）与视野回读（相机距离 → zoom）必须同一口径。
   /// 两侧一旦不一致，圆点淡入与文字标注的阈值就会被推迟到「怎么放大都不出来」。
   func testZoomCameraDistanceRoundTrip() {
@@ -131,7 +104,7 @@ final class SiponMapGeometryTests: XCTestCase {
   /// 这条测试把两个口径的差值钉死，防止有人把实现改回跨度反推。
   func testRotatedRegionFormulaUnderreportsZoom() {
     let width: CGFloat = 390
-    let zoom = SiponMapGeometry.initialCityZoom
+    let zoom = 11.8
     let flat = SiponMapGeometry.longitudeDelta(zoom: zoom, width: width)
     let fromRotatedRegion = SiponMapGeometry.zoom(longitudeDelta: flat * 1.4, width: width)
 
@@ -146,40 +119,6 @@ final class SiponMapGeometryTests: XCTestCase {
       zoom,
       accuracy: 1e-6
     )
-  }
-
-  func testHeatmapAggregationGroupsNearbyPoints() {
-    let cellMetersReferenceZoom = 12.0
-    let degreesPerCell = 300.0 / 111_320.0
-    let base = (lng: 121.4712, lat: 31.2227)
-
-    var samples: [SiponMapGeometry.HeatSample] = []
-    for index in 0..<4 {
-      samples.append(SiponMapGeometry.HeatSample(
-        coordinate: CLLocationCoordinate2D(
-          latitude: base.lat + degreesPerCell * 0.1 * Double(index),
-          longitude: base.lng + degreesPerCell * 0.1 * Double(index)
-        ),
-        weight: 2
-      ))
-    }
-    // 远处的孤点
-    samples.append(SiponMapGeometry.HeatSample(
-      coordinate: CLLocationCoordinate2D(latitude: base.lat + 1, longitude: base.lng + 1),
-      weight: 2
-    ))
-
-    let cells = SiponMapGeometry.aggregateHeatmap(
-      samples,
-      zoom: cellMetersReferenceZoom
-    )
-
-    // 前 4 个点落在同一格，最后 1 个独立成格。
-    XCTAssertEqual(cells.count, 2)
-
-    let densest = cells.values.max { $0.density < $1.density }
-    XCTAssertNotNil(densest)
-    XCTAssertEqual(densest?.density ?? 0, 1, accuracy: 1e-9, reason: "4 × weight2 = 8 达到归一化上限")
   }
 
   func testCityCenterFallback() {

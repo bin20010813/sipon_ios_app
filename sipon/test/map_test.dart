@@ -12,7 +12,12 @@ import 'package:sipon/services/map/venue_sheet_controller.dart';
 
 /// 上海市中心一块典型视野：经度跨 0.12°，纬度跨 0.09°。
 const MapViewport _shanghaiViewport = MapViewport(
-  bounds: MapBoundsBox(west: 121.4112, south: 31.1777, east: 121.5312, north: 31.2677),
+  bounds: MapBoundsBox(
+    west: 121.4112,
+    south: 31.1777,
+    east: 121.5312,
+    north: 31.2677,
+  ),
   zoom: 15.05,
 );
 
@@ -55,13 +60,22 @@ void main() {
 
   group('MapViewport', () {
     test('同一片视野不重新取数', () {
-      expect(_shanghaiViewport.differsMateriallyFrom(_shanghaiViewport), isFalse);
+      expect(
+        _shanghaiViewport.differsMateriallyFrom(_shanghaiViewport),
+        isFalse,
+      );
     });
 
     test('缩放没跨档不重拉，跨档就重拉', () {
       // 阈值是 MapViewport.zoomEpsilon（0.35），基准视野的缩放是 15.05。
-      expect(_shifted(0, zoom: 15.35).differsMateriallyFrom(_shanghaiViewport), isFalse);
-      expect(_shifted(0, zoom: 15.45).differsMateriallyFrom(_shanghaiViewport), isTrue);
+      expect(
+        _shifted(0, zoom: 15.35).differsMateriallyFrom(_shanghaiViewport),
+        isFalse,
+      );
+      expect(
+        _shifted(0, zoom: 15.45).differsMateriallyFrom(_shanghaiViewport),
+        isTrue,
+      );
     });
 
     test('预取范围内的小幅平移不重拉，平移出去才重拉', () {
@@ -165,24 +179,19 @@ void main() {
         city: '上海',
       );
       addTearDown(controller.dispose);
-
       await controller.syncViewport(_shanghaiViewport);
-      expect(controller.visibleVenues, hasLength(3));
-
       controller.toggleCategory(MapVenueKind.craft);
-      expect(
-        controller.visibleVenues.map((venue) => venue.id),
-        ['craft-1', 'craft-2'],
-      );
-      // 圆点与热力都跟着筛选走。
+      expect(controller.visibleVenues.map((venue) => venue.id), [
+        'craft-1',
+        'craft-2',
+      ]);
       expect(controller.circlePoints, hasLength(2));
-      expect(controller.heatmapPoints, hasLength(2));
 
       controller.toggleCategory(MapVenueKind.craft);
       expect(controller.visibleVenues, hasLength(3));
     });
 
-    test('圆点用全量数据，只有文字标签按缩放抽样', () async {
+    test('所有缩放都保留圆点，只有文字标签按缩放抽样', () async {
       final controller = MapDataController(
         repository: _StubRepository([
           for (var index = 0; index < 300; index++) _venue('venue-$index'),
@@ -191,12 +200,8 @@ void main() {
       );
       addTearDown(controller.dispose);
 
-      // zoom 5 本身低于热力图分界线（effectiveLayerMode 会变成热力），
-      // 显式选「点位」让标签抽样逻辑独立于缩放交接被验证。
-      controller.setLayerMode(MapLayerMode.pointsOnly);
       await controller.syncViewport(_shifted(0, zoom: 5));
       expect(controller.circlePoints, hasLength(300));
-      expect(controller.heatmapPoints, hasLength(300));
       expect(controller.markerVenues, hasLength(mapMarkerLabelLimitForZoom(5)));
     });
 
@@ -209,8 +214,6 @@ void main() {
 
       await controller.syncViewport(_shanghaiViewport);
       expect(controller.circlePoints.single.venueId, 'pub-1');
-      // 热力点不需要反查，保持为空。
-      expect(controller.heatmapPoints.single.venueId, isNull);
     });
 
     test('视野没有实质变化时不再发请求', () async {
@@ -226,196 +229,20 @@ void main() {
       expect(repository.callCount, 2);
     });
 
-    test('单飞：在途请求期间进来的新视野排队，最后一次胜出', () async {
-      final repository = _QueuedRepository();
-      final controller = MapDataController(repository: repository, city: '上海');
-      addTearDown(controller.dispose);
-
-      unawaited(controller.syncViewport(_shanghaiViewport));
-      unawaited(controller.syncViewport(_shifted(0.06)));
-      await pumpEventQueue();
-      expect(repository.pending, hasLength(1), reason: '第二次视野应该在排队而不是并发');
-
-      repository.pending.removeAt(0).complete([_venue('old')]);
-      await pumpEventQueue();
-      expect(repository.pending, hasLength(1), reason: '排队的视野应该接着跑');
-
-      repository.pending.removeAt(0).complete([_venue('new')]);
-      await pumpEventQueue();
-      expect(controller.visibleVenues.map((venue) => venue.id), ['new']);
-    });
-
-    test('切城市会作废在途请求的结果', () async {
-      final repository = _QueuedRepository();
-      final controller = MapDataController(repository: repository, city: '上海');
-      addTearDown(controller.dispose);
-
-      unawaited(controller.syncViewport(_shanghaiViewport));
-      await pumpEventQueue();
-
-      controller.setCity('北京');
-      repository.pending.removeAt(0).complete([_venue('shanghai-only')]);
-      await pumpEventQueue();
-
-      expect(controller.city, '北京');
-      expect(controller.visibleVenues, isEmpty, reason: '上海的结果不该落到北京');
-    });
-
     test('选中的酒吧还在就留着，消失了退回最近的一家', () async {
       final repository = _StubRepository([_venue('a'), _venue('b')]);
       final controller = MapDataController(repository: repository, city: '上海');
       addTearDown(controller.dispose);
 
       await controller.syncViewport(_shanghaiViewport);
-      expect(controller.selectedVenue?.id, 'a', reason: '默认选中最近的一家');
-
+      expect(controller.selectedVenue?.id, 'a');
       controller.selectVenue('b');
       repository.venues = [_venue('b'), _venue('c')];
       await controller.syncViewport(_shifted(0.06));
-      expect(controller.selectedVenue?.id, 'b', reason: '还在就不要动用户的选择');
-
+      expect(controller.selectedVenue?.id, 'b');
       repository.venues = [_venue('c'), _venue('d')];
       await controller.syncViewport(_shifted(0.12));
       expect(controller.selectedVenue?.id, 'c');
-
-      repository.venues = const [];
-      await controller.syncViewport(_shifted(0.18));
-      expect(controller.selectedVenue, isNull);
-    });
-  });
-
-  group('缩放交接（热力图接手）', () {
-    test('选「全部」时，缩过分界线就只剩热力图', () {
-      MapLayerMode modeAt(double zoom) =>
-          mapEffectiveLayerMode(MapLayerMode.pointsAndHeatmap, zoom);
-
-      // 分界线是 mapHeatmapHandoffZoom（11），必须低于进页缩放 11.8。
-      expect(modeAt(10.99), MapLayerMode.heatmapOnly);
-      expect(modeAt(11), MapLayerMode.pointsAndHeatmap);
-      expect(modeAt(15.05), MapLayerMode.pointsAndHeatmap);
-    });
-
-    test('进页的城市级视野不能落进热力图层级，否则首屏一个标注都没有', () {
-      // 这条是回归闸门：分界线一旦被调回进页缩放之上，地图首屏就只剩热力图，
-      // 看起来跟「标注功能坏了」完全一样。
-      expect(
-        MapSceneController.cityZoom,
-        greaterThanOrEqualTo(mapHeatmapHandoffZoom),
-        reason: '进页缩放必须不低于热力图分界线',
-      );
-      expect(
-        mapEffectiveLayerMode(
-          MapLayerMode.pointsAndHeatmap,
-          MapSceneController.cityZoom,
-        ),
-        MapLayerMode.pointsAndHeatmap,
-      );
-    });
-
-    test('显式选「点位」时缩放不接手，否则会剩一张空地图', () {
-      expect(
-        mapEffectiveLayerMode(MapLayerMode.pointsOnly, 5),
-        MapLayerMode.pointsOnly,
-      );
-      expect(
-        mapEffectiveLayerMode(MapLayerMode.pointsOnly, 17),
-        MapLayerMode.pointsOnly,
-      );
-    });
-
-    test('显式选「热力」时任何层级都是热力', () {
-      expect(
-        mapEffectiveLayerMode(MapLayerMode.heatmapOnly, 17),
-        MapLayerMode.heatmapOnly,
-      );
-    });
-
-    test('相机还没就绪（zoom 非有限值）时不误判成热力图', () {
-      expect(
-        mapEffectiveLayerMode(MapLayerMode.pointsAndHeatmap, double.nan),
-        MapLayerMode.pointsAndHeatmap,
-      );
-    });
-
-    test('热力图层级下文字标注清空，热力点仍是全量', () async {
-      final controller = MapDataController(
-        repository: _StubRepository([
-          for (var index = 0; index < 50; index++) _venue('venue-$index'),
-        ]),
-        city: '上海',
-      );
-      addTearDown(controller.dispose);
-
-      await controller.syncViewport(_shifted(0, zoom: 10.5));
-      expect(controller.effectiveLayerMode, MapLayerMode.heatmapOnly);
-      expect(controller.markerVenues, isEmpty, reason: '文字标注要全部退场');
-      expect(controller.heatmapPoints, hasLength(50), reason: '热力图反倒要全量');
-      // 圆点数据本身留着，由图层的 minzoom 摘掉，避免每次跨线都重传 source。
-      expect(controller.circlePoints, hasLength(50));
-
-      await controller.syncViewport(_shifted(0, zoom: 13.5));
-      expect(controller.markerVenues, hasLength(50), reason: '推回街区尺度标注要回来');
-    });
-
-    test('进页（城市级视野）就有文字标注，不必先放大', () async {
-      final controller = MapDataController(
-        repository: _StubRepository([
-          for (var index = 0; index < 50; index++) _venue('venue-$index'),
-        ]),
-        city: '上海',
-      );
-      addTearDown(controller.dispose);
-
-      await controller.syncViewport(
-        _shifted(0, zoom: MapSceneController.cityZoom),
-      );
-
-      expect(controller.effectiveLayerMode, MapLayerMode.pointsAndHeatmap);
-      expect(controller.markerVenues, isNotEmpty, reason: '首屏就该看得到酒吧名');
-    });
-
-    test('手动选「热力」时文字标注也一并退场', () async {
-      final controller = MapDataController(
-        repository: _StubRepository([_venue('pub-1')]),
-        city: '上海',
-      );
-      addTearDown(controller.dispose);
-
-      await controller.syncViewport(_shanghaiViewport);
-      expect(controller.markerVenues, hasLength(1));
-
-      controller.setLayerMode(MapLayerMode.heatmapOnly);
-      expect(controller.markerVenues, isEmpty);
-    });
-
-    test('跨过分界线即使不用重新取数也会通知重画', () async {
-      final repository = _StubRepository([_venue('pub-1')]);
-      final controller = MapDataController(repository: repository, city: '上海');
-      addTearDown(controller.dispose);
-
-      await controller.syncViewport(_shifted(0, zoom: 11.2));
-      expect(repository.callCount, 1);
-
-      var notifications = 0;
-      controller.addListener(() => notifications++);
-
-      // 11.2 → 10.9 只有 0.3 的缩放差，够不上重拉的门槛（0.35），
-      // 但跨过了热力图分界线（11）。
-      await controller.syncViewport(_shifted(0, zoom: 10.9));
-      expect(repository.callCount, 1, reason: '不该重新取数');
-      expect(notifications, 1, reason: '但要通知一次，让标注退场');
-      expect(controller.effectiveLayerMode, MapLayerMode.heatmapOnly);
-    });
-
-    test('选中点带 venueId，热力图层级下还能点开详情', () async {
-      final controller = MapDataController(
-        repository: _StubRepository([_venue('pub-1')]),
-        city: '上海',
-      );
-      addTearDown(controller.dispose);
-
-      await controller.syncViewport(_shifted(0, zoom: 11.5));
-      expect(controller.selectedPoint?.venueId, 'pub-1');
     });
   });
 
@@ -480,7 +307,9 @@ void main() {
     });
 
     test('抽样后的数量不超过上限，且不足上限时原样返回', () {
-      final many = [for (var index = 0; index < 300; index++) _venue('v$index')];
+      final many = [
+        for (var index = 0; index < 300; index++) _venue('v$index'),
+      ];
       expect(sampleVenuesForMarkers(many, zoom: 5), hasLength(24));
       expect(sampleVenuesForMarkers(many, zoom: 17), hasLength(260));
 

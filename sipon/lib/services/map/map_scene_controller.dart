@@ -15,26 +15,20 @@ import 'sipon_map_host.dart';
 class MapSceneFrame {
   const MapSceneFrame({
     required this.circlePoints,
-    required this.heatmapPoints,
     required this.markers,
-    required this.layerMode,
     this.selected,
   });
 
   final List<MapPoint> circlePoints;
-  final List<MapPoint> heatmapPoints;
   final List<MapMarkerSpec> markers;
-  final MapLayerMode layerMode;
 
   /// 当前选中的那个点，用来画高亮光环。没有选中就是 null。
   final MapPoint? selected;
 
   /// 整帧指纹。相同就说明这一帧跟上一帧画出来一模一样，可以整段跳过。
   String get signature => [
-    layerMode.name,
     selected?.id ?? '',
     circlePoints.map((point) => point.id).join(','),
-    heatmapPoints.map((point) => point.id).join(','),
     markerAnnotationSignature(markers),
   ].join('#');
 }
@@ -193,6 +187,11 @@ abstract class MapSceneController {
   /// 各引擎真正的渲染动作。[render] 已经做完指纹闸门与帧缓存。
   @protected
   Future<void> performRender(MapSceneFrame frame);
+
+  /// 覆盖物重建后恢复地图手势。部分平台在重建原生覆盖物时可能重置
+  /// 手势状态；默认实现给不需要这一步的引擎留空。
+  @protected
+  Future<void> restoreGestures() async {}
 
   /// padding 变了但没有要聚焦的目标时的平移（各引擎自行取景）。
   @protected
