@@ -58,6 +58,7 @@ class _HomePageState extends State<HomePage> {
   late final PageController _drinkController;
   late Future<_HomeBarsData> _homeBarsFuture;
   SiponCityController? _cityController;
+  // ignore: unused_field, prefer_final_fields -- DrinkProduct 功能待定，暂时隐藏，恢复 _DrinkCarousel 时启用
   int _currentDrink = 1;
 
   @override
@@ -122,6 +123,8 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final text = SiponLanguageScope.textOf(context);
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -147,14 +150,26 @@ class _HomePageState extends State<HomePage> {
                         padding: EdgeInsets.only(right: 18),
                         child: _HomeTopBar(),
                       ),
-                      const SizedBox(height: 28),
-                      _DrinkCarousel(
-                        controller: _drinkController,
-                        currentIndex: _currentDrink,
-                        onPageChanged: (index) {
-                          setState(() => _currentDrink = index);
-                        },
+                      const SizedBox(height: 16),
+                      // TODO: 首页 _DrinkProduct / _DrinkCarousel 功能待定，暂时注释隐藏。
+                      // 恢复时取消下面注释即可。
+                      // _DrinkCarousel(
+                      //   controller: _drinkController,
+                      //   currentIndex: _currentDrink,
+                      //   onPageChanged: (index) {
+                      //     setState(() => _currentDrink = index);
+                      //   },
+                      // ),
+                      // const SizedBox(height: 18),
+                      Padding(
+                        padding: const EdgeInsets.only(right: 23),
+                        child: _SectionHeader(
+                          title: text.t('鸡尾酒推荐'),
+                          onMorePressed: () => _pushCocktailList(context),
+                        ),
                       ),
+                      const SizedBox(height: 14),
+                      const _CocktailScroller(),
                       const SizedBox(height: 18),
                       Padding(
                         padding: const EdgeInsets.only(right: 23),
@@ -359,16 +374,6 @@ class _HomeDataSections extends StatelessWidget {
         ),
         const SizedBox(height: 26),
         _TopBarsSection(bars: data.bars),
-        const SizedBox(height: 24),
-        Padding(
-          padding: const EdgeInsets.only(right: 23),
-          child: _SectionHeader(
-            title: text.t('鸡尾酒推荐'),
-            onMorePressed: () => _pushCocktailList(context),
-          ),
-        ),
-        const SizedBox(height: 14),
-        const _CocktailScroller(),
       ],
     );
   }
@@ -413,6 +418,7 @@ void _pushVenueDetail(BuildContext context, _HomeBar bar) {
   );
 }
 
+// ignore: unused_element -- DrinkProduct 功能待定，暂时隐藏，恢复时取消首页 build 中的注释即可
 class _DrinkCarousel extends StatelessWidget {
   const _DrinkCarousel({
     required this.controller,

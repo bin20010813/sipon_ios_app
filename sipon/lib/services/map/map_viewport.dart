@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import '../sipon_region_data.dart';
+
 /// 一个经纬度点。纯 Dart，避免把地图引擎类型渗到数据层。
 class MapLatLng {
   const MapLatLng({required this.longitude, required this.latitude});
@@ -146,8 +148,18 @@ const MapLatLng mapFallbackCityCenter = MapLatLng(
   latitude: 31.2227,
 );
 
-MapLatLng mapCenterForCity(String city) =>
-    mapCityCenters[city] ?? mapFallbackCityCenter;
+MapLatLng mapCenterForCity(String city) {
+  // 精选表优先（历史行为不变），再查省市全量表，最后回退上海。
+  final favorite = mapCityCenters[city];
+  if (favorite != null) {
+    return favorite;
+  }
+  final entry = siponFindCity(city);
+  if (entry != null) {
+    return MapLatLng(longitude: entry.longitude, latitude: entry.latitude);
+  }
+  return mapFallbackCityCenter;
+}
 
 /// 两点球面距离（米）。用来给 mock 数据算「约2.0km」这种距离文案。
 double mapDistanceInMeters(MapLatLng from, MapLatLng to) {

@@ -2,18 +2,28 @@ import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'sipon_region_data.dart';
+
 class SiponCityController extends ChangeNotifier {
   static const String defaultCity = '上海';
+  static const String defaultProvince = '上海市';
   static const String _storageKey = 'sipon.selected_city';
+  static const String _provinceStorageKey = 'sipon.selected_province';
 
-  SiponCityController({String initialCity = defaultCity}) : _city = initialCity;
+  SiponCityController({
+    String initialCity = defaultCity,
+    String initialProvince = defaultProvince,
+  }) : _city = initialCity,
+       _province = initialProvince;
 
   String _city;
+  String _province;
   bool _initialized = false;
   bool _manualSelection = false;
   bool _locationAttempted = false;
 
   String get city => _city;
+  String get province => _province;
   bool get initialized => _initialized;
   bool get manualSelection => _manualSelection;
   bool get locationAttempted => _locationAttempted;
@@ -30,9 +40,24 @@ class SiponCityController extends ChangeNotifier {
         _city = savedCity;
         _manualSelection = true;
       }
+      final savedProvince = preferences.getString(_provinceStorageKey)?.trim();
+      if (savedProvince != null && savedProvince.isNotEmpty) {
+        _province = savedProvince;
+      } else if (_manualSelection) {
+        // 老版本只存了城市：按内置表反查省份，保证选择器左侧能高亮。
+        _province = siponFindProvinceOfCity(_city) ?? _province;
+      }
 
       if (!_manualSelection) {
-        _city = await _detectCityByLocation() ?? defaultCity;
+        final detected = await _detectCityByLocation();
+        if (detected != null) {
+          _city = detected.name;
+          _province =
+              siponFindProvinceOfCity(detected.name) ?? defaultProvince;
+        } else {
+          _city = defaultCity;
+          _province = defaultProvince;
+        }
       }
     } finally {
       _initialized = true;
@@ -40,27 +65,39 @@ class SiponCityController extends ChangeNotifier {
     }
   }
 
-  Future<void> selectCity(String city) async {
+  Future<void> selectCity(String city, {String? province}) async {
     final normalizedCity = city.trim();
     if (normalizedCity.isEmpty) {
       return;
     }
 
     _city = normalizedCity;
+    final normalizedProvince = province?.trim();
+    _province =
+        (normalizedProvince != null && normalizedProvince.isNotEmpty)
+            ? normalizedProvince
+            : (siponFindProvinceOfCity(normalizedCity) ?? _province);
     _manualSelection = true;
     notifyListeners();
 
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString(_storageKey, normalizedCity);
+    await preferences.setString(_provinceStorageKey, _province);
   }
 
-  Future<String?> _detectCityByLocation() async {
+  Future<SiponCityEntry?> _detectCityByLocation() async {
+    final result = await locateCurrentCity();
+    return result.city;
+  }
+
+  /// 供位置选择器进入时自动定位：返回带状态的结果，UI 据此提示手动选择。
+  Future<SiponLocateResult> locateCurrentCity() async {
     _locationAttempted = true;
 
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        return null;
+        return const SiponLocateResult(status: SiponLocateStatus.serviceDisabled);
       }
 
       var permission = await Geolocator.checkPermission();
@@ -68,9 +105,12 @@ class SiponCityController extends ChangeNotifier {
         permission = await Geolocator.requestPermission();
       }
 
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        return null;
+      if (permission == LocationPermission.denied) {
+        return const SiponLocateResult(status: SiponLocateStatus.permissionDenied);
+      }
+      if (permission == LocationPermission.deniedForever) {
+        return const SiponLocateResult(
+            status: SiponLocateStatus.permissionDeniedForever);
       }
 
       final position = await Geolocator.getCurrentPosition(
@@ -80,45 +120,52 @@ class SiponCityController extends ChangeNotifier {
         ),
       );
 
-      return _nearestKnownCity(position.latitude, position.longitude);
+      final city = _nearestKnownCity(position.latitude, position.longitude);
+      if (city == null) {
+        return const SiponLocateResult(status: SiponLocateStatus.failed);
+      }
+      return SiponLocateResult(status: SiponLocateStatus.success, city: city);
     } catch (_) {
-      return null;
+      return const SiponLocateResult(status: SiponLocateStatus.failed);
     }
   }
 
-  String? _nearestKnownCity(double latitude, double longitude) {
-    String? nearestCity;
+  SiponCityEntry? _nearestKnownCity(double latitude, double longitude) {
+    SiponCityEntry? nearestCity;
     var nearestDistance = double.infinity;
 
-    for (final city in _knownCityCenters.entries) {
-      final distance = Geolocator.distanceBetween(
-        latitude,
-        longitude,
-        city.value.latitude,
-        city.value.longitude,
-      );
-      if (distance < nearestDistance) {
-        nearestCity = city.key;
-        nearestDistance = distance;
+    for (final province in siponProvinces) {
+      for (final city in province.cities) {
+        final distance = Geolocator.distanceBetween(
+          latitude,
+          longitude,
+          city.latitude,
+          city.longitude,
+        );
+        if (distance < nearestDistance) {
+          nearestCity = city;
+          nearestDistance = distance;
+        }
       }
     }
 
-    return nearestDistance <= 80000 ? nearestCity : null;
+    // 地级市全量表：相邻城市中心常相距 50~120km，阈值放宽到 120km；
+    // 超出则视为不在国内，返回 null 由调用方回退默认城市。
+    return nearestDistance <= 120000 ? nearestCity : null;
   }
 }
 
-class _CityCenter {
-  const _CityCenter({required this.latitude, required this.longitude});
-
-  final double latitude;
-  final double longitude;
+enum SiponLocateStatus {
+  success,
+  serviceDisabled,
+  permissionDenied,
+  permissionDeniedForever,
+  failed,
 }
 
-const Map<String, _CityCenter> _knownCityCenters = {
-  '上海': _CityCenter(latitude: 31.2227, longitude: 121.4712),
-  '北京': _CityCenter(latitude: 39.9042, longitude: 116.4074),
-  '深圳': _CityCenter(latitude: 22.5431, longitude: 114.0579),
-  '广州': _CityCenter(latitude: 23.1291, longitude: 113.2644),
-  '成都': _CityCenter(latitude: 30.5728, longitude: 104.0668),
-  '杭州': _CityCenter(latitude: 30.2741, longitude: 120.1551),
-};
+class SiponLocateResult {
+  const SiponLocateResult({required this.status, this.city});
+
+  final SiponLocateStatus status;
+  final SiponCityEntry? city;
+}

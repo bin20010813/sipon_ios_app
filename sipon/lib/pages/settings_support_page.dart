@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../services/sipon_agreement_links.dart';
+import '../services/sipon_api_client.dart';
+import '../services/sipon_api_service.dart';
 import '../services/sipon_auth_service.dart';
 import 'language_transform.dart';
 import 'review_page.dart';
@@ -173,10 +177,63 @@ class _AccountSecurityPage extends StatefulWidget {
 }
 
 class _AccountSecurityPageState extends State<_AccountSecurityPage> {
-  bool _biometric = true;
-  bool _loginAlert = true;
   bool _loggingOut = false;
   bool _deleting = false;
+  String? _email;
+  bool _loadingEmail = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEmail();
+  }
+
+  /// 加载当前登录邮箱：优先本地会话，其次拉取个人资料接口。
+  Future<void> _loadEmail() async {
+    final sessionEmail = SiponAuthService.instance.session?.user['email']
+        ?.toString()
+        .trim();
+    if (sessionEmail != null && sessionEmail.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          _email = sessionEmail;
+          _loadingEmail = false;
+        });
+      }
+      return;
+    }
+    try {
+      final api = SiponApiService();
+      dynamic profile;
+      try {
+        profile = await api.getMyProfile();
+      } on Exception {
+        profile = await api.getMyOverview();
+      }
+      final email = profile is Map
+          ? (profile['email'] ?? profile['mail'])?.toString().trim()
+          : null;
+      if (!mounted) return;
+      setState(() {
+        _email = (email != null && email.isNotEmpty) ? email : null;
+        _loadingEmail = false;
+      });
+    } on Exception {
+      if (!mounted) return;
+      setState(() {
+        _email = null;
+        _loadingEmail = false;
+      });
+    }
+  }
+
+  /// 邮箱脱敏：保留首字符与域名，如 t***@example.com。
+  String _maskEmail(String email) {
+    final at = email.indexOf('@');
+    if (at <= 1) return email;
+    final domain = email.substring(at);
+    return '${email[0]}***$domain';
+  }
 
   void _showMessage(BuildContext context, String message) {
     ScaffoldMessenger.of(context)
@@ -295,9 +352,24 @@ class _AccountSecurityPageState extends State<_AccountSecurityPage> {
     widget.onLogoutSucceeded?.call();
   }
 
+  /// 打开修改密码页，预填当前邮箱，走邮箱验证码重置流程。
+  void _openChangePassword(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _ChangePasswordPage(initialEmail: _email),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+
+    final emailSubtitle = _loadingEmail
+        ? text.t('加载中')
+        : (_email == null || _email!.isEmpty
+              ? text.t('未绑定邮箱')
+              : _maskEmail(_email!));
 
     return _SupportDetailScaffold(
       title: text.accountSecurity,
@@ -305,37 +377,24 @@ class _AccountSecurityPageState extends State<_AccountSecurityPage> {
         _SupportHero(
           icon: Icons.verified_user_outlined,
           title: text.t('账号保护中'),
-          subtitle: text.t('当前登录环境稳定，建议保持安全提醒开启。'),
+          subtitle: text.t('邮箱登录已验证，定期更新密码更安全。'),
         ),
         const SizedBox(height: 16),
         _SupportPanel(
           title: text.t('登录与验证'),
           children: [
             _SupportActionRow(
-              icon: Icons.phone_iphone_rounded,
-              title: text.t('手机号'),
-              subtitle: text.t('186****0921'),
-              trailing: text.t('更换'),
+              icon: Icons.mail_outline_rounded,
+              title: text.t('邮箱'),
+              subtitle: emailSubtitle,
+              trailing: '',
             ),
             _SupportActionRow(
               icon: Icons.lock_reset_rounded,
               title: text.t('登录密码'),
-              subtitle: text.t('上次更新 32 天前'),
+              subtitle: text.t('通过邮箱验证码重置'),
               trailing: text.t('修改'),
-            ),
-            _SupportSwitchRow(
-              icon: Icons.fingerprint_rounded,
-              title: text.t('生物识别解锁'),
-              subtitle: text.t('用于快速进入 Sipon'),
-              value: _biometric,
-              onChanged: (value) => setState(() => _biometric = value),
-            ),
-            _SupportSwitchRow(
-              icon: Icons.mark_email_unread_outlined,
-              title: text.t('异地登录提醒'),
-              subtitle: text.t('发现新设备登录时通知你'),
-              value: _loginAlert,
-              onChanged: (value) => setState(() => _loginAlert = value),
+              onTap: () => _openChangePassword(context),
             ),
             _SupportActionRow(
               icon: Icons.logout_rounded,
@@ -361,6 +420,352 @@ class _AccountSecurityPageState extends State<_AccountSecurityPage> {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// 修改密码页：复用登录页同款邮箱验证码重置接口
+/// （POST /api/auth/email/password-reset/code + /confirm）。
+class _ChangePasswordPage extends StatefulWidget {
+  const _ChangePasswordPage({this.initialEmail});
+
+  final String? initialEmail;
+
+  @override
+  State<_ChangePasswordPage> createState() => _ChangePasswordPageState();
+}
+
+class _ChangePasswordPageState extends State<_ChangePasswordPage> {
+  static const _codeCooldownSeconds = 60;
+
+  late final TextEditingController _emailController;
+  final _codeController = TextEditingController();
+  final _newPasswordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  Timer? _codeTimer;
+  int _codeCountdown = 0;
+  bool _sendingCode = false;
+  bool _submitting = false;
+  bool _obscureNew = true;
+  bool _obscureConfirm = true;
+
+  bool _isValidEmail(String email) {
+    final at = email.indexOf('@');
+    return at > 0 && email.indexOf('.', at) > at + 1;
+  }
+
+  bool get _canSubmit {
+    if (_submitting) return false;
+    if (!_isValidEmail(_emailController.text.trim())) return false;
+    if (_codeController.text.trim().length != 6) return false;
+    if (_newPasswordController.text.length < 8) return false;
+    return _newPasswordController.text == _confirmPasswordController.text;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _emailController = TextEditingController(text: widget.initialEmail ?? '');
+  }
+
+  @override
+  void dispose() {
+    _codeTimer?.cancel();
+    _emailController.dispose();
+    _codeController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      );
+  }
+
+  String _errorMessage(Object error) {
+    final text = SiponLanguageScope.textOf(context);
+    if (error is SiponApiException) {
+      final message = error.message?.trim();
+      if (message != null && message.isNotEmpty) return message;
+      return text.t('请求失败，请稍后重试。');
+    }
+    if (error is SiponAuthException) return text.t(error.message);
+    return text.t('网络异常，请检查网络和服务地址。');
+  }
+
+  /// 发送重置密码验证码，与登录页重置流程共用后端接口。
+  Future<void> _sendCode() async {
+    final email = _emailController.text.trim();
+    final text = SiponLanguageScope.textOf(context);
+    if (!_isValidEmail(email)) {
+      _showMessage(text.t('请填写正确的邮箱地址'));
+      return;
+    }
+    if (_sendingCode || _codeCountdown > 0) return;
+    setState(() => _sendingCode = true);
+    try {
+      await SiponAuthService.instance.requestEmailPasswordResetCode(email);
+      if (!mounted) return;
+      _showMessage(text.t('验证码已发送，请查收邮箱'));
+      setState(() {
+        _codeCountdown = _codeCooldownSeconds;
+        _codeTimer?.cancel();
+        _codeTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+          if (_codeCountdown <= 1) {
+            timer.cancel();
+            if (mounted) setState(() => _codeCountdown = 0);
+          } else if (mounted) {
+            setState(() => _codeCountdown -= 1);
+          }
+        });
+      });
+    } on Exception catch (error) {
+      _showMessage(_errorMessage(error));
+    } finally {
+      if (mounted) setState(() => _sendingCode = false);
+    }
+  }
+
+  Future<void> _submit() async {
+    if (!_canSubmit) return;
+    final text = SiponLanguageScope.textOf(context);
+    if (_newPasswordController.text != _confirmPasswordController.text) {
+      _showMessage(text.t('两次输入的新密码不一致'));
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    setState(() => _submitting = true);
+    try {
+      await SiponAuthService.instance.resetEmailPassword(
+        email: _emailController.text.trim(),
+        code: _codeController.text.trim(),
+        newPassword: _newPasswordController.text,
+      );
+      if (!mounted) return;
+      _showMessage(text.t('密码已重置，请重新登录'));
+      Navigator.of(context).pop();
+    } catch (error) {
+      _showMessage(_errorMessage(error));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = SiponLanguageScope.textOf(context);
+    return _SupportDetailScaffold(
+      title: text.t('修改密码'),
+      children: [
+        _SupportHero(
+          icon: Icons.lock_reset_rounded,
+          title: text.t('重置登录密码'),
+          subtitle: text.t('验证码将发送到登录邮箱，至少 8 位新密码。'),
+        ),
+        const SizedBox(height: 16),
+        _SupportPanel(
+          title: text.t('邮箱验证'),
+          children: [
+            _ChangePasswordField(
+              controller: _emailController,
+              hint: text.t('请输入邮箱'),
+              icon: Icons.mail_outline_rounded,
+              keyboardType: TextInputType.emailAddress,
+              onChanged: (_) => setState(() {}),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: _ChangePasswordField(
+                    controller: _codeController,
+                    hint: text.t('请输入验证码'),
+                    icon: Icons.shield_outlined,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                SizedBox(
+                  height: 52,
+                  child: OutlinedButton(
+                    onPressed: _sendingCode || _codeCountdown > 0
+                        ? null
+                        : _sendCode,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: SettingsSupportPage._brand,
+                      side: const BorderSide(
+                        color: SettingsSupportPage._brand,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    child: Text(
+                      _codeCountdown > 0
+                          ? '$_codeCountdown s'
+                          : text.t(_sendingCode ? '发送中…' : '获取验证码'),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _SupportPanel(
+          title: text.t('设置新密码'),
+          children: [
+            _ChangePasswordField(
+              controller: _newPasswordController,
+              hint: text.t('请输入密码（至少 8 位）'),
+              icon: Icons.lock_outline_rounded,
+              obscureText: _obscureNew,
+              onChanged: (_) => setState(() {}),
+              suffixIcon: IconButton(
+                tooltip: text.t(_obscureNew ? '显示密码' : '隐藏密码'),
+                onPressed: () =>
+                    setState(() => _obscureNew = !_obscureNew),
+                icon: Icon(
+                  _obscureNew
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  size: 20,
+                ),
+              ),
+            ),
+            _ChangePasswordField(
+              controller: _confirmPasswordController,
+              hint: text.t('请再次输入新密码'),
+              icon: Icons.lock_outline_rounded,
+              obscureText: _obscureConfirm,
+              onChanged: (_) => setState(() {}),
+              suffixIcon: IconButton(
+                tooltip: text.t(_obscureConfirm ? '显示密码' : '隐藏密码'),
+                onPressed: () => setState(
+                  () => _obscureConfirm = !_obscureConfirm,
+                ),
+                icon: Icon(
+                  _obscureConfirm
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  size: 20,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: FilledButton(
+                  onPressed: _canSubmit ? _submit : null,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: SettingsSupportPage._brand,
+                    disabledBackgroundColor: const Color(0xFFE9D8E2),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: _submitting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Text(
+                          text.t('确认修改'),
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ChangePasswordField extends StatelessWidget {
+  const _ChangePasswordField({
+    required this.controller,
+    required this.hint,
+    required this.icon,
+    this.obscureText = false,
+    this.keyboardType = TextInputType.text,
+    this.maxLength,
+    this.suffixIcon,
+    this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final String hint;
+  final IconData icon;
+  final bool obscureText;
+  final TextInputType keyboardType;
+  final int? maxLength;
+  final Widget? suffixIcon;
+  final ValueChanged<String>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextField(
+        controller: controller,
+        onChanged: onChanged,
+        obscureText: obscureText,
+        keyboardType: keyboardType,
+        maxLength: maxLength,
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: const TextStyle(color: Color(0xFFAAA3AA)),
+          prefixIcon: Icon(icon, size: 21, color: const Color(0xFF8E8790)),
+          suffixIcon: suffixIcon,
+          counterText: maxLength == null ? null : '',
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 15,
+            vertical: 16,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Color(0xFFE9E3E7)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Color(0xFFE9E3E7)),
+          ),
+          focusedBorder: const OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8)),
+            borderSide: BorderSide(
+              color: SettingsSupportPage._brand,
+              width: 1.4,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -954,12 +1359,15 @@ class _SupportActionRow extends StatelessWidget {
               letterSpacing: 0,
             ),
           ),
-          const SizedBox(width: 2),
-          const Icon(
-            Icons.chevron_right_rounded,
-            color: Color(0xFFC7C1C6),
-            size: 20,
-          ),
+          // 不可点击的行（如纯展示的邮箱）不显示箭头，避免误导。
+          if (onTap != null) ...[
+            const SizedBox(width: 2),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: Color(0xFFC7C1C6),
+              size: 20,
+            ),
+          ],
         ],
       ),
     );
