@@ -67,6 +67,7 @@ class MockVenueDetailRepository implements VenueDetailRepository {
     return VenueDetail(
       venue: venue,
       description: descriptions,
+      latestUpdates: ['本周末有现场音乐演出', '今日 18:00 开始营业，欢迎提前到店'],
       businessHours: businessHours,
       phone: '021-${6000 + seed % 4000}',
       priceLevel: '¥' * (2 + seed % 3),

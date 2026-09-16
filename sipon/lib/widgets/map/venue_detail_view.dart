@@ -97,7 +97,8 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
   bool _tabsPinned = false;
   final GlobalKey _scrollViewKey = GlobalKey();
   final GlobalKey _tabsKey = GlobalKey();
-  final List<GlobalKey> _sectionKeys = List.generate(3, (_) => GlobalKey());
+  final List<GlobalKey> _sectionKeys = List.generate(4, (_) => GlobalKey());
+  final GlobalKey _updatesHeadingKey = GlobalKey();
   final GlobalKey _drinksHeadingKey = GlobalKey();
   final GlobalKey _reviewsHeadingKey = GlobalKey();
 
@@ -280,8 +281,9 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
     // 板块内的小标题由吸顶标签栏代为展示：跳转时让标题一并藏进吸顶栏，
     // 定位点落在标题下方的功能内容顶部。
     final headingHeight = switch (index) {
-      1 => _measureHeading(_drinksHeadingKey),
-      2 => _measureHeading(_reviewsHeadingKey),
+      1 => _measureHeading(_updatesHeadingKey),
+      2 => _measureHeading(_drinksHeadingKey),
+      3 => _measureHeading(_reviewsHeadingKey),
       _ => 0.0,
     };
     final threshold = widget.topInset + _tabsHeight + 12;
@@ -656,6 +658,14 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
           const SizedBox(height: 35),
           KeyedSubtree(
             key: _sectionKeys[1],
+            child: _VenueLatestUpdates(
+              updates: detail?.latestUpdates ?? const [],
+              headingKey: _updatesHeadingKey,
+            ),
+          ),
+          const SizedBox(height: 35),
+          KeyedSubtree(
+            key: _sectionKeys[2],
             child: _VenueDrinks(
               drinks: detail?.signatureDrinks ?? const [],
               headingKey: _drinksHeadingKey,
@@ -663,7 +673,7 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
           ),
           const SizedBox(height: 35),
           KeyedSubtree(
-            key: _sectionKeys[2],
+            key: _sectionKeys[3],
             child: _VenueReviewsSection(
               reviews: _reviews,
               totalCount: _reviewTotal,
@@ -760,89 +770,60 @@ class _VenueDetailTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
-    final labels = [text.t('关于'), text.t('菜单'), text.t('评价')];
+    final labels = [text.t('关于'), text.t('最新动态'), text.t('菜单'), text.t('评价')];
 
     return SizedBox(
       height: 34,
       child: Row(
         children: [
           for (var index = 0; index < labels.length; index++)
-            Expanded(
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () => onSelected(index),
-                  child: Stack(
-                    children: [
-                      Align(
-                        alignment: Alignment.topCenter,
-                        child: index == 0
-                            ? Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    labels[index],
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: selectedIndex == index
-                                          ? MapDesign.brand
-                                          : MapDesign.muted,
-                                      fontSize: 14,
-                                      fontWeight: selectedIndex == index
-                                          ? FontWeight.w900
-                                          : FontWeight.w700,
-                                      letterSpacing: 0,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 5),
-                                  Text(
-                                    text.t('最新动态'),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: MapDesign.muted,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 0,
-                                    ),
-                                  ),
-                                ],
-                              )
-                            : Text(
-                                labels[index],
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: selectedIndex == index
-                                      ? MapDesign.brand
-                                      : MapDesign.muted,
-                                  fontSize: 14,
-                                  fontWeight: selectedIndex == index
-                                      ? FontWeight.w900
-                                      : FontWeight.w700,
-                                  letterSpacing: 0,
-                                ),
-                              ),
-                      ),
-                      Positioned(
-                        left: 12,
-                        right: 12,
-                        bottom: 2,
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 180),
-                          height: 2,
-                          color: selectedIndex == index
-                              ? MapDesign.brand
-                              : Colors.transparent,
-                        ),
-                      ),
-                    ],
+            _buildTab(labels[index], index),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTab(String label, int index) {
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => onSelected(index),
+          child: Stack(
+            children: [
+              Align(
+                alignment: Alignment.topCenter,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: selectedIndex == index
+                        ? MapDesign.brand
+                        : MapDesign.muted,
+                    fontSize: 14,
+                    fontWeight: selectedIndex == index
+                        ? FontWeight.w900
+                        : FontWeight.w700,
+                    letterSpacing: 0,
                   ),
                 ),
               ),
-            ),
-        ],
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: 2,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  height: 2,
+                  color: selectedIndex == index
+                      ? MapDesign.brand
+                      : Colors.transparent,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1380,6 +1361,65 @@ class _FeatureChip extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 地点最新动态列表。
+class _VenueLatestUpdates extends StatelessWidget {
+  const _VenueLatestUpdates({required this.updates, this.headingKey});
+
+  final List<String> updates;
+  final Key? headingKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = SiponLanguageScope.textOf(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          key: headingKey,
+          text.t('最新动态'),
+          style: const TextStyle(
+            color: MapDesign.ink,
+            fontSize: 17,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0,
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (updates.isEmpty)
+          const _PlaceholderBlock(width: double.infinity, height: 56)
+        else
+          for (final update in updates)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(top: 6),
+                    child: Icon(Icons.circle, color: MapDesign.brand, size: 7),
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      text.t(update),
+                      style: const TextStyle(
+                        color: MapDesign.ink,
+                        fontSize: 13.5,
+                        height: 1.5,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+      ],
     );
   }
 }
