@@ -95,11 +95,20 @@ class _ReviewComposerState extends State<ReviewComposer> {
   }
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.all(20),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => SingleChildScrollView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      padding: EdgeInsets.fromLTRB(
+        20,
+        20,
+        20,
+        20 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: constraints.maxHeight - 40),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
         Text(
           widget.venueName,
           style: const TextStyle(
@@ -175,7 +184,7 @@ class _ReviewComposerState extends State<ReviewComposer> {
             ],
           ),
         ),
-        const Spacer(),
+        const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
           child: FilledButton.icon(
@@ -200,7 +209,9 @@ class _ReviewComposerState extends State<ReviewComposer> {
             ),
           ),
         ),
-      ],
+          ],
+        ),
+      ),
     ),
   );
 
