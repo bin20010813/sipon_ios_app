@@ -67,7 +67,7 @@ class ProfilePage extends StatefulWidget {
   static const String _routeAsset = 'assest/我的/酒鬼线路@3x.png';
   static const String _memberAsset = 'assest/我的/Sipon会员@3x.png';
   static const String _couponAsset = 'assest/我的/我的礼券@3x.png';
-  static const String _achievementAsset = 'assest/我的/成就勋章@3x.png';
+  // static const String _achievementAsset = 'assest/我的/成就勋章@3x.png';
 
   @override
   State<ProfilePage> createState() => ProfilePageState();
@@ -77,11 +77,74 @@ class ProfilePage extends StatefulWidget {
 /// 规划路线/打卡返回后）触发「喝过 / 想喝 / 酒鬼路线」计数刷新。
 class ProfilePageState extends State<ProfilePage> {
   final GlobalKey<_QuickEntryCardState> _quickEntryKey = GlobalKey();
+  final SiponApiService _api = SiponApiService();
+
+  /// 礼券数量；为 null 表示尚未加载或加载失败。
+  int? _couponCount;
+
+  // 成就勋章暂时隐藏，相关状态保留待后续启用。
+  // /// 已解锁成就数量；为 null 表示尚未加载或加载失败。
+  // int? _achievementCount;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBenefits();
+  }
 
   /// 重新拉取三个快捷入口的计数，保证与后端最新数据一致。
   void refreshCounts() {
     _quickEntryKey.currentState?._loadCounts();
   }
+
+  /// 拉取礼券数量；失败时不显示徽标。
+  Future<void> _loadBenefits() async {
+    int? couponCount;
+    try {
+      couponCount = (await _api.getCoupons()).length;
+    } on Exception {
+      couponCount = null;
+    }
+
+    // 成就勋章暂时隐藏，以下计数逻辑保留待后续启用。
+    // // 成就接口同时返回已解锁与未解锁条目，这里只统计已解锁数量。
+    // Future<int?> safeUnlockedCount() async {
+    //   try {
+    //     final list = await _api.getAchievements();
+    //     return list
+    //         .whereType<Map>()
+    //         .where((item) {
+    //           final map = item.cast<String, dynamic>();
+    //           return map['unlocked'] == true ||
+    //               map['achieved'] == true ||
+    //               map['isUnlocked'] == true;
+    //         })
+    //         .length;
+    //   } on Exception {
+    //     return null;
+    //   }
+    // }
+
+    if (!mounted) return;
+    setState(() {
+      _couponCount = couponCount;
+    });
+  }
+
+  /// 礼券徽标文案：数量来自接口，无数据时显示 0 张。
+  String? _voucherBadge(SiponAppText text) {
+    final count = _couponCount;
+    if (count == null) return null;
+    return text.vouchersBadgeCount(count);
+  }
+
+  // 成就勋章暂时隐藏，以下文案方法保留待后续启用。
+  // /// 成就文案：已解锁数量来自接口，无数据时显示 0 枚。
+  // String? _achievementTrailing(SiponAppText text) {
+  //   final count = _achievementCount;
+  //   if (count == null) return null;
+  //   return text.achievementsUnlockedCount(count);
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -143,15 +206,22 @@ class ProfilePageState extends State<ProfilePage> {
                             _ProfileListRow(
                               assetPath: ProfilePage._couponAsset,
                               title: text.vouchers,
-                              badge: text.vouchersBadge,
-                              onTap: () => _showCouponList(context),
+                              badge: _voucherBadge(text),
+                              onTap: () async {
+                                await _showCouponList(context);
+                                _loadBenefits();
+                              },
                             ),
-                            _ProfileListRow(
-                              assetPath: ProfilePage._achievementAsset,
-                              title: text.achievements,
-                              trailingText: text.achievementsUnlocked,
-                              onTap: () => _showAchievementList(context),
-                            ),
+                            // 成就勋章暂时隐藏，保留逻辑待后续启用。
+                            // _ProfileListRow(
+                            //   assetPath: ProfilePage._achievementAsset,
+                            //   title: text.achievements,
+                            //   trailingText: _achievementTrailing(text),
+                            //   onTap: () async {
+                            //     await _showAchievementList(context);
+                            //     _loadBenefits();
+                            //   },
+                            // ),
                           ],
                         ),
                       ],
@@ -892,9 +962,9 @@ Future<_ProfileListPage> _loadRouteEntries(
 }
 
 /// 打开「我的礼券」列表弹窗：GET /api/users/me/coupons。
-void _showCouponList(BuildContext context) {
+Future<void> _showCouponList(BuildContext context) {
   final api = SiponApiService();
-  showModalBottomSheet<void>(
+  return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
@@ -934,10 +1004,11 @@ void _showCouponList(BuildContext context) {
   );
 }
 
+/* 成就勋章暂时隐藏，保留逻辑待后续启用。
 /// 打开「成就勋章」列表弹窗：GET /api/users/me/achievements。
-void _showAchievementList(BuildContext context) {
+Future<void> _showAchievementList(BuildContext context) {
   final api = SiponApiService();
-  showModalBottomSheet<void>(
+  return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
@@ -971,6 +1042,7 @@ void _showAchievementList(BuildContext context) {
     ),
   );
 }
+*/
 
 /// 打开「Sipon 会员」摘要弹窗：GET /api/users/me/membership。
 void _showMembershipSheet(BuildContext context) {
@@ -3983,14 +4055,15 @@ class _ProfileListRow extends StatelessWidget {
     required this.assetPath,
     required this.title,
     this.badge,
-    this.trailingText,
+    // 成就勋章暂时隐藏，trailingText 保留待后续启用。
+    // this.trailingText,
     this.onTap,
   });
 
   final String assetPath;
   final String title;
   final String? badge;
-  final String? trailingText;
+  // final String? trailingText;
   final VoidCallback? onTap;
   @override
   Widget build(BuildContext context) {
@@ -4031,16 +4104,17 @@ class _ProfileListRow extends StatelessWidget {
                   ),
                 ),
               ),
-            if (trailingText != null)
-              Text(
-                trailingText!,
-                style: const TextStyle(
-                  color: ProfilePage._brand,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0,
-                ),
-              ),
+            // 成就勋章暂时隐藏，trailingText 渲染保留待后续启用。
+            // if (trailingText != null)
+            //   Text(
+            //     trailingText!,
+            //     style: const TextStyle(
+            //       color: ProfilePage._brand,
+            //       fontSize: 10,
+            //       fontWeight: FontWeight.w700,
+            //       letterSpacing: 0,
+            //     ),
+            //   ),
             const SizedBox(width: 7),
             const Icon(
               Icons.chevron_right_rounded,
