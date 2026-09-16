@@ -162,6 +162,22 @@ class SiponAppText {
   String get vouchersBadge => t('3张可用');
   String get achievements => t('成就勋章');
   String get achievementsUnlocked => t('已解锁8枚');
+
+  /// 礼券徽标：数量来自接口，无数据时显示 0 张。
+  String vouchersBadgeCount(int count) {
+    if (count <= 0) {
+      return isZh ? '0张' : '0 available';
+    }
+    return isZh ? '$count张可用' : '$count available';
+  }
+
+  /// 成就勋章：已解锁数量来自接口，无数据时显示 0 枚。
+  // String achievementsUnlockedCount(int count) {
+  //   if (count <= 0) {
+  //     return isZh ? '0枚' : '0 unlocked';
+  //   }
+  //   return isZh ? '已解锁$count枚' : '$count unlocked';
+  // }
   String get settingsSupport => t('设置与支持');
   String get feedbackAdvice => t('反馈与建议');
   String get languageTransformEntry => t('语言/Language');
