@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../services/drink_budget_store.dart';
 import '../services/map/map_display_options.dart';
@@ -10,6 +11,9 @@ import '../services/map/sipon_map_host.dart';
 import '../services/map/sipon_map_widget.dart';
 import '../services/sipon_api_config.dart';
 import '../services/sipon_api_service.dart';
+import '../widgets/drink_sticker.dart';
+import 'drink_record_page.dart';
+import 'drink_sticker_calendar_page.dart';
 import 'language_transform.dart';
 import 'settings_support_page.dart';
 
@@ -702,7 +706,8 @@ List<_RouteStop> _parseRouteStops(Map<String, dynamic> map) {
       const empty = <String, dynamic>{};
       final id =
           (_pickNum(stopMap, ['id', 'barId']) ??
-              _pickNum(nested ?? empty, ['id', 'barId']))?.toInt();
+                  _pickNum(nested ?? empty, ['id', 'barId']))
+              ?.toInt();
       final name =
           _pickString(stopMap, ['name', 'barName', 'title', 'barTitle']) ??
           _pickString(nested ?? empty, ['name', 'barName', 'title']);
@@ -771,9 +776,7 @@ Future<List<_ProfileListEntry>> _loadCheckInEntries(SiponApiService api) async {
         final name = _pickString(map, ['barName', 'name', 'barTitle']);
         if (name == null) return null;
         final city = _pickString(map, ['city']) ?? '';
-        final date = _shortDate(
-          _pickString(map, ['visitedAt', 'createdAt']),
-        );
+        final date = _shortDate(_pickString(map, ['visitedAt', 'createdAt']));
         final meta = [
           if (city.isNotEmpty) city,
           if (date.isNotEmpty) date,
@@ -789,7 +792,9 @@ Future<List<_ProfileListEntry>> _loadCheckInEntries(SiponApiService api) async {
 }
 
 /// 想喝的酒吧：GET /api/users/me/wishlist/bars，元素为 Bar 结构。
-Future<List<_ProfileListEntry>> _loadWishlistEntries(SiponApiService api) async {
+Future<List<_ProfileListEntry>> _loadWishlistEntries(
+  SiponApiService api,
+) async {
   final list = await api.getWishlistBars();
   return [
     for (final item in list.whereType<Map>())
@@ -1179,8 +1184,10 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
   Widget build(BuildContext context) {
     // 固定弹窗高度：让加载/空态/列表态高度一致，避免数据返回时 bottom sheet
     // 因内容高度变化而重新调整自身尺寸，出现“抖动/跳动”。
-    final sheetHeight =
-        math.min(620.0, MediaQuery.of(context).size.height * 0.8);
+    final sheetHeight = math.min(
+      620.0,
+      MediaQuery.of(context).size.height * 0.8,
+    );
     return SafeArea(
       child: Container(
         height: sheetHeight,
@@ -1304,8 +1311,12 @@ Widget _entryImage(
       width: width,
       height: height,
       fit: BoxFit.cover,
-      errorBuilder: (_, _, _) =>
-          Image.asset(item.fallbackImagePath, width: width, height: height, fit: BoxFit.cover),
+      errorBuilder: (_, _, _) => Image.asset(
+        item.fallbackImagePath,
+        width: width,
+        height: height,
+        fit: BoxFit.cover,
+      ),
     );
   }
   return Image.asset(
@@ -1672,8 +1683,7 @@ class _RouteDetailMapPageState extends State<_RouteDetailMapPage> {
 
   /// 把酒吧详情合并进站点：只补齐缺失的坐标/名称/地址。
   _RouteStop _mergeBarIntoStop(_RouteStop stop, Map<String, dynamic>? bar) {
-    if (bar == null ||
-        (stop.longitude != null && stop.latitude != null)) {
+    if (bar == null || (stop.longitude != null && stop.latitude != null)) {
       return stop;
     }
     return _RouteStop(
@@ -1683,9 +1693,7 @@ class _RouteDetailMapPageState extends State<_RouteDetailMapPage> {
       longitude: _pickCoordinate(bar, longitude: true) ?? stop.longitude,
       latitude: _pickCoordinate(bar, longitude: false) ?? stop.latitude,
       city: _pickString(bar, ['city']) ?? stop.city,
-      kind: MapVenueKind.fromRaw(
-        _pickString(bar, ['barSubtype', 'subtype']),
-      ),
+      kind: MapVenueKind.fromRaw(_pickString(bar, ['barSubtype', 'subtype'])),
     );
   }
 
@@ -2043,6 +2051,12 @@ class _BudgetCardState extends State<_BudgetCard> {
     }
   }
 
+  void _openStickerCalendar(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const DrinkStickerCalendarPage()),
+    );
+  }
+
   void _showRecords(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -2139,6 +2153,7 @@ class _BudgetCardState extends State<_BudgetCard> {
     final monthExpense = _store.currentMonthExpense;
     final remaining = _store.remaining;
     final delta = _store.monthDeltaRatio;
+    final monthRecords = _store.recordsOf(DrinkBudgetMonth.now());
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -2183,6 +2198,25 @@ class _BudgetCardState extends State<_BudgetCard> {
                     ),
                   ),
                 ),
+                TextButton.icon(
+                  onPressed: () => _openStickerCalendar(context),
+                  style: TextButton.styleFrom(
+                    foregroundColor: ProfilePage._brand,
+                    minimumSize: const Size(0, 28),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  icon: const Icon(Icons.calendar_month_outlined, size: 15),
+                  label: Text(
+                    text.t('月历'),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
                 FilledButton.tonalIcon(
                   onPressed: widget.onRecordPressed,
                   style: FilledButton.styleFrom(
@@ -2231,9 +2265,85 @@ class _BudgetCardState extends State<_BudgetCard> {
                 ),
               ],
             ),
+            const SizedBox(height: 14),
+            _StickerBudgetPreview(
+              records: monthRecords,
+              onOpenCalendar: () => _openStickerCalendar(context),
+            ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _StickerBudgetPreview extends StatelessWidget {
+  const _StickerBudgetPreview({
+    required this.records,
+    required this.onOpenCalendar,
+  });
+
+  final List<DrinkBudgetRecord> records;
+  final VoidCallback onOpenCalendar;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = SiponLanguageScope.textOf(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                text.t('本月贴纸池'),
+                style: const TextStyle(
+                  color: ProfilePage._ink,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: onOpenCalendar,
+              style: TextButton.styleFrom(
+                foregroundColor: ProfilePage._brand,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                minimumSize: const Size(0, 28),
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+              ),
+              child: Text(
+                text.t('打开月历'),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        DrinkStickerGravityPool(
+          records: records,
+          height: 150,
+          onStickerTap: (record) => showModalBottomSheet<void>(
+            context: context,
+            useSafeArea: true,
+            showDragHandle: true,
+            backgroundColor: Colors.white,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+            ),
+            builder: (_) => _BudgetRecordDetailSheet(
+              record: record,
+              dateText:
+                  '${record.date.year}-${record.date.month.toString().padLeft(2, '0')}-${record.date.day.toString().padLeft(2, '0')}',
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -2592,6 +2702,26 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
     return Map.fromEntries(sorted);
   }
 
+  Future<void> _copyRecord(DrinkBudgetRecord record) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => DrinkRecordPage(initialRecord: record),
+      ),
+    );
+    widget.onDeleted?.call();
+  }
+
+  Future<void> _shareRecord(DrinkBudgetRecord record) async {
+    final text = SiponLanguageScope.textOf(context);
+    final title = drinkStickerTitle(record);
+    final content =
+        '${text.t('我记录了一杯')}$title · ${text.t(record.place)} · ${_formatCurrency(record.amount)}';
+    await Clipboard.setData(ClipboardData(text: content));
+    if (mounted) {
+      _showProfileMessage(context, text.t('分享文案已复制'));
+    }
+  }
+
   List<_DayExpense> _dailyExpenses(List<DrinkBudgetRecord> records) {
     final expenses = <DateTime, double>{};
     for (final record in records) {
@@ -2809,6 +2939,8 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
                 return _BudgetRecordTile(
                   record: record,
                   dateText: _formatDate(record.date, text),
+                  onCopied: () => _copyRecord(record),
+                  onShared: () => _shareRecord(record),
                   onDeleted: () async {
                     await _store.removeRecord(record.id);
                     widget.onDeleted?.call();
@@ -3468,15 +3600,21 @@ class _CategoryPiePainter extends CustomPainter {
   }
 }
 
+enum _RecordQuickAction { copy, share, delete }
+
 class _BudgetRecordTile extends StatelessWidget {
   const _BudgetRecordTile({
     required this.record,
     required this.dateText,
+    required this.onCopied,
+    required this.onShared,
     required this.onDeleted,
   });
 
   final DrinkBudgetRecord record;
   final String dateText;
+  final VoidCallback onCopied;
+  final VoidCallback onShared;
   final VoidCallback onDeleted;
 
   String _formatFullDate(DateTime date, SiponAppText text) {
@@ -3532,19 +3670,7 @@ class _BudgetRecordTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 12),
           child: Row(
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF4FB),
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: const Icon(
-                  Icons.local_bar_rounded,
-                  color: ProfilePage._brand,
-                  size: 20,
-                ),
-              ),
+              DrinkSticker(record: record, size: 42),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -3587,15 +3713,40 @@ class _BudgetRecordTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              IconButton(
-                onPressed: onDeleted,
-                style: IconButton.styleFrom(
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  foregroundColor: const Color(0xFFC7C1C6),
-                  padding: EdgeInsets.zero,
-                  minimumSize: const Size(28, 28),
+              PopupMenuButton<_RecordQuickAction>(
+                tooltip: text.t('更多'),
+                icon: const Icon(
+                  Icons.more_horiz_rounded,
+                  color: Color(0xFFC7C1C6),
+                  size: 20,
                 ),
-                icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                onSelected: (action) {
+                  switch (action) {
+                    case _RecordQuickAction.copy:
+                      onCopied();
+                      break;
+                    case _RecordQuickAction.share:
+                      onShared();
+                      break;
+                    case _RecordQuickAction.delete:
+                      onDeleted();
+                      break;
+                  }
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: _RecordQuickAction.copy,
+                    child: Text(text.t('复制记录')),
+                  ),
+                  PopupMenuItem(
+                    value: _RecordQuickAction.share,
+                    child: Text(text.t('分享')),
+                  ),
+                  PopupMenuItem(
+                    value: _RecordQuickAction.delete,
+                    child: Text(text.t('删除')),
+                  ),
+                ],
               ),
             ],
           ),
@@ -3633,19 +3784,7 @@ class _BudgetRecordDetailSheet extends StatelessWidget {
           children: [
             Row(
               children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF4FB),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.local_bar_rounded,
-                    color: ProfilePage._brand,
-                    size: 21,
-                  ),
-                ),
+                DrinkSticker(record: record, size: 44),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -3685,6 +3824,11 @@ class _BudgetRecordDetailSheet extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 18),
+            if (record.drinkName.trim().isNotEmpty)
+              _RecordDetailRow(
+                label: text.t('名称'),
+                value: record.drinkName.trim(),
+              ),
             _RecordDetailRow(
               label: text.t('酒款'),
               value: text.t(record.drinkType),
@@ -3702,6 +3846,24 @@ class _BudgetRecordDetailSheet extends StatelessWidget {
             _RecordDetailRow(
               label: text.t('评分'),
               value: record.rating > 0 ? '${record.rating}/5' : '-',
+            ),
+            _RecordDetailRow(
+              label: text.t('酒精度'),
+              value: record.alcoholPercent == null
+                  ? '-'
+                  : '${record.alcoholPercent!.toStringAsFixed(record.alcoholPercent! % 1 == 0 ? 0 : 1)}%',
+            ),
+            _RecordDetailRow(
+              label: text.t('糖分'),
+              value: record.sugarGrams == null
+                  ? '-'
+                  : '${record.sugarGrams!.toStringAsFixed(record.sugarGrams! % 1 == 0 ? 0 : 1)}g',
+            ),
+            _RecordDetailRow(
+              label: text.t('咖啡因'),
+              value: record.caffeineMg == null
+                  ? '-'
+                  : '${record.caffeineMg!.toStringAsFixed(record.caffeineMg! % 1 == 0 ? 0 : 1)}mg',
             ),
             _RecordDetailRow(
               label: text.t('备注'),

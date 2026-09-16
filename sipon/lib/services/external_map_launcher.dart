@@ -18,7 +18,7 @@ class ExternalMapLaunchResult {
   final bool opened;
   final String message;
 
-  static ExternalMapLaunchResult opened(ExternalMapApp app) =>
+  static ExternalMapLaunchResult success(ExternalMapApp app) =>
       ExternalMapLaunchResult._(true, '已打开${app.label}路线规划');
 
   static ExternalMapLaunchResult unavailable(ExternalMapApp app) =>
@@ -70,7 +70,7 @@ class ExternalMapLauncher {
 
     final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
     return opened
-        ? ExternalMapLaunchResult.opened(app)
+        ? ExternalMapLaunchResult.success(app)
         : ExternalMapLaunchResult.unavailable(app);
   }
 

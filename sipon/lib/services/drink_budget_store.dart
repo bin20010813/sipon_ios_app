@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'sipon_api_service.dart';
 
+const Object _unchanged = Object();
+
 /// 一条饮酒记账记录。
 ///
 /// [id] 是本地生成的稳定标识，同时作为后端 `clientRecordId` 用于幂等重试；
@@ -17,18 +19,33 @@ class DrinkBudgetRecord {
     required this.amount,
     required this.drinkType,
     required this.place,
+    this.drinkName = '',
+    this.photoPath,
+    this.stickerColor,
+    this.alcoholPercent,
+    this.sugarGrams,
+    this.caffeineMg,
+    this.tags = const [],
     this.cups = 1,
     this.rating = 0,
     this.note = '',
     this.serverId,
-  }) : id = id ??
-            '${date.millisecondsSinceEpoch}_${(amount * 100).toInt()}_${Random().nextInt(1 << 32)}';
+  }) : id =
+           id ??
+           '${date.millisecondsSinceEpoch}_${(amount * 100).toInt()}_${Random().nextInt(1 << 32)}';
 
   final String id;
   final DateTime date;
   final double amount;
   final String drinkType;
   final String place;
+  final String drinkName;
+  final String? photoPath;
+  final int? stickerColor;
+  final double? alcoholPercent;
+  final double? sugarGrams;
+  final double? caffeineMg;
+  final List<String> tags;
   final int cups;
   final int rating;
   final String note;
@@ -38,30 +55,77 @@ class DrinkBudgetRecord {
 
   /// 生成一个替换了 [serverId] 的副本，其余字段保持不变。
   DrinkBudgetRecord copyWithServerId(int? serverId) {
+    return copyWith(serverId: serverId);
+  }
+
+  DrinkBudgetRecord copyWith({
+    String? id,
+    DateTime? date,
+    double? amount,
+    String? drinkType,
+    String? place,
+    String? drinkName,
+    Object? photoPath = _unchanged,
+    Object? stickerColor = _unchanged,
+    Object? alcoholPercent = _unchanged,
+    Object? sugarGrams = _unchanged,
+    Object? caffeineMg = _unchanged,
+    List<String>? tags,
+    int? cups,
+    int? rating,
+    String? note,
+    Object? serverId = _unchanged,
+  }) {
     return DrinkBudgetRecord(
-      id: id,
-      date: date,
-      amount: amount,
-      drinkType: drinkType,
-      place: place,
-      cups: cups,
-      rating: rating,
-      note: note,
-      serverId: serverId,
+      id: id ?? this.id,
+      date: date ?? this.date,
+      amount: amount ?? this.amount,
+      drinkType: drinkType ?? this.drinkType,
+      place: place ?? this.place,
+      drinkName: drinkName ?? this.drinkName,
+      photoPath: identical(photoPath, _unchanged)
+          ? this.photoPath
+          : photoPath as String?,
+      stickerColor: identical(stickerColor, _unchanged)
+          ? this.stickerColor
+          : stickerColor as int?,
+      alcoholPercent: identical(alcoholPercent, _unchanged)
+          ? this.alcoholPercent
+          : alcoholPercent as double?,
+      sugarGrams: identical(sugarGrams, _unchanged)
+          ? this.sugarGrams
+          : sugarGrams as double?,
+      caffeineMg: identical(caffeineMg, _unchanged)
+          ? this.caffeineMg
+          : caffeineMg as double?,
+      tags: tags ?? this.tags,
+      cups: cups ?? this.cups,
+      rating: rating ?? this.rating,
+      note: note ?? this.note,
+      serverId: identical(serverId, _unchanged)
+          ? this.serverId
+          : serverId as int?,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'date': date.millisecondsSinceEpoch,
-        'amount': amount,
-        'drinkType': drinkType,
-        'place': place,
-        'cups': cups,
-        'rating': rating,
-        'note': note,
-        'serverId': serverId,
-      };
+    'id': id,
+    'date': date.millisecondsSinceEpoch,
+    'amount': amount,
+    'drinkType': drinkType,
+    'place': place,
+    'drinkName': drinkName,
+    'photoPath': photoPath,
+    'stickerColor': stickerColor,
+    'alcoholPercent': alcoholPercent,
+    'sugarGrams': sugarGrams,
+    'caffeineMg': caffeineMg,
+    'tags': tags,
+    'cups': cups,
+    'rating': rating,
+    'note': note,
+    'serverId': serverId,
+  };
 
   factory DrinkBudgetRecord.fromJson(Map<String, dynamic> json) {
     return DrinkBudgetRecord(
@@ -70,6 +134,13 @@ class DrinkBudgetRecord {
       amount: (json['amount'] as num).toDouble(),
       drinkType: (json['drinkType'] as String?) ?? '',
       place: (json['place'] as String?) ?? '',
+      drinkName: (json['drinkName'] as String?) ?? '',
+      photoPath: json['photoPath'] as String?,
+      stickerColor: (json['stickerColor'] as num?)?.toInt(),
+      alcoholPercent: (json['alcoholPercent'] as num?)?.toDouble(),
+      sugarGrams: (json['sugarGrams'] as num?)?.toDouble(),
+      caffeineMg: (json['caffeineMg'] as num?)?.toDouble(),
+      tags: _readStringList(json['tags']),
       cups: (json['cups'] as int?) ?? 1,
       rating: (json['rating'] as int?) ?? 0,
       note: (json['note'] as String?) ?? '',
@@ -79,7 +150,8 @@ class DrinkBudgetRecord {
 
   /// 转成后端 `DrinkRecordRequest`。
   ///
-  /// 注意：后端当前版本携带 `occurredAt` 会触发 500，修复前只发 `occurredOn`。
+  /// 当前生产后端仅稳定接收记账基础字段，贴纸/图片字段先本地保存。
+  /// 后端完成 `DRINK_STICKER_BACKEND_TODO.md` 后再放开同步字段。
   Map<String, Object?> toApiRequest() {
     return {
       'clientRecordId': id,
@@ -102,21 +174,62 @@ class DrinkBudgetRecord {
     final occurredAt = json['occurredAt']?.toString();
     final parsedDate =
         (occurredOn != null ? DateTime.tryParse(occurredOn) : null) ??
-            (occurredAt != null ? DateTime.tryParse(occurredAt)?.toLocal() : null);
+        (occurredAt != null ? DateTime.tryParse(occurredAt)?.toLocal() : null);
     final serverId = (json['id'] as num?)?.toInt();
     return DrinkBudgetRecord(
-      id: json['clientRecordId']?.toString() ??
+      id:
+          json['clientRecordId']?.toString() ??
           (serverId != null ? 'server-$serverId' : null),
       date: parsedDate ?? DateTime.now(),
       amount: (json['amount'] as num?)?.toDouble() ?? 0,
       drinkType: json['drinkType']?.toString() ?? '',
       place: json['place']?.toString() ?? '',
+      drinkName: json['drinkName']?.toString() ?? '',
+      photoPath: json['photoPath']?.toString() ?? json['photoUrl']?.toString(),
+      stickerColor: (json['stickerColor'] as num?)?.toInt(),
+      alcoholPercent: (json['alcoholPercent'] as num?)?.toDouble(),
+      sugarGrams: (json['sugarGrams'] as num?)?.toDouble(),
+      caffeineMg: (json['caffeineMg'] as num?)?.toDouble(),
+      tags: _readStringList(json['tags']),
       cups: (json['cups'] as num?)?.toInt() ?? 1,
       rating: (json['rating'] as num?)?.toInt() ?? 0,
       note: json['note']?.toString() ?? '',
       serverId: serverId,
     );
   }
+
+  DrinkBudgetRecord mergeStickerMetaFrom(DrinkBudgetRecord? local) {
+    if (local == null) {
+      return this;
+    }
+
+    return copyWith(
+      drinkName: drinkName.isNotEmpty ? drinkName : local.drinkName,
+      photoPath: photoPath ?? local.photoPath,
+      stickerColor: stickerColor ?? local.stickerColor,
+      alcoholPercent: alcoholPercent ?? local.alcoholPercent,
+      sugarGrams: sugarGrams ?? local.sugarGrams,
+      caffeineMg: caffeineMg ?? local.caffeineMg,
+      tags: tags.isNotEmpty ? tags : local.tags,
+    );
+  }
+}
+
+List<String> _readStringList(Object? value) {
+  if (value is List) {
+    return value
+        .map((item) => item.toString().trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+  }
+  if (value is String && value.trim().isNotEmpty) {
+    return value
+        .split(',')
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+  }
+  return const [];
 }
 
 class DrinkBudgetMonth {
@@ -147,8 +260,7 @@ class DrinkBudgetMonth {
 /// 合并以服务端记录为准，本地仅作缓存。同步失败不抛错、不阻塞 UI，
 /// 通过 [hasPendingSync] 让页面提示「待同步」。
 class DrinkBudgetStore extends ChangeNotifier {
-  DrinkBudgetStore._({SiponApiService? api})
-    : _api = api ?? SiponApiService();
+  DrinkBudgetStore._({SiponApiService? api}) : _api = api ?? SiponApiService();
 
   static final DrinkBudgetStore instance = DrinkBudgetStore._();
 
@@ -207,7 +319,10 @@ class DrinkBudgetStore extends ChangeNotifier {
       try {
         final decoded = jsonDecode(raw) as List<dynamic>;
         _records = decoded
-            .map((item) => DrinkBudgetRecord.fromJson(item as Map<String, dynamic>))
+            .map(
+              (item) =>
+                  DrinkBudgetRecord.fromJson(item as Map<String, dynamic>),
+            )
             .toList();
       } catch (_) {
         _records = const [];
@@ -279,7 +394,9 @@ class DrinkBudgetStore extends ChangeNotifier {
 
   /// 推送所有未同步记录到后端，成功后回写 serverId。
   Future<void> _pushPendingRecords() async {
-    final pending = _records.where((record) => record.serverId == null).toList();
+    final pending = _records
+        .where((record) => record.serverId == null)
+        .toList();
     for (final record in pending) {
       await _pushRecord(record);
     }
@@ -289,7 +406,9 @@ class DrinkBudgetStore extends ChangeNotifier {
   Future<void> _pushRecord(DrinkBudgetRecord record) async {
     try {
       final response = await _api.createDrinkRecord(record.toApiRequest());
-      final serverId = response is Map ? (response['id'] as num?)?.toInt() : null;
+      final serverId = response is Map
+          ? (response['id'] as num?)?.toInt()
+          : null;
       if (serverId != null) {
         _records = [
           for (final item in _records)
@@ -305,14 +424,17 @@ class DrinkBudgetStore extends ChangeNotifier {
 
   /// 拉取服务端全量记录并合并：以服务端为准，本地未同步的追加保留。
   Future<void> _pullServerRecords() async {
-    final list = await _api.getDrinkRecords(from: '2000-01-01', to: _todayKey());
-    final serverRecords = list
-        .whereType<Map>()
-        .map(
-          (item) =>
-              DrinkBudgetRecord.fromApiJson(item.cast<String, dynamic>()),
-        )
-        .toList();
+    final list = await _api.getDrinkRecords(
+      from: '2000-01-01',
+      to: _todayKey(),
+    );
+    final localById = {for (final record in _records) record.id: record};
+    final serverRecords = list.whereType<Map>().map((item) {
+      final record = DrinkBudgetRecord.fromApiJson(
+        item.cast<String, dynamic>(),
+      );
+      return record.mergeStickerMetaFrom(localById[record.id]);
+    }).toList();
 
     final merged = <String, DrinkBudgetRecord>{
       for (final record in serverRecords) record.id: record,
@@ -324,8 +446,7 @@ class DrinkBudgetStore extends ChangeNotifier {
       }
     }
 
-    _records = merged.values.toList()
-      ..sort((a, b) => b.date.compareTo(a.date));
+    _records = merged.values.toList()..sort((a, b) => b.date.compareTo(a.date));
     await _persistRecords();
     notifyListeners();
   }
