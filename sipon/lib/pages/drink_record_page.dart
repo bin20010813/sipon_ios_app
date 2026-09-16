@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../services/drink_budget_store.dart';
 import '../services/sipon_data_repository.dart';
+import '../widgets/drink_sticker.dart';
 import 'language_transform.dart';
 
 class DrinkRecordPage extends StatefulWidget {
@@ -27,6 +30,9 @@ class DrinkRecordPage extends StatefulWidget {
 class _DrinkRecordPageState extends State<DrinkRecordPage> {
   String? _drinkType;
   String? _place;
+  String? _photoPath;
+  int? _stickerColor;
+  final TextEditingController _drinkNameController = TextEditingController();
   final TextEditingController _amountController = TextEditingController();
   int _cups = 1;
   DateTime _date = DateTime.now();
@@ -35,6 +41,7 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
 
   @override
   void dispose() {
+    _drinkNameController.dispose();
     _amountController.dispose();
     _noteController.dispose();
     super.dispose();
@@ -50,6 +57,64 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       );
+  }
+
+  Future<void> _pickPhoto() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (sheetContext) {
+        final text = SiponLanguageScope.textOf(sheetContext);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _PhotoActionTile(
+                  icon: Icons.photo_camera_outlined,
+                  label: text.t('拍照'),
+                  onTap: () =>
+                      Navigator.of(sheetContext).pop(ImageSource.camera),
+                ),
+                _PhotoActionTile(
+                  icon: Icons.photo_library_outlined,
+                  label: text.t('从相册选择'),
+                  onTap: () =>
+                      Navigator.of(sheetContext).pop(ImageSource.gallery),
+                ),
+                if (_photoPath != null)
+                  _PhotoActionTile(
+                    icon: Icons.hide_image_outlined,
+                    label: text.t('移除照片'),
+                    onTap: () => Navigator.of(sheetContext).pop(),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (source == null) {
+      if (_photoPath != null && mounted) {
+        setState(() => _photoPath = null);
+      }
+      return;
+    }
+    final picked = await ImagePicker().pickImage(
+      source: source,
+      maxWidth: 1400,
+      maxHeight: 1400,
+      imageQuality: 86,
+    );
+    if (picked != null && mounted) {
+      setState(() => _photoPath = picked.path);
+    }
   }
 
   Future<void> _pickPlace() async {
@@ -115,9 +180,15 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
       return;
     }
 
+    final drinkName = _drinkNameController.text.trim();
+    final stickerColor =
+        _stickerColor ?? drinkStickerColorForType(_drinkType!).toARGB32();
     final draft = DrinkRecordDraft(
       drinkType: _drinkType!,
       place: _place!,
+      drinkName: drinkName,
+      photoPath: _photoPath,
+      stickerColor: stickerColor,
       amount: amount,
       cups: _cups,
       date: _date,
@@ -130,6 +201,10 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
       amount: amount,
       drinkType: _drinkType!,
       place: _place!,
+      drinkName: drinkName,
+      photoPath: _photoPath,
+      stickerColor: stickerColor,
+      tags: _tagsForDrinkType(_drinkType!),
       cups: _cups,
       rating: _rating,
       note: _noteController.text.trim(),
@@ -143,8 +218,8 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
     // addRecord 内部已尽力同步；仍有待同步记录说明当前离线，给个提示。
     _showMessage(
       DrinkBudgetStore.instance.hasPendingSync
-          ? text.t('饮酒记录已保存，待同步')
-          : text.t('饮酒记录已保存'),
+          ? text.t('饮品贴纸已保存，待同步')
+          : text.t('饮品贴纸已保存'),
     );
     _resetForm();
   }
@@ -153,12 +228,30 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
     setState(() {
       _drinkType = null;
       _place = null;
+      _photoPath = null;
+      _stickerColor = null;
+      _drinkNameController.clear();
       _amountController.clear();
       _cups = 1;
       _date = DateTime.now();
       _rating = 0;
       _noteController.clear();
     });
+  }
+
+  DrinkBudgetRecord get _previewRecord {
+    final type = _drinkType ?? '鸡尾酒';
+    return DrinkBudgetRecord(
+      date: _date,
+      amount: double.tryParse(_amountController.text.trim()) ?? 0,
+      drinkType: type,
+      place: _place ?? 'SipOn',
+      drinkName: _drinkNameController.text.trim(),
+      photoPath: _photoPath,
+      stickerColor: _stickerColor ?? drinkStickerColorForType(type).toARGB32(),
+      cups: _cups,
+      rating: _rating,
+    );
   }
 
   @override
@@ -208,7 +301,7 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
                       ),
                       const SizedBox(height: 24),
                       Text(
-                        text.t('看见你的饮酒习惯'),
+                        text.t('把这杯变成贴纸'),
                         style: const TextStyle(
                           color: ink,
                           fontSize: 24,
@@ -218,7 +311,7 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        text.t('记录每一次饮酒，了解频率、偏好和变化趋势。'),
+                        text.t('记录饮品、地点和花费，让本月月历慢慢长出你的微醺收藏。'),
                         style: const TextStyle(
                           color: muted,
                           fontSize: 14,
@@ -227,13 +320,30 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
                           letterSpacing: 0,
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 22),
+                      _StickerComposer(
+                        record: _previewRecord,
+                        photoPath: _photoPath,
+                        onPickPhoto: _pickPhoto,
+                      ),
+                      const SizedBox(height: 18),
+                      _TextInputTile(
+                        icon: Icons.local_offer_outlined,
+                        label: text.t('饮品名称'),
+                        hintText: text.t('例如 Negroni / 拿铁 / IPA'),
+                        controller: _drinkNameController,
+                      ),
+                      const SizedBox(height: 18),
                       _SectionLabel(text.t('酒款')),
                       const SizedBox(height: 12),
                       _DrinkTypeSelector(
                         selected: _drinkType,
-                        onSelected: (value) =>
-                            setState(() => _drinkType = value),
+                        onSelected: (value) => setState(() {
+                          _drinkType = value;
+                          _stickerColor = drinkStickerColorForType(
+                            value,
+                          ).toARGB32();
+                        }),
                       ),
                       const SizedBox(height: 16),
                       _FieldTile(
@@ -268,7 +378,7 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
                       FilledButton.icon(
                         onPressed: _save,
                         icon: const Icon(Icons.check_rounded),
-                        label: Text(text.t('保存记录')),
+                        label: Text(text.t('保存贴纸')),
                         style: FilledButton.styleFrom(
                           minimumSize: const Size.fromHeight(48),
                           backgroundColor: brand,
@@ -296,9 +406,8 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
 
   String _formatDate(DateTime date, SiponAppText text) {
     final now = DateTime.now();
-    final isToday = date.year == now.year &&
-        date.month == now.month &&
-        date.day == now.day;
+    final isToday =
+        date.year == now.year && date.month == now.month && date.day == now.day;
     if (isToday) {
       return text.t('今天');
     }
@@ -308,10 +417,205 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
     }
 
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+}
+
+class _StickerComposer extends StatelessWidget {
+  const _StickerComposer({
+    required this.record,
+    required this.photoPath,
+    required this.onPickPhoto,
+  });
+
+  final DrinkBudgetRecord record;
+  final String? photoPath;
+  final VoidCallback onPickPhoto;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = SiponLanguageScope.textOf(context);
+    final hasPhoto = photoPath != null && File(photoPath!).existsSync();
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8FC),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFF0E7EE)),
+      ),
+      child: Row(
+        children: [
+          DrinkSticker(
+            record: record,
+            size: 86,
+            showLabel: true,
+            rotation: -0.08,
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  text.t(hasPhoto ? '照片贴纸已生成' : '先生成一枚贴纸'),
+                  style: const TextStyle(
+                    color: DrinkRecordPage._ink,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  text.t(
+                    hasPhoto ? '保存后会出现在月历和统计贴纸池。' : '可上传饮品照片，也可以使用酒款默认贴纸。',
+                  ),
+                  style: const TextStyle(
+                    color: DrinkRecordPage._muted,
+                    fontSize: 12,
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                FilledButton.tonalIcon(
+                  onPressed: onPickPhoto,
+                  icon: Icon(
+                    hasPhoto
+                        ? Icons.refresh_rounded
+                        : Icons.add_photo_alternate_outlined,
+                    size: 17,
+                  ),
+                  label: Text(text.t(hasPhoto ? '更换照片' : '添加照片')),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFEDF7),
+                    foregroundColor: DrinkRecordPage._brand,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    minimumSize: const Size(0, 34),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    textStyle: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PhotoActionTile extends StatelessWidget {
+  const _PhotoActionTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      onTap: onTap,
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon, color: DrinkRecordPage._brand),
+      title: Text(
+        label,
+        style: const TextStyle(
+          color: DrinkRecordPage._ink,
+          fontSize: 15,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+        ),
+      ),
+    );
+  }
+}
+
+class _TextInputTile extends StatelessWidget {
+  const _TextInputTile({
+    required this.icon,
+    required this.label,
+    required this.hintText,
+    required this.controller,
+  });
+
+  final IconData icon;
+  final String label;
+  final String hintText;
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 54,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: DrinkRecordPage._fieldBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: DrinkRecordPage._line),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: DrinkRecordPage._brand, size: 21),
+          const SizedBox(width: 10),
+          Text(
+            label,
+            style: const TextStyle(
+              color: DrinkRecordPage._ink,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              textAlign: TextAlign.end,
+              style: const TextStyle(
+                color: DrinkRecordPage._ink,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+              decoration: InputDecoration(
+                hintText: hintText,
+                hintStyle: const TextStyle(
+                  color: DrinkRecordPage._muted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+                border: InputBorder.none,
+                isCollapsed: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -335,10 +639,7 @@ class _SectionLabel extends StatelessWidget {
 }
 
 class _DrinkTypeSelector extends StatelessWidget {
-  const _DrinkTypeSelector({
-    required this.selected,
-    required this.onSelected,
-  });
+  const _DrinkTypeSelector({required this.selected, required this.onSelected});
 
   final String? selected;
   final ValueChanged<String> onSelected;
@@ -401,17 +702,13 @@ class _DrinkChip extends StatelessWidget {
               Icon(
                 icon,
                 size: 17,
-                color: selected
-                    ? Colors.white
-                    : DrinkRecordPage._brand,
+                color: selected ? Colors.white : DrinkRecordPage._brand,
               ),
               const SizedBox(width: 6),
               Text(
                 label,
                 style: TextStyle(
-                  color: selected
-                      ? Colors.white
-                      : const Color(0xFF342C34),
+                  color: selected ? Colors.white : const Color(0xFF342C34),
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0,
@@ -610,10 +907,7 @@ class _CupsTile extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          _Stepper(
-            value: cups,
-            onChanged: onChanged,
-          ),
+          _Stepper(value: cups, onChanged: onChanged),
         ],
       ),
     );
@@ -680,9 +974,7 @@ class _StepperButton extends StatelessWidget {
     final enabled = onPressed != null;
 
     return Material(
-      color: enabled
-          ? DrinkRecordPage._brand
-          : const Color(0xFFE6DDE3),
+      color: enabled ? DrinkRecordPage._brand : const Color(0xFFE6DDE3),
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onPressed,
@@ -920,8 +1212,10 @@ class _PlacePickerSheetState extends State<_PlacePickerSheet> {
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
               ),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
             ),
           ),
           actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -1133,6 +1427,9 @@ class DrinkRecordDraft {
   const DrinkRecordDraft({
     required this.drinkType,
     required this.place,
+    required this.drinkName,
+    required this.photoPath,
+    required this.stickerColor,
     required this.amount,
     required this.cups,
     required this.date,
@@ -1142,6 +1439,9 @@ class DrinkRecordDraft {
 
   final String drinkType;
   final String place;
+  final String drinkName;
+  final String? photoPath;
+  final int stickerColor;
   final double amount;
   final int cups;
   final DateTime date;
@@ -1164,8 +1464,21 @@ const List<_DrinkOption> _drinkOptions = [
   _DrinkOption(key: '香槟', icon: Icons.celebration_outlined),
   _DrinkOption(key: '清酒', icon: Icons.local_drink_outlined),
   _DrinkOption(key: '烈酒', icon: Icons.flash_on_outlined),
+  _DrinkOption(key: '咖啡', icon: Icons.coffee_outlined),
+  _DrinkOption(key: '无酒精', icon: Icons.spa_outlined),
   _DrinkOption(key: '其他', icon: Icons.more_horiz_outlined),
 ];
+
+List<String> _tagsForDrinkType(String type) {
+  return switch (type) {
+    '咖啡' => const ['咖啡因', '日间'],
+    '无酒精' => const ['轻饮', '低负担'],
+    '啤酒' => const ['精酿', '麦芽'],
+    '威士忌' => const ['烈酒', '橡木'],
+    '红酒' => const ['葡萄酒', '餐酒'],
+    _ => const ['微醺'],
+  };
+}
 
 const List<String> _fallbackPlaces = [
   '庙前冰室（Hope & Sesame）',
