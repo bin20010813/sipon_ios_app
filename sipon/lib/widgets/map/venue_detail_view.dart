@@ -8,6 +8,7 @@ import '../../services/map/mock_venue_detail_repository.dart';
 import '../../services/map/venue_detail_models.dart';
 import '../../services/sipon_api_config.dart';
 import 'map_theme.dart';
+import '../review_composer.dart';
 import 'venue_common.dart';
 
 /// 判断详情数据里的图片路径是否是网络地址（相对路径也算，交给 VenueImage 拼接）。
@@ -320,6 +321,35 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
     }
   }
 
+  void _openReviewComposer() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => Scaffold(
+          backgroundColor: const Color(0xFFFBF8F9),
+          appBar: AppBar(
+            title: const Text(
+              '写评论',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+          ),
+          body: ReviewComposer(
+            venueName: widget.venue.name,
+            venueAddress: widget.venue.address,
+            onSubmit: (draft) async {
+              if (!mounted) return;
+              _showMockToast(
+                SiponLanguageScope.textOf(context).t('评论发布功能开发中（演示）'),
+              );
+              Navigator.of(context).pop();
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(
@@ -562,7 +592,6 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
 
   /// 三个板块连续排列，滚动位置与吸顶标签双向联动。
   Widget _buildSections(BuildContext context) {
-    final text = SiponLanguageScope.textOf(context);
     final detail = _detail;
 
     return Padding(
@@ -597,8 +626,11 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
               reviewsLoading: _reviewsLoading,
               sort: _reviewFilter,
               onSortChanged: (filter) => setState(() => _reviewFilter = filter),
-              onAddReview: () => _showMockToast(text.t('评论发布功能开发中（演示）')),
+              onAddReview: _openReviewComposer,
               onViewMore: _loadMoreReviews,
+              onReviewAction: (action) => _showMockToast(
+                SiponLanguageScope.textOf(context).t(action),
+              ),
               headingKey: _reviewsHeadingKey,
             ),
           ),
@@ -1420,6 +1452,7 @@ class _VenueReviewsSection extends StatelessWidget {
     required this.onSortChanged,
     required this.onAddReview,
     required this.onViewMore,
+    required this.onReviewAction,
     this.headingKey,
   });
 
@@ -1439,6 +1472,7 @@ class _VenueReviewsSection extends StatelessWidget {
   final ValueChanged<_ReviewFilter> onSortChanged;
   final VoidCallback onAddReview;
   final VoidCallback onViewMore;
+  final ValueChanged<String> onReviewAction;
 
   /// 板块小标题的 key，供 tab 跳转时测量标题高度。
   final Key? headingKey;
@@ -1616,7 +1650,10 @@ class _VenueReviewsSection extends StatelessWidget {
                 margin: const EdgeInsets.symmetric(vertical: 12),
                 color: MapDesign.hairline,
               ),
-            _ReviewItem(review: visibleReviews[i]),
+            _ReviewItem(
+              review: visibleReviews[i],
+              onAction: onReviewAction,
+            ),
           ],
           if (hasMoreReviews) ...[
             const SizedBox(height: 6),
@@ -1641,10 +1678,7 @@ class _VenueReviewsSection extends StatelessWidget {
                           color: MapDesign.brand,
                         ),
                       )
-                    : const Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        size: 18,
-                      ),
+                    : const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
                 label: Text(text.t('更多评论')),
               ),
             ),
@@ -1716,15 +1750,27 @@ class _ReviewFilterChip extends StatelessWidget {
 }
 
 /// 单条用户评价。
-class _ReviewItem extends StatelessWidget {
+class _ReviewItem extends StatefulWidget {
   /// 创建单条评价。
-  const _ReviewItem({required this.review});
+  const _ReviewItem({required this.review, required this.onAction});
 
   final VenueReview review;
+  final ValueChanged<String> onAction;
+
+  @override
+  State<_ReviewItem> createState() => _ReviewItemState();
+}
+
+enum _ReviewReaction { none, like, dislike }
+
+class _ReviewItemState extends State<_ReviewItem> {
+  _ReviewReaction _reaction = _ReviewReaction.none;
+  late int _likeCount = widget.review.likeCount;
 
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final review = widget.review;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1807,8 +1853,53 @@ class _ReviewItem extends StatelessWidget {
             ),
           ),
         ],
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _ReviewActionButton(
+                icon: _reaction == _ReviewReaction.like
+                    ? Icons.thumb_up_rounded
+                    : Icons.thumb_up_outlined,
+                label: text.t('点赞'),
+                count: _likeCount,
+                selected: _reaction == _ReviewReaction.like,
+                onTap: () => _toggleReaction(_ReviewReaction.like, '点赞'),
+              ),
+              const SizedBox(width: 12),
+              _ReviewActionButton(
+                icon: _reaction == _ReviewReaction.dislike
+                    ? Icons.thumb_down_rounded
+                    : Icons.thumb_down_outlined,
+                label: text.t('点踩'),
+                selected: _reaction == _ReviewReaction.dislike,
+                onTap: () => _toggleReaction(_ReviewReaction.dislike, '点踩'),
+              ),
+              const SizedBox(width: 12),
+              _ReviewActionButton(
+                icon: Icons.flag_outlined,
+                label: text.t('举报'),
+                onTap: () => widget.onAction('举报功能暂未接入'),
+              ),
+            ],
+          ),
+        ),
       ],
     );
+  }
+
+  void _toggleReaction(_ReviewReaction reaction, String label) {
+    setState(() {
+      if (reaction == _ReviewReaction.like) {
+        _likeCount += _reaction == reaction ? -1 : 1;
+      } else if (_reaction == _ReviewReaction.like) {
+        _likeCount -= 1;
+      }
+      _reaction = _reaction == reaction ? _ReviewReaction.none : reaction;
+    });
+    widget.onAction(_reaction == reaction ? '$label成功' : '已取消$label');
   }
 
   /// 头像：网络图优先，加载失败或缺失时用默认占位。
@@ -1842,6 +1933,58 @@ class _ReviewItem extends StatelessWidget {
       height: 36,
       color: MapDesign.brandSurface,
       child: const Icon(Icons.person_outline, color: MapDesign.brand, size: 20),
+    );
+  }
+}
+
+class _ReviewActionButton extends StatelessWidget {
+  const _ReviewActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.count,
+    this.selected = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final int? count;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: label,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 18,
+                color: selected ? MapDesign.brand : MapDesign.muted,
+              ),
+              if (count != null) ...[
+                const SizedBox(width: 3),
+                Text(
+                  '$count',
+                  style: TextStyle(
+                    color: selected ? MapDesign.brand : MapDesign.muted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

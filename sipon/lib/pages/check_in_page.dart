@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -9,6 +8,7 @@ import '../services/map/sipon_map_host.dart';
 import '../services/map/sipon_map_widget.dart';
 import '../services/sipon_api_service.dart';
 import '../widgets/map/venue_detail_page.dart';
+import '../widgets/review_composer.dart';
 
 /// 一级入口以底部弹窗展示，二级的记录页面仍然通过路由全屏打开。
 class CheckInPage extends StatefulWidget {
@@ -319,10 +319,7 @@ class _CheckInPageState extends State<CheckInPage> {
                         onLoadMore: _loadMoreNearbyBars,
                       );
                     }
-                    return _NearbyBarTile(
-                      bar: _bars[index],
-                      brand: _brand,
-                    );
+                    return _NearbyBarTile(bar: _bars[index], brand: _brand);
                   },
                 ),
               ),
@@ -526,13 +523,10 @@ class _CheckInCommentPage extends StatefulWidget {
 }
 
 class _CheckInCommentPageState extends State<_CheckInCommentPage> {
-  /// 打卡附图上限，与后端 CheckInRequest.mediaUrls 的 maxItems 对齐。
-  static const int _maxImages = 9;
   static const int _maxUploadBytes = 10 * 1024 * 1024;
 
   final _controller = TextEditingController();
   final SiponApiService _api = SiponApiService();
-  final ImagePicker _picker = ImagePicker();
   final List<XFile> _images = <XFile>[];
   int _rating = 0;
   bool _submitting = false;
@@ -547,27 +541,6 @@ class _CheckInCommentPageState extends State<_CheckInCommentPage> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  /// 选择打卡附图，超出上限时提示。
-  Future<void> _pickImage() async {
-    if (_images.length >= _maxImages) {
-      _showMessage('最多添加 $_maxImages 张图片');
-      return;
-    }
-    try {
-      final file = await _picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1920,
-        imageQuality: 85,
-      );
-      if (file == null || !mounted) return;
-      setState(() => _images.add(file));
-    } on Exception {
-      if (mounted) {
-        _showMessage('图片选择失败，请重试');
-      }
-    }
   }
 
   /// 逐张上传打卡图片（purpose=check_in），返回内容 URL 列表。
@@ -655,6 +628,15 @@ class _CheckInCommentPageState extends State<_CheckInCommentPage> {
     }
   }
 
+  Future<void> _submitDraft(ReviewDraft draft) async {
+    _rating = draft.rating;
+    _controller.text = draft.content;
+    _images
+      ..clear()
+      ..addAll(draft.images);
+    await _submit();
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: const Color(0xFFFBF8F9),
@@ -663,7 +645,13 @@ class _CheckInCommentPageState extends State<_CheckInCommentPage> {
       backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
     ),
-    body: Padding(
+    body: ReviewComposer(
+      venueName: widget.bar.name,
+      venueAddress: widget.bar.address,
+      submitLabel: '完成打卡',
+      onSubmit: _submitDraft,
+    ),
+    /* Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -814,6 +802,6 @@ class _CheckInCommentPageState extends State<_CheckInCommentPage> {
           ),
         ],
       ),
-    ),
+    ), */
   );
 }

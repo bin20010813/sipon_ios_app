@@ -38,7 +38,15 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
   final SiponApiService _api;
   final VenueDetailRepository _fallback;
 
-  static const List<String> _dayKeys = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+  static const List<String> _dayKeys = [
+    '周一',
+    '周二',
+    '周三',
+    '周四',
+    '周五',
+    '周六',
+    '周日',
+  ];
 
   /// 评价每页条数：详情首屏与「更多评论」翻页共用。
   static const int _reviewPageSize = 10;
@@ -54,10 +62,8 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
     final bar = _asMap(await _api.getBarById(barId));
     final results = await Future.wait([
       _guarded(
-        () => _api.getBarReviews(
-          barId,
-          page: SiponPage(limit: _reviewPageSize),
-        ),
+        () =>
+            _api.getBarReviews(barId, page: SiponPage(limit: _reviewPageSize)),
       ),
       _guarded(() => _api.getBarHours(barId)),
       _guarded(() => _api.getBarDrinks(barId)),
@@ -265,7 +271,10 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
   }
 
   /// 招牌酒款：优先详情内嵌 signatureDrinks，其次 /drinks 接口。
-  List<VenueDrink> _parseDrinks(Map<String, dynamic> bar, List<dynamic> drinks) {
+  List<VenueDrink> _parseDrinks(
+    Map<String, dynamic> bar,
+    List<dynamic> drinks,
+  ) {
     final raw = bar['signatureDrinks'] is List
         ? bar['signatureDrinks'] as List
         : drinks;
@@ -294,7 +303,8 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
       price: price,
       description: _readStr(map, ['description', 'desc', 'flavor']) ?? '',
       tags: _readStrList(map, ['tags', 'flavorTags']) ?? const [],
-      imageAsset: _readStr(map, ['imageUrl', 'image', 'cover']) ?? fallbackImage,
+      imageAsset:
+          _readStr(map, ['imageUrl', 'image', 'cover']) ?? fallbackImage,
     );
   }
 
@@ -358,6 +368,7 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
           _readStr(map, ['nickname', 'userName']) ??
           '匿名用户',
       rating: _readDouble(map, ['rating', 'score', 'star']) ?? 5,
+      likeCount: _readInt(map, ['likeCount', 'likes', 'thumbsUp']) ?? 0,
       date: _formatDate(
         _readStr(map, ['visitedAt', 'createdAt', 'created_on']),
       ),

@@ -119,6 +119,7 @@ class VenueReview {
     required this.date,
     required this.content,
     required this.imageAssets,
+    this.likeCount = 0,
     this.avatarAsset,
   });
 
@@ -136,6 +137,9 @@ class VenueReview {
 
   /// 评价附带的现场或酒款图片。
   final List<String> imageAssets;
+
+  /// 点赞数量。
+  final int likeCount;
 
   /// 可选头像本地资源路径。
   final String? avatarAsset;
