@@ -7,6 +7,7 @@ import '../services/sipon_api_service.dart';
 import '../services/sipon_city_controller.dart';
 import '../widgets/map/map_theme.dart';
 import '../widgets/map/venue_common.dart';
+import '../widgets/sipon_city_picker.dart';
 
 class AddVenuePage extends StatefulWidget {
   const AddVenuePage({super.key});
@@ -355,11 +356,17 @@ class _Header extends StatelessWidget {
 }
 
 class _VenueFormPreview extends StatelessWidget {
-  const _VenueFormPreview({required this.name, required this.address, required this.kind});
+  const _VenueFormPreview({
+    required this.name,
+    required this.address,
+    required this.kind,
+    this.imageUrl,
+  });
 
   final String name;
   final String address;
   final MapVenueKind kind;
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -382,6 +389,7 @@ class _VenueFormPreview extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: VenueImage(
+                imageUrl: imageUrl,
                 assetPath: MapAssets.coverForIndex(kind.index),
                 width: 90,
                 height: 102,
