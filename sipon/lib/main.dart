@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'pages/add_venue_page.dart';
 import 'pages/drink_record_page.dart';
 import 'pages/home_page.dart';
 import 'pages/language_transform.dart';
@@ -318,6 +319,7 @@ class _SiponShellState extends State<_SiponShell> {
         pageBuilder: (_, _, _) => _SiponPlusSheet(
           onPlanRoute: _openRoutePlanning,
           onCheckIn: _openCheckIn,
+          onAddVenue: _openAddVenue,
         ),
         transitionsBuilder: (_, animation, _, child) {
           final curved = CurvedAnimation(
@@ -348,6 +350,24 @@ class _SiponShellState extends State<_SiponShell> {
     _profilePageKey.currentState?.refreshCounts();
   }
 
+  Future<void> _openAddVenue() async {
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0x66000000),
+      builder: (_) => const AddVenuePage(),
+    );
+    if (!mounted || created != true) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('酒馆信息已提交，审核通过后会显示在地图中'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
   /// 打开打卡弹窗；关闭后刷新我的页计数（打卡记录可能新增）。
   Future<void> _openCheckIn() async {
     await showModalBottomSheet<void>(
@@ -701,13 +721,18 @@ class _SiponSplashScreen extends StatelessWidget {
 }
 
 class _SiponPlusSheet extends StatelessWidget {
-  const _SiponPlusSheet({required this.onPlanRoute, required this.onCheckIn});
+  const _SiponPlusSheet({
+    required this.onPlanRoute,
+    required this.onCheckIn,
+    required this.onAddVenue,
+  });
 
   static const Color _cardBg = Colors.white;
   static const Color _muted = Color(0xFF8F8790);
 
   final VoidCallback onPlanRoute;
   final VoidCallback onCheckIn;
+  final VoidCallback onAddVenue;
 
   @override
   Widget build(BuildContext context) {
@@ -784,6 +809,7 @@ class _SiponPlusSheet extends StatelessWidget {
                       _SiponPlusSheetGrid(
                         onPlanRoute: onPlanRoute,
                         onCheckIn: onCheckIn,
+                        onAddVenue: onAddVenue,
                       ),
                     ],
                   ),
@@ -801,10 +827,12 @@ class _SiponPlusSheetGrid extends StatefulWidget {
   const _SiponPlusSheetGrid({
     required this.onPlanRoute,
     required this.onCheckIn,
+    required this.onAddVenue,
   });
 
   final VoidCallback onPlanRoute;
   final VoidCallback onCheckIn;
+  final VoidCallback onAddVenue;
 
   @override
   State<_SiponPlusSheetGrid> createState() => _SiponPlusSheetGridState();
@@ -977,3 +1005,4 @@ class _PlusIconBubble extends StatelessWidget {
     );
   }
 }
+

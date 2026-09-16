@@ -530,14 +530,18 @@ final class SiponMapEngine: NSObject {
         // 文字标签翻译导致的文案变化原地刷新即可，不必重建 annotation。
         existing.label = spec.label
         existing.category = spec.category
+        existing.sequence = spec.sequence
         if moved { existing.coordinate = spec.coordinate }
-        if !moved {
-          (mapView.view(for: existing) as? MarkerAnnotationView)?.setLabel(spec.label)
+        if !moved, let view = mapView.view(for: existing) as? MarkerAnnotationView {
+          view.setLabel(spec.label)
+          view.setSequence(spec.sequence)
+          view.setIcon(markerIcons[spec.category])
         }
       } else {
         let annotation = MarkerAnnotation(venueId: venueId, coordinate: spec.coordinate)
         annotation.label = spec.label
         annotation.category = spec.category
+        annotation.sequence = spec.sequence
         markersByVenueId[venueId] = annotation
         toAdd.append(annotation)
       }
@@ -744,6 +748,7 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
       view.annotation = marker
       view.setIcon(engine.icon(for: marker.category))
       view.setLabel(marker.label)
+      view.setSequence(marker.sequence)
       view.displayPriority = .defaultLow
       view.isHidden = engine.markersHiddenSnapshot
       return view
@@ -859,6 +864,7 @@ final class MarkerAnnotation: NSObject, MKAnnotation, VenueSelecting {
   @objc dynamic var coordinate: CLLocationCoordinate2D
   @objc dynamic var label: String = ""
   @objc dynamic var category: String = "pub"
+  var sequence: Int?
 
   init(venueId: String, coordinate: CLLocationCoordinate2D) {
     self.venueId = venueId
@@ -962,18 +968,29 @@ final class MarkerAnnotationView: MKAnnotationView {
 
   private enum Metrics {
     static let iconSize = CGSize(width: 22, height: 28)
+    static let sequenceSize = CGSize(width: 17, height: 17)
     static let gap: CGFloat = 2
     static let maxLabelWidth: CGFloat = 170
   }
 
   private let iconView = UIImageView(frame: .zero)
+  private let sequenceBadge = UILabel(frame: .zero)
   private let label = UILabel(frame: .zero)
 
   override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
     super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
     addSubview(iconView)
+    addSubview(sequenceBadge)
     addSubview(label)
     iconView.contentMode = .scaleAspectFit
+    sequenceBadge.backgroundColor = UIColor.white
+    sequenceBadge.textColor = UIColor(red: 0x9A / 255, green: 0x3D / 255, blue: 0x78 / 255, alpha: 1)
+    sequenceBadge.font = UIFont.systemFont(ofSize: 10, weight: .black)
+    sequenceBadge.textAlignment = .center
+    sequenceBadge.layer.cornerRadius = Metrics.sequenceSize.width / 2
+    sequenceBadge.layer.masksToBounds = true
+    sequenceBadge.layer.borderColor = UIColor(red: 0x9A / 255, green: 0x3D / 255, blue: 0x78 / 255, alpha: 1).cgColor
+    sequenceBadge.layer.borderWidth = 1
     label.numberOfLines = 1
     label.lineBreakMode = .byTruncatingTail
     isUserInteractionEnabled = true
@@ -998,6 +1015,17 @@ final class MarkerAnnotationView: MKAnnotationView {
         .strokeWidth: -3.0,
       ]
     )
+    setNeedsLayout()
+  }
+
+  func setSequence(_ value: Int?) {
+    if let value = value, value > 0 {
+      sequenceBadge.text = "\(value)"
+      sequenceBadge.isHidden = false
+    } else {
+      sequenceBadge.text = nil
+      sequenceBadge.isHidden = true
+    }
     setNeedsLayout()
   }
 
@@ -1029,6 +1057,12 @@ final class MarkerAnnotationView: MKAnnotationView {
         y: 0,
         width: Metrics.iconSize.width,
         height: Metrics.iconSize.height
+      )
+      sequenceBadge.frame = CGRect(
+        x: iconView.frame.maxX - Metrics.sequenceSize.width + 3,
+        y: -3,
+        width: Metrics.sequenceSize.width,
+        height: Metrics.sequenceSize.height
       )
       label.frame = CGRect(
         x: 0,

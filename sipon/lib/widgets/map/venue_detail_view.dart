@@ -220,16 +220,94 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
       );
   }
 
-  Future<void> _openAmapNavigation() async {
-    final result = await ExternalMapLauncher.openAmapNavigation(
+  Future<void> _openPoiNavigation() async {
+    final text = SiponLanguageScope.textOf(context);
+    final apps = await ExternalMapLauncher.availablePoiApps();
+    if (!mounted) {
+      return;
+    }
+    if (apps.isEmpty) {
+      _showMockToast(text.t(ExternalMapLaunchResult.unavailable().message));
+      return;
+    }
+
+    final selected = await showModalBottomSheet<ExternalMapApp>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (context) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+              child: Text(
+                text.t('选择地图软件'),
+                style: const TextStyle(
+                  color: MapDesign.ink,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+            for (final app in apps)
+              ListTile(
+                leading: Icon(_mapAppIcon(app), color: MapDesign.brand),
+                title: Text(
+                  app.label,
+                  style: const TextStyle(
+                    color: MapDesign.ink,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+                subtitle: Text(
+                  text.t('打开点位后选择交通方式'),
+                  style: const TextStyle(
+                    color: MapDesign.muted,
+                    fontSize: 12,
+                    letterSpacing: 0,
+                  ),
+                ),
+                onTap: () => Navigator.of(context).pop(app),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (selected == null) {
+      return;
+    }
+
+    final result = await ExternalMapLauncher.openPoi(
+      app: selected,
       name: widget.venue.name,
       longitude: widget.venue.longitude,
       latitude: widget.venue.latitude,
+      address: widget.venue.address,
     );
     if (!mounted) {
       return;
     }
-    _showMockToast(SiponLanguageScope.textOf(context).t(result.message));
+    _showMockToast(text.t(result.message));
+  }
+
+  IconData _mapAppIcon(ExternalMapApp app) {
+    return switch (app) {
+      ExternalMapApp.apple => Icons.map_rounded,
+      ExternalMapApp.amap => Icons.navigation_rounded,
+      ExternalMapApp.baidu => Icons.explore_rounded,
+      ExternalMapApp.tencent => Icons.near_me_rounded,
+    };
   }
 
   void _syncTabWithScroll() {
@@ -622,13 +700,12 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
             detail: detail,
             favorite: _favorite,
             onToggleFavorite: _toggleFavorite,
-            onNavigate: _openAmapNavigation,
-            onShare: () => _showMockToast(text.t('已分享地点（演示）')),
+            onNavigate: _openPoiNavigation,
           ),
           const SizedBox(height: 18),
           _VenueInfoCard(
             detail: detail,
-            onOpenMap: _openAmapNavigation,
+            onOpenMap: _openPoiNavigation,
             onCall: () =>
                 _showMockToast(text.t('正在拨打 ${detail?.phone ?? ''}（演示）')),
           ),
@@ -838,7 +915,6 @@ class _VenueTitleBlock extends StatelessWidget {
     required this.favorite,
     required this.onToggleFavorite,
     required this.onNavigate,
-    required this.onShare,
   });
 
   final MapVenue venue;
@@ -846,7 +922,6 @@ class _VenueTitleBlock extends StatelessWidget {
   final bool favorite;
   final VoidCallback onToggleFavorite;
   final VoidCallback onNavigate;
-  final VoidCallback onShare;
 
   @override
   Widget build(BuildContext context) {
@@ -983,7 +1058,6 @@ class _VenueTitleBlock extends StatelessWidget {
               favorite: favorite,
               onToggleFavorite: onToggleFavorite,
               onNavigate: onNavigate,
-              onShare: onShare,
             ),
           ],
         ),
@@ -992,20 +1066,18 @@ class _VenueTitleBlock extends StatelessWidget {
   }
 }
 
-/// 标签行末尾的收藏、导航与分享快捷操作。
+/// 标签行末尾的收藏与导航快捷操作。
 class _VenueActionBar extends StatelessWidget {
   /// 创建快捷操作区。
   const _VenueActionBar({
     required this.favorite,
     required this.onToggleFavorite,
     required this.onNavigate,
-    required this.onShare,
   });
 
   final bool favorite;
   final VoidCallback onToggleFavorite;
   final VoidCallback onNavigate;
-  final VoidCallback onShare;
 
   @override
   Widget build(BuildContext context) {
@@ -1027,12 +1099,6 @@ class _VenueActionBar extends StatelessWidget {
           icon: Icons.near_me_rounded,
           tooltip: text.t('导航'),
           onTap: onNavigate,
-        ),
-        const SizedBox(width: 8),
-        _ActionCircleButton(
-          icon: Icons.ios_share_rounded,
-          tooltip: text.t('分享'),
-          onTap: onShare,
         ),
       ],
     );

@@ -53,6 +53,13 @@ enum SiponMapProtocol {
     return fallback
   }
 
+  static func int(_ dict: [String: Any], _ key: String) -> Int? {
+    if let value = dict[key] as? Int { return value }
+    if let value = dict[key] as? NSNumber { return value.intValue }
+    if let value = dict[key] as? String { return Int(value) }
+    return nil
+  }
+
   /// 相机指令共用形状：lon/lat/zoom/pitch/bearing/bottomPadding
   /// （durationMs 随指令下发，MapKit 动画时长不可控，原生忽略——决策 D3）。
   struct CameraMove {
@@ -100,6 +107,7 @@ enum SiponMapProtocol {
     let label: String
     let coordinate: CLLocationCoordinate2D
     let category: String
+    let sequence: Int?
 
     static func parse(_ raw: [String: Any]) -> MarkerSpec? {
       guard let venueId = SiponMapProtocol.string(raw, "venueId"),
@@ -111,7 +119,8 @@ enum SiponMapProtocol {
           latitude: SiponMapProtocol.double(raw, "lat", fallback: .nan),
           longitude: SiponMapProtocol.double(raw, "lng", fallback: .nan)
         ),
-        category: SiponMapProtocol.string(raw, "category") ?? "pub"
+        category: SiponMapProtocol.string(raw, "category") ?? "pub",
+        sequence: SiponMapProtocol.int(raw, "sequence")
       )
     }
   }

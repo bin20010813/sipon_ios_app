@@ -87,7 +87,7 @@ class _MapSearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white.withValues(alpha: 0.98),
+      color: const Color(0xFFFFF8EC),
       borderRadius: BorderRadius.circular(16),
       elevation: 0,
       shadowColor: Colors.black26,
@@ -99,7 +99,7 @@ class _MapSearchField extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0x559A3D78), width: 1.1),
+            border: Border.all(color: const Color(0xFFE9D9C5), width: 1.1),
             boxShadow: const [
               BoxShadow(
                 color: Color(0x1F9A3D78),

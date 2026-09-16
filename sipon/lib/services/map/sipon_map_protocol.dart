@@ -123,6 +123,7 @@ Map<String, Object?> encodeRenderFrame(
           'lat': marker.latitude,
           'lng': marker.longitude,
           'category': marker.kind.id,
+          if (marker.sequence != null) 'sequence': marker.sequence,
         },
     ],
     'selected': frame.selected == null

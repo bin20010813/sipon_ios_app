@@ -144,6 +144,9 @@ class SiponApiService {
     },
   );
 
+  Future<dynamic> createPoiSubmission(Map<String, Object?> body) =>
+      _postJson('/api/poi-submissions', body: body);
+
   // 打卡与想喝清单
   Future<dynamic> createCheckIn(Map<String, Object?> body) =>
       _postJson('/api/check-ins', body: body);
@@ -345,3 +348,4 @@ class SiponApiService {
     throw FormatException('Expected a list response, got ${data.runtimeType}.');
   }
 }
+

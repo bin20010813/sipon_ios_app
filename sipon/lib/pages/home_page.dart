@@ -226,7 +226,7 @@ class _HomeTopBar extends StatelessWidget {
                   onPressed: () {},
                   style: IconButton.styleFrom(
                     fixedSize: const Size(44, 44),
-                    backgroundColor: const Color(0xFFF6F5F6),
+                    backgroundColor: const Color(0xFFFFF8EC),
                     foregroundColor: const Color(0xFF6B666B),
                     padding: EdgeInsets.zero,
                     shape: const CircleBorder(),
@@ -381,11 +381,9 @@ class _HomeDataSections extends StatelessWidget {
 
 /// 全屏打开鸡尾酒百科列表页。
 void _pushCocktailList(BuildContext context) {
-  Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      builder: (_) => const CocktailListPage(),
-    ),
-  );
+  Navigator.of(
+    context,
+  ).push(MaterialPageRoute<void>(builder: (_) => const CocktailListPage()));
 }
 
 class _HomeDataStatus extends StatelessWidget {
