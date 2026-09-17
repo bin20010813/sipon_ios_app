@@ -144,6 +144,7 @@ class SiponAppText {
   String get plusWriteReview => t('写评论');
   String get plusCheckInBar => t('打卡酒吧');
   String get plusPlanRoute => t('规划路线');
+  String get plusAddVenue => t('添加酒馆');
   String get monthlySpend => t('本月支出');
   String get monthlyDeltaPrefix => t('较上月  ');
   String get monthlyBudget => t('本月预算');
@@ -537,6 +538,14 @@ const Map<String, String> _englishText = {
   '评价': 'Reviews',
   '综合评分': 'Overall rating',
   '条评价': 'reviews',
+  '最相关': 'Most relevant',
+  '评分从高到低': 'Highest rated',
+  '最新到最旧': 'Newest',
+  '最旧到最新': 'Oldest',
+  '天前': 'days ago',
+  '月前': 'months ago',
+  '年前': 'years ago',
+  '时间未知': 'Unknown time',
   '更多评论': 'More reviews',
   '添加评论': 'Add review',
   '评论发布功能开发中（演示）': 'Review publishing is under development (demo)',

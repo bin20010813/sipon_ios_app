@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../pages/language_transform.dart';
+import '../services/map/map_display_options.dart';
 import '../services/map/map_models.dart';
+import '../services/map/map_scene_controller.dart';
+import '../services/map/map_viewport.dart';
+import '../services/map/sipon_map_host.dart';
+import '../services/map/sipon_map_widget.dart';
 import '../services/sipon_api_client.dart';
 import '../services/sipon_api_service.dart';
-import '../services/sipon_city_controller.dart';
 import '../widgets/map/map_theme.dart';
 import '../widgets/map/venue_common.dart';
 import '../widgets/sipon_city_picker.dart';
@@ -24,12 +28,26 @@ class _AddVenuePageState extends State<AddVenuePage> {
   final _cityController = TextEditingController();
   final _longitudeController = TextEditingController();
   final _latitudeController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _openingHoursController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _mediaUrlsController = TextEditingController();
 
+  late final MapSceneController _scene;
   MapVenueKind _kind = MapVenueKind.pub;
   bool _submitting = false;
   bool _cityInitialized = false;
+  bool _mapReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scene = MapSceneController.create(
+      onViewportSettled: _handleViewportSettled,
+      onVenueTapped: (_) {},
+      onBlankTapped: () {},
+    );
+  }
 
   @override
   void didChangeDependencies() {
@@ -46,9 +64,39 @@ class _AddVenuePageState extends State<AddVenuePage> {
     _cityController.dispose();
     _longitudeController.dispose();
     _latitudeController.dispose();
+    _phoneController.dispose();
+    _openingHoursController.dispose();
     _descriptionController.dispose();
     _mediaUrlsController.dispose();
+    _scene.detach();
     super.dispose();
+  }
+
+  Future<void> _handleMapCreated(SiponMapHost host) async {
+    final city = SiponCityScope.controllerOf(context).city;
+    await _scene.attach(host, city: city, style: MapBaseStyle.standard);
+    if (!_scene.isAttached) return;
+
+    final center = mapCenterForCity(city);
+    await _scene.focusOn(
+      longitude: center.longitude,
+      latitude: center.latitude,
+    );
+    final viewport = await _scene.readViewport();
+    if (!mounted) return;
+    _setSelectedLocation(viewport?.center ?? center);
+    setState(() => _mapReady = true);
+  }
+
+  void _handleViewportSettled(MapViewport viewport) {
+    _setSelectedLocation(viewport.center);
+  }
+
+  void _setSelectedLocation(MapLatLng location) {
+    if (!location.longitude.isFinite || !location.latitude.isFinite) return;
+    _longitudeController.text = location.longitude.toStringAsFixed(6);
+    _latitudeController.text = location.latitude.toStringAsFixed(6);
+    if (mounted) setState(() {});
   }
 
   Future<void> _submit() async {
@@ -56,6 +104,7 @@ class _AddVenuePageState extends State<AddVenuePage> {
 
     final longitude = _parseCoordinate(_longitudeController.text);
     final latitude = _parseCoordinate(_latitudeController.text);
+    if (longitude == null || latitude == null) return;
     final mediaUrls = _mediaUrlsController.text
         .split(RegExp(r'[\n,，]+'))
         .map((url) => url.trim())
@@ -65,16 +114,19 @@ class _AddVenuePageState extends State<AddVenuePage> {
 
     setState(() => _submitting = true);
     try {
-      await _api.createPoiSubmission({
+      final body = <String, Object?>{
         'name': _nameController.text.trim(),
-        'address': _addressController.text.trim(),
         'longitude': longitude,
         'latitude': latitude,
-        'city': _emptyToNull(_cityController),
         'subtypeCode': _kind.id,
-        'description': _emptyToNull(_descriptionController),
-        'mediaUrls': mediaUrls,
-      });
+        if (mediaUrls.isNotEmpty) 'mediaUrls': mediaUrls,
+      };
+      _addOptional(body, 'address', _emptyToNull(_addressController));
+      _addOptional(body, 'city', _emptyToNull(_cityController));
+      _addOptional(body, 'phoneNumber', _emptyToNull(_phoneController));
+      _addOptional(body, 'openingHours', _emptyToNull(_openingHoursController));
+      _addOptional(body, 'description', _emptyToNull(_descriptionController));
+      await _api.createPoiSubmission(body);
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } on SiponApiException catch (error) {
@@ -89,6 +141,10 @@ class _AddVenuePageState extends State<AddVenuePage> {
   String? _emptyToNull(TextEditingController controller) {
     final value = controller.text.trim();
     return value.isEmpty ? null : value;
+  }
+
+  void _addOptional(Map<String, Object?> body, String key, String? value) {
+    if (value != null) body[key] = value;
   }
 
   double? _parseCoordinate(String value) => double.tryParse(value.trim());
@@ -116,170 +172,206 @@ class _AddVenuePageState extends State<AddVenuePage> {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
-    final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: viewInsets),
-      child: DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.9,
-        minChildSize: 0.62,
-        maxChildSize: 0.96,
-        builder: (context, scrollController) {
-          return Material(
-            color: Colors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            clipBehavior: Clip.antiAlias,
-            child: Form(
-              key: _formKey,
-              child: CustomScrollView(
-                controller: scrollController,
-                physics: const BouncingScrollPhysics(),
-                slivers: [
-                  SliverToBoxAdapter(child: _Header(onSubmit: _submit, submitting: _submitting)),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Scaffold(
+      backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: true,
+      body: Material(
+        color: Colors.white,
+        child: Form(
+          key: _formKey,
+          child: CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(
+                child: _Header(onSubmit: _submit, submitting: _submitting),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _LocationPicker(
+                        mapReady: _mapReady,
+                        onHostReady: _handleMapCreated,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        text.t('拖动地图，让中心定位点对准酒吧位置'),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: MapDesign.muted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      _VenueFormPreview(
+                        name: _nameController.text.trim().isEmpty
+                            ? text.t('未命名酒吧')
+                            : _nameController.text.trim(),
+                        address: _addressController.text.trim().isEmpty
+                            ? text.t('地点位置')
+                            : _addressController.text.trim(),
+                        kind: _kind,
+                      ),
+                      const SizedBox(height: 18),
+                      _FieldLabel(text.t('基础信息')),
+                      const SizedBox(height: 10),
+                      _VenueTextField(
+                        controller: _nameController,
+                        label: text.t('酒馆名称'),
+                        hint: text.t('例如：复兴公园酒廊'),
+                        icon: Icons.storefront_rounded,
+                        validator: _requiredText,
+                        onChanged: (_) => setState(() {}),
+                      ),
+                      const SizedBox(height: 12),
+                      _VenueTextField(
+                        controller: _addressController,
+                        label: text.t('详细地址'),
+                        hint: text.t('街道门牌、商场楼层或地标'),
+                        icon: Icons.location_on_outlined,
+                        onChanged: (_) => setState(() {}),
+                      ),
+                      const SizedBox(height: 12),
+                      _VenueTextField(
+                        controller: _cityController,
+                        label: text.t('城市'),
+                        hint: text.t('上海'),
+                        icon: Icons.location_city_rounded,
+                        validator: _requiredText,
+                      ),
+                      const SizedBox(height: 18),
+                      _FieldLabel(text.t('地点类型')),
+                      const SizedBox(height: 10),
+                      _KindSelector(
+                        selected: _kind,
+                        onChanged: (kind) => setState(() => _kind = kind),
+                      ),
+                      const SizedBox(height: 18),
+                      _FieldLabel(text.t('地图坐标')),
+                      const SizedBox(height: 10),
+                      Row(
                         children: [
-                          _VenueFormPreview(
-                            name: _nameController.text.trim().isEmpty
-                                ? text.t('未命名酒吧')
-                                : _nameController.text.trim(),
-                            address: _addressController.text.trim().isEmpty
-                                ? text.t('地点位置')
-                                : _addressController.text.trim(),
-                            kind: _kind,
-                          ),
-                          const SizedBox(height: 18),
-                          _FieldLabel(text.t('基础信息')),
-                          const SizedBox(height: 10),
-                          _VenueTextField(
-                            controller: _nameController,
-                            label: text.t('酒馆名称'),
-                            hint: text.t('例如：复兴公园酒廊'),
-                            icon: Icons.storefront_rounded,
-                            validator: _requiredText,
-                            onChanged: (_) => setState(() {}),
-                          ),
-                          const SizedBox(height: 12),
-                          _VenueTextField(
-                            controller: _addressController,
-                            label: text.t('详细地址'),
-                            hint: text.t('街道门牌、商场楼层或地标'),
-                            icon: Icons.location_on_outlined,
-                            validator: _requiredText,
-                            onChanged: (_) => setState(() {}),
-                          ),
-                          const SizedBox(height: 12),
-                          _VenueTextField(
-                            controller: _cityController,
-                            label: text.t('城市'),
-                            hint: text.t('上海'),
-                            icon: Icons.location_city_rounded,
-                            validator: _requiredText,
-                          ),
-                          const SizedBox(height: 18),
-                          _FieldLabel(text.t('地点类型')),
-                          const SizedBox(height: 10),
-                          _KindSelector(
-                            selected: _kind,
-                            onChanged: (kind) => setState(() => _kind = kind),
-                          ),
-                          const SizedBox(height: 18),
-                          _FieldLabel(text.t('地图坐标')),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _VenueTextField(
-                                  controller: _longitudeController,
-                                  label: text.t('经度'),
-                                  hint: '121.4737',
-                                  icon: Icons.explore_outlined,
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                                  validator: (value) => _coordinateValidator(value, longitude: true),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _VenueTextField(
-                                  controller: _latitudeController,
-                                  label: text.t('纬度'),
-                                  hint: '31.2304',
-                                  icon: Icons.explore_rounded,
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                                  validator: (value) => _coordinateValidator(value, longitude: false),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 18),
-                          _FieldLabel(text.t('补充信息')),
-                          const SizedBox(height: 10),
-                          _VenueTextField(
-                            controller: _descriptionController,
-                            label: text.t('酒馆介绍'),
-                            hint: text.t('氛围、酒单特色、适合什么场景'),
-                            icon: Icons.notes_rounded,
-                            minLines: 3,
-                            maxLines: 5,
-                          ),
-                          const SizedBox(height: 12),
-                          _VenueTextField(
-                            controller: _mediaUrlsController,
-                            label: text.t('图片链接'),
-                            hint: text.t('每行一个图片 URL，最多 9 张'),
-                            icon: Icons.image_outlined,
-                            minLines: 2,
-                            maxLines: 4,
-                          ),
-                          const SizedBox(height: 18),
-                          FilledButton.icon(
-                            onPressed: _submitting ? null : _submit,
-                            icon: _submitting
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                  )
-                                : const Icon(Icons.cloud_upload_rounded),
-                            label: Text(text.t(_submitting ? '提交中...' : '提交酒馆信息')),
-                            style: FilledButton.styleFrom(
-                              minimumSize: const Size.fromHeight(50),
-                              backgroundColor: MapDesign.brand,
-                              foregroundColor: Colors.white,
-                              disabledBackgroundColor: const Color(0xFFE2C9D9),
-                              textStyle: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0,
-                              ),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          Expanded(
+                            child: _VenueTextField(
+                              controller: _longitudeController,
+                              label: text.t('经度'),
+                              hint: '121.4737',
+                              icon: Icons.explore_outlined,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                    signed: true,
+                                  ),
+                              validator: (value) =>
+                                  _coordinateValidator(value, longitude: true),
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            text.t('提交后会进入审核，通过后展示在地图酒吧地点中。'),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: MapDesign.muted,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _VenueTextField(
+                              controller: _latitudeController,
+                              label: text.t('纬度'),
+                              hint: '31.2304',
+                              icon: Icons.explore_rounded,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                    signed: true,
+                                  ),
+                              validator: (value) =>
+                                  _coordinateValidator(value, longitude: false),
                             ),
                           ),
-                          const SizedBox(height: 20),
                         ],
                       ),
-                    ),
+                      const SizedBox(height: 18),
+                      _VenueTextField(
+                        controller: _phoneController,
+                        label: text.t('联系电话（可选）'),
+                        hint: text.t('例如：021-12345678'),
+                        icon: Icons.phone_outlined,
+                        keyboardType: TextInputType.phone,
+                      ),
+                      const SizedBox(height: 12),
+                      _VenueTextField(
+                        controller: _openingHoursController,
+                        label: text.t('营业时间（可选）'),
+                        hint: text.t('例如：18:00-02:00'),
+                        icon: Icons.schedule_rounded,
+                      ),
+                      const SizedBox(height: 18),
+                      _FieldLabel(text.t('补充信息')),
+                      const SizedBox(height: 10),
+                      _VenueTextField(
+                        controller: _descriptionController,
+                        label: text.t('酒馆介绍'),
+                        hint: text.t('氛围、酒单特色、适合什么场景'),
+                        icon: Icons.notes_rounded,
+                        minLines: 3,
+                        maxLines: 5,
+                      ),
+                      const SizedBox(height: 12),
+                      _VenueTextField(
+                        controller: _mediaUrlsController,
+                        label: text.t('图片链接'),
+                        hint: text.t('每行一个图片 URL，最多 9 张'),
+                        icon: Icons.image_outlined,
+                        minLines: 2,
+                        maxLines: 4,
+                      ),
+                      const SizedBox(height: 18),
+                      FilledButton.icon(
+                        onPressed: _submitting ? null : _submit,
+                        icon: _submitting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.cloud_upload_rounded),
+                        label: Text(text.t(_submitting ? '提交中...' : '提交酒馆信息')),
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(50),
+                          backgroundColor: MapDesign.brand,
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: const Color(0xFFE2C9D9),
+                          textStyle: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        text.t('提交后会进入审核，通过后展示在地图酒吧地点中。'),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: MapDesign.muted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
-          );
-        },
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -298,21 +390,10 @@ class _Header extends StatelessWidget {
     return SafeArea(
       bottom: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 10, 10, 8),
+        padding: const EdgeInsets.fromLTRB(18, 18, 10, 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFD2D0D2),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
             Row(
               children: [
                 Expanded(
@@ -343,11 +424,61 @@ class _Header extends StatelessWidget {
                 ),
                 IconButton(
                   tooltip: text.t('关闭'),
-                  onPressed: submitting ? null : () => Navigator.of(context).maybePop(),
+                  onPressed: submitting
+                      ? null
+                      : () => Navigator.of(context).maybePop(),
                   icon: const Icon(Icons.close_rounded),
                 ),
               ],
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LocationPicker extends StatelessWidget {
+  const _LocationPicker({required this.mapReady, required this.onHostReady});
+
+  final bool mapReady;
+  final void Function(SiponMapHost host) onHostReady;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: SizedBox(
+        height: 250,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            SiponMapWidget(
+              initialStyleId: MapBaseStyle.standard.id,
+              onHostReady: onHostReady,
+            ),
+            IgnorePointer(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Icon(
+                    Icons.location_on_rounded,
+                    color: MapDesign.brand,
+                    size: 42,
+                    shadows: const [Shadow(color: Colors.white, blurRadius: 3)],
+                  ),
+                ),
+              ),
+            ),
+            if (!mapReady)
+              const IgnorePointer(
+                child: ColoredBox(
+                  color: Color(0x66FFFFFF),
+                  child: Center(
+                    child: CircularProgressIndicator(color: MapDesign.brand),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -360,13 +491,11 @@ class _VenueFormPreview extends StatelessWidget {
     required this.name,
     required this.address,
     required this.kind,
-    this.imageUrl,
   });
 
   final String name;
   final String address;
   final MapVenueKind kind;
-  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -378,7 +507,11 @@ class _VenueFormPreview extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0x11000000)),
         boxShadow: const [
-          BoxShadow(color: Color(0x129A3D78), blurRadius: 18, offset: Offset(0, 8)),
+          BoxShadow(
+            color: Color(0x129A3D78),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
         ],
       ),
       child: Padding(
@@ -389,7 +522,7 @@ class _VenueFormPreview extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: VenueImage(
-                imageUrl: imageUrl,
+                imageUrl: null,
                 assetPath: MapAssets.coverForIndex(kind.index),
                 width: 90,
                 height: 102,
@@ -424,7 +557,11 @@ class _VenueFormPreview extends StatelessWidget {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.location_on_outlined, color: MapDesign.brand, size: 17),
+                      const Icon(
+                        Icons.location_on_outlined,
+                        color: MapDesign.brand,
+                        size: 17,
+                      ),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
@@ -484,14 +621,18 @@ class _KindSelector extends StatelessWidget {
             selectedColor: const Color(0x1F9A3D78),
             backgroundColor: const Color(0xFFF7F2F5),
             side: BorderSide(
-              color: selected == kind ? MapDesign.brand : const Color(0x00000000),
+              color: selected == kind
+                  ? MapDesign.brand
+                  : const Color(0x00000000),
             ),
             labelStyle: TextStyle(
               color: selected == kind ? MapDesign.brand : MapDesign.ink,
               fontWeight: FontWeight.w800,
               letterSpacing: 0,
             ),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
           ),
       ],
     );
@@ -530,7 +671,9 @@ class _VenueTextField extends StatelessWidget {
       maxLines: maxLines,
       validator: validator,
       onChanged: onChanged,
-      textInputAction: maxLines == 1 ? TextInputAction.next : TextInputAction.newline,
+      textInputAction: maxLines == 1
+          ? TextInputAction.next
+          : TextInputAction.newline,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
@@ -582,4 +725,3 @@ class _FieldLabel extends StatelessWidget {
     );
   }
 }
-

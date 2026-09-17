@@ -351,13 +351,9 @@ class _SiponShellState extends State<_SiponShell> {
   }
 
   Future<void> _openAddVenue() async {
-    final created = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: const Color(0x66000000),
-      builder: (_) => const AddVenuePage(),
-    );
+    final created = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => const AddVenuePage()));
     if (!mounted || created != true) {
       return;
     }
@@ -368,6 +364,7 @@ class _SiponShellState extends State<_SiponShell> {
       ),
     );
   }
+
   /// 打开打卡弹窗；关闭后刷新我的页计数（打卡记录可能新增）。
   Future<void> _openCheckIn() async {
     await showModalBottomSheet<void>(
@@ -908,7 +905,7 @@ class _SiponPlusSheetGridState extends State<_SiponPlusSheetGrid>
               child: _animatedCard(
                 index: 1,
                 child: _SiponPlusActionCard(
-                  icon: Icons.local_bar_rounded,
+                  icon: Icons.location_on_rounded,
                   title: text.plusCheckInBar,
                   accent: Color(0xFFE08A3C),
                   onTap: widget.onCheckIn,
@@ -916,6 +913,16 @@ class _SiponPlusSheetGridState extends State<_SiponPlusSheetGrid>
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 12),
+        _animatedCard(
+          index: 2,
+          child: _SiponPlusActionCard(
+            icon: Icons.add_business_rounded,
+            title: text.plusAddVenue,
+            accent: Color(0xFF5E9B67),
+            onTap: widget.onAddVenue,
+          ),
         ),
       ],
     );
@@ -1005,4 +1012,3 @@ class _PlusIconBubble extends StatelessWidget {
     );
   }
 }
-
