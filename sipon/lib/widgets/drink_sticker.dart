@@ -297,13 +297,15 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
   late final AnimationController _controller;
   List<_StickerParticle> _particles = const [];
   Size _lastSize = Size.zero;
+  bool _playScheduled = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController.unbounded(vsync: this)
-      ..addListener(() => setState(() {}))
-      ..repeat(min: 0, max: 1, period: const Duration(milliseconds: 1800));
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
   }
 
   @override
@@ -312,6 +314,10 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
     if (oldWidget.records.map((r) => r.id).join(',') !=
         widget.records.map((r) => r.id).join(',')) {
       _particles = const [];
+      _lastSize = Size.zero;
+      _controller
+        ..stop()
+        ..value = 0;
     }
   }
 
@@ -336,8 +342,22 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
           drift: -18 + random.nextDouble() * 36,
           rotation: -0.25 + random.nextDouble() * 0.5,
           angularVelocity: -0.18 + random.nextDouble() * 0.36,
+          delay: visible.length <= 1
+              ? 0
+              : index / (visible.length - 1) * 0.32,
         ),
     ];
+    _schedulePlayOnce();
+  }
+
+  void _schedulePlayOnce() {
+    if (_playScheduled) return;
+    _playScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _playScheduled = false;
+      if (!mounted || _particles.isEmpty) return;
+      _controller.forward(from: 0);
+    });
   }
 
   @override
@@ -367,7 +387,6 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
       builder: (context, constraints) {
         final size = Size(constraints.maxWidth, widget.height);
         _ensureParticles(size);
-        final t = _controller.value;
         return ClipRRect(
           borderRadius: BorderRadius.circular(14),
           child: Container(
@@ -399,7 +418,7 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
                 for (final particle in _particles)
                   _AnimatedStickerParticle(
                     particle: particle,
-                    time: t,
+                    animation: _controller,
                     bounds: size,
                     onTap: widget.onStickerTap == null
                         ? null
@@ -417,39 +436,54 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
 class _AnimatedStickerParticle extends StatelessWidget {
   const _AnimatedStickerParticle({
     required this.particle,
-    required this.time,
+    required this.animation,
     required this.bounds,
     this.onTap,
   });
 
   final _StickerParticle particle;
-  final double time;
+  final Animation<double> animation;
   final Size bounds;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final fallDistance = bounds.height + 180;
-    final cycle = (time + particle.seed) % 1;
-    final eased = Curves.easeInOut.transform(cycle);
-    final rawY = particle.y + fallDistance * eased;
-    final y = rawY > bounds.height - particle.size - 8
-        ? bounds.height - particle.size - 8 - math.sin(cycle * math.pi * 8) * 5
-        : rawY;
-    final x = (particle.x + math.sin(cycle * math.pi * 2) * particle.drift)
-        .clamp(8.0, bounds.width - particle.size - 8);
-    final rotation =
-        particle.rotation +
-        particle.angularVelocity * math.sin(cycle * math.pi * 2);
-
     return Positioned(
-      left: x,
-      top: y,
-      child: DrinkSticker(
-        record: particle.record,
-        size: particle.size,
-        rotation: rotation,
-        onTap: onTap,
+      left: 0,
+      top: 0,
+      child: AnimatedBuilder(
+        animation: animation,
+        child: RepaintBoundary(
+          child: DrinkSticker(
+            record: particle.record,
+            size: particle.size,
+            onTap: onTap,
+          ),
+        ),
+        builder: (context, child) {
+          final progress = ((animation.value - particle.delay) /
+                  math.max(0.001, 1 - particle.delay))
+              .clamp(0.0, 1.0);
+          final fallProgress = Curves.bounceOut.transform(progress);
+          final landingY = bounds.height - particle.size - 8;
+          final y = particle.y + (landingY - particle.y) * fallProgress;
+          final settleFactor = 1 - progress;
+          final x = (particle.x +
+                  math.sin(progress * math.pi) *
+                      particle.drift *
+                      settleFactor)
+              .clamp(8.0, bounds.width - particle.size - 8);
+          final rotation =
+              particle.rotation +
+              particle.angularVelocity *
+                  math.sin(progress * math.pi * 3) *
+                  settleFactor;
+
+          return Transform.translate(
+            offset: Offset(x, y),
+            child: Transform.rotate(angle: rotation, child: child),
+          );
+        },
       ),
     );
   }
@@ -464,7 +498,8 @@ class _StickerParticle {
     required this.drift,
     required this.rotation,
     required this.angularVelocity,
-  }) : seed = ((record.id.hashCode & 0xffff) / 0xffff);
+    required this.delay,
+  });
 
   final DrinkBudgetRecord record;
   final double size;
@@ -473,5 +508,5 @@ class _StickerParticle {
   final double drift;
   final double rotation;
   final double angularVelocity;
-  final double seed;
+  final double delay;
 }
