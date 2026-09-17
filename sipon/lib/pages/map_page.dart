@@ -61,7 +61,6 @@ class _MapPageState extends State<MapPage> {
       // 点地图空白处就收起面板。原来这里毫无反应。
       onBlankTapped: _sheet.collapse,
     );
-    _sheet.addListener(_handleSheetStage);
   }
 
   @override
@@ -83,7 +82,6 @@ class _MapPageState extends State<MapPage> {
   @override
   void dispose() {
     _cityController?.removeListener(_handleCityChanged);
-    _sheet.removeListener(_handleSheetStage);
     _data.removeListener(_handleDataChanged);
     _scene.detach();
     _sheet.dispose();
@@ -156,7 +154,6 @@ class _MapPageState extends State<MapPage> {
   /// 面板落定到新档位。**这里是相机与装饰物的唯一触发点**：原来
   /// `_expandVenueDetails` / `_collapseVenueDetails` / `_settleVenueSheet` /
   /// `_showSelectedVenueOnMap` 四处各自调一遍 `_focusVenue`。
-  void _handleSheetStage() => unawaited(_applyStage());
 
   Future<void> _applyStage({bool focusSelection = true}) async {
     final venue = _data.selectedVenue;
