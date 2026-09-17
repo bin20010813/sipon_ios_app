@@ -363,16 +363,17 @@ class _HomeDataSections extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         const _CategoryScroller(),
-        const SizedBox(height: 22),
-        Padding(
-          padding: const EdgeInsets.only(right: 23),
-          child: _SectionHeader(title: text.t('调酒师故事')),
-        ),
-        const SizedBox(height: 14),
-        const Padding(
-          padding: EdgeInsets.only(right: 23),
-          child: _BartenderStories(),
-        ),
+        // TODO: 调酒师故事模块暂时隐藏，恢复时取消下面注释即可。
+        // const SizedBox(height: 22),
+        // Padding(
+        //   padding: const EdgeInsets.only(right: 23),
+        //   child: _SectionHeader(title: text.t('调酒师故事')),
+        // ),
+        // const SizedBox(height: 14),
+        // const Padding(
+        //   padding: EdgeInsets.only(right: 23),
+        //   child: _BartenderStories(),
+        // ),
         const SizedBox(height: 26),
         _TopBarsSection(bars: data.bars),
       ],
@@ -1262,6 +1263,7 @@ class _CategoryChip extends StatelessWidget {
   }
 }
 
+// ignore: unused_element -- 调酒师故事模块暂时隐藏，恢复时取消首页 build 中的注释即可
 class _BartenderStories extends StatelessWidget {
   const _BartenderStories();
 
@@ -1310,6 +1312,7 @@ class _BartenderStories extends StatelessWidget {
   }
 }
 
+// ignore: unused_element -- 调酒师故事模块暂时隐藏，恢复时取消首页 build 中的注释即可
 class _StoryCard extends StatelessWidget {
   const _StoryCard({
     required this.height,
