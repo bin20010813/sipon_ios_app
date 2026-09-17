@@ -75,9 +75,8 @@ final class SiponMapEngine: NSObject {
   /// 路径规划出的路线折线（单独成池，不受 renderFrame 的 id diff 影响）。
   private var routeOverlay: MKPolyline?
 
-  /// marker 图标资产缓存（kind.id → UIImage）与选中 halo 色环缓存。
+  /// marker 图标资产缓存（category → UIImage）。
   private var markerIcons: [String: UIImage] = [:]
-  private var selectionHalos: [String: UIImage] = [:]
 
   /// 最近一次显式设置的相机 padding。每次移动都带上折算值，
   /// 不依赖引擎记住状态（§5.2 与旧版「padding 粘滞」修法一致）。
@@ -346,6 +345,9 @@ final class SiponMapEngine: NSObject {
       (mapView.view(for: annotation) as? MarkerAnnotationView)?
         .setIcon(markerIcons[annotation.category])
     }
+
+    // 普通点位与选中点位的图标也可能后到，统一补刷。
+    refreshDynamicStyling()
   }
 
   // ------------------------------------------------------------------ 相机
@@ -441,7 +443,14 @@ final class SiponMapEngine: NSObject {
     guard alive, configured,
           let frame = SiponMapProtocol.Frame.parse(arguments) else { return }
 
-    diffCircles(frame.circles)
+    // 同一地点若已有名称 Marker（本身带 PNG），不再叠加普通图标（§4）。
+    let markerVenueIds = Set(frame.markers.map(\.venueId))
+    let circles = frame.circles.filter { point in
+      guard let venueId = point.venueId, !venueId.isEmpty else { return true }
+      return !markerVenueIds.contains(venueId)
+    }
+
+    diffCircles(circles)
     diffMarkers(frame.markers)
     diffSelection(frame.selected)
 
@@ -458,7 +467,7 @@ final class SiponMapEngine: NSObject {
 
     var toRemove: [MKAnnotation] = []
     var toAdd: [MKAnnotation] = []
-    var refreshedViews: [CirclePointAnnotationView] = []
+    var refreshedViews: [VenueIconAnnotationView] = []
 
     for (id, annotation) in circlesById where nextById[id] == nil {
       toRemove.append(annotation)
@@ -478,7 +487,7 @@ final class SiponMapEngine: NSObject {
           changed = true
         }
         if changed {
-          if let view = mapView.view(for: existing) as? CirclePointAnnotationView {
+          if let view = mapView.view(for: existing) as? VenueIconAnnotationView {
             refreshedViews.append(view)
           }
         }
@@ -495,14 +504,9 @@ final class SiponMapEngine: NSObject {
     if !toRemove.isEmpty { mapView.removeAnnotations(toRemove) }
     if !toAdd.isEmpty { mapView.addAnnotations(toAdd) }
 
-    let zoom = currentZoomEstimate()
     for view in refreshedViews {
       if let annotation = view.annotation as? CirclePointAnnotation {
-        view.apply(
-          category: annotation.category,
-          radius: SiponMapGeometry.circleRadius(zoom: zoom),
-          alpha: CGFloat(SiponMapGeometry.fullOpacity)
-        )
+        view.apply(icon: markerIcons[annotation.category], selected: false)
       }
     }
   }
@@ -565,8 +569,8 @@ final class SiponMapEngine: NSObject {
           existing.coordinate = selected.coordinate
         }
         if moved || recolored,
-           let view = mapView.view(for: existing) as? SelectionAnnotationView {
-          refreshSelection(view, annotation: existing)
+           let view = mapView.view(for: existing) as? VenueIconAnnotationView {
+          view.apply(icon: markerIcons[existing.category], selected: true)
         }
       } else {
         let annotation = SelectionAnnotation(id: selected.id, coordinate: selected.coordinate)
@@ -591,46 +595,21 @@ final class SiponMapEngine: NSObject {
     false
   }
 
-  private func refreshSelection(
-    _ view: SelectionAnnotationView,
-    annotation: SelectionAnnotation
-  ) {
-    let zoom = currentZoomEstimate()
-    view.apply(
-      haloImage: haloImage(for: annotation.category),
-      categoryColor: SiponVenueStyle.color(for: annotation.category),
-      coreRadius: SiponMapGeometry.selectionCoreRadius(zoom: zoom),
-      haloRadius: SiponMapGeometry.selectionHaloRadius(zoom: zoom)
-    )
-  }
-
-  private func haloImage(for category: String) -> UIImage {
-    if let cached = selectionHalos[category] { return cached }
-    let image = SelectionAnnotationView.makeHaloImage(color: SiponVenueStyle.color(for: category))
-    selectionHalos[category] = image
-    return image
-  }
-
   /// 捏合过程中的连续淡入淡出 + 分界线以下硬摘除。只在视野变化回调里执行；
   /// 决策仍全部来自 Dart 已同步的模式与区间常量，原生不做规则判断。
   ///
-  /// 圆点在淡出阈值之下直接 `isHidden`：透明度为 0 的圆点照样命中点击，
+  /// 图标在淡出阈值之下直接 `isHidden`：隐藏的图标照样命中点击，
   /// 始终保持点位可见并可点击。
   func refreshDynamicStyling() {
     guard alive, configured else { return }
 
-    let zoom = currentZoomEstimate()
     let circlesHidden = circlesCurrentlyHidden()
 
     for (_, annotation) in circlesById {
-      guard let view = mapView.view(for: annotation) as? CirclePointAnnotationView else { continue }
+      guard let view = mapView.view(for: annotation) as? VenueIconAnnotationView else { continue }
       view.isHidden = circlesHidden
       if !circlesHidden {
-        view.apply(
-          category: annotation.category,
-          radius: SiponMapGeometry.circleRadius(zoom: zoom),
-          alpha: CGFloat(SiponMapGeometry.fullOpacity)
-        )
+        view.apply(icon: markerIcons[annotation.category], selected: false)
       }
     }
 
@@ -639,10 +618,10 @@ final class SiponMapEngine: NSObject {
       (mapView.view(for: annotation) as? MarkerAnnotationView)?.isHidden = markersHidden
     }
 
-    // 选中高亮只随缩放调尺寸，不跟模式隐藏（它是详情卡片指向的唯一锚点）。
+    // 选中点位用放大 PNG 呈现，不跟模式隐藏（它是详情卡片指向的唯一锚点）。
     if let annotation = selectionAnnotation,
-       let view = mapView.view(for: annotation) as? SelectionAnnotationView {
-      refreshSelection(view, annotation: annotation)
+       let view = mapView.view(for: annotation) as? VenueIconAnnotationView {
+      view.apply(icon: markerIcons[annotation.category], selected: true)
     }
   }
 
@@ -675,7 +654,6 @@ final class SiponMapEngine: NSObject {
   fileprivate var hostMapView: MKMapView { mapView }
 
   fileprivate func icon(for category: String) -> UIImage? { markerIcons[category] }
-  fileprivate func cachedHalo(for category: String) -> UIImage { haloImage(for: category) }
 
   fileprivate func emitVenueTapped(_ venueId: String) {
     sendEvent(
@@ -722,21 +700,14 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
   // MARK: annotation view 复用池
 
   func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-    let zoom = engine.currentZoomSnapshot
-    let fade = CGFloat(SiponMapGeometry.fullOpacity)
-
     switch annotation {
     case let circle as CirclePointAnnotation:
-      let identifier = "sipon.circle.\(circle.category)"
+      let identifier = "sipon.venueIcon.\(circle.category)"
       let view = (mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
-        as? CirclePointAnnotationView)
-        ?? CirclePointAnnotationView(annotation: circle, reuseIdentifier: identifier)
+        as? VenueIconAnnotationView)
+        ?? VenueIconAnnotationView(annotation: circle, reuseIdentifier: identifier)
       view.annotation = circle
-      view.apply(
-        category: circle.category,
-        radius: SiponMapGeometry.circleRadius(zoom: zoom),
-        alpha: fade
-      )
+      view.apply(icon: engine.icon(for: circle.category), selected: false)
       // 新建的视图同样可能落在分界线以下——「透明仍可点」在这里同样成立。
       view.isHidden = engine.circlesHiddenSnapshot
       view.displayPriority = .defaultHigh
@@ -753,15 +724,10 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
       return view
     case let selection as SelectionAnnotation:
       let view = (mapView.dequeueReusableAnnotationView(withIdentifier: "sipon.selection")
-        as? SelectionAnnotationView)
-        ?? SelectionAnnotationView(annotation: selection, reuseIdentifier: "sipon.selection")
+        as? VenueIconAnnotationView)
+        ?? VenueIconAnnotationView(annotation: selection, reuseIdentifier: "sipon.selection")
       view.annotation = selection
-      view.apply(
-        haloImage: engine.cachedHalo(for: selection.category),
-        categoryColor: SiponVenueStyle.color(for: selection.category),
-        coreRadius: SiponMapGeometry.selectionCoreRadius(zoom: zoom),
-        haloRadius: SiponMapGeometry.selectionHaloRadius(zoom: zoom)
-      )
+      view.apply(icon: engine.icon(for: selection.category), selected: true)
       // 高亮必须置顶，保证详情状态清晰可见。
       view.displayPriority = .required
       return view
@@ -886,44 +852,24 @@ final class SelectionAnnotation: NSObject, MKAnnotation, VenueSelecting {
 }
 
 // =============================================================================
-// 分类配色（与 Dart MapVenueKind.circleRgb 一致；新增类型改这里一处）
-// =============================================================================
-
-enum SiponVenueStyle {
-  static func color(for category: String) -> UIColor {
-    switch category {
-    case "craft":
-      return UIColor(red: 0x0D / 255, green: 0x94 / 255, blue: 0x88 / 255, alpha: 1)
-    case "bistro":
-      return UIColor(red: 0x25 / 255, green: 0x63 / 255, blue: 0xEB / 255, alpha: 1)
-    case "party":
-      return UIColor(red: 0xDC / 255, green: 0x26 / 255, blue: 0x26 / 255, alpha: 1)
-    case "livehouse":
-      return UIColor(red: 0xF5 / 255, green: 0x9E / 255, blue: 0x0B / 255, alpha: 1)
-    default:
-      return UIColor(red: 0x9A / 255, green: 0x3D / 255, blue: 0x78 / 255, alpha: 1) // pub
-    }
-  }
-}
-
-// =============================================================================
 // 自绘 annotation 视图
 // =============================================================================
 
-/// 圆点：frame 取 max(视觉直径+3pt 描边, 22pt) 保命中区，视觉是内嵌 layer。
-/// 这替代了原来 18px 方框查询的 tapSlop（§3c）。
-final class CirclePointAnnotationView: MKAnnotationView {
+/// 普通点位与选中点位共用的图标视图：显示分类 PNG，图片底部对齐地图坐标。
+/// 普通态 22×28，选中态放大到 30×38（§1/§2）。
+final class VenueIconAnnotationView: MKAnnotationView {
 
-  static let minimumHitDiameter: CGFloat = 22
-  private static let borderInset: CGFloat = 1.5
+  private enum Metrics {
+    static let normalSize = CGSize(width: 22, height: 28)
+    static let selectedSize = CGSize(width: 30, height: 38)
+  }
 
-  private let dotLayer = CALayer()
+  private let iconView = UIImageView(frame: .zero)
 
   override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
     super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
-    layer.addSublayer(dotLayer)
-    dotLayer.borderColor = UIColor.white.cgColor
-    dotLayer.borderWidth = Self.borderInset * 2
+    addSubview(iconView)
+    iconView.contentMode = .scaleAspectFit
     isUserInteractionEnabled = true
     if #available(iOS 11.0, *) {
       collisionMode = .circle
@@ -933,31 +879,17 @@ final class CirclePointAnnotationView: MKAnnotationView {
   @available(*, unavailable)
   required init?(coder: NSCoder) { nil }
 
-  func apply(category: String, radius: CGFloat, alpha: CGFloat) {
-    let visualDiameter = max(radius * 2, 3)
-    let hitDiameter = max(visualDiameter + Self.borderInset * 2, Self.minimumHitDiameter)
+  func apply(icon: UIImage?, selected: Bool) {
+    let size = selected ? Metrics.selectedSize : Metrics.normalSize
+    iconView.image = icon
 
-    CATransaction.begin()
-    CATransaction.setDisableActions(true)
-    bounds = CGRect(origin: .zero, size: CGSize(width: hitDiameter, height: hitDiameter))
-    dotLayer.backgroundColor = SiponVenueStyle.color(for: category).cgColor
-    self.alpha = max(0, min(alpha, 1))
-    layoutDot(visualDiameter: visualDiameter)
-    CATransaction.commit()
-  }
-
-  override func layoutSubviews() {
-    super.layoutSubviews()
-    let visualDiameter = bounds.width - Self.borderInset * 2
-    layoutDot(visualDiameter: visualDiameter)
-  }
-
-  private func layoutDot(visualDiameter: CGFloat) {
-    dotLayer.frame = bounds.insetBy(
-      dx: (bounds.width - visualDiameter) / 2,
-      dy: (bounds.height - visualDiameter) / 2
-    )
-    dotLayer.cornerRadius = visualDiameter / 2
+    UIView.performWithoutAnimation {
+      bounds = CGRect(origin: .zero, size: size)
+      iconView.frame = bounds
+      // 锚点 = 图标底边中点（对应旧 iconAnchor BOTTOM）：
+      // 视图中心上移半个高度 ⇒ centerOffset.y = -height/2。
+      centerOffset = CGPoint(x: 0, y: -size.height / 2)
+    }
   }
 }
 
@@ -1025,7 +957,7 @@ final class MarkerAnnotationView: MKAnnotationView {
       // 路线 marker 与高优先级圆点在同一坐标。设为必显并跳过碰撞
       // 淘汰，否则 MapKit 可能只保留圆点，把编号一起隐藏。
       displayPriority = .required
-      collisionMode = .none
+      collisionMode = .rectangle
     } else {
       sequenceBadge.text = nil
       sequenceBadge.isHidden = true
@@ -1092,78 +1024,4 @@ final class MarkerAnnotationView: MKAnnotationView {
   }
 }
 
-/// 选中高亮：外圈径向渐变 halo + 白描边实心核；置顶且仍可点击。
-final class SelectionAnnotationView: MKAnnotationView {
 
-  private let haloLayer = CALayer()
-  private let coreLayer = CALayer()
-
-  override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
-    super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
-    layer.addSublayer(haloLayer)
-    layer.addSublayer(coreLayer)
-    coreLayer.borderWidth = 3
-    coreLayer.borderColor = UIColor.white.cgColor
-    isUserInteractionEnabled = true
-    if #available(iOS 11.0, *) {
-      collisionMode = .circle
-    }
-  }
-
-  @available(*, unavailable)
-  required init?(coder: NSCoder) { nil }
-
-  func apply(
-    haloImage: UIImage,
-    categoryColor: UIColor,
-    coreRadius: CGFloat,
-    haloRadius: CGFloat
-  ) {
-    let haloDiameter = max(haloRadius * 2, 10)
-    let coreDiameter = max(coreRadius * 2, 4)
-    let diameter = max(haloDiameter, coreDiameter)
-
-    CATransaction.begin()
-    CATransaction.setDisableActions(true)
-    bounds = CGRect(origin: .zero, size: CGSize(width: diameter, height: diameter))
-
-    haloLayer.contents = haloImage.cgImage
-    haloLayer.contentsGravity = .resize
-    haloLayer.frame = CGRect(x: 0, y: 0, width: haloDiameter, height: haloDiameter)
-      .offsetBy(dx: (diameter - haloDiameter) / 2, dy: (diameter - haloDiameter) / 2)
-
-    coreLayer.backgroundColor = categoryColor.cgColor
-    coreLayer.frame = CGRect(x: 0, y: 0, width: coreDiameter, height: coreDiameter)
-      .offsetBy(dx: (diameter - coreDiameter) / 2, dy: (diameter - coreDiameter) / 2)
-    coreLayer.cornerRadius = coreDiameter / 2
-    CATransaction.commit()
-  }
-
-  /// 径向渐变 halo（模拟旧版 opacity 0.22 + blur 0.35），按类别色缓存。
-  static func makeHaloImage(color: UIColor) -> UIImage {
-    let side: CGFloat = 96
-    let renderer = UIGraphicsImageRenderer(size: CGSize(width: side, height: side))
-    return renderer.image { context in
-      let cgContext = context.cgContext
-      let colors = [
-        color.withAlphaComponent(0.5).cgColor,
-        color.withAlphaComponent(0.22).cgColor,
-        color.withAlphaComponent(0).cgColor,
-      ] as CFArray
-      guard let gradient = CGGradient(
-        colorsSpace: CGColorSpaceCreateDeviceRGB(),
-        colors: colors,
-        locations: [0, 0.45, 1]
-      ) else { return }
-      let center = CGPoint(x: side / 2, y: side / 2)
-      cgContext.drawRadialGradient(
-        gradient,
-        startCenter: center,
-        startRadius: 0,
-        endCenter: center,
-        endRadius: side / 2,
-        options: [.drawsBeforeStartLocation]
-      )
-    }
-  }
-}
