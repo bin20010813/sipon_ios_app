@@ -47,6 +47,17 @@ VenueSheetStage venueSheetStageForExtent(
 /// `_cameraFramedForDetails` 五个字段 —— 其中 `_cameraFramedForDetails` 是个藏在
 /// 四个方法里的隐式状态机，现在被 [stage] 显式化了。
 class VenueSheetController extends ChangeNotifier {
+  VenueSheetController({
+    VenueSheetStage initialStage = VenueSheetStage.collapsed,
+  }) : extent = ValueNotifier<double>(
+         initialStage == VenueSheetStage.collapsed
+             ? 0
+             : initialStage == VenueSheetStage.half
+                 ? halfExtent
+                 : maxExtent,
+       ),
+       _stage = initialStage;
+
   static const double halfExtent = 0.55;
   static const double maxExtent = 1.0;
 
@@ -65,13 +76,13 @@ class VenueSheetController extends ChangeNotifier {
 
   /// 面板当前 extent。**只驱动绘制**：面板形变、悬浮按钮跟随。
   /// 初值 0 表示还没收到过通知，此时按收起态渲染。
-  final ValueNotifier<double> extent = ValueNotifier<double>(0);
+  final ValueNotifier<double> extent;
 
   ScrollController? _scrollController;
   Timer? _settleTimer;
   double _availableHeight = 0;
   double _collapsedExtent = 0.2;
-  VenueSheetStage _stage = VenueSheetStage.collapsed;
+  VenueSheetStage _stage;
   bool _notifyScheduled = false;
   bool _disposed = false;
 

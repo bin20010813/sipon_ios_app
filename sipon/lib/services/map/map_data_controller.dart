@@ -16,13 +16,19 @@ class MapDataController extends ChangeNotifier {
   MapDataController({
     required MapVenueRepository repository,
     required String city,
+    MapVenue? initialVenue,
   }) : _repository = repository,
-       _city = city;
+       _city = city,
+       _pinnedVenue = initialVenue,
+       _venues = initialVenue == null ? const [] : [initialVenue],
+       _selectedVenueId = initialVenue?.id;
 
   final MapVenueRepository _repository;
 
+  final MapVenue? _pinnedVenue;
+
   String _city;
-  List<MapVenue> _venues = const [];
+  List<MapVenue> _venues;
   MapVenueKind? _categoryFilter;
   String? _selectedVenueId;
   MapDataStatus _status = MapDataStatus.idle;
@@ -166,7 +172,12 @@ class MapDataController extends ChangeNotifier {
   }
 
   void _applyVenues(List<MapVenue> venues, MapViewport viewport) {
-    _venues = venues;
+    final pinned = _pinnedVenue;
+
+    _venues = pinned == null ||
+            venues.any((venue) => venue.id == pinned.id)
+        ? venues
+        : [pinned, ...venues];
     _loadedViewport = viewport;
     _zoom = viewport.zoom;
     _status = venues.isEmpty ? MapDataStatus.empty : MapDataStatus.ready;

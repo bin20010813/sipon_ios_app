@@ -749,7 +749,6 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
       view.setIcon(engine.icon(for: marker.category))
       view.setLabel(marker.label)
       view.setSequence(marker.sequence)
-      view.displayPriority = .defaultLow
       view.isHidden = engine.markersHiddenSnapshot
       return view
     case let selection as SelectionAnnotation:
@@ -968,7 +967,9 @@ final class MarkerAnnotationView: MKAnnotationView {
 
   private enum Metrics {
     static let iconSize = CGSize(width: 22, height: 28)
-    static let sequenceSize = CGSize(width: 17, height: 17)
+    static let sequenceHeight: CGFloat = 21
+    static let sequenceMinimumWidth: CGFloat = 21
+    static let sequenceHorizontalPadding: CGFloat = 8
     static let gap: CGFloat = 2
     static let maxLabelWidth: CGFloat = 170
   }
@@ -985,9 +986,8 @@ final class MarkerAnnotationView: MKAnnotationView {
     iconView.contentMode = .scaleAspectFit
     sequenceBadge.backgroundColor = UIColor.white
     sequenceBadge.textColor = UIColor(red: 0x9A / 255, green: 0x3D / 255, blue: 0x78 / 255, alpha: 1)
-    sequenceBadge.font = UIFont.systemFont(ofSize: 10, weight: .black)
+    sequenceBadge.font = UIFont.systemFont(ofSize: 12, weight: .black)
     sequenceBadge.textAlignment = .center
-    sequenceBadge.layer.cornerRadius = Metrics.sequenceSize.width / 2
     sequenceBadge.layer.masksToBounds = true
     sequenceBadge.layer.borderColor = UIColor(red: 0x9A / 255, green: 0x3D / 255, blue: 0x78 / 255, alpha: 1).cgColor
     sequenceBadge.layer.borderWidth = 1
@@ -1022,9 +1022,15 @@ final class MarkerAnnotationView: MKAnnotationView {
     if let value = value, value > 0 {
       sequenceBadge.text = "\(value)"
       sequenceBadge.isHidden = false
+      // 路线 marker 与高优先级圆点在同一坐标。设为必显并跳过碰撞
+      // 淘汰，否则 MapKit 可能只保留圆点，把编号一起隐藏。
+      displayPriority = .required
+      collisionMode = .none
     } else {
       sequenceBadge.text = nil
       sequenceBadge.isHidden = true
+      displayPriority = .defaultLow
+      collisionMode = .rectangle
     }
     setNeedsLayout()
   }
@@ -1052,6 +1058,13 @@ final class MarkerAnnotationView: MKAnnotationView {
     }
 
     UIView.performWithoutAnimation {
+      // 1–9 显示为圆形；10、11… 根据数字位数扩展为胶囊形，
+      // 路线点数量增加时不会出现数字挤压或截断。
+      let sequenceWidth = max(
+        Metrics.sequenceMinimumWidth,
+        ceil(sequenceBadge.intrinsicContentSize.width) + Metrics.sequenceHorizontalPadding
+      )
+      sequenceBadge.layer.cornerRadius = Metrics.sequenceHeight / 2
       iconView.frame = CGRect(
         x: (totalWidth - Metrics.iconSize.width) / 2,
         y: 0,
@@ -1059,10 +1072,10 @@ final class MarkerAnnotationView: MKAnnotationView {
         height: Metrics.iconSize.height
       )
       sequenceBadge.frame = CGRect(
-        x: iconView.frame.maxX - Metrics.sequenceSize.width + 3,
-        y: -3,
-        width: Metrics.sequenceSize.width,
-        height: Metrics.sequenceSize.height
+        x: iconView.frame.maxX - sequenceWidth + 5,
+        y: -5,
+        width: sequenceWidth,
+        height: Metrics.sequenceHeight
       )
       label.frame = CGRect(
         x: 0,
@@ -1154,4 +1167,3 @@ final class SelectionAnnotationView: MKAnnotationView {
     }
   }
 }
-

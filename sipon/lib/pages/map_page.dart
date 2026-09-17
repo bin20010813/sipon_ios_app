@@ -26,9 +26,22 @@ import 'language_transform.dart';
 /// - [MapSceneController]：底图、annotation、相机与图层显隐（MapKit 引擎）；
 /// - [VenueSheetController]：详情面板的 extent 与吸附档位。
 class MapPage extends StatefulWidget {
-  const MapPage({super.key, this.bottomOverlayInset = 0});
+  const MapPage({
+    super.key,
+    this.bottomOverlayInset = 0,
+    this.initialVenue,
+    this.initialSheetStage = VenueSheetStage.collapsed,
+    this.showMapControls = true,
+    this.allowSheetCollapse = true,
+    this.onVenueClose,
+  });
 
   final double bottomOverlayInset;
+  final MapVenue? initialVenue;
+  final VenueSheetStage initialSheetStage;
+  final bool showMapControls;
+  final bool allowSheetCollapse;
+  final VoidCallback? onVenueClose;
 
   @override
   State<MapPage> createState() => _MapPageState();
@@ -44,22 +57,27 @@ class _MapPageState extends State<MapPage> {
 
   late final MapDataController _data;
   late final MapSceneController _scene;
-  final VenueSheetController _sheet = VenueSheetController();
+  late final VenueSheetController _sheet;
 
   SiponCityController? _cityController;
 
   @override
   void initState() {
     super.initState();
+    _sheet = VenueSheetController(
+      initialStage: widget.initialSheetStage,
+    );
     _data = MapDataController(
       repository: SiponApiMapVenueRepository(),
       city: SiponCityController.defaultCity,
+      initialVenue: widget.initialVenue,
     )..addListener(_handleDataChanged);
     _scene = MapSceneController.create(
       onViewportSettled: _handleViewportSettled,
       onVenueTapped: _handleVenueTapped,
       // 点地图空白处就收起面板。原来这里毫无反应。
-      onBlankTapped: _sheet.collapse,
+      onBlankTapped:
+          widget.allowSheetCollapse ? _sheet.collapse : () {},
     );
   }
 
@@ -93,7 +111,9 @@ class _MapPageState extends State<MapPage> {
 
   Future<void> _handleMapCreated(SiponMapHost host) async {
     await _scene.attach(host, city: _data.city, style: _data.style);
-    await _applyStage(focusSelection: false);
+    await _applyStage(
+      focusSelection: widget.initialVenue != null,
+    );
 
     // 原「styleLoaded 回调」的职责（重下发帧 + 按当前视野补一次取数）已并入
     // 控制器；页面只需要在 attach 完成后把首帧交给它，并补齐首次取数。
@@ -275,11 +295,13 @@ class _MapPageState extends State<MapPage> {
                 initialStyleId: _data.style.id,
                 onHostReady: _handleMapCreated,
               ),
-              _buildTopControls(),
-              _buildLocateButton(
-                collapsedExtent: collapsedExtent,
-                availableHeight: availableHeight,
-              ),
+              if (widget.showMapControls) _buildTopControls(),
+
+              if (widget.showMapControls)
+                _buildLocateButton(
+                  collapsedExtent: collapsedExtent,
+                  availableHeight: availableHeight,
+                ),
               _buildVenueSheet(
                 collapsedExtent: collapsedExtent,
                 collapsedBottomGap: collapsedBottomGap,
@@ -348,11 +370,15 @@ class _MapPageState extends State<MapPage> {
             controller: _sheet.sheet,
             // 只让面板实际占用的区域参与命中测试，露出的地图区域继续接收手势。
             expand: false,
-            initialChildSize: collapsedExtent,
-            minChildSize: collapsedExtent,
+            initialChildSize: _sheet.currentExtent,
+            minChildSize: widget.allowSheetCollapse
+                ? collapsedExtent
+                : VenueSheetController.halfExtent,
             maxChildSize: VenueSheetController.maxExtent,
             snap: true,
-            snapSizes: const [VenueSheetController.halfExtent],
+            snapSizes: widget.allowSheetCollapse
+                ? const [VenueSheetController.halfExtent]
+                : null,
             snapAnimationDuration: VenueSheetController.motionDuration,
             builder: (context, scrollController) {
               // builder 只在面板重建时调用，缓存下来供收起时归零滚动位置。
@@ -375,7 +401,7 @@ class _MapPageState extends State<MapPage> {
                       collapsedBottomGap: collapsedBottomGap,
                       bottomOverlayInset: widget.bottomOverlayInset,
                       onExpand: _sheet.expand,
-                      onCollapse: _sheet.collapse,
+                      onCollapse: widget.onVenueClose ?? _sheet.collapse,
                     );
                   },
                 ),
