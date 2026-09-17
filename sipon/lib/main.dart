@@ -401,7 +401,7 @@ class _SiponShellState extends State<_SiponShell> {
           Align(
             alignment: Alignment.bottomCenter,
             child: SafeArea(
-              minimum: const EdgeInsets.fromLTRB(34, 0, 34, 4),
+              minimum: const EdgeInsets.fromLTRB(34, 0, 34, 1),
               child: _SiponBottomJumpBar(
                 currentIndex: _currentIndex,
                 onTabSelected: _selectTab,
@@ -751,64 +751,66 @@ class _SiponPlusSheet extends StatelessWidget {
             left: 0,
             right: 0,
             bottom: 0,
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + viewInsets),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF7F2F5),
-                    borderRadius: BorderRadius.circular(28),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x33000000),
-                        blurRadius: 24,
-                        offset: Offset(0, 12),
-                      ),
-                    ],
-                  ),
-                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 22),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Center(
-                        child: Container(
-                          width: 44,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: const Color(0x22000000),
-                            borderRadius: BorderRadius.circular(3),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, viewInsets),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7F2F5),
+                  borderRadius: BorderRadius.circular(28),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x33000000),
+                      blurRadius: 24,
+                      offset: Offset(0, 12),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 12, 18, 22),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 44,
+                            height: 5,
+                            decoration: BoxDecoration(
+                              color: const Color(0x22000000),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 18),
-                      Text(
-                        text.plusSheetTitle,
-                        style: TextStyle(
-                          color: Color(0xFF252229),
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0,
+                        const SizedBox(height: 18),
+                        Text(
+                          text.plusSheetTitle,
+                          style: TextStyle(
+                            color: Color(0xFF252229),
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        text.plusSheetHint,
-                        style: TextStyle(
-                          color: _muted,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0,
+                        const SizedBox(height: 4),
+                        Text(
+                          text.plusSheetHint,
+                          style: TextStyle(
+                            color: _muted,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 18),
-                      _SiponPlusSheetGrid(
-                        onPlanRoute: onPlanRoute,
-                        onCheckIn: onCheckIn,
-                        onAddVenue: onAddVenue,
-                      ),
-                    ],
+                        const SizedBox(height: 18),
+                        _SiponPlusSheetGrid(
+                          onPlanRoute: onPlanRoute,
+                          onCheckIn: onCheckIn,
+                          onAddVenue: onAddVenue,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
