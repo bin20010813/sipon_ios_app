@@ -33,6 +33,7 @@ class _CocktailListPageState extends State<CocktailListPage> {
   bool _hasMore = true;
   String? _error;
   String _keyword = '';
+  int _nextOffset = 0;
 
   @override
   void initState() {
@@ -60,7 +61,7 @@ class _CocktailListPageState extends State<CocktailListPage> {
         _loadingMore = true;
       }
     });
-    final offset = reset ? 0 : _items.length;
+    final offset = reset ? 0 : _nextOffset;
     try {
       final list = await _api.searchCocktails(
         keyword: _keyword.isEmpty ? null : _keyword,
@@ -70,6 +71,7 @@ class _CocktailListPageState extends State<CocktailListPage> {
       setState(() {
         if (reset) _items.clear();
         _items.addAll(CocktailInfo.listFromJson(list));
+        _nextOffset = offset + list.length;
         _loaded = true;
         _hasMore = list.length >= _pageSize;
       });
@@ -120,11 +122,9 @@ class _CocktailListPageState extends State<CocktailListPage> {
 
   /// 打开配料百科列表页。
   void _openIngredientList() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const IngredientListPage(),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const IngredientListPage()));
   }
 
   /// 把异常转为用户可读文案。
@@ -411,9 +411,7 @@ class _CocktailListCard extends StatelessWidget {
                       children: [
                         if (item.difficulty != null &&
                             item.difficulty!.isNotEmpty)
-                          _Tag(
-                            label: item.difficulty!,
-                          ),
+                          _Tag(label: item.difficulty!),
                         if (item.ingredientCount != null) ...[
                           const SizedBox(width: 8),
                           Text(
@@ -466,7 +464,12 @@ class _CocktailThumb extends StatelessWidget {
   Widget _fallback() {
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
-      child: Image.asset(fallbackAsset, width: 96, height: 96, fit: BoxFit.cover),
+      child: Image.asset(
+        fallbackAsset,
+        width: 96,
+        height: 96,
+        fit: BoxFit.cover,
+      ),
     );
   }
 }
@@ -484,11 +487,7 @@ class _StarRating extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         for (var i = 0; i < count; i++)
-          const Icon(
-            Icons.star_rounded,
-            size: 15,
-            color: Color(0xFFF2A33C),
-          ),
+          const Icon(Icons.star_rounded, size: 15, color: Color(0xFFF2A33C)),
         const SizedBox(width: 2),
         Text(
           '$rating',

@@ -109,4 +109,51 @@ void main() {
       'X-Admin-Token': 'admin-token',
     });
   });
+
+  test('cocktail detail preserves ingredient identity and amount', () {
+    final detail = CocktailDetailInfo.fromJson({
+      'id': 1,
+      'name': '莫吉托',
+      'ingredients': [
+        {
+          'id': 2,
+          'code': 'rum',
+          'name': '朗姆酒',
+          'nameEn': 'Rum',
+          'amountText': '45ml',
+          'sortOrder': 1,
+        },
+      ],
+    });
+
+    expect(detail.sortedIngredients.single.name, '朗姆酒');
+    expect(detail.sortedIngredients.single.nameEn, 'Rum');
+    expect(detail.sortedIngredients.single.code, 'rum');
+    expect(detail.sortedIngredients.single.amountText, '45ml');
+  });
+
+  test('cocktail lists keep only cocktails with Chinese names', () {
+    final cocktails = CocktailInfo.listFromJson([
+      {'id': 21, 'name': '伏特加蔓越莓', 'nameEn': 'Cape Codder'},
+      {'id': 22, 'name': 'Mojito', 'nameEn': 'Mojito'},
+      {'id': 23, 'name': null, 'nameEn': 'Gin Tonic'},
+    ]);
+
+    expect(cocktails.map((cocktail) => cocktail.id), [21]);
+  });
+
+  test('cocktail image falls back to the cocktail API asset', () {
+    final cocktail = CocktailInfo.fromJson({
+      'id': 21,
+      'code': 'cape_codder',
+      'name': '伏特加蔓越莓',
+    });
+
+    expect(
+      cocktail.resolvedImageUrl(
+        const SiponApiConfig(baseUrl: 'https://api.example.test'),
+      ),
+      'https://api.example.test/api/cocktails/cape_codder.png',
+    );
+  });
 }

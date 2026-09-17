@@ -436,8 +436,14 @@ class CocktailInfo {
     if (list == null) return const [];
     return [
       for (final item in list.whereType<Map>())
-        CocktailInfo.fromJson(item.cast<String, dynamic>()),
+        if (_hasChineseName(item['name']))
+          CocktailInfo.fromJson(item.cast<String, dynamic>()),
     ];
+  }
+
+  /// 百科展示只保留有中文名称的鸡尾酒，英文名仅作为辅助文案。
+  static bool _hasChineseName(dynamic value) {
+    return value is String && RegExp(r'[\u3400-\u9FFF]').hasMatch(value);
   }
 
   final int? id;
@@ -450,9 +456,14 @@ class CocktailInfo {
   final int? ingredientCount;
   final String? difficulty;
 
-  /// 把后端可能返回的相对路径图片地址解析为完整 URL；为空时返回 null。
+  /// 把后端可能返回的相对路径图片地址解析为完整 URL；
+  /// 缺少图片地址时按鸡尾酒接口的资源路径回退。
   String? resolvedImageUrl([SiponApiConfig? config]) {
-    final raw = imageUrl;
+    final raw =
+        imageUrl ??
+        (code == null || code!.trim().isEmpty
+            ? null
+            : '/api/cocktails/${code!.trim()}.png');
     if (raw == null || raw.trim().isEmpty) return null;
     return (config ?? SiponApiConfig.instance).resolveUri(raw).toString();
   }
@@ -488,13 +499,24 @@ class CocktailDetailInfo {
   }
 }
 
-/// 配方中的单行用料（仅用量文本 + 排序；无配料子对象，不做跳转）。
+/// 配方中的单行用料。
 class RecipeLine {
-  const RecipeLine({this.amountText, this.sortOrder});
+  const RecipeLine({
+    this.id,
+    this.code,
+    this.name,
+    this.nameEn,
+    this.amountText,
+    this.sortOrder,
+  });
 
   factory RecipeLine.fromJson(dynamic value) {
     final map = _asMap(value);
     return RecipeLine(
+      id: _readInt(map, ['id']),
+      code: _readString(map, ['code']),
+      name: _readString(map, ['name']),
+      nameEn: _readString(map, ['nameEn']),
       amountText: _readString(map, ['amountText', 'amount', 'text']),
       sortOrder: _readInt(map, ['sortOrder', 'order']),
     );
@@ -509,6 +531,10 @@ class RecipeLine {
     ];
   }
 
+  final int? id;
+  final String? code;
+  final String? name;
+  final String? nameEn;
   final String? amountText;
   final int? sortOrder;
 }

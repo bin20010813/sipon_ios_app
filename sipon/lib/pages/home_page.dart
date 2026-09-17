@@ -1618,6 +1618,8 @@ class _CocktailScroller extends StatefulWidget {
 }
 
 class _CocktailScrollerState extends State<_CocktailScroller> {
+  static const int _homeLimit = 10;
+
   /// 加载失败/返回为空时回退渲染的静态素材卡片。
   static const List<_CocktailItem> _fallbackItems = [
     _CocktailItem(
@@ -1649,9 +1651,16 @@ class _CocktailScrollerState extends State<_CocktailScroller> {
   /// 拉取首页推荐鸡尾酒真实数据；失败/为空时静默回退静态素材，不打扰首页。
   Future<void> _load() async {
     try {
-      final list = await _api.searchCocktails(page: const SiponPage(limit: 8));
+      // 首页只加载首批推荐，完整列表由“更多”入口按页加载。
+      final list = await _api.searchCocktails(
+        page: const SiponPage(limit: _homeLimit),
+      );
       if (!mounted) return;
-      setState(() => _cocktails = CocktailInfo.listFromJson(list));
+      setState(
+        () => _cocktails = CocktailInfo.listFromJson(
+          list,
+        ).take(_homeLimit).toList(growable: false),
+      );
     } on Exception {
       // 网络异常时保持静态素材展示。
     }
@@ -1728,6 +1737,10 @@ class _CocktailCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final url = imageUrl;
+    final imageWidth = (142 * MediaQuery.devicePixelRatioOf(context)).round();
+    final imageHeight = (142 / 0.82 * MediaQuery.devicePixelRatioOf(context))
+        .round();
+
     return SizedBox(
       width: 142,
       child: Material(
@@ -1745,6 +1758,9 @@ class _CocktailCard extends StatelessWidget {
                     ? Image.network(
                         url,
                         fit: BoxFit.cover,
+                        cacheWidth: imageWidth,
+                        cacheHeight: imageHeight,
+                        filterQuality: FilterQuality.low,
                         errorBuilder: (_, _, _) =>
                             Image.asset(item.imagePath, fit: BoxFit.cover),
                       )

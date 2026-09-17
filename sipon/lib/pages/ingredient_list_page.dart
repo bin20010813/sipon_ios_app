@@ -27,7 +27,7 @@ class _IngredientListPageState extends State<IngredientListPage> {
   /// 分类筛选项：中文标签 + 后端分类值（null 表示全部）。
   static const List<(String, String?)> _categories = [
     ('全部', null),
-    ('基酒', 'spirits'),
+    ('基酒', 'base'),
     ('利口酒', 'liqueur'),
     ('金酒', 'gin'),
     ('威士忌', 'whiskey'),
@@ -171,9 +171,9 @@ class _IngredientListPageState extends State<IngredientListPage> {
                   // 分类筛选条。
                   _CategoryFilter(
                     categories: _categories,
-                    selectedIndex: _categories.indexWhere(
-                      (entry) => entry.$2 == _category,
-                    ).clamp(0, _categories.length - 1),
+                    selectedIndex: _categories
+                        .indexWhere((entry) => entry.$2 == _category)
+                        .clamp(0, _categories.length - 1),
                     onSelected: (index) =>
                         _selectCategory(_categories[index].$2),
                   ),
@@ -350,13 +350,17 @@ class _CategoryFilter extends StatelessWidget {
               alignment: Alignment.center,
               padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
-                color: selected ? _IngredientListPageState._brand : Colors.white,
+                color: selected
+                    ? _IngredientListPageState._brand
+                    : Colors.white,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
                 text.t(categories[index].$1),
                 style: TextStyle(
-                  color: selected ? Colors.white : _IngredientListPageState._muted,
+                  color: selected
+                      ? Colors.white
+                      : _IngredientListPageState._muted,
                   fontSize: 13,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   letterSpacing: 0,
@@ -488,7 +492,12 @@ class _IngredientThumb extends StatelessWidget {
   Widget _fallback() {
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
-      child: Image.asset(fallbackAsset, width: 72, height: 72, fit: BoxFit.cover),
+      child: Image.asset(
+        fallbackAsset,
+        width: 72,
+        height: 72,
+        fit: BoxFit.cover,
+      ),
     );
   }
 }

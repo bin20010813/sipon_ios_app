@@ -210,7 +210,8 @@ class _IngredientDetailPageState extends State<IngredientDetailPage> {
                   letterSpacing: 0,
                 ),
               ),
-              if (ingredient.nameEn != null && ingredient.nameEn!.isNotEmpty) ...[
+              if (ingredient.nameEn != null &&
+                  ingredient.nameEn!.isNotEmpty) ...[
                 const SizedBox(height: 2),
                 Text(
                   ingredient.nameEn!,
@@ -226,9 +227,7 @@ class _IngredientDetailPageState extends State<IngredientDetailPage> {
                 children: [
                   if (ingredient.category != null &&
                       ingredient.category!.isNotEmpty)
-                    _IngredientTag(
-                      label: ingredient.category!,
-                    ),
+                    _IngredientTag(label: ingredient.category!),
                   if (ingredient.baseSpirit == true) ...[
                     const SizedBox(width: 8),
                     const _IngredientTag(label: '基酒'),
@@ -288,11 +287,7 @@ class _IngredientDetailPageState extends State<IngredientDetailPage> {
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Text(
           text.t('相关鸡尾酒加载失败'),
-          style: const TextStyle(
-            color: _muted,
-            fontSize: 13,
-            letterSpacing: 0,
-          ),
+          style: const TextStyle(color: _muted, fontSize: 13, letterSpacing: 0),
         ),
       );
     }
@@ -301,11 +296,7 @@ class _IngredientDetailPageState extends State<IngredientDetailPage> {
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Text(
           text.t('暂未收录相关鸡尾酒'),
-          style: const TextStyle(
-            color: _muted,
-            fontSize: 13,
-            letterSpacing: 0,
-          ),
+          style: const TextStyle(color: _muted, fontSize: 13, letterSpacing: 0),
         ),
       );
     }
@@ -339,8 +330,10 @@ class _IngredientHero extends StatelessWidget {
         child: Image.network(
           url,
           fit: BoxFit.cover,
-          errorBuilder: (_, _, _) =>
-              SizedBox(height: height, child: Image.asset(fallbackAsset, fit: BoxFit.cover)),
+          errorBuilder: (_, _, _) => SizedBox(
+            height: height,
+            child: Image.asset(fallbackAsset, fit: BoxFit.cover),
+          ),
         ),
       );
     }

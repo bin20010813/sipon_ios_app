@@ -199,7 +199,9 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
                                   summary.difficulty!.isNotEmpty)
                                 _MetaTag(label: summary.difficulty!),
                               if (summary.ingredientCount != null)
-                                _MetaTag(label: '${summary.ingredientCount}种用料'),
+                                _MetaTag(
+                                  label: '${summary.ingredientCount}种用料',
+                                ),
                             ],
                           ),
                         ],
@@ -246,8 +248,15 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
                       )
                     : Column(
                         children: [
-                          for (var index = 0; index < ingredients.length; index++)
-                            _RecipeLineTile(index: index, line: ingredients[index]),
+                          for (
+                            var index = 0;
+                            index < ingredients.length;
+                            index++
+                          )
+                            _RecipeLineTile(
+                              index: index,
+                              line: ingredients[index],
+                            ),
                         ],
                       ),
               ),
@@ -451,8 +460,12 @@ class _RecipeLineTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ingredientName = line.name ?? line.nameEn ?? line.code;
     final amount = line.amountText;
-    if (amount == null || amount.isEmpty) return const SizedBox.shrink();
+    if ((ingredientName == null || ingredientName.isEmpty) &&
+        (amount == null || amount.isEmpty)) {
+      return const SizedBox.shrink();
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -479,13 +492,28 @@ class _RecipeLineTile extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              amount,
-              style: const TextStyle(
-                color: _CocktailDetailPageState._ink,
-                fontSize: 14,
-                height: 1.4,
-                letterSpacing: 0,
+            child: RichText(
+              text: TextSpan(
+                style: const TextStyle(
+                  color: _CocktailDetailPageState._ink,
+                  fontSize: 14,
+                  height: 1.4,
+                  letterSpacing: 0,
+                ),
+                children: [
+                  if (ingredientName != null && ingredientName.isNotEmpty)
+                    TextSpan(
+                      text: ingredientName,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  if (ingredientName != null &&
+                      ingredientName.isNotEmpty &&
+                      amount != null &&
+                      amount.isNotEmpty)
+                    const TextSpan(text: '  '),
+                  if (amount != null && amount.isNotEmpty)
+                    TextSpan(text: amount),
+                ],
               ),
             ),
           ),
