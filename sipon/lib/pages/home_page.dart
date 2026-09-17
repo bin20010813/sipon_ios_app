@@ -5,6 +5,7 @@ import '../services/sipon_api_models.dart';
 import '../services/sipon_api_service.dart';
 import '../services/sipon_city_controller.dart';
 import '../services/sipon_data_repository.dart';
+import '../widgets/bottom_clamping_bouncing_scroll_physics.dart';
 import '../widgets/map/venue_detail_page.dart';
 import '../widgets/sipon_city_picker.dart';
 import 'cocktail_detail_page.dart';
@@ -135,7 +136,7 @@ class _HomePageState extends State<HomePage> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
             child: CustomScrollView(
-              physics: const BouncingScrollPhysics(),
+              physics: const BottomClampingBouncingScrollPhysics(),
               slivers: [
                 SliverPadding(
                   padding: EdgeInsets.fromLTRB(

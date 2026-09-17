@@ -5,7 +5,9 @@ import '../widgets/drink_sticker.dart';
 import 'language_transform.dart';
 
 class DrinkStickerCalendarPage extends StatefulWidget {
-  const DrinkStickerCalendarPage({super.key});
+  const DrinkStickerCalendarPage({super.key, this.onRecordPressed});
+
+  final VoidCallback? onRecordPressed;
 
   @override
   State<DrinkStickerCalendarPage> createState() =>
@@ -176,26 +178,13 @@ class _DrinkStickerCalendarPageState extends State<DrinkStickerCalendarPage> {
                     children: [
                       SizedBox(
                         height: 48,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: IconButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                icon: const Icon(Icons.arrow_back_rounded),
-                              ),
-                            ),
-                            Text(
-                              text.t('贴纸月历'),
-                              style: const TextStyle(
-                                color: _ink,
-                                fontSize: 22,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0,
-                              ),
-                            ),
-                          ],
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: IconButton(
+                            tooltip: text.back,
+                            onPressed: () => Navigator.of(context).pop(),
+                            icon: const Icon(Icons.arrow_back_rounded),
+                          ),
                         ),
                       ),
                       Row(
@@ -293,23 +282,29 @@ class _DrinkStickerCalendarPageState extends State<DrinkStickerCalendarPage> {
                           );
                         },
                       ),
-                      const SizedBox(height: 22),
-                      Text(
-                        text.t('重力贴纸池'),
-                        style: const TextStyle(
-                          color: _ink,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0,
+                      if (widget.onRecordPressed != null) ...[
+                        const SizedBox(height: 20),
+                        FilledButton.icon(
+                          onPressed: widget.onRecordPressed,
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size.fromHeight(54),
+                            backgroundColor: _brand,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          icon: const Icon(Icons.add_rounded, size: 21),
+                          label: Text(
+                            text.addRecord,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0,
+                            ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      DrinkStickerGravityPool(
-                        records: monthRecords,
-                        height: 210,
-                        onStickerTap: (record) =>
-                            _showDayRecords(record.date.day, [record]),
-                      ),
+                      ],
                     ],
                   ),
                 ),

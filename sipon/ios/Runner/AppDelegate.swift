@@ -13,6 +13,12 @@ import UIKit
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     registerSiponMapView(with: engineBridge.pluginRegistry)
+    registerSiponSticker(with: engineBridge.pluginRegistry)
+  }
+
+  private func registerSiponSticker(with registry: FlutterPluginRegistry) {
+    guard let registrar = registry.registrar(forPlugin: "SiponStickerPlugin") else { return }
+    SiponStickerPlugin.register(with: registrar)
   }
 
   /// 注册自封装的 MKMapView 平台视图（MapKit 迁移，见 docs/mapkit_migration_guide.md）。

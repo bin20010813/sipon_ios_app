@@ -6,6 +6,7 @@ import '../../pages/language_transform.dart';
 import '../../services/map/api_venue_detail_repository.dart';
 import '../../services/map/map_models.dart';
 import '../../services/map/mock_venue_detail_repository.dart';
+import '../bottom_clamping_bouncing_scroll_physics.dart';
 import 'map_theme.dart';
 import 'venue_common.dart';
 import 'venue_detail_view.dart';
@@ -99,7 +100,7 @@ class VenueSheetSurface extends StatelessWidget {
             selected == null
                 ? CustomScrollView(
                     controller: scrollController,
-                    physics: const BouncingScrollPhysics(
+                    physics: const BottomClampingBouncingScrollPhysics(
                       parent: AlwaysScrollableScrollPhysics(),
                     ),
                     slivers: const [SliverFillRemaining()],

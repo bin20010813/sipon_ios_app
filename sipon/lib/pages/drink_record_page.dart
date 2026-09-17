@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../services/drink_budget_store.dart';
 import '../services/sipon_data_repository.dart';
+import '../services/sticker_cutout_service.dart';
 import '../widgets/drink_sticker.dart';
 import 'language_transform.dart';
 
@@ -31,6 +32,8 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
   String? _drinkType;
   String? _place;
   String? _photoPath;
+  String? _stickerImagePath;
+  bool _isGeneratingSticker = false;
   int? _stickerColor;
   final TextEditingController _drinkNameController = TextEditingController();
   final TextEditingController _amountController = TextEditingController();
@@ -60,7 +63,7 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
   }
 
   Future<void> _pickPhoto() async {
-    final source = await showModalBottomSheet<ImageSource>(
+    final action = await showModalBottomSheet<_PhotoSelectionAction>(
       context: context,
       useSafeArea: true,
       showDragHandle: true,
@@ -79,20 +82,24 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
                 _PhotoActionTile(
                   icon: Icons.photo_camera_outlined,
                   label: text.t('拍照'),
-                  onTap: () =>
-                      Navigator.of(sheetContext).pop(ImageSource.camera),
+                  onTap: () => Navigator.of(
+                    sheetContext,
+                  ).pop(_PhotoSelectionAction.camera),
                 ),
                 _PhotoActionTile(
                   icon: Icons.photo_library_outlined,
                   label: text.t('从相册选择'),
-                  onTap: () =>
-                      Navigator.of(sheetContext).pop(ImageSource.gallery),
+                  onTap: () => Navigator.of(
+                    sheetContext,
+                  ).pop(_PhotoSelectionAction.gallery),
                 ),
                 if (_photoPath != null)
                   _PhotoActionTile(
                     icon: Icons.hide_image_outlined,
                     label: text.t('移除照片'),
-                    onTap: () => Navigator.of(sheetContext).pop(),
+                    onTap: () => Navigator.of(
+                      sheetContext,
+                    ).pop(_PhotoSelectionAction.remove),
                   ),
               ],
             ),
@@ -100,20 +107,62 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
         );
       },
     );
-    if (source == null) {
-      if (_photoPath != null && mounted) {
-        setState(() => _photoPath = null);
+    if (action == null) return;
+
+    if (action == _PhotoSelectionAction.remove) {
+      if (mounted) {
+        setState(() {
+          _photoPath = null;
+          _stickerImagePath = null;
+        });
       }
       return;
     }
+
+    final source = action == _PhotoSelectionAction.camera
+        ? ImageSource.camera
+        : ImageSource.gallery;
     final picked = await ImagePicker().pickImage(
       source: source,
-      maxWidth: 1400,
-      maxHeight: 1400,
-      imageQuality: 86,
+      maxWidth: 1600,
+      maxHeight: 1600,
+      imageQuality: 90,
     );
-    if (picked != null && mounted) {
-      setState(() => _photoPath = picked.path);
+    if (picked == null || !mounted) return;
+
+    setState(() {
+      _photoPath = picked.path;
+      _stickerImagePath = null;
+      _isGeneratingSticker = true;
+    });
+
+    try {
+      final generated = await StickerCutoutService.instance.generate(
+        picked.path,
+      );
+      if (!mounted) return;
+      setState(() {
+        _photoPath = generated.photoPath;
+        _stickerImagePath = generated.stickerPath;
+      });
+      if (!generated.hasCutout) {
+        final text = SiponLanguageScope.textOf(context);
+        final message = switch (generated.status) {
+          'unsupported' => text.t('当前系统暂不支持自动抠图，已保留原图'),
+          'no_subject' => text.t('没有识别到清晰主体，已保留原图'),
+          _ => text.t('自动抠图失败，已保留原图'),
+        };
+        _showMessage(message);
+      }
+    } on StickerCutoutException {
+      if (mounted) {
+        final text = SiponLanguageScope.textOf(context);
+        _showMessage(text.t('自动抠图失败，已保留原图'));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isGeneratingSticker = false);
+      }
     }
   }
 
@@ -165,6 +214,11 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
   Future<void> _save() async {
     final text = SiponLanguageScope.textOf(context);
 
+    if (_isGeneratingSticker) {
+      _showMessage(text.t('贴纸正在生成，请稍候'));
+      return;
+    }
+
     if (_drinkType == null) {
       _showMessage(text.t('请选择酒款'));
       return;
@@ -188,6 +242,7 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
       place: _place!,
       drinkName: drinkName,
       photoPath: _photoPath,
+      stickerImagePath: _stickerImagePath,
       stickerColor: stickerColor,
       amount: amount,
       cups: _cups,
@@ -203,6 +258,7 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
       place: _place!,
       drinkName: drinkName,
       photoPath: _photoPath,
+      stickerImagePath: _stickerImagePath,
       stickerColor: stickerColor,
       tags: _tagsForDrinkType(_drinkType!),
       cups: _cups,
@@ -229,6 +285,8 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
       _drinkType = null;
       _place = null;
       _photoPath = null;
+      _stickerImagePath = null;
+      _isGeneratingSticker = false;
       _stickerColor = null;
       _drinkNameController.clear();
       _amountController.clear();
@@ -248,6 +306,7 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
       place: _place ?? 'SipOn',
       drinkName: _drinkNameController.text.trim(),
       photoPath: _photoPath,
+      stickerImagePath: _stickerImagePath,
       stickerColor: _stickerColor ?? drinkStickerColorForType(type).toARGB32(),
       cups: _cups,
       rating: _rating,
@@ -324,6 +383,8 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
                       _StickerComposer(
                         record: _previewRecord,
                         photoPath: _photoPath,
+                        stickerImagePath: _stickerImagePath,
+                        isGenerating: _isGeneratingSticker,
                         onPickPhoto: _pickPhoto,
                       ),
                       const SizedBox(height: 18),
@@ -376,7 +437,7 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
                       _NoteTile(controller: _noteController),
                       const SizedBox(height: 24),
                       FilledButton.icon(
-                        onPressed: _save,
+                        onPressed: _isGeneratingSticker ? null : _save,
                         icon: const Icon(Icons.check_rounded),
                         label: Text(text.t('保存贴纸')),
                         style: FilledButton.styleFrom(
@@ -438,17 +499,39 @@ class _StickerComposer extends StatelessWidget {
   const _StickerComposer({
     required this.record,
     required this.photoPath,
+    required this.stickerImagePath,
+    required this.isGenerating,
     required this.onPickPhoto,
   });
 
   final DrinkBudgetRecord record;
   final String? photoPath;
+  final String? stickerImagePath;
+  final bool isGenerating;
   final VoidCallback onPickPhoto;
 
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
     final hasPhoto = photoPath != null && File(photoPath!).existsSync();
+    final hasSticker =
+        stickerImagePath != null && File(stickerImagePath!).existsSync();
+
+    final title = isGenerating
+        ? text.t('正在移除背景')
+        : hasSticker
+        ? text.t('透明贴纸已生成')
+        : hasPhoto
+        ? text.t('已保留原图')
+        : text.t('先生成一枚贴纸');
+    final description = isGenerating
+        ? text.t('正在识别饮品主体，通常只需要几秒。')
+        : hasSticker
+        ? text.t('保存后会出现在月历和统计贴纸池。')
+        : hasPhoto
+        ? text.t('可以重新选择主体更清晰的照片。')
+        : text.t('拍照或选择照片后，会自动移除背景并生成贴纸。');
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
@@ -458,11 +541,27 @@ class _StickerComposer extends StatelessWidget {
       ),
       child: Row(
         children: [
-          DrinkSticker(
-            record: record,
-            size: 86,
-            showLabel: true,
-            rotation: -0.08,
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 240),
+            child: isGenerating
+                ? const SizedBox(
+                    key: ValueKey('processing'),
+                    width: 86,
+                    height: 86,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        color: DrinkRecordPage._brand,
+                      ),
+                    ),
+                  )
+                : DrinkSticker(
+                    key: ValueKey(stickerImagePath ?? photoPath ?? 'default'),
+                    record: record,
+                    size: 86,
+                    showLabel: true,
+                    rotation: -0.08,
+                  ),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -470,7 +569,7 @@ class _StickerComposer extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  text.t(hasPhoto ? '照片贴纸已生成' : '先生成一枚贴纸'),
+                  title,
                   style: const TextStyle(
                     color: DrinkRecordPage._ink,
                     fontSize: 16,
@@ -480,9 +579,7 @@ class _StickerComposer extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  text.t(
-                    hasPhoto ? '保存后会出现在月历和统计贴纸池。' : '可上传饮品照片，也可以使用酒款默认贴纸。',
-                  ),
+                  description,
                   style: const TextStyle(
                     color: DrinkRecordPage._muted,
                     fontSize: 12,
@@ -493,7 +590,7 @@ class _StickerComposer extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 FilledButton.tonalIcon(
-                  onPressed: onPickPhoto,
+                  onPressed: isGenerating ? null : onPickPhoto,
                   icon: Icon(
                     hasPhoto
                         ? Icons.refresh_rounded
@@ -504,6 +601,8 @@ class _StickerComposer extends StatelessWidget {
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFFFFEDF7),
                     foregroundColor: DrinkRecordPage._brand,
+                    disabledBackgroundColor: const Color(0xFFF1E8ED),
+                    disabledForegroundColor: DrinkRecordPage._muted,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     minimumSize: const Size(0, 34),
                     padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -522,6 +621,8 @@ class _StickerComposer extends StatelessWidget {
     );
   }
 }
+
+enum _PhotoSelectionAction { camera, gallery, remove }
 
 class _PhotoActionTile extends StatelessWidget {
   const _PhotoActionTile({
@@ -1429,6 +1530,7 @@ class DrinkRecordDraft {
     required this.place,
     required this.drinkName,
     required this.photoPath,
+    required this.stickerImagePath,
     required this.stickerColor,
     required this.amount,
     required this.cups,
@@ -1441,6 +1543,7 @@ class DrinkRecordDraft {
   final String place;
   final String drinkName;
   final String? photoPath;
+  final String? stickerImagePath;
   final int stickerColor;
   final double amount;
   final int cups;
