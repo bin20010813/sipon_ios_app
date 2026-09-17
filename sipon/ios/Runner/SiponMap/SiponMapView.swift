@@ -330,23 +330,59 @@ final class SiponMapEngine: NSObject {
   }
 
   private func registerMarkerAssets(_ args: [String: Any]) {
-    guard let assets = SiponMapProtocol.dict(args["assets"]) as? [String: String] else { return }
+    guard let assets = args["assets"] as? [String: String] else {
+      NSLog("[SiponMap] assets 参数解析失败")
+      return
+    }
+
+    NSLog("[SiponMap] 收到图标数量：%ld", assets.count)
 
     for (category, assetKey) in assets {
+      if markerIcons[category] != nil {
+        continue
+      }
+
       let bundleKey = FlutterDartProject.lookupKey(forAsset: assetKey)
-      guard markerIcons[category] == nil,
-            let path = Bundle.main.path(forResource: bundleKey, ofType: nil),
-            let image = UIImage(contentsOfFile: path) else { continue }
-      markerIcons[category] = image
+
+      guard let path = Bundle.main.path(
+        forResource: bundleKey,
+        ofType: nil
+      ) else {
+        NSLog(
+          "[SiponMap] 找不到图片：category=%@ key=%@",
+          category,
+          bundleKey
+        )
+        continue
+      }
+
+      guard let image = UIImage(contentsOfFile: path) else {
+        NSLog(
+          "[SiponMap] 图片解码失败：category=%@ path=%@",
+          category,
+          path
+        )
+        continue
+      }
+
+      markerIcons[category] = image.withRenderingMode(.alwaysOriginal)
+
+      NSLog(
+        "[SiponMap] 图片加载成功：category=%@ size=%@",
+        category,
+        NSStringFromCGSize(image.size)
+      )
     }
 
-    // 图标后到的场景：把已上屏的 marker 视图补上图标。
     for (_, annotation) in markersByVenueId {
-      (mapView.view(for: annotation) as? MarkerAnnotationView)?
-        .setIcon(markerIcons[annotation.category])
+      guard let view = mapView.view(for: annotation)
+        as? MarkerAnnotationView else {
+        continue
+      }
+
+      view.setIcon(markerIcons[annotation.category])
     }
 
-    // 普通点位与选中点位的图标也可能后到，统一补刷。
     refreshDynamicStyling()
   }
 
