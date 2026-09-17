@@ -261,6 +261,7 @@ class MockVenueDetailRepository implements VenueDetailRepository {
           nickname: reviewers[(seed + i) % reviewers.length].$1,
           rating: 4.2 + (seed + i) % 8 * 0.1,
           date: '${2024 + (seed + i) % 2}-${(seed + i) % 12 + 1}-15',
+          createdAt: DateTime(2024 + (seed + i) % 2, (seed + i) % 12 + 1, 15),
           content: contents[(seed + i) % contents.length],
           imageAssets: [
             MapAssets.coverForIndex(seed + i),

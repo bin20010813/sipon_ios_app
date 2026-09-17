@@ -123,6 +123,7 @@ class VenueReview {
     required this.date,
     required this.content,
     required this.imageAssets,
+    this.createdAt,
     this.likeCount = 0,
     this.avatarAsset,
   });
@@ -135,6 +136,9 @@ class VenueReview {
 
   /// 评价日期文案。
   final String date;
+
+  /// 评价创建时间，用于相对时间和排序；旧数据可能没有该字段。
+  final DateTime? createdAt;
 
   /// 评价正文。
   final String content;

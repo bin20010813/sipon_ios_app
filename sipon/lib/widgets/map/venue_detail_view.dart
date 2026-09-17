@@ -92,7 +92,7 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
   bool _favorite = false;
   int _galleryPage = 0;
   int _detailTabIndex = 0;
-  _ReviewFilter _reviewFilter = _ReviewFilter.standard;
+  _ReviewFilter _reviewFilter = _ReviewFilter.relevant;
   bool _scrollingToTab = false;
   bool _tabsPinned = false;
   final GlobalKey _scrollViewKey = GlobalKey();
@@ -1620,8 +1620,24 @@ class _VenueDrinks extends StatelessWidget {
   }
 }
 
+String _relativeReviewDate(VenueReview review, SiponAppText text) {
+  final createdAt = review.createdAt;
+  if (createdAt == null) {
+    return text.t('时间未知');
+  }
+
+  final days = DateTime.now().difference(createdAt).inDays.clamp(0, 36500);
+  if (days < 30) {
+    return '$days${text.t('天前')}';
+  }
+  if (days < 365) {
+    return '${days ~/ 30}${text.t('月前')}';
+  }
+  return '${days ~/ 365}${text.t('年前')}';
+}
+
 /// 评价列表的筛选方式。
-enum _ReviewFilter { standard, withImages, newest, good, bad }
+enum _ReviewFilter { relevant, highest, newest, oldest }
 
 /// 用户评价区：顶部显示总分统计，条目之间用细分隔线。
 class _VenueReviewsSection extends StatelessWidget {
@@ -1660,8 +1676,10 @@ class _VenueReviewsSection extends StatelessWidget {
   /// 板块小标题的 key，供 tab 跳转时测量标题高度。
   final Key? headingKey;
 
-  /// 解析 `YYYY-M-DD` 形式的评价日期，解析失败时回退到最早时间。
-  static DateTime _parseDate(String date) {
+  /// 优先使用服务端时间，兼容旧数据里的 `YYYY-M-DD` 文案。
+  static DateTime _parseDate(VenueReview review) {
+    if (review.createdAt != null) return review.createdAt!;
+    final date = review.date;
     final parts = date.split('-');
     if (parts.length != 3) return DateTime(1970);
     return DateTime.tryParse(
@@ -1679,40 +1697,94 @@ class _VenueReviewsSection extends StatelessWidget {
         : reviews.map((r) => r.rating).reduce((a, b) => a + b) / reviews.length;
     var filteredReviews = [...reviews];
     switch (sort) {
-      case _ReviewFilter.standard:
-        break;
-      case _ReviewFilter.withImages:
-        filteredReviews = filteredReviews
-            .where((review) => review.imageAssets.isNotEmpty)
-            .toList();
+      case _ReviewFilter.relevant:
+        filteredReviews.sort((a, b) => b.likeCount.compareTo(a.likeCount));
+      case _ReviewFilter.highest:
+        filteredReviews.sort((a, b) => b.rating.compareTo(a.rating));
       case _ReviewFilter.newest:
-        filteredReviews.sort(
-          (a, b) => _parseDate(b.date).compareTo(_parseDate(a.date)),
-        );
-      case _ReviewFilter.good:
-        filteredReviews =
-            filteredReviews.where((review) => review.rating >= 4).toList()
-              ..sort((a, b) => b.rating.compareTo(a.rating));
-      case _ReviewFilter.bad:
-        filteredReviews =
-            filteredReviews.where((review) => review.rating < 3).toList()
-              ..sort((a, b) => a.rating.compareTo(b.rating));
+        filteredReviews.sort((a, b) => _parseDate(b).compareTo(_parseDate(a)));
+      case _ReviewFilter.oldest:
+        filteredReviews.sort((a, b) => _parseDate(a).compareTo(_parseDate(b)));
     }
     // 已加载即全量展示，翻页加载的新评价直接追加到列表尾部。
     final visibleReviews = filteredReviews;
+    final filterButton = PopupMenuButton<_ReviewFilter>(
+      initialValue: sort,
+      position: PopupMenuPosition.under,
+      onSelected: onSortChanged,
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: _ReviewFilter.relevant,
+          child: Text(text.t('最相关')),
+        ),
+        PopupMenuItem(
+          value: _ReviewFilter.highest,
+          child: Text(text.t('评分从高到低')),
+        ),
+        PopupMenuItem(
+          value: _ReviewFilter.newest,
+          child: Text(text.t('最新到最旧')),
+        ),
+        PopupMenuItem(
+          value: _ReviewFilter.oldest,
+          child: Text(text.t('最旧到最新')),
+        ),
+      ],
+      child: Container(
+        height: 34,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F3F6),
+          border: Border.all(color: MapDesign.hairline),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.filter_list_rounded,
+              color: MapDesign.brand,
+              size: 16,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              text.t('筛选'),
+              style: const TextStyle(
+                color: MapDesign.ink,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+            const SizedBox(width: 3),
+            const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: MapDesign.muted,
+              size: 17,
+            ),
+          ],
+        ),
+      ),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          key: headingKey,
-          text.t('评价'),
-          style: const TextStyle(
-            color: MapDesign.ink,
-            fontSize: 17,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                key: headingKey,
+                text.t('评价'),
+                style: const TextStyle(
+                  color: MapDesign.ink,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
         if (averageRating != null) ...[
@@ -1738,69 +1810,32 @@ class _VenueReviewsSection extends StatelessWidget {
                 _RatingStars(rating: averageRating, starSize: 20),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    text.t('综合评分'),
-                    style: const TextStyle(
-                      color: MapDesign.ink,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ),
-                Text(
-                  '$totalCount ${text.t('条评价')}',
-                  style: const TextStyle(
-                    color: MapDesign.muted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '$totalCount ${text.t('条评价')}',
+                              style: const TextStyle(
+                                color: MapDesign.muted,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                          ),
+                          filterButton,
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 12),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            clipBehavior: Clip.none,
-            child: Row(
-              children: [
-                _ReviewFilterChip(
-                  label: text.t('默认'),
-                  selected: sort == _ReviewFilter.standard,
-                  onTap: () => onSortChanged(_ReviewFilter.standard),
-                ),
-                const SizedBox(width: 8),
-                _ReviewFilterChip(
-                  label: text.t('带图'),
-                  icon: Icons.image_outlined,
-                  selected: sort == _ReviewFilter.withImages,
-                  onTap: () => onSortChanged(_ReviewFilter.withImages),
-                ),
-                const SizedBox(width: 8),
-                _ReviewFilterChip(
-                  label: text.t('最新'),
-                  icon: Icons.schedule_rounded,
-                  selected: sort == _ReviewFilter.newest,
-                  onTap: () => onSortChanged(_ReviewFilter.newest),
-                ),
-                const SizedBox(width: 8),
-                _ReviewFilterChip(
-                  label: text.t('好评'),
-                  selected: sort == _ReviewFilter.good,
-                  onTap: () => onSortChanged(_ReviewFilter.good),
-                ),
-                const SizedBox(width: 8),
-                _ReviewFilterChip(
-                  label: text.t('差评'),
-                  selected: sort == _ReviewFilter.bad,
-                  onTap: () => onSortChanged(_ReviewFilter.bad),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
           SizedBox(
             height: 42,
             child: OutlinedButton.icon(
@@ -1869,66 +1904,6 @@ class _VenueReviewsSection extends StatelessWidget {
   }
 }
 
-/// 评价筛选的选项胶囊。
-class _ReviewFilterChip extends StatelessWidget {
-  /// 创建筛选胶囊。
-  const _ReviewFilterChip({
-    required this.label,
-    this.icon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData? icon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: label,
-      child: Material(
-        color: selected ? MapDesign.brandSurface : const Color(0xFFF7F3F6),
-        shape: StadiumBorder(
-          side: BorderSide(
-            color: selected ? MapDesign.brand : Colors.transparent,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (icon != null) ...[
-                  Icon(
-                    icon,
-                    size: 14,
-                    color: selected ? MapDesign.brand : MapDesign.muted,
-                  ),
-                  const SizedBox(width: 4),
-                ],
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: selected ? MapDesign.brand : MapDesign.muted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// 单条用户评价。
 class _ReviewItem extends StatefulWidget {
   /// 创建单条评价。
@@ -1974,7 +1949,7 @@ class _ReviewItemState extends State<_ReviewItem> {
                   ),
                   const SizedBox(height: 1),
                   Text(
-                    review.date,
+                    _relativeReviewDate(review, text),
                     style: const TextStyle(
                       color: MapDesign.muted,
                       fontSize: 11,

@@ -375,6 +375,9 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
     if (content.isEmpty && map['rating'] == null) {
       return null;
     }
+    final createdAt = DateTime.tryParse(
+      _readStr(map, ['visitedAt', 'createdAt', 'created_on']) ?? '',
+    )?.toLocal();
     return VenueReview(
       nickname:
           _readStr(author, ['nickname', 'nickName', 'username', 'name']) ??
@@ -382,9 +385,8 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
           '匿名用户',
       rating: _readDouble(map, ['rating', 'score', 'star']) ?? 5,
       likeCount: _readInt(map, ['likeCount', 'likes', 'thumbsUp']) ?? 0,
-      date: _formatDate(
-        _readStr(map, ['visitedAt', 'createdAt', 'created_on']),
-      ),
+      date: _formatDate(createdAt),
+      createdAt: createdAt,
       content: content,
       imageAssets: _readUrlList(map['mediaUrls'] ?? map['media']),
       avatarAsset: _readStr(author, ['avatarUrl', 'avatar', 'avatarAsset']),
@@ -400,13 +402,11 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
   }
 
   /// ISO 时间转页面用的 `yyyy-M-d` 文案（与详情页日期解析保持一致）。
-  String _formatDate(String? iso) {
-    final parsed = iso == null ? null : DateTime.tryParse(iso);
+  String _formatDate(DateTime? parsed) {
     if (parsed == null) {
       return '';
     }
-    final local = parsed.toLocal();
-    return '${local.year}-${local.month}-${local.day}';
+    return '${parsed.year}-${parsed.month}-${parsed.day}';
   }
 
   /// 根据当天与前一天的时段判断是否营业，跨午夜部分归属于前一天。
