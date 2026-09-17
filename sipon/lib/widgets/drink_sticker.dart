@@ -61,7 +61,10 @@ class DrinkSticker extends StatelessWidget {
         ? drinkStickerColorForType(record.drinkType)
         : Color(record.stickerColor!);
     final photoPath = record.photoPath;
-    final hasPhoto = photoPath != null && File(photoPath).existsSync();
+    final stickerImagePath = record.stickerImagePath;
+    final hasPhoto = _imagePathAvailable(photoPath);
+    final hasCutout = _imagePathAvailable(stickerImagePath);
+
     final sticker = Transform.rotate(
       angle: rotation,
       child: SizedBox(
@@ -69,62 +72,12 @@ class DrinkSticker extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: size,
-              height: size,
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(size * 0.26),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x1F000000),
-                    blurRadius: 14,
-                    offset: Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(size * 0.20),
-                child: hasPhoto
-                    ? Image.file(File(photoPath), fit: BoxFit.cover)
-                    : DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              color.withValues(alpha: 0.96),
-                              Color.lerp(color, Colors.black, 0.18)!,
-                            ],
-                          ),
-                        ),
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            Positioned(
-                              right: -size * 0.12,
-                              top: -size * 0.12,
-                              child: Container(
-                                width: size * 0.45,
-                                height: size * 0.45,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.18),
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                            ),
-                            Center(
-                              child: Icon(
-                                drinkStickerIconForType(record.drinkType),
-                                color: Colors.white,
-                                size: size * 0.48,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-              ),
+            _DrinkStickerVisual(
+              size: size,
+              color: color,
+              icon: drinkStickerIconForType(record.drinkType),
+              photoPath: hasPhoto ? photoPath : null,
+              cutoutPath: hasCutout ? stickerImagePath : null,
             ),
             if (showLabel) ...[
               const SizedBox(height: 5),
@@ -153,6 +106,171 @@ class DrinkSticker extends StatelessWidget {
         borderRadius: BorderRadius.circular(size * 0.28),
         child: sticker,
       ),
+    );
+  }
+}
+
+class _DrinkStickerVisual extends StatelessWidget {
+  const _DrinkStickerVisual({
+    required this.size,
+    required this.color,
+    required this.icon,
+    required this.photoPath,
+    required this.cutoutPath,
+  });
+
+  final double size;
+  final Color color;
+  final IconData icon;
+  final String? photoPath;
+  final String? cutoutPath;
+
+  @override
+  Widget build(BuildContext context) {
+    final cutoutPath = this.cutoutPath;
+    if (cutoutPath != null) {
+      return SizedBox.square(
+        dimension: size,
+        child: Padding(
+          padding: EdgeInsets.all(size * 0.07),
+          child: _CutoutStickerImage(path: cutoutPath),
+        ),
+      );
+    }
+
+    return Container(
+      width: size,
+      height: size,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(size * 0.26),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1F000000),
+            blurRadius: 14,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(size * 0.20),
+        child: photoPath != null
+            ? _StickerPathImage(path: photoPath!, fit: BoxFit.cover)
+            : DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      color.withValues(alpha: 0.96),
+                      Color.lerp(color, Colors.black, 0.18)!,
+                    ],
+                  ),
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Positioned(
+                      right: -size * 0.12,
+                      top: -size * 0.12,
+                      child: Container(
+                        width: size * 0.45,
+                        height: size * 0.45,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                    Center(
+                      child: Icon(icon, color: Colors.white, size: size * 0.48),
+                    ),
+                  ],
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+class _CutoutStickerImage extends StatelessWidget {
+  const _CutoutStickerImage({required this.path});
+
+  final String path;
+
+  @override
+  Widget build(BuildContext context) {
+    const outlineOffsets = [
+      Offset(-2, -2),
+      Offset(0, -2),
+      Offset(2, -2),
+      Offset(-2, 0),
+      Offset(2, 0),
+      Offset(-2, 2),
+      Offset(0, 2),
+      Offset(2, 2),
+    ];
+    Widget image({Color? color, BlendMode? blendMode}) {
+      return _StickerPathImage(
+        path: path,
+        fit: BoxFit.contain,
+        color: color,
+        colorBlendMode: blendMode,
+      );
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      clipBehavior: Clip.none,
+      children: [
+        for (final offset in outlineOffsets)
+          Transform.translate(
+            offset: offset,
+            child: image(color: Colors.white, blendMode: BlendMode.srcIn),
+          ),
+        image(),
+      ],
+    );
+  }
+}
+
+bool _imagePathAvailable(String? path) {
+  if (path == null || path.isEmpty) return false;
+  final uri = Uri.tryParse(path);
+  if (uri != null && (uri.scheme == 'https' || uri.scheme == 'http')) {
+    return true;
+  }
+  return File(path).existsSync();
+}
+
+class _StickerPathImage extends StatelessWidget {
+  const _StickerPathImage({
+    required this.path,
+    required this.fit,
+    this.color,
+    this.colorBlendMode,
+  });
+
+  final String path;
+  final BoxFit fit;
+  final Color? color;
+  final BlendMode? colorBlendMode;
+
+  @override
+  Widget build(BuildContext context) {
+    final uri = Uri.tryParse(path);
+    final imageProvider =
+        uri != null && (uri.scheme == 'https' || uri.scheme == 'http')
+        ? NetworkImage(path)
+        : FileImage(File(path)) as ImageProvider;
+    return Image(
+      image: imageProvider,
+      fit: fit,
+      color: color,
+      colorBlendMode: colorBlendMode,
+      filterQuality: FilterQuality.medium,
+      errorBuilder: (_, _, _) => const SizedBox.shrink(),
     );
   }
 }
@@ -269,7 +387,7 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
                   left: 16,
                   top: 13,
                   child: Text(
-                    '${widget.records.length} 枚本月贴纸',
+                    '${widget.records.length} 枚贴纸',
                     style: const TextStyle(
                       color: Color(0xFF8E8790),
                       fontSize: 12,

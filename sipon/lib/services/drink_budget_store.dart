@@ -19,6 +19,7 @@ class DrinkBudgetRecord {
     required this.place,
     this.drinkName = '',
     this.photoPath,
+    this.stickerImagePath,
     this.stickerColor,
     this.alcoholPercent,
     this.sugarGrams,
@@ -39,6 +40,7 @@ class DrinkBudgetRecord {
   final String place;
   final String drinkName;
   final String? photoPath;
+  final String? stickerImagePath;
   final int? stickerColor;
   final double? alcoholPercent;
   final double? sugarGrams;
@@ -61,6 +63,7 @@ class DrinkBudgetRecord {
       place: place,
       drinkName: drinkName,
       photoPath: photoPath,
+      stickerImagePath: stickerImagePath,
       stickerColor: stickerColor,
       alcoholPercent: alcoholPercent,
       sugarGrams: sugarGrams,
@@ -83,6 +86,7 @@ class DrinkBudgetRecord {
       place: place,
       drinkName: drinkName.isNotEmpty ? drinkName : local.drinkName,
       photoPath: photoPath ?? local.photoPath,
+      stickerImagePath: stickerImagePath ?? local.stickerImagePath,
       stickerColor: stickerColor ?? local.stickerColor,
       alcoholPercent: alcoholPercent ?? local.alcoholPercent,
       sugarGrams: sugarGrams ?? local.sugarGrams,
@@ -103,6 +107,7 @@ class DrinkBudgetRecord {
     'place': place,
     'drinkName': drinkName,
     'photoPath': photoPath,
+    'stickerImagePath': stickerImagePath,
     'stickerColor': stickerColor,
     'alcoholPercent': alcoholPercent,
     'sugarGrams': sugarGrams,
@@ -123,6 +128,7 @@ class DrinkBudgetRecord {
       place: (json['place'] as String?) ?? '',
       drinkName: (json['drinkName'] as String?) ?? '',
       photoPath: json['photoPath'] as String?,
+      stickerImagePath: json['stickerImagePath'] as String?,
       stickerColor: (json['stickerColor'] as num?)?.toInt(),
       alcoholPercent: (json['alcoholPercent'] as num?)?.toDouble(),
       sugarGrams: (json['sugarGrams'] as num?)?.toDouble(),
@@ -172,6 +178,9 @@ class DrinkBudgetRecord {
       place: json['place']?.toString() ?? '',
       drinkName: json['drinkName']?.toString() ?? '',
       photoPath: json['photoPath']?.toString() ?? json['photoUrl']?.toString(),
+      stickerImagePath:
+          json['stickerImagePath']?.toString() ??
+          json['stickerUrl']?.toString(),
       stickerColor: (json['stickerColor'] as num?)?.toInt(),
       alcoholPercent: (json['alcoholPercent'] as num?)?.toDouble(),
       sugarGrams: (json['sugarGrams'] as num?)?.toDouble(),

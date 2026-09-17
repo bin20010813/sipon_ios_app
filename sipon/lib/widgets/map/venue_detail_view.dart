@@ -8,6 +8,7 @@ import '../../services/map/mock_venue_detail_repository.dart';
 import '../../services/map/venue_detail_models.dart';
 import '../../services/sipon_api_config.dart';
 import '../../services/sipon_api_service.dart';
+import '../bottom_clamping_bouncing_scroll_physics.dart';
 import 'map_theme.dart';
 import '../review_composer.dart';
 import 'venue_common.dart';
@@ -482,7 +483,7 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
         CustomScrollView(
           key: _scrollViewKey,
           controller: widget.scrollController,
-          physics: const BouncingScrollPhysics(
+          physics: const BottomClampingBouncingScrollPhysics(
             parent: AlwaysScrollableScrollPhysics(),
           ),
           slivers: [

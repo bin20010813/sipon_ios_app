@@ -10,6 +10,7 @@ import '../services/map/sipon_map_host.dart';
 import '../services/map/sipon_map_widget.dart';
 import '../services/sipon_api_config.dart';
 import '../services/sipon_api_service.dart';
+import '../widgets/bottom_clamping_bouncing_scroll_physics.dart';
 import '../widgets/drink_sticker.dart';
 import 'drink_sticker_calendar_page.dart';
 import 'language_transform.dart';
@@ -175,7 +176,7 @@ class ProfilePageState extends State<ProfilePage> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 430),
               child: CustomScrollView(
-                physics: const BouncingScrollPhysics(),
+                physics: const BottomClampingBouncingScrollPhysics(),
                 slivers: [
                   SliverPadding(
                     padding: EdgeInsets.fromLTRB(
@@ -2263,7 +2264,10 @@ class _BudgetCardState extends State<_BudgetCard> {
 
   void _openStickerCalendar(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const DrinkStickerCalendarPage()),
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            DrinkStickerCalendarPage(onRecordPressed: widget.onRecordPressed),
+      ),
     );
   }
 
@@ -2363,8 +2367,6 @@ class _BudgetCardState extends State<_BudgetCard> {
     final monthExpense = _store.currentMonthExpense;
     final remaining = _store.remaining;
     final delta = _store.monthDeltaRatio;
-    final monthRecords = _store.recordsOf(DrinkBudgetMonth.now());
-
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.98),
@@ -2408,25 +2410,6 @@ class _BudgetCardState extends State<_BudgetCard> {
                     ),
                   ),
                 ),
-                TextButton.icon(
-                  onPressed: () => _openStickerCalendar(context),
-                  style: TextButton.styleFrom(
-                    foregroundColor: ProfilePage._brand,
-                    minimumSize: const Size(0, 28),
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  icon: const Icon(Icons.calendar_month_outlined, size: 15),
-                  label: Text(
-                    text.t('月历'),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
                 FilledButton.tonalIcon(
                   onPressed: widget.onRecordPressed,
                   style: FilledButton.styleFrom(
@@ -2476,9 +2459,26 @@ class _BudgetCardState extends State<_BudgetCard> {
               ],
             ),
             const SizedBox(height: 14),
-            _StickerBudgetPreview(
-              records: monthRecords,
-              onOpenCalendar: () => _openStickerCalendar(context),
+            const Divider(height: 1, color: ProfilePage._line),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _BudgetShortcut(
+                    icon: Icons.calendar_month_outlined,
+                    label: text.t('月历'),
+                    onTap: () => _openStickerCalendar(context),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _BudgetShortcut(
+                    icon: Icons.bar_chart_rounded,
+                    label: text.t('统计'),
+                    onTap: () => _showRecords(context),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -2487,73 +2487,45 @@ class _BudgetCardState extends State<_BudgetCard> {
   }
 }
 
-class _StickerBudgetPreview extends StatelessWidget {
-  const _StickerBudgetPreview({
-    required this.records,
-    required this.onOpenCalendar,
+class _BudgetShortcut extends StatelessWidget {
+  const _BudgetShortcut({
+    required this.icon,
+    required this.label,
+    required this.onTap,
   });
 
-  final List<DrinkBudgetRecord> records;
-  final VoidCallback onOpenCalendar;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final text = SiponLanguageScope.textOf(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                text.t('本月贴纸池'),
+    return Material(
+      color: const Color(0xFFFFF7FB),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 44,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 18, color: ProfilePage._brand),
+              const SizedBox(width: 7),
+              Text(
+                label,
                 style: const TextStyle(
                   color: ProfilePage._ink,
                   fontSize: 13,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: onOpenCalendar,
-              style: TextButton.styleFrom(
-                foregroundColor: ProfilePage._brand,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                minimumSize: const Size(0, 28),
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-              ),
-              child: Text(
-                text.t('打开月历'),
-                style: const TextStyle(
-                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0,
                 ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        DrinkStickerGravityPool(
-          records: records,
-          height: 150,
-          onStickerTap: (record) => showModalBottomSheet<void>(
-            context: context,
-            useSafeArea: true,
-            showDragHandle: true,
-            backgroundColor: Colors.white,
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-            ),
-            builder: (_) => _BudgetRecordDetailSheet(
-              record: record,
-              dateText:
-                  '${record.date.year}-${record.date.month.toString().padLeft(2, '0')}-${record.date.day.toString().padLeft(2, '0')}',
-            ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 }
@@ -2968,7 +2940,7 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
                         ),
                       ),
                       Text(
-                        text.t('账单'),
+                        text.t('统计'),
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: ProfilePage._ink,
@@ -3025,6 +2997,26 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
                   period: _period,
                   text: text,
                   onChanged: (period) => setState(() => _period = period),
+                ),
+                const SizedBox(height: 16),
+                DrinkStickerGravityPool(
+                  records: records,
+                  height: 220,
+                  onStickerTap: (record) => showModalBottomSheet<void>(
+                    context: context,
+                    useSafeArea: true,
+                    showDragHandle: true,
+                    backgroundColor: Colors.white,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(22),
+                      ),
+                    ),
+                    builder: (_) => _BudgetRecordDetailSheet(
+                      record: record,
+                      dateText: _formatDate(record.date, text),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 22),
                 _BillSummary(

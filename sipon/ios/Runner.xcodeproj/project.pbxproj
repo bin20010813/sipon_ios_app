@@ -22,6 +22,7 @@
 		AA510003000000000000000A /* SiponMapChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA520003000000000000000A /* SiponMapChannel.swift */; };
 		AA510004000000000000000A /* SiponMapGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA520004000000000000000A /* SiponMapGeometry.swift */; };
 		AA510005000000000000000A /* SiponMapGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA520005000000000000000A /* SiponMapGeometryTests.swift */; };
+		AA510006000000000000000A /* SiponStickerChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA520006000000000000000A /* SiponStickerChannel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -77,6 +78,7 @@
 		AA520003000000000000000A /* SiponMapChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiponMapChannel.swift; sourceTree = "<group>"; };
 		AA520004000000000000000A /* SiponMapGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiponMapGeometry.swift; sourceTree = "<group>"; };
 		AA520005000000000000000A /* SiponMapGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiponMapGeometryTests.swift; sourceTree = "<group>"; };
+		AA520006000000000000000A /* SiponStickerChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiponStickerChannel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -160,6 +162,7 @@
 				1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */,
 				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
 				7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */,
+				AA520006000000000000000A /* SiponStickerChannel.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 				AA530001000000000000000A /* SiponMap */,
 			);
@@ -410,6 +413,7 @@
 				AA510002000000000000000A /* SiponMapView.swift in Sources */,
 				AA510003000000000000000A /* SiponMapChannel.swift in Sources */,
 				AA510004000000000000000A /* SiponMapGeometry.swift in Sources */,
+				AA510006000000000000000A /* SiponStickerChannel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

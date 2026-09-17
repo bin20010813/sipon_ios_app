@@ -12,6 +12,12 @@ enum SiponMapGeometry {
   /// 赤道周长（米），meters-per-pixel 换算基准。
   static let earthEquatorMeters = 40_075_016.686
 
+  /// 与 Dart 的 MapSceneController.cityZoom 保持一致。
+  static let initialCityZoom = 11.8
+
+  /// 与 Dart 的 mapCircleFullOpacity 保持一致。
+  static let fullOpacity = 0.92
+
   // MARK: - zoom ↔ 视野跨度
 
   /// zoom → 经度跨度。256 是墨卡托基准 tile 尺寸，`width` 是视口宽（pt）。
