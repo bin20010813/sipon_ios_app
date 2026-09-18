@@ -368,9 +368,10 @@ final class SiponMapEngine: NSObject {
       markerIcons[category] = image.withRenderingMode(.alwaysOriginal)
 
       NSLog(
-        "[SiponMap] 图片加载成功：category=%@ size=%@",
+        "[SiponMap] 图片加载成功：category=%@ size=%.0fx%.0f",
         category,
-        NSStringFromCGSize(image.size)
+        Double(image.size.width),
+        Double(image.size.height)
       )
     }
 
