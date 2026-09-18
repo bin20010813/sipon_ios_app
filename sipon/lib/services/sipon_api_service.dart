@@ -1,4 +1,5 @@
 import 'sipon_api_client.dart';
+import 'sipon_region_data.dart';
 
 class SiponPage {
   const SiponPage({this.limit = 20, this.offset = 0})
@@ -94,7 +95,7 @@ class SiponApiService {
       _get(
         '/api/home',
         queryParameters: {
-          'city': city,
+          'city': city == null ? null : siponApiCityName(city),
           'longitude': longitude,
           'latitude': latitude,
         },
@@ -111,7 +112,7 @@ class SiponApiService {
   }) => _getList(
     '/api/bars',
     queryParameters: {
-      'city': city,
+      'city': city == null ? null : siponApiCityName(city),
       'keyword': keyword,
       'subtype': subtype,
       'minRating': minRating,

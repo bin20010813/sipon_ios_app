@@ -499,6 +499,40 @@ String? siponProvinceEnOfCity(String city) {
 /// 取城市英文名，找不到返回原名（用于兜底展示）。
 String siponCityEn(String city) => siponFindCity(city)?.nameEn ?? city;
 
+/// 返回传给后端接口的城市名称。
+///
+/// 城市选择器内部使用简称（例如“广州”），后端按行政区全称筛选
+/// （例如“广州市”）。已带行政区后缀的名称保持不变。
+String siponApiCityName(String city) {
+  final query = city.trim();
+  if (query.isEmpty || _hasAdministrativeSuffix(query)) {
+    return query;
+  }
+
+  final entry = siponFindCity(query);
+  if (entry != null &&
+      (entry.name.endsWith('州') ||
+          entry.name.endsWith('盟') ||
+          entry.name.endsWith('地区') ||
+          entry.name == '香港' ||
+          entry.name == '澳门' ||
+          entry.name == '台北' ||
+          entry.name == '高雄' ||
+          entry.name == '台中' ||
+          entry.name == '台南')) {
+    return entry.name;
+  }
+  return '$query市';
+}
+
+bool _hasAdministrativeSuffix(String city) =>
+    city.endsWith('市') ||
+    city.endsWith('州') ||
+    city.endsWith('盟') ||
+    city.endsWith('地区') ||
+    city.endsWith('特别行政区') ||
+    city.endsWith('自治区');
+
 /// 取省份英文名，找不到返回原名。
 String siponProvinceEn(String province) {
   final query = province.trim();

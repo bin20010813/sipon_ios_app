@@ -59,6 +59,9 @@ void main() {
         }
       }
       expect(siponCityEn('上海'), 'Shanghai');
+      expect(siponApiCityName('广州'), '广州市');
+      expect(siponApiCityName('广州市'), '广州市');
+      expect(siponApiCityName('香港'), '香港');
       expect(siponCityEn('拉萨'), 'Lhasa');
       expect(siponProvinceEn('四川省'), 'Sichuan');
       expect(siponProvinceEnOfCity('成都'), 'Sichuan');

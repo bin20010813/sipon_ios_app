@@ -92,7 +92,7 @@ void main() {
 
     expect(requests, hasLength(1));
     expect(requests.single.path, '/api/bars');
-    expect(requests.single.queryParameters['city'], '北京');
+    expect(requests.single.queryParameters['city'], '北京市');
     expect(requests.single.queryParameters['keyword'], '精酿');
     expect(controller.failureDetail, isNull);
     expect(controller.visibleVenues.single.name, '北京精酿');

@@ -1,5 +1,6 @@
 import 'sipon_api_client.dart';
 import 'sipon_api_models.dart';
+import 'sipon_region_data.dart';
 
 class SiponDataRepository {
   SiponDataRepository({SiponApiClient? apiClient})
@@ -46,7 +47,7 @@ class SiponDataRepository {
     final json = await _apiClient.getJson(
       '/api/bars',
       queryParameters: {
-        'city': city,
+        'city': city == null ? null : siponApiCityName(city),
         'keyword': keyword,
         'limit': limit,
         'offset': offset,
