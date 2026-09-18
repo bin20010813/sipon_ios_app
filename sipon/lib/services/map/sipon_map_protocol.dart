@@ -77,7 +77,7 @@ Map<String, Object?> encodeCameraMove({
   required double bearing,
   required double bottomPadding,
 }) => {
-  'lon': longitude,
+  'lng': longitude,
   'lat': latitude,
   'zoom': zoom,
   'pitch': pitch,

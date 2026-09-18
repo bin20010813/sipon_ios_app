@@ -86,6 +86,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
   void dispose() {
     _requestVersion++;
     _cityController?.removeListener(_handleCityChanged);
+    _routeRevision++;
     _scene.detach();
     super.dispose();
   }
@@ -219,6 +220,9 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
   bool _planned = false;
   bool _planning = false;
 
+  /// 路线版本号：站点或顺序变更、退出页面都递增，旧规划结果据此作废。
+  int _routeRevision = 0;
+
   void _showMessage(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -226,10 +230,18 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
   }
 
   /// 站点编排变更后清除已规划的路线，必须重新规划才能保存。
+  ///
+  /// 不管之前是否已规划成功都要作废：首次规划尚未完成时 `_planned` 仍为 false，
+  /// 但旧的在途请求必须作废，否则旧结果会把新站点保存状态置为可用。
   void _invalidatePlanning() {
-    if (!_planned) return;
+    _routeRevision++;
     _scene.clearRoute();
-    setState(() => _planned = false);
+
+    if (!mounted) return;
+    setState(() {
+      _planned = false;
+      _planning = false;
+    });
   }
 
   /// 点击「出发」：按已选站点顺序调用原生路径规划（MKDirections）
@@ -240,34 +252,46 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
       _showMessage('地图还没准备好，请稍后再试');
       return;
     }
-    final places = _routeItems.whereType<_BarPlace>().toList();
-    if (places.length < 2) {
+
+    final places = _routeItems.whereType<_BarPlace>().toList(growable: false);
+    if (_start == null || _end == null || places.length < 2) {
       _showMessage('请先选择起点和终点酒吧');
       return;
     }
 
-    setState(() => _planning = true);
+    final revision = ++_routeRevision;
+    final points = [
+      for (final place in places)
+        MapLatLng(
+          longitude: place.longitude,
+          latitude: place.latitude,
+        ),
+    ];
+
+    setState(() {
+      _planning = true;
+      _planned = false;
+    });
+
     try {
-      final ok = await _scene.planRoute(
-        points: [
-          for (final place in places)
-            MapLatLng(longitude: place.longitude, latitude: place.latitude),
-        ],
+      final ok = await _scene.planRoute(points: points);
+      if (!mounted || revision != _routeRevision) return;
+
+      setState(() => _planned = ok);
+      _showMessage(
+        ok ? '路线已规划，可以保存为我的路线了' : '路径规划失败，请检查站点或稍后重试',
       );
-      if (!mounted) return;
-      setState(() {
-        _planning = false;
-        _planned = ok;
-      });
-      _showMessage(ok ? '路线已规划，可以保存为我的路线了' : '路径规划失败，请检查站点或稍后重试');
       if (ok) {
         // 折线绘制后再重画一次点位，保证编号 marker 落在折线上层。
         unawaited(_renderMap());
       }
     } on Exception catch (error) {
-      if (!mounted) return;
-      setState(() => _planning = false);
+      if (!mounted || revision != _routeRevision) return;
       _showMessage('路径规划失败：$error');
+    } finally {
+      if (mounted && revision == _routeRevision) {
+        setState(() => _planning = false);
+      }
     }
   }
 

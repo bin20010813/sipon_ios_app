@@ -86,7 +86,8 @@ enum SiponMapGeometry {
     shiftingUpBy bottomPx: Double,
     zoom: Double
   ) -> CLLocationCoordinate2D {
-    guard bottomPx > 0, bottomPx.isFinite else {
+    // 允许负的 padding 增量：面板收起时 delta 为负，需要反向恢复偏移。
+    guard bottomPx.isFinite, bottomPx != 0 else {
       return CLLocationCoordinate2D(latitude: lat, longitude: lng)
     }
     let mpp = metersPerPixel(lat: lat, zoom: zoom)

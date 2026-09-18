@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sipon/services/map/map_data_controller.dart';
 import 'package:sipon/services/map/map_display_options.dart';
 import 'package:sipon/services/map/map_models.dart';
-import 'package:sipon/services/map/map_scene_controller.dart';
 import 'package:sipon/services/map/map_venue_repository.dart';
 import 'package:sipon/services/map/map_viewport.dart';
 import 'package:sipon/services/map/mock_map_venue_repository.dart';
@@ -273,6 +272,80 @@ void main() {
       repository.venues = [_venue('c'), _venue('d')];
       await controller.syncViewport(_shifted(0.12));
       expect(controller.selectedVenue?.id, 'c');
+    });
+
+    test('A 已加载，B 请求未完成时回到 A，B 返回不覆盖 A', () async {
+      final repository = _QueuedRepository();
+      final controller = MapDataController(repository: repository, city: '上海');
+      addTearDown(controller.dispose);
+
+      final first = controller.syncViewport(_shanghaiViewport);
+      repository.pending.single.complete([_venue('a')]);
+      await first;
+
+      final second = controller.syncViewport(_shifted(0.06));
+      await controller.syncViewport(_shanghaiViewport);
+
+      repository.pending[1].complete([_venue('b')]);
+      await second;
+
+      expect(controller.visibleVenues.map((venue) => venue.id), ['a']);
+      expect(controller.status, MapDataStatus.ready);
+    });
+
+    test('连续拖到 B、C、D，最终只显示 D', () async {
+      final repository = _QueuedRepository();
+      final controller = MapDataController(repository: repository, city: '上海');
+      addTearDown(controller.dispose);
+
+      final first = controller.syncViewport(_shanghaiViewport);
+      repository.pending[0].complete([_venue('a')]);
+      await first;
+
+      final b = controller.syncViewport(_shifted(0.06));
+      final c = controller.syncViewport(_shifted(0.12));
+      final d = controller.syncViewport(_shifted(0.18));
+
+      repository.pending[1].complete([_venue('b')]);
+      await pumpEventQueue();
+      repository.pending[2].complete([_venue('d')]);
+      await Future.wait([b, c, d]);
+
+      expect(controller.visibleVenues.map((venue) => venue.id), ['d']);
+      expect(controller.status, MapDataStatus.ready);
+    });
+
+    test('请求途中切换城市，旧城市结果不更新新城市', () async {
+      final repository = _QueuedRepository();
+      final controller = MapDataController(repository: repository, city: '上海');
+      addTearDown(controller.dispose);
+
+      final pending = controller.syncViewport(_shanghaiViewport);
+      controller.setCity('北京');
+      repository.pending.single.complete([_venue('shanghai-bar')]);
+      await pending;
+
+      expect(controller.city, '北京');
+      expect(controller.visibleVenues, isEmpty);
+      expect(controller.status, MapDataStatus.loading);
+    });
+
+    test('请求途中退出页面，迟到的响应被丢弃且不再通知', () async {
+      final repository = _QueuedRepository();
+      final controller = MapDataController(repository: repository, city: '上海');
+      var notified = 0;
+      controller.addListener(() => notified++);
+
+      final pending = controller.syncViewport(_shanghaiViewport);
+      expect(notified, 1, reason: '进入 loading 时通知过一次');
+      controller.dispose();
+
+      // dispose 后再返回结果，不应触发 notifyListeners（已销毁会断言失败）。
+      repository.pending.single.complete([_venue('a')]);
+      await pending;
+      await pumpEventQueue();
+
+      expect(notified, 1);
     });
   });
 

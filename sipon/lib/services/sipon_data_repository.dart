@@ -9,6 +9,16 @@ class SiponDataRepository {
 
   final SiponApiClient _apiClient;
 
+  /// 拉取地图页酒吧。
+  ///
+  /// 聚合点契约（待接口验证）：当前一律丢弃 cluster=true 的点。响应模型已定义
+  /// mode/cluster/count，不能忽略其语义，但也不能把聚合点当普通酒吧传给详情页
+  /// ——聚合 ID、数量与点击行为必须与真实酒吧 ID 分开。
+  ///
+  /// TODO(接口验证)：记录不同 zoom 下 /api/bars/map 的 mode、总条数、聚合条数
+  /// 与普通酒吧条数，再据此选择契约：始终返回普通酒吧则保留现状并记录约定；
+  /// 返回服务端聚合点则新增独立聚合类型（显示数量 + 点击放大）；产品要求客户端
+  /// 聚合则与后端确认普通点位获取方式。
   Future<List<SiponBarMapItem>> fetchMapBars({
     required SiponMapBounds bounds,
     required double zoom,
