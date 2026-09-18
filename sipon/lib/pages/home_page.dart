@@ -4,7 +4,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../services/map/map_models.dart';
-import '../services/sipon_api_client.dart';
 import '../services/sipon_api_models.dart';
 import '../services/sipon_api_service.dart';
 import '../services/sipon_city_controller.dart';
@@ -63,6 +62,7 @@ class _HomePageState extends State<HomePage> {
   late final PageController _drinkController;
   late Future<_HomeBarsData> _homeBarsFuture;
   SiponCityController? _cityController;
+  String? _loadedCity;
   bool _searchExpanded = false;
   final GlobalKey<_HomeTopBarState> _homeTopBarKey =
       GlobalKey<_HomeTopBarState>();
@@ -73,19 +73,17 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _drinkController = PageController(initialPage: 1, viewportFraction: 0.52);
-    _homeBarsFuture = _loadHomeBars();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final cityController = SiponCityScope.controllerOf(context);
-    if (_cityController == cityController) {
-      return;
+    if (_cityController != cityController) {
+      _cityController?.removeListener(_refreshHomeBarsForCity);
+      _cityController = cityController..addListener(_refreshHomeBarsForCity);
     }
-
-    _cityController?.removeListener(_refreshHomeBarsForCity);
-    _cityController = cityController..addListener(_refreshHomeBarsForCity);
+    _refreshHomeBarsForCity();
   }
 
   @override
@@ -96,11 +94,13 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _refreshHomeBarsForCity() {
-    if (!mounted) {
+    final city = _cityController?.city;
+    if (!mounted || city == null || city == _loadedCity) {
       return;
     }
-
-    setState(() => _homeBarsFuture = _loadHomeBars());
+    _loadedCity = city;
+    _homeBarsFuture = _loadHomeBars(city);
+    setState(() {});
   }
 
   void _setSearchExpanded(bool expanded) {
@@ -110,15 +110,17 @@ class _HomePageState extends State<HomePage> {
     setState(() => _searchExpanded = expanded);
   }
 
-  Future<_HomeBarsData> _loadHomeBars() async {
+  Future<_HomeBarsData> _loadHomeBars(String city) async {
     try {
-      final bars = await SiponDataRepository.instance.fetchHomeBars(
-        city: _cityController?.city ?? SiponCityController.defaultCity,
-      );
+      final bars = await SiponDataRepository.instance.fetchHomeBars(city: city);
       if (bars.isEmpty) {
-        return const _HomeBarsData(
-          bars: _fallbackHomeBars,
-          statusMessage: '使用本地示例数据: 接口未返回可展示酒吧',
+        return _HomeBarsData(
+          bars: city == SiponCityController.defaultCity
+              ? _fallbackHomeBars
+              : const [],
+          statusMessage: city == SiponCityController.defaultCity
+              ? '使用本地示例数据: 接口未返回可展示酒吧'
+              : '当前城市暂无可展示酒吧',
         );
       }
 
@@ -130,8 +132,12 @@ class _HomePageState extends State<HomePage> {
       );
     } catch (error) {
       return _HomeBarsData(
-        bars: _fallbackHomeBars,
-        statusMessage: '使用本地示例数据: $error',
+        bars: city == SiponCityController.defaultCity
+            ? _fallbackHomeBars
+            : const [],
+        statusMessage: city == SiponCityController.defaultCity
+            ? '使用本地示例数据: $error'
+            : '当前城市酒吧加载失败: $error',
       );
     }
   }
@@ -207,7 +213,7 @@ class _HomePageState extends State<HomePage> {
                               final data =
                                   snapshot.data ??
                                   const _HomeBarsData(
-                                    bars: _fallbackHomeBars,
+                                    bars: [],
                                     statusMessage: '正在加载接口数据...',
                                   );
 
@@ -670,16 +676,17 @@ class _HomeDataSections extends StatelessWidget {
             child: _HomeDataStatus(message: text.t(data.statusMessage!)),
           ),
         ],
-        const SizedBox(height: 14),
-        Padding(
-          padding: const EdgeInsets.only(right: 23),
-          child: _FeaturedBarCard(
-            bar: data.featuredBar,
-            onTap: () => _pushVenueDetail(context, data.featuredBar),
+        if (data.bars.isNotEmpty) const SizedBox(height: 14),
+        if (data.bars.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(right: 23),
+            child: _FeaturedBarCard(
+              bar: data.featuredBar,
+              onTap: () => _pushVenueDetail(context, data.featuredBar),
+            ),
           ),
-        ),
-        const SizedBox(height: 14),
-        const _CategoryScroller(),
+        if (data.bars.isNotEmpty) const SizedBox(height: 14),
+        if (data.bars.isNotEmpty) const _CategoryScroller(),
         // const SizedBox(height: 22),
         // Padding(
         //   padding: const EdgeInsets.only(right: 23),
@@ -690,8 +697,8 @@ class _HomeDataSections extends StatelessWidget {
         //   padding: EdgeInsets.only(right: 23),
         //   child: _BartenderStories(),
         // ),
-        const SizedBox(height: 26),
-        _TopBarsSection(bars: data.bars),
+        if (data.bars.isNotEmpty) const SizedBox(height: 26),
+        if (data.bars.isNotEmpty) _TopBarsSection(bars: data.bars),
       ],
     );
   }
@@ -1759,8 +1766,8 @@ class _TopBarsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
-    final primaryBars = _ensureBarCount(bars.take(3).toList(), 3);
-    final secondaryBars = _ensureBarCount(bars.skip(3).take(3).toList(), 3);
+    final primaryBars = bars.take(3).toList();
+    final secondaryBars = bars.skip(3).take(3).toList();
 
     return SizedBox(
       height: 306,
@@ -1769,23 +1776,26 @@ class _TopBarsSection extends StatelessWidget {
         physics: const BouncingScrollPhysics(),
         children: [
           _RankingCard(
-            title: text.t('全国TOP10酒吧'),
+            title: text.t('酒吧推荐'),
             items: primaryBars.map((bar) => bar.toRankingItem(text)).toList(),
             onItemTap: [
               for (final bar in primaryBars)
                 () => _pushVenueDetail(context, bar),
             ],
           ),
-          const SizedBox(width: 16),
-          _RankingCard(
-            title: text.t('广州Top10'),
-            compact: true,
-            items: secondaryBars.map((bar) => bar.toRankingItem(text)).toList(),
-            onItemTap: [
-              for (final bar in secondaryBars)
-                () => _pushVenueDetail(context, bar),
-            ],
-          ),
+          if (secondaryBars.isNotEmpty) const SizedBox(width: 16),
+          if (secondaryBars.isNotEmpty)
+            _RankingCard(
+              title: text.t('更多酒吧'),
+              compact: true,
+              items: secondaryBars
+                  .map((bar) => bar.toRankingItem(text))
+                  .toList(),
+              onItemTap: [
+                for (final bar in secondaryBars)
+                  () => _pushVenueDetail(context, bar),
+              ],
+            ),
           const SizedBox(width: 23),
         ],
       ),
@@ -2209,17 +2219,6 @@ class _HomeBar {
       description: text.t(description.isEmpty ? address : description),
     );
   }
-}
-
-List<_HomeBar> _ensureBarCount(List<_HomeBar> bars, int count) {
-  if (bars.length >= count) {
-    return bars;
-  }
-
-  return [
-    ...bars,
-    ..._fallbackHomeBars.skip(bars.length).take(count - bars.length),
-  ];
 }
 
 String _homeImageAssetForIndex(int index) {

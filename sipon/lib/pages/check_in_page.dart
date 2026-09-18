@@ -7,8 +7,10 @@ import '../services/map/map_scene_controller.dart';
 import '../services/map/sipon_map_host.dart';
 import '../services/map/sipon_map_widget.dart';
 import '../services/sipon_api_service.dart';
+import '../services/sipon_city_controller.dart';
 import '../widgets/map/venue_detail_page.dart';
 import '../widgets/review_composer.dart';
+import '../widgets/sipon_city_picker.dart';
 
 /// 一级入口以底部弹窗展示，二级的记录页面仍然通过路由全屏打开。
 class CheckInPage extends StatefulWidget {
@@ -21,67 +23,17 @@ class CheckInPage extends StatefulWidget {
 class _CheckInPageState extends State<CheckInPage> {
   static const _brand = Color(0xFF9A3D78);
 
-  /// 附近酒吧的中心点：取一片酒吧密集的区域做演示锚点。
-  static const _centerLongitude = 121.4718;
-  static const _centerLatitude = 31.2232;
-
-  /// 接口拉取失败时兜底的演示数据（无 barId，不可真正打卡）。
-  static const _fallbackBars = [
-    _NearbyBar(
-      '庙前冰室（Hope & Sesame）',
-      '黄浦区复兴中路 579',
-      '450m',
-      4.9,
-      121.4718,
-      31.2232,
-      MapVenueKind.pub,
-      false,
-    ),
-    _NearbyBar(
-      'Speak Low（彼楼）',
-      '黄浦区复兴中路 579',
-      '620m',
-      4.9,
-      121.4734,
-      31.2251,
-      MapVenueKind.bistro,
-      false,
-    ),
-    _NearbyBar(
-      'Janes and Hooch',
-      '黄浦区巨鹿路 158',
-      '1.1km',
-      4.5,
-      121.4686,
-      31.2203,
-      MapVenueKind.party,
-      false,
-    ),
-    _NearbyBar(
-      'Play House 电音夜店',
-      '黄浦区淮海中路 333',
-      '1.4km',
-      4.8,
-      121.4667,
-      31.2182,
-      MapVenueKind.livehouse,
-      false,
-    ),
-  ];
-
   final SiponApiService _api = SiponApiService();
 
   /// 附近酒吧每页条数。
   static const int _nearbyPageSize = 20;
 
-  /// 附近酒吧列表（已加载的全部，可跨页追加）。
-  List<_NearbyBar> _bars = _fallbackBars;
-
-  /// 是否还有下一页附近酒吧可加载。
-  bool _hasMoreBars = true;
-
-  /// 正在加载下一批附近酒吧。
-  bool _loadingMoreBars = false;
+  /// nearby 接口最多返回 100 条，不支持 offset 翻页。
+  List<_NearbyBar> _bars = [];
+  SiponCityController? _cityController;
+  String? _loadedCity;
+  SiponLocationPoint? _loadedAnchor;
+  int _requestVersion = 0;
 
   /// 首屏是否还在加载（展示「正在加载附近酒吧…」）。
   bool _loadingBars = true;
@@ -99,104 +51,92 @@ class _CheckInPageState extends State<CheckInPage> {
       onVenueTapped: (_) {},
       onBlankTapped: () {},
     );
-    _barsController.addListener(_onBarsScroll);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final controller = SiponCityScope.controllerOf(context);
+    if (_cityController != controller) {
+      _cityController?.removeListener(_handleCityChanged);
+      _cityController = controller..addListener(_handleCityChanged);
+    }
+    _handleCityChanged();
+  }
+
+  void _handleCityChanged() {
+    final city = _cityController?.city;
+    final anchor = _cityController?.queryAnchor;
+    if (city == null || (city == _loadedCity && anchor == _loadedAnchor)) {
+      return;
+    }
+    final wasLoaded = _loadedCity != null;
+    _loadedCity = city;
+    _loadedAnchor = anchor;
+    _bars = [];
+    _loadingBars = true;
+    if (wasLoaded && mounted) setState(() {});
     _loadNearbyBars();
+    if (_scene.isAttached && anchor != null) {
+      _scene.flyToCity(city, zoom: MapSceneController.cityZoom);
+      _renderBars();
+    }
   }
 
   @override
   void dispose() {
-    _barsController
-      ..removeListener(_onBarsScroll)
-      ..dispose();
+    _requestVersion++;
+    _cityController?.removeListener(_handleCityChanged);
+    _barsController.dispose();
     _scene.detach();
     super.dispose();
   }
 
-  /// 滚动接近底部时自动加载下一页附近酒吧。
-  void _onBarsScroll() {
-    if (!_barsController.hasClients) {
+  /// nearby 接口仅支持 limit，不支持 offset；城市切换时重新请求。
+  Future<void> _loadNearbyBars() async {
+    final version = ++_requestVersion;
+    final anchor = await _cityController?.resolveQueryAnchor();
+    if (!mounted || version != _requestVersion) return;
+    if (anchor == null) {
+      setState(() => _loadingBars = false);
       return;
     }
-    if (_barsController.position.extentAfter < 200) {
-      _loadMoreNearbyBars();
+    if (_scene.isAttached && _cityController?.queryAnchor == null) {
+      await _scene.focusOn(longitude: anchor.longitude, latitude: anchor.latitude);
     }
-  }
-
-  /// 拉取附近真实酒吧第一页；失败时保留演示数据，页面可用但不能真正打卡。
-  Future<void> _loadNearbyBars() async {
     try {
       final list = await _api.getNearbyBars(
-        longitude: _centerLongitude,
-        latitude: _centerLatitude,
+        longitude: anchor.longitude,
+        latitude: anchor.latitude,
         radiusMeters: 3000,
-        // 第一页只取必要数量，后续由触底翻页补齐。
-        page: const SiponPage(limit: _nearbyPageSize),
+        limit: _nearbyPageSize,
       );
       final parsed = [
         for (final item in list.whereType<Map>())
           _NearbyBar.tryParse(item.cast<String, dynamic>()),
       ].whereType<_NearbyBar>().toList();
-      if (!mounted) return;
+      if (!mounted || version != _requestVersion) return;
       setState(() {
-        if (parsed.isNotEmpty) {
-          _bars = parsed;
-          // 拉满一页视为还有更多，交给触底翻页继续。
-          _hasMoreBars = parsed.length >= _nearbyPageSize;
-        } else {
-          _hasMoreBars = false;
-        }
+        _bars = parsed;
         _loadingBars = false;
       });
       await _renderBars();
     } on Exception {
-      if (mounted) {
+      if (mounted && version == _requestVersion) {
         setState(() {
           _loadingBars = false;
-          // 首屏失败保留演示数据，不再尝试翻页。
-          _hasMoreBars = false;
-        });
-      }
-    }
-  }
-
-  /// 触底加载下一页附近酒吧，追加进列表并同步地图图层。
-  Future<void> _loadMoreNearbyBars() async {
-    if (_loadingBars || _loadingMoreBars || !_hasMoreBars) {
-      return;
-    }
-
-    setState(() => _loadingMoreBars = true);
-    try {
-      final list = await _api.getNearbyBars(
-        longitude: _centerLongitude,
-        latitude: _centerLatitude,
-        radiusMeters: 3000,
-        page: SiponPage(limit: _nearbyPageSize, offset: _bars.length),
-      );
-      final parsed = [
-        for (final item in list.whereType<Map>())
-          _NearbyBar.tryParse(item.cast<String, dynamic>()),
-      ].whereType<_NearbyBar>().toList();
-      if (!mounted) return;
-      setState(() {
-        _bars = [..._bars, ...parsed];
-        _hasMoreBars = parsed.length >= _nearbyPageSize;
-        _loadingMoreBars = false;
-      });
-      await _renderBars();
-    } on Exception {
-      if (mounted) {
-        setState(() {
-          _loadingMoreBars = false;
-          // 翻页失败停止继续尝试，避免触底无限重试。
-          _hasMoreBars = false;
+          _bars = [];
         });
       }
     }
   }
 
   Future<void> _handleMapCreated(SiponMapHost host) async {
-    await _scene.attach(host, city: '上海', style: MapBaseStyle.standard);
+    await _scene.attach(
+      host,
+      city: _cityController?.city ?? SiponCityController.defaultCity,
+      style: MapBaseStyle.standard,
+    );
     await _renderBars();
   }
 
@@ -308,15 +248,8 @@ class _CheckInPageState extends State<CheckInPage> {
                 child: ListView.builder(
                   controller: _barsController,
                   padding: const EdgeInsets.fromLTRB(18, 0, 18, 20),
-                  itemCount:
-                      _bars.length + (_hasMoreBars || _loadingMoreBars ? 1 : 0),
+                  itemCount: _bars.length,
                   itemBuilder: (context, index) {
-                    if (index >= _bars.length) {
-                      return _NearbyBarsFooter(
-                        loading: _loadingMoreBars,
-                        onLoadMore: _loadMoreNearbyBars,
-                      );
-                    }
                     return _NearbyBarTile(bar: _bars[index], brand: _brand);
                   },
                 ),
@@ -324,39 +257,6 @@ class _CheckInPageState extends State<CheckInPage> {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// 附近酒吧列表的尾部：加载中显示转圈，空闲时可点击手动翻页。
-class _NearbyBarsFooter extends StatelessWidget {
-  const _NearbyBarsFooter({required this.loading, required this.onLoadMore});
-
-  final bool loading;
-  final VoidCallback onLoadMore;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      child: Center(
-        child: loading
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : TextButton(
-                onPressed: onLoadMore,
-                style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFF9A3D78),
-                ),
-                child: const Text(
-                  '上拉加载更多',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                ),
-              ),
       ),
     );
   }

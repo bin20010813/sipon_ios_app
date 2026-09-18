@@ -6,8 +6,10 @@ import 'package:image_picker/image_picker.dart';
 
 import '../services/drink_budget_store.dart';
 import '../services/sipon_data_repository.dart';
+import '../services/sipon_city_controller.dart';
 import '../services/sticker_cutout_service.dart';
 import '../widgets/drink_sticker.dart';
+import '../widgets/sipon_city_picker.dart';
 import 'language_transform.dart';
 
 class DrinkRecordPage extends StatefulWidget {
@@ -1237,23 +1239,37 @@ class _PlacePickerSheetState extends State<_PlacePickerSheet> {
   final TextEditingController _searchController = TextEditingController();
   List<String> _places = _fallbackPlaces;
   bool _loading = true;
+  String? _loadedCity;
+  int _requestVersion = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadPlaces();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final city = SiponCityScope.controllerOf(context).city;
+    if (city == _loadedCity) return;
+    _loadedCity = city;
+    _places = city == SiponCityController.defaultCity ? _fallbackPlaces : [];
+    _loading = true;
+    _loadPlaces(city);
   }
 
   @override
   void dispose() {
+    _requestVersion++;
     _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadPlaces() async {
+  Future<void> _loadPlaces(String city) async {
+    final version = ++_requestVersion;
     try {
-      final bars = await SiponDataRepository.instance.fetchHomeBars();
-      if (bars.isNotEmpty && mounted) {
+      final bars = await SiponDataRepository.instance.fetchHomeBars(city: city);
+      if (mounted && version == _requestVersion) {
         setState(() {
           _places = bars.map((bar) => bar.name).toList();
           _loading = false;
@@ -1262,7 +1278,7 @@ class _PlacePickerSheetState extends State<_PlacePickerSheet> {
       }
     } catch (_) {}
 
-    if (mounted) {
+    if (mounted && version == _requestVersion) {
       setState(() => _loading = false);
     }
   }

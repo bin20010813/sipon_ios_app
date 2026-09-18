@@ -29,12 +29,18 @@ class SiponDataRepository {
   /// 首页精选展示只需第一页；后续若扩展“查看全部酒吧”可由调用方传 offset 翻页。
   Future<List<SiponBarMapItem>> fetchHomeBars({
     String? city,
+    String? keyword,
     int offset = 0,
     int limit = 20,
   }) async {
     final json = await _apiClient.getJson(
       '/api/bars',
-      queryParameters: {'city': city, 'limit': limit, 'offset': offset},
+      queryParameters: {
+        'city': city,
+        'keyword': keyword,
+        'limit': limit,
+        'offset': offset,
+      },
     );
     return SiponBarMapResponse.fromJson(
       json,

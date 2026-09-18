@@ -108,7 +108,6 @@ class _MapSearchFieldState extends State<_MapSearchField> {
   late final TextEditingController _controller = TextEditingController(
     text: widget.initialValue,
   );
-  late final FocusNode _focusNode = FocusNode();
 
   @override
   void didUpdateWidget(covariant _MapSearchField oldWidget) {
@@ -124,14 +123,7 @@ class _MapSearchFieldState extends State<_MapSearchField> {
   @override
   void dispose() {
     _controller.dispose();
-    _focusNode.dispose();
     super.dispose();
-  }
-
-  void _clear() {
-    _controller.clear();
-    widget.onChanged('');
-    _focusNode.requestFocus();
   }
 
   @override
@@ -141,7 +133,6 @@ class _MapSearchFieldState extends State<_MapSearchField> {
       borderRadius: BorderRadius.circular(16),
       elevation: 0,
       child: InkWell(
-        onTap: _focusNode.requestFocus,
         borderRadius: BorderRadius.circular(16),
         child: Container(
           height: 44,
@@ -161,12 +152,11 @@ class _MapSearchFieldState extends State<_MapSearchField> {
               Expanded(
                 child: TextField(
                   controller: _controller,
-                  focusNode: _focusNode,
                   onChanged: (value) {
                     widget.onChanged(value);
                     setState(() {});
                   },
-                  onSubmitted: (_) => _focusNode.unfocus(),
+                  onSubmitted: widget.onChanged,
                   textInputAction: TextInputAction.search,
                   style: const TextStyle(
                     color: MapDesign.ink,
@@ -188,15 +178,13 @@ class _MapSearchFieldState extends State<_MapSearchField> {
                 ),
               ),
               if (_controller.text.isNotEmpty)
-                IconButton(
-                  onPressed: _clear,
-                  tooltip: 'Clear search',
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints.tightFor(
-                    width: 32,
-                    height: 32,
-                  ),
-                  icon: const Icon(
+                GestureDetector(
+                  onTap: () {
+                    _controller.clear();
+                    widget.onChanged('');
+                    setState(() {});
+                  },
+                  child: const Icon(
                     Icons.close_rounded,
                     color: Color(0xFF9B939B),
                     size: 18,

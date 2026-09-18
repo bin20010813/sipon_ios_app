@@ -25,6 +25,31 @@ class SiponApiService {
 
   Future<dynamic> getMyOverview() => _get('/api/users/me/overview');
 
+  /// 获取公开用户主页。该接口不要求登录，可用于从动态、评价等入口查看作者。
+  Future<dynamic> getUserProfile(int userId) =>
+      _get('/api/users/$userId/profile');
+
+  Future<void> followUser(int userId) => _putEmpty('/api/users/$userId/follow');
+
+  Future<void> unfollowUser(int userId) =>
+      _deleteEmpty('/api/users/$userId/follow');
+
+  Future<List<dynamic>> getUserFollowers(
+    int userId, {
+    SiponPage page = const SiponPage(),
+  }) => _getList(
+    '/api/users/$userId/followers',
+    queryParameters: page.queryParameters,
+  );
+
+  Future<List<dynamic>> getUserFollowing(
+    int userId, {
+    SiponPage page = const SiponPage(),
+  }) => _getList(
+    '/api/users/$userId/following',
+    queryParameters: page.queryParameters,
+  );
+
   Future<dynamic> getMyPreferences() => _get('/api/users/me/preferences');
 
   Future<dynamic> updateMyPreferences(Map<String, Object?> body) =>
@@ -115,15 +140,14 @@ class SiponApiService {
     required num longitude,
     required num latitude,
     int? radiusMeters,
-    SiponPage page = const SiponPage(),
+    int limit = 20,
   }) => _getList(
     '/api/bars/nearby',
     queryParameters: {
       'longitude': longitude,
       'latitude': latitude,
       'radiusMeters': radiusMeters,
-      // limit/offset 一起下发，保证分页翻页有效。
-      ...page.queryParameters,
+      'limit': limit,
     },
   );
 

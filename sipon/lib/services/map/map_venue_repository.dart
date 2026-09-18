@@ -18,11 +18,19 @@ abstract interface class MapVenueRepository {
   });
 }
 
+abstract interface class MapVenueSearchRepository {
+  Future<List<MapVenue>> searchVenues({
+    required String city,
+    required String keyword,
+  });
+}
+
 /// 真接口实现：包一层现有的 [SiponDataRepository]。
 ///
 /// 后端就绪时把 `map_page.dart` 里的 `_useMockMapData` 改成 false 即可启用，
 /// 页面代码一行都不用动。
-class SiponApiMapVenueRepository implements MapVenueRepository {
+class SiponApiMapVenueRepository
+    implements MapVenueRepository, MapVenueSearchRepository {
   SiponApiMapVenueRepository({SiponDataRepository? repository})
     : _repository = repository ?? SiponDataRepository.instance;
 
@@ -48,6 +56,24 @@ class SiponApiMapVenueRepository implements MapVenueRepository {
       for (var index = 0; index < bars.length; index++)
         if (bars[index].hasCoordinates)
           _venueFromApi(bars[index], index, viewport.center),
+    ];
+  }
+
+  @override
+  Future<List<MapVenue>> searchVenues({
+    required String city,
+    required String keyword,
+  }) async {
+    final bars = await _repository.fetchHomeBars(
+      city: city,
+      keyword: keyword,
+      limit: 100,
+    );
+    final origin = mapCenterForCity(city);
+    return [
+      for (var index = 0; index < bars.length; index++)
+        if (bars[index].hasCoordinates)
+          _venueFromApi(bars[index], index, origin),
     ];
   }
 

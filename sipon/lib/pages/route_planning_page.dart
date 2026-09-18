@@ -7,6 +7,8 @@ import '../services/map/map_viewport.dart';
 import '../services/map/sipon_map_host.dart';
 import '../services/map/sipon_map_widget.dart';
 import '../services/sipon_api_service.dart';
+import '../services/sipon_city_controller.dart';
+import '../widgets/sipon_city_picker.dart';
 
 class RoutePlanningPage extends StatefulWidget {
   const RoutePlanningPage({super.key});
@@ -21,57 +23,13 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
   static const _muted = Color(0xFF8F8790);
   static const _maxStops = 10;
 
-  /// 可选酒吧的中心点：与打卡页共用同一片演示锚点。
-  static const _centerLongitude = 121.4718;
-  static const _centerLatitude = 31.2232;
-
-  /// 接口拉取失败时兜底的演示数据（无 barId，保存时会被拦截）。
-  static const _fallbackBars = [
-    _BarPlace(
-      '庙前冰室（Hope & Sesame）',
-      '黄浦区复兴中路 579',
-      '450m',
-      121.4718,
-      31.2232,
-      MapVenueKind.pub,
-    ),
-    _BarPlace(
-      'Speak Low（彼楼）',
-      '黄浦区复兴中路 579',
-      '620m',
-      121.4734,
-      31.2251,
-      MapVenueKind.bistro,
-    ),
-    _BarPlace(
-      'Janes and Hooch',
-      '黄浦区巨鹿路 158',
-      '1.1km',
-      121.4686,
-      31.2203,
-      MapVenueKind.party,
-    ),
-    _BarPlace(
-      'Play House 电音夜店',
-      '黄浦区淮海中路 333',
-      '1.4km',
-      121.4667,
-      31.2182,
-      MapVenueKind.livehouse,
-    ),
-    _BarPlace(
-      '武康路精酿工坊',
-      '徐汇区武康路 388',
-      '1.8km',
-      121.4448,
-      31.2086,
-      MapVenueKind.craft,
-    ),
-  ];
-
   final SiponApiService _api = SiponApiService();
 
-  List<_BarPlace> _nearbyBars = _fallbackBars;
+  List<_BarPlace> _nearbyBars = [];
+  SiponCityController? _cityController;
+  String? _loadedCity;
+  SiponLocationPoint? _loadedAnchor;
+  int _requestVersion = 0;
 
   _BarPlace? _start;
   _BarPlace? _end;
@@ -88,36 +46,81 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
       onVenueTapped: (_) {},
       onBlankTapped: () {},
     );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final controller = SiponCityScope.controllerOf(context);
+    if (_cityController != controller) {
+      _cityController?.removeListener(_handleCityChanged);
+      _cityController = controller..addListener(_handleCityChanged);
+    }
+    _handleCityChanged();
+  }
+
+  void _handleCityChanged() {
+    final city = _cityController?.city;
+    final anchor = _cityController?.queryAnchor;
+    if (city == null || (city == _loadedCity && anchor == _loadedAnchor)) {
+      return;
+    }
+    final wasLoaded = _loadedCity != null;
+    _loadedCity = city;
+    _loadedAnchor = anchor;
+    _nearbyBars = [];
+    if (wasLoaded) {
+      _start = null;
+      _end = null;
+      _stops.clear();
+    }
+    if (wasLoaded && mounted) setState(() {});
     _loadNearbyBars();
+    if (_scene.isAttached && anchor != null) {
+      _scene.flyToCity(city, zoom: MapSceneController.cityZoom);
+      _renderMap();
+    }
   }
 
   @override
   void dispose() {
+    _requestVersion++;
+    _cityController?.removeListener(_handleCityChanged);
     _scene.detach();
     super.dispose();
   }
 
-  /// 拉取附近真实酒吧作为可选项；失败时保留演示数据，保存时会被拦截。
+  /// 拉取附近真实酒吧作为可选项；失败时保持空列表。
   Future<void> _loadNearbyBars() async {
+    final version = ++_requestVersion;
+    final anchor = await _cityController?.resolveQueryAnchor();
+    if (!mounted || version != _requestVersion || anchor == null) return;
+    if (_scene.isAttached && _cityController?.queryAnchor == null) {
+      await _scene.focusOn(longitude: anchor.longitude, latitude: anchor.latitude);
+    }
     try {
       final list = await _api.getNearbyBars(
-        longitude: _centerLongitude,
-        latitude: _centerLatitude,
+        longitude: anchor.longitude,
+        latitude: anchor.latitude,
         radiusMeters: 5000,
       );
       final parsed = [
         for (final item in list.whereType<Map>())
           _BarPlace.tryParse(item.cast<String, dynamic>()),
       ].whereType<_BarPlace>().toList();
-      if (!mounted || parsed.isEmpty) return;
+      if (!mounted || version != _requestVersion) return;
       setState(() => _nearbyBars = parsed);
     } on Exception {
-      // 演示数据兜底，页面照常可用。
+      // 查询失败时保持空列表，避免其他城市展示上海演示酒吧。
     }
   }
 
   Future<void> _handleMapCreated(SiponMapHost host) async {
-    await _scene.attach(host, city: '上海', style: MapBaseStyle.standard);
+    await _scene.attach(
+      host,
+      city: _cityController?.city ?? SiponCityController.defaultCity,
+      style: MapBaseStyle.standard,
+    );
     await _renderMap();
   }
 

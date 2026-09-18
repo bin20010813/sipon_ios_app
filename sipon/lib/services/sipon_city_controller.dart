@@ -3,6 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'sipon_region_data.dart';
+import 'sipon_data_repository.dart';
 
 class SiponCityController extends ChangeNotifier {
   static const String defaultCity = '上海';
@@ -21,12 +22,42 @@ class SiponCityController extends ChangeNotifier {
   bool _initialized = false;
   bool _manualSelection = false;
   bool _locationAttempted = false;
+  SiponLocationPoint? _detectedPosition;
 
   String get city => _city;
   String get province => _province;
   bool get initialized => _initialized;
   bool get manualSelection => _manualSelection;
   bool get locationAttempted => _locationAttempted;
+
+  /// 手选城市以城市中心为查询锚点；自动定位时优先使用真实 WGS-84 坐标。
+  SiponLocationPoint? get queryAnchor {
+    if (!_manualSelection && _detectedPosition != null) {
+      return _detectedPosition!;
+    }
+    final entry = siponFindCity(_city);
+    if (entry == null) return null;
+    return SiponLocationPoint(entry.longitude, entry.latitude);
+  }
+
+  /// 后端新增但本地行政区表尚未收录的城市，用该城市真实酒吧坐标作为锚点。
+  Future<SiponLocationPoint?> resolveQueryAnchor() async {
+    final known = queryAnchor;
+    if (known != null) return known;
+    final cityAtRequest = _city;
+    try {
+      final bars = await SiponDataRepository.instance.fetchHomeBars(
+        city: cityAtRequest,
+        limit: 1,
+      );
+      if (cityAtRequest != _city || bars.isEmpty) return null;
+      final bar = bars.first;
+      if (!bar.hasCoordinates) return null;
+      return SiponLocationPoint(bar.longitude!, bar.latitude!);
+    } catch (_) {
+      return null;
+    }
+  }
 
   Future<void> load() async {
     if (_initialized) {
@@ -52,9 +83,9 @@ class SiponCityController extends ChangeNotifier {
         final detected = await _detectCityByLocation();
         if (detected != null) {
           _city = detected.name;
-          _province =
-              siponFindProvinceOfCity(detected.name) ?? defaultProvince;
+          _province = siponFindProvinceOfCity(detected.name) ?? defaultProvince;
         } else {
+          _detectedPosition = null;
           _city = defaultCity;
           _province = defaultProvince;
         }
@@ -73,11 +104,11 @@ class SiponCityController extends ChangeNotifier {
 
     _city = normalizedCity;
     final normalizedProvince = province?.trim();
-    _province =
-        (normalizedProvince != null && normalizedProvince.isNotEmpty)
-            ? normalizedProvince
-            : (siponFindProvinceOfCity(normalizedCity) ?? _province);
+    _province = (normalizedProvince != null && normalizedProvince.isNotEmpty)
+        ? normalizedProvince
+        : (siponFindProvinceOfCity(normalizedCity) ?? _province);
     _manualSelection = true;
+    _detectedPosition = null;
     notifyListeners();
 
     final preferences = await SharedPreferences.getInstance();
@@ -87,6 +118,7 @@ class SiponCityController extends ChangeNotifier {
 
   Future<SiponCityEntry?> _detectCityByLocation() async {
     final result = await locateCurrentCity();
+    _detectedPosition = result.position;
     return result.city;
   }
 
@@ -97,7 +129,9 @@ class SiponCityController extends ChangeNotifier {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        return const SiponLocateResult(status: SiponLocateStatus.serviceDisabled);
+        return const SiponLocateResult(
+          status: SiponLocateStatus.serviceDisabled,
+        );
       }
 
       var permission = await Geolocator.checkPermission();
@@ -106,11 +140,14 @@ class SiponCityController extends ChangeNotifier {
       }
 
       if (permission == LocationPermission.denied) {
-        return const SiponLocateResult(status: SiponLocateStatus.permissionDenied);
+        return const SiponLocateResult(
+          status: SiponLocateStatus.permissionDenied,
+        );
       }
       if (permission == LocationPermission.deniedForever) {
         return const SiponLocateResult(
-            status: SiponLocateStatus.permissionDeniedForever);
+          status: SiponLocateStatus.permissionDeniedForever,
+        );
       }
 
       final position = await Geolocator.getCurrentPosition(
@@ -124,7 +161,11 @@ class SiponCityController extends ChangeNotifier {
       if (city == null) {
         return const SiponLocateResult(status: SiponLocateStatus.failed);
       }
-      return SiponLocateResult(status: SiponLocateStatus.success, city: city);
+      return SiponLocateResult(
+        status: SiponLocateStatus.success,
+        city: city,
+        position: SiponLocationPoint(position.longitude, position.latitude),
+      );
     } catch (_) {
       return const SiponLocateResult(status: SiponLocateStatus.failed);
     }
@@ -164,8 +205,25 @@ enum SiponLocateStatus {
 }
 
 class SiponLocateResult {
-  const SiponLocateResult({required this.status, this.city});
+  const SiponLocateResult({required this.status, this.city, this.position});
 
   final SiponLocateStatus status;
   final SiponCityEntry? city;
+  final SiponLocationPoint? position;
+}
+
+class SiponLocationPoint {
+  const SiponLocationPoint(this.longitude, this.latitude);
+
+  final double longitude;
+  final double latitude;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SiponLocationPoint &&
+      other.longitude == longitude &&
+      other.latitude == latitude;
+
+  @override
+  int get hashCode => Object.hash(longitude, latitude);
 }
