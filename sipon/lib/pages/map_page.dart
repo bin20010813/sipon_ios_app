@@ -64,9 +64,7 @@ class _MapPageState extends State<MapPage> {
   @override
   void initState() {
     super.initState();
-    _sheet = VenueSheetController(
-      initialStage: widget.initialSheetStage,
-    );
+    _sheet = VenueSheetController(initialStage: widget.initialSheetStage);
     _data = MapDataController(
       repository: SiponApiMapVenueRepository(),
       city: SiponCityController.defaultCity,
@@ -76,8 +74,7 @@ class _MapPageState extends State<MapPage> {
       onViewportSettled: _handleViewportSettled,
       onVenueTapped: _handleVenueTapped,
       // 点地图空白处就收起面板。原来这里毫无反应。
-      onBlankTapped:
-          widget.allowSheetCollapse ? _sheet.collapse : () {},
+      onBlankTapped: widget.allowSheetCollapse ? _sheet.collapse : () {},
     );
   }
 
@@ -111,9 +108,7 @@ class _MapPageState extends State<MapPage> {
 
   Future<void> _handleMapCreated(SiponMapHost host) async {
     await _scene.attach(host, city: _data.city, style: _data.style);
-    await _applyStage(
-      focusSelection: widget.initialVenue != null,
-    );
+    await _applyStage(focusSelection: widget.initialVenue != null);
 
     // 原「styleLoaded 回调」的职责（重下发帧 + 按当前视野补一次取数）已并入
     // 控制器；页面只需要在 attach 完成后把首帧交给它，并补齐首次取数。
@@ -269,9 +264,7 @@ class _MapPageState extends State<MapPage> {
           // 收起态卡片原本浮在导航栏之上，这段间距一并算进面板高度，
           // 于是同一个面板既能表现"悬浮卡片"，也能表现"贴底面板"。
           final collapsedBottomGap = math.max(
-            // 键盘弹出时 padding 会变为 0；地图面板的系统避让应始终以
-            // 设备安全区为准，避免收起态跳动。
-            MediaQuery.viewPaddingOf(context).bottom,
+            MediaQuery.paddingOf(context).bottom,
             widget.bottomOverlayInset + 2,
           );
           final collapsedExtent = availableHeight <= 0
