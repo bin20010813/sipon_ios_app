@@ -269,6 +269,7 @@ class _MapPageState extends State<MapPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: LayoutBuilder(
         builder: (context, constraints) {
           final availableHeight = constraints.maxHeight;
@@ -276,7 +277,7 @@ class _MapPageState extends State<MapPage> {
           // 于是同一个面板既能表现"悬浮卡片"，也能表现"贴底面板"。
           final collapsedBottomGap = math.max(
             MediaQuery.paddingOf(context).bottom,
-            widget.bottomOverlayInset + 2,
+            widget.bottomOverlayInset + 12,
           );
           final collapsedExtent = availableHeight <= 0
               ? 0.2
