@@ -4,6 +4,60 @@ import 'package:sipon/services/map/map_models.dart';
 import 'package:sipon/services/map/map_scene_controller.dart';
 import 'package:sipon/services/map/sipon_map_protocol.dart';
 
+/// 构造一个点位，避免每个用例都手写一长串 [MapPoint]。
+MapPoint _point({
+  String id = 'p1',
+  String name = '庙前冰室',
+  double longitude = 121.47,
+  double latitude = 31.22,
+  MapVenueKind kind = MapVenueKind.pub,
+  double weight = 4.5,
+  String? venueId = 'v1',
+}) {
+  return MapPoint(
+    id: id,
+    name: name,
+    longitude: longitude,
+    latitude: latitude,
+    kind: kind,
+    weight: weight,
+    venueId: venueId,
+  );
+}
+
+/// 构造「圆点 + 文字标注 + 可选选中点」的整帧，只改一个字段即可对比。
+MapSceneFrame _frameWith({
+  double longitude = 121.47,
+  double latitude = 31.22,
+  MapVenueKind kind = MapVenueKind.pub,
+  String? venueId = 'v1',
+  String label = '庙前冰室',
+  int? sequence,
+  MapPoint? selected,
+}) {
+  return MapSceneFrame(
+    circlePoints: [
+      _point(
+        longitude: longitude,
+        latitude: latitude,
+        kind: kind,
+        venueId: venueId,
+      ),
+    ],
+    markers: [
+      MapMarkerSpec(
+        venueId: 'v1',
+        label: label,
+        longitude: longitude,
+        latitude: latitude,
+        kind: kind,
+        sequence: sequence,
+      ),
+    ],
+    selected: selected,
+  );
+}
+
 void main() {
   group('encodeRenderFrame', () {
     final frame = MapSceneFrame(
@@ -174,6 +228,23 @@ void main() {
     });
   });
 
+  group('相机指令', () {
+    test('相机指令使用原生约定的 lng 字段', () {
+      final payload = encodeCameraMove(
+        longitude: 116.4074,
+        latitude: 39.9042,
+        zoom: 11.8,
+        pitch: 24,
+        bearing: -12,
+        bottomPadding: 0,
+      );
+
+      expect(payload['lng'], 116.4074);
+      expect(payload.containsKey('lon'), isFalse);
+      expect(payload['lat'], 39.9042);
+    });
+  });
+
   group('整帧指纹', () {
     test('语言切换只改标签也必须判定整帧变化', () {
       final zh = MapSceneFrame(
@@ -203,6 +274,56 @@ void main() {
 
       expect(zh.signature, zh.signature);
       expect(zh.signature, isNot(en.signature));
+    });
+
+    test('普通点位只改经度或纬度，signature 必须变化', () {
+      expect(
+        _frameWith().signature,
+        isNot(_frameWith(longitude: 121.48).signature),
+      );
+      expect(
+        _frameWith().signature,
+        isNot(_frameWith(latitude: 31.23).signature),
+      );
+    });
+
+    test('普通点位只改类别或 venueId，signature 必须变化', () {
+      expect(
+        _frameWith().signature,
+        isNot(_frameWith(kind: MapVenueKind.craft).signature),
+      );
+      expect(
+        _frameWith().signature,
+        isNot(_frameWith(venueId: 'v2').signature),
+      );
+    });
+
+    test('选中点只改坐标或类别，signature 必须变化', () {
+      final base = _frameWith(selected: _point(id: 's1', name: 'x'));
+      final moved = _frameWith(
+        selected: _point(id: 's1', name: 'x', longitude: 121.48),
+      );
+      final recat = _frameWith(
+        selected: _point(id: 's1', name: 'x', kind: MapVenueKind.craft),
+      );
+
+      expect(base.signature, isNot(moved.signature));
+      expect(base.signature, isNot(recat.signature));
+    });
+
+    test('数据完全一致时 signature 保持一致', () {
+      expect(_frameWith().signature, _frameWith().signature);
+    });
+
+    test('标注名称或编号改变时仍触发刷新', () {
+      expect(
+        _frameWith().signature,
+        isNot(_frameWith(label: 'Hope & Sesame').signature),
+      );
+      expect(
+        _frameWith().signature,
+        isNot(_frameWith(sequence: 2).signature),
+      );
     });
   });
 }

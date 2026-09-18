@@ -75,6 +75,13 @@ final class SiponMapEngine: NSObject {
   /// 路径规划出的路线折线（单独成池，不受 renderFrame 的 id diff 影响）。
   private var routeOverlay: MKPolyline?
 
+  /// 路线版本：每次开始/取消规划都递增，旧回调据此作废。
+  private var routeRevision = 0
+  /// 当前在途的 MKDirections。
+  private var activeDirections: MKDirections?
+  /// 等待返回 Dart 的结果回调（只完成一次）。
+  private var pendingRouteResult: FlutterResult?
+
   /// marker 图标资产缓存（category → UIImage）。
   private var markerIcons: [String: UIImage] = [:]
 
@@ -90,6 +97,16 @@ final class SiponMapEngine: NSObject {
     self.sendEvent = sendEvent
     super.init()
     mapView.delegate = proxy
+  }
+
+  deinit {
+    // 视图释放时兜底清理：只碰自己持有的资源，不碰 unowned mapView。
+    let directions = activeDirections
+    activeDirections = nil
+    directions?.cancel()
+    let completion = pendingRouteResult
+    pendingRouteResult = nil
+    completion?(false)
   }
 
   // ------------------------------------------------------------------ 指令入口
@@ -142,6 +159,8 @@ final class SiponMapEngine: NSObject {
       registerMarkerAssets(SiponMapProtocol.dict(arguments) ?? [:])
       return nil
     case SiponMapProtocol.Command.clearRoute:
+      // 两个动作：取消在途规划 + 移除已绘制折线。
+      cancelRoutePlanning()
       clearRouteOverlay()
       return nil
     case SiponMapProtocol.Command.dispose:
@@ -157,6 +176,11 @@ final class SiponMapEngine: NSObject {
   /// flutter 端调用：按站点顺序逐段 MKDirections 规划，把各段折线拼成一条
   /// 并绘制到地图上，完成后通过 [result] 回调 Bool（成功/失败）。
   func planRoute(arguments: Any?, result: @escaping FlutterResult) {
+    guard alive, configured else {
+      result(false)
+      return
+    }
+
     guard let args = SiponMapProtocol.dict(arguments),
           let rawPoints = args["points"] as? [[String: Any]] else {
       result(FlutterError(code: "sipon_route", message: "invalid points payload", details: nil))
@@ -175,44 +199,106 @@ final class SiponMapEngine: NSObject {
       return
     }
 
-    // 旧的 completion 式 API，兼容 iOS 14 部署目标；局部函数支持递归。
-    var legs: [MKPolyline] = []
-    var legIndex = 0
-    func planNext() {
-      guard legIndex < coordinates.count - 1 else {
-        finishRoute(legs: legs, result: result)
+    // 取消上一次规划，再保存本次版本与结果回调。
+    cancelRoutePlanning()
+    let revision = routeRevision
+    pendingRouteResult = result
+
+    planNextLeg(builder: RouteLegBuilder(coordinates: coordinates), revision: revision)
+  }
+
+  /// 逐段规划下一段；[RouteLegBuilder] 是引用类型，回调里累加各段折线。
+  /// 递归改为实例方法，回调里用弱引用取得 self 后再继续，避免局部函数
+  /// 隐式强捕获抵消 [weak self] 的意图。
+  private func planNextLeg(builder: RouteLegBuilder, revision: Int) {
+    guard alive, configured, revision == routeRevision else { return }
+    guard builder.hasNext else {
+      finishRoute(legs: builder.legs, revision: revision)
+      return
+    }
+
+    let request = MKDirections.Request()
+    request.source = builder.nextStart
+    request.destination = builder.nextEnd
+    request.transportType = .automobile
+    request.requestsAlternateRoutes = false
+
+    let directions = MKDirections(request: request)
+    activeDirections = directions
+    directions.calculate { [weak self] response, error in
+      guard let self = self else { return }
+      guard self.alive, self.configured, revision == self.routeRevision else { return }
+
+      if error != nil {
+        // 单段规划失败（离线/无路网/坐标异常）→ 整体视为失败。
+        self.completeRoutePlanning(false, revision: revision)
         return
       }
-      let start = MKMapItem(placemark: MKPlacemark(coordinate: coordinates[legIndex]))
-      let end = MKMapItem(placemark: MKPlacemark(coordinate: coordinates[legIndex + 1]))
-      let request = MKDirections.Request()
-      request.source = start
-      request.destination = end
-      request.transportType = .automobile
-      request.requestsAlternateRoutes = false
-
-      let directions = MKDirections(request: request)
-      directions.calculate { [weak self] response, error in
-        guard let self = self else { return }
-        if error != nil {
-          // 单段规划失败（离线/无路网/坐标异常）→ 整体视为失败。
-          result(false)
-          return
-        }
-        guard let leg = response?.routes.first?.polyline else {
-          result(false)
-          return
-        }
-        legs.append(leg)
-        legIndex += 1
-        planNext()
+      guard let leg = response?.routes.first?.polyline else {
+        self.completeRoutePlanning(false, revision: revision)
+        return
       }
+      builder.advance(with: leg)
+      self.planNextLeg(builder: builder, revision: revision)
     }
-    planNext()
+  }
+
+  /// 取消正在规划的任务，并把旧回调以失败完成（幂等）。
+  private func cancelRoutePlanning() {
+    routeRevision += 1
+
+    // 先取走结果，避免 cancel 引起的旧回调重复完成。
+    let completion = pendingRouteResult
+    pendingRouteResult = nil
+
+    let directions = activeDirections
+    activeDirections = nil
+    directions?.cancel()
+
+    completion?(false)
+  }
+
+  /// 统一完成函数：只有版本仍匹配才会返回结果，保证每次请求只完成一次。
+  private func completeRoutePlanning(_ succeeded: Bool, revision: Int) {
+    guard revision == routeRevision else { return }
+
+    activeDirections = nil
+    let completion = pendingRouteResult
+    pendingRouteResult = nil
+    completion?(succeeded)
+  }
+
+  /// 路线分段构建器：持有坐标与已算出的折线段。引用类型方便在异步回调里
+  /// 累加结果，而不需要把 inout 参数带进 escaping 闭包。
+  private final class RouteLegBuilder {
+    private let coordinates: [CLLocationCoordinate2D]
+    private(set) var legs: [MKPolyline] = []
+    private var index = 0
+
+    init(coordinates: [CLLocationCoordinate2D]) {
+      self.coordinates = coordinates
+    }
+
+    var hasNext: Bool { index < coordinates.count - 1 }
+
+    var nextStart: MKMapItem {
+      MKMapItem(placemark: MKPlacemark(coordinate: coordinates[index]))
+    }
+
+    var nextEnd: MKMapItem {
+      MKMapItem(placemark: MKPlacemark(coordinate: coordinates[index + 1]))
+    }
+
+    func advance(with leg: MKPolyline) {
+      legs.append(leg)
+      index += 1
+    }
   }
 
   /// 把各段折线拼成一条并绘制、取景。
-  private func finishRoute(legs: [MKPolyline], result: @escaping FlutterResult) {
+  private func finishRoute(legs: [MKPolyline], revision: Int) {
+    guard alive, configured, revision == routeRevision else { return }
+
     var all: [CLLocationCoordinate2D] = []
     for (legNumber, leg) in legs.enumerated() {
       let points = leg.points()
@@ -223,10 +309,12 @@ final class SiponMapEngine: NSObject {
       }
     }
     guard all.count >= 2 else {
-      result(false)
+      completeRoutePlanning(false, revision: revision)
       return
     }
 
+    // 只替换屏幕上的旧折线，不调用 cancelRoutePlanning()，否则会把刚完成的
+    // 本次规划也作废。
     clearRouteOverlay()
     let polyline = MKPolyline(coordinates: &all, count: all.count)
     routeOverlay = polyline
@@ -236,7 +324,7 @@ final class SiponMapEngine: NSObject {
       edgePadding: UIEdgeInsets(top: 90, left: 60, bottom: 140, right: 60),
       animated: true
     )
-    result(true)
+    completeRoutePlanning(true, revision: revision)
   }
 
   /// 移除已绘制的路线折线。
@@ -523,6 +611,10 @@ final class SiponMapEngine: NSObject {
           existing.category = point.category
           changed = true
         }
+        // 业务 ID 变化也同步到 annotation，点击反查才能指向新酒吧。
+        if existing.venueId != point.venueId {
+          existing.venueId = point.venueId
+        }
         if changed {
           if let view = mapView.view(for: existing) as? VenueIconAnnotationView {
             refreshedViews.append(view)
@@ -573,7 +665,9 @@ final class SiponMapEngine: NSObject {
         existing.category = spec.category
         existing.sequence = spec.sequence
         if moved { existing.coordinate = spec.coordinate }
-        if !moved, let view = mapView.view(for: existing) as? MarkerAnnotationView {
+        // 坐标的 KVO 更新不能替代自定义 UIImageView/UILabel 的内容更新，
+        // 即使视图一直留在屏幕内也应显示新的图标、文字与编号。
+        if let view = mapView.view(for: existing) as? MarkerAnnotationView {
           view.setLabel(spec.label)
           view.setSequence(spec.sequence)
           view.setIcon(markerIcons[spec.category])
@@ -666,6 +760,7 @@ final class SiponMapEngine: NSObject {
 
   private func resetPools() {
     alive = false
+    cancelRoutePlanning()
     mapView.removeAnnotations(Array(circlesById.values))
     mapView.removeAnnotations(Array(markersByVenueId.values))
     if let selection = selectionAnnotation {
@@ -823,19 +918,42 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
   }
 
   /// 放过落在任何可见 annotation view 上的触摸，让它走系统 didSelect（§3a）。
+  ///
+  /// 不依赖 MKMapView 第一层子视图就是 MKAnnotationView：先沿 touch.view 的
+  /// 父视图链向上找，再用公开的 view(for:) + 坐标转换做补充命中判断。
   func gestureRecognizer(
     _ gestureRecognizer: UIGestureRecognizer,
     shouldReceive touch: UITouch
   ) -> Bool {
     let mapView = engine.hostMapView
-    let point = touch.location(in: mapView)
-    let hitOnAnnotation = mapView.subviews.contains { subview in
-      subview is MKAnnotationView
-        && subview.frame.contains(point)
-        && !subview.isHidden
-        && subview.alpha > 0.01
+
+    var candidate: UIView? = touch.view
+    while let view = candidate {
+      if view is MKAnnotationView {
+        return false
+      }
+      if view === mapView {
+        break
+      }
+      candidate = view.superview
     }
-    return !hitOnAnnotation
+
+    let point = touch.location(in: mapView)
+    for annotation in mapView.annotations {
+      guard let view = mapView.view(for: annotation),
+            !view.isHidden,
+            view.alpha > 0.01,
+            view.isUserInteractionEnabled else {
+        continue
+      }
+
+      let localPoint = view.convert(point, from: mapView)
+      if view.point(inside: localPoint, with: nil) {
+        return false
+      }
+    }
+
+    return true
   }
 }
 

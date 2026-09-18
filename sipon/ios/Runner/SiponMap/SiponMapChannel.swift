@@ -60,7 +60,7 @@ enum SiponMapProtocol {
     return nil
   }
 
-  /// 相机指令共用形状：lon/lat/zoom/pitch/bearing/bottomPadding
+  /// 相机指令共用形状：lng/lat/zoom/pitch/bearing/bottomPadding
   /// （durationMs 随指令下发，MapKit 动画时长不可控，原生忽略——决策 D3）。
   struct CameraMove {
     let longitude: Double

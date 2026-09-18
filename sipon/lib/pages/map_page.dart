@@ -79,6 +79,9 @@ class _MapPageState extends State<MapPage> {
       onBlankTapped:
           widget.allowSheetCollapse ? _sheet.collapse : () {},
     );
+
+    // 档位变化时重新取景（收起/半屏/全屏的 padding 不同）。
+    _sheet.addListener(_handleSheetStage);
   }
 
   @override
@@ -102,6 +105,7 @@ class _MapPageState extends State<MapPage> {
     _cityController?.removeListener(_handleCityChanged);
     _data.removeListener(_handleDataChanged);
     _scene.detach();
+    _sheet.removeListener(_handleSheetStage);
     _sheet.dispose();
     _data.dispose();
     super.dispose();
@@ -143,6 +147,13 @@ class _MapPageState extends State<MapPage> {
 
     // 界面部分由 ListenableBuilder 自己重建，这里只负责把新的一帧交给地图。
     unawaited(_pushFrame());
+  }
+
+  /// 面板档位变化（收起/半屏/全屏）时重新取景。只监听档位，不接 extent 的
+  /// 每帧变化——extent 继续只驱动卡片与按钮动画。
+  void _handleSheetStage() {
+    if (!mounted || !_scene.isAttached) return;
+    unawaited(_applyStage());
   }
 
   /// 把当前数据整帧交给地图。[MapSceneController] 自己比指纹决定要不要真下发。

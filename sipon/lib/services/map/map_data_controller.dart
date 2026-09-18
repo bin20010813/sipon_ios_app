@@ -38,9 +38,13 @@ class MapDataController extends ChangeNotifier {
 
   /// 已取数的视野。下一次相机停下时拿它做「值不值得重拉」的比较。
   MapViewport? _loadedViewport;
-  MapViewport? _pendingViewport;
+
+  /// 目标版本号：最新一次有效视野意图的版本。
+  int _targetGeneration = 0;
+
+  /// 待处理请求快照：只保留最新一份（视野、城市、版本）。
+  _PendingRequest? _pendingRequest;
   bool _inFlight = false;
-  int _requestToken = 0;
   bool _disposed = false;
 
   String get city => _city;
@@ -99,62 +103,91 @@ class MapDataController extends ChangeNotifier {
   bool isSelected(String venueId) => _selectedVenueId == venueId;
 
   /// 相机停下后调用。视野没有实质变化就直接返回，不发请求。
+  ///
+  /// 版本号语义：先登记最新目标并递增版本号（而不是等真正发请求），请求对象
+  /// 保存发起时的视野、城市与版本快照；命中缓存或目标作废时让不匹配的在途
+  /// 结果失效。
   Future<void> syncViewport(MapViewport viewport, {bool force = false}) async {
     _zoom = viewport.zoom;
 
+    if (_disposed) {
+      return;
+    }
+
+    final inflight = _pendingRequest;
+    if (!force &&
+        inflight != null &&
+        inflight.viewport.zoom == viewport.zoom &&
+        inflight.viewport.bounds == viewport.bounds) {
+      // 与正在处理的目标完全一致且没有 force 的重复事件，合并掉。
+      return;
+    }
+
+    // 登记最新目标并递增版本号：目标一变更就作废在途结果。
+    final generation = ++_targetGeneration;
+
     final loaded = _loadedViewport;
     if (!force && loaded != null && !viewport.differsMateriallyFrom(loaded)) {
+      // 命中缓存：清空过期的待处理请求，让不匹配的在途结果失效。
+      _pendingRequest = null;
+
+      // 之前若停在 loading，恢复缓存对应的 ready/empty 状态并清除旧错误。
+      if (_status == MapDataStatus.loading) {
+        _status = _venues.isEmpty ? MapDataStatus.empty : MapDataStatus.ready;
+        _failureDetail = null;
+      }
+
+      // 缩放会影响标签抽样，即使不发网络请求也要通知渲染层重算。
+      _notify();
       return;
     }
 
-    if (_inFlight) {
-      // 前一次还在路上：记下最新视野，由取数循环收尾时接着跑。
-      _pendingViewport = viewport;
-      return;
-    }
+    _pendingRequest = _PendingRequest(
+      viewport: viewport,
+      city: _city,
+      generation: generation,
+    );
 
-    await _pump(viewport);
+    if (!_inFlight) {
+      await _pump();
+    }
   }
 
-  Future<void> _pump(MapViewport first) async {
+  Future<void> _pump() async {
     _inFlight = true;
-    var current = first;
 
     try {
       while (true) {
-        final token = ++_requestToken;
+        final request = _pendingRequest;
+        if (request == null) {
+          break;
+        }
+        _pendingRequest = null;
+
         _moveToLoading();
 
         List<MapVenue>? loaded;
         Object? failure;
         try {
           loaded = await _repository.fetchVenues(
-            viewport: current,
-            city: _city,
+            viewport: request.viewport,
+            city: request.city,
           );
         } catch (error) {
           failure = error;
         }
 
-        if (_disposed) {
-          return;
-        }
-
-        // 期间城市变了或者被外部作废了，这批结果直接丢弃。
-        if (token == _requestToken) {
+        // 只有页面未销毁、版本仍是最新目标、城市未切换才提交结果；
+        // 过期失败同样直接丢弃，不覆盖当前页面状态。
+        if (!_disposed &&
+            request.generation == _targetGeneration &&
+            request.city == _city) {
           if (loaded != null) {
-            _applyVenues(loaded, current);
+            _applyVenues(loaded, request.viewport);
           } else {
             _applyFailure(failure);
           }
         }
-
-        final pending = _pendingViewport;
-        if (pending == null) {
-          break;
-        }
-        _pendingViewport = null;
-        current = pending;
       }
     } finally {
       _inFlight = false;
@@ -242,7 +275,9 @@ class MapDataController extends ChangeNotifier {
     }
 
     _city = city;
-    _requestToken++;
+    // 作废在途结果与旧城市的待处理视野、缓存标记。
+    _targetGeneration++;
+    _pendingRequest = null;
     _loadedViewport = null;
     _venues = const [];
     _selectedVenueId = null;
@@ -267,8 +302,24 @@ class MapDataController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    // 作废版本，迟到的回调不会通知已销毁的控制器。
+    _targetGeneration++;
+    _pendingRequest = null;
     super.dispose();
   }
+}
+
+/// 待处理取数请求的快照：发起时的视野、城市与版本。
+class _PendingRequest {
+  _PendingRequest({
+    required this.viewport,
+    required this.city,
+    required this.generation,
+  });
+
+  final MapViewport viewport;
+  final String city;
+  final int generation;
 }
 
 extension on MapPoint {

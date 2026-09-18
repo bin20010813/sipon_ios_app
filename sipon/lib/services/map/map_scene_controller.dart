@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
@@ -25,12 +26,40 @@ class MapSceneFrame {
   /// 当前选中的那个点，用来画高亮光环。没有选中就是 null。
   final MapPoint? selected;
 
+  /// 非有限浮点值在 JSON 编码里可能抛错，转成字符串令牌，避免整帧指纹炸掉。
+  /// 非法坐标仍应在数据入口过滤，这里只是防御性令牌化，不是坐标修正手段。
+  static Object _coordinateToken(double value) =>
+      value.isFinite ? value : value.toString();
+
+  /// 普通点位/选中点的指纹片段：纳入坐标、类别、venueId 等实际渲染字段。
+  static List<Object?> _pointToken(MapPoint point) => [
+    point.id,
+    _coordinateToken(point.longitude),
+    _coordinateToken(point.latitude),
+    point.kind.id,
+    point.venueId,
+  ];
+
   /// 整帧指纹。相同就说明这一帧跟上一帧画出来一模一样，可以整段跳过。
-  String get signature => [
-    selected?.id ?? '',
-    circlePoints.map((point) => point.id).join(','),
-    markerAnnotationSignature(markers),
-  ].join('#');
+  /// 字段对应实际传给原生的渲染数据；不把未用于地图显示的接口对象放进来，
+  /// 以免无关字段变化就触发地图刷新。
+  String get signature => jsonEncode([
+    [
+      for (final point in circlePoints) _pointToken(point),
+    ],
+    [
+      for (final marker in markers)
+        [
+          marker.venueId,
+          marker.label,
+          _coordinateToken(marker.longitude),
+          _coordinateToken(marker.latitude),
+          marker.kind.id,
+          marker.sequence,
+        ],
+    ],
+    selected == null ? null : _pointToken(selected!),
+  ]);
 }
 
 /// 地图侧的唯一负责人：底图、annotation、相机、图层显隐。
