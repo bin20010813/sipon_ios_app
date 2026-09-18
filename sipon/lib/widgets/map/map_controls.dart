@@ -14,6 +14,8 @@ class MapSearchAndFilters extends StatelessWidget {
     required this.status,
     required this.onCategoryToggled,
     required this.onFilterPressed,
+    required this.searchQuery,
+    required this.onSearchChanged,
   });
 
   /// 当前分类筛选。null 表示不筛选（顶部没有「全部」pill，
@@ -22,6 +24,8 @@ class MapSearchAndFilters extends StatelessWidget {
   final MapDataStatus status;
   final ValueChanged<MapVenueKind> onCategoryToggled;
   final VoidCallback onFilterPressed;
+  final String searchQuery;
+  final ValueChanged<String> onSearchChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +46,13 @@ class MapSearchAndFilters extends StatelessWidget {
                   foregroundColor: MapDesign.ink,
                 ),
                 const SizedBox(width: 10),
-                Expanded(child: _MapSearchField(hint: text.t('搜索喜欢的酒或者酒吧...'))),
+                Expanded(
+                  child: _MapSearchField(
+                    hint: text.t('搜索喜欢的酒或者酒吧...'),
+                    initialValue: searchQuery,
+                    onChanged: onSearchChanged,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 14),
@@ -79,39 +89,66 @@ class MapSearchAndFilters extends StatelessWidget {
   }
 }
 
-class _MapSearchField extends StatelessWidget {
-  const _MapSearchField({required this.hint});
+class _MapSearchField extends StatefulWidget {
+  const _MapSearchField({
+    required this.hint,
+    required this.initialValue,
+    required this.onChanged,
+  });
 
   final String hint;
+  final String initialValue;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_MapSearchField> createState() => _MapSearchFieldState();
+}
+
+class _MapSearchFieldState extends State<_MapSearchField> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialValue,
+  );
+  late final FocusNode _focusNode = FocusNode();
+
+  @override
+  void didUpdateWidget(covariant _MapSearchField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialValue != _controller.text) {
+      _controller.value = TextEditingValue(
+        text: widget.initialValue,
+        selection: TextSelection.collapsed(offset: widget.initialValue.length),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _clear() {
+    _controller.clear();
+    widget.onChanged('');
+    _focusNode.requestFocus();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0xFFFFF8EC),
+      color: Colors.white,
       borderRadius: BorderRadius.circular(16),
       elevation: 0,
-      shadowColor: Colors.black26,
       child: InkWell(
-        onTap: () {},
+        onTap: _focusNode.requestFocus,
         borderRadius: BorderRadius.circular(16),
         child: Container(
           height: 44,
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE9D9C5), width: 1.1),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x1F9A3D78),
-                blurRadius: 18,
-                offset: Offset(0, 8),
-              ),
-              BoxShadow(
-                color: Color(0x0F000000),
-                blurRadius: 8,
-                offset: Offset(0, 2),
-              ),
-            ],
+            border: Border.all(color: const Color(0xFFE6E3E5), width: 1),
           ),
           child: Row(
             children: [
@@ -122,18 +159,49 @@ class _MapSearchField extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
-                  hint,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                child: TextField(
+                  controller: _controller,
+                  focusNode: _focusNode,
+                  onChanged: (value) {
+                    widget.onChanged(value);
+                    setState(() {});
+                  },
+                  onSubmitted: (_) => _focusNode.unfocus(),
+                  textInputAction: TextInputAction.search,
                   style: const TextStyle(
-                    color: Color(0xFFA198A0),
+                    color: MapDesign.ink,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0,
                   ),
+                  decoration: InputDecoration(
+                    hintText: widget.hint,
+                    hintStyle: const TextStyle(
+                      color: Color(0xFFA198A0),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0,
+                    ),
+                    border: InputBorder.none,
+                    isCollapsed: true,
+                  ),
                 ),
               ),
+              if (_controller.text.isNotEmpty)
+                IconButton(
+                  onPressed: _clear,
+                  tooltip: 'Clear search',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 32,
+                    height: 32,
+                  ),
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    color: Color(0xFF9B939B),
+                    size: 18,
+                  ),
+                ),
             ],
           ),
         ),

@@ -1,6 +1,10 @@
+import 'dart:async';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 import '../services/map/map_models.dart';
+import '../services/sipon_api_client.dart';
 import '../services/sipon_api_models.dart';
 import '../services/sipon_api_service.dart';
 import '../services/sipon_city_controller.dart';
@@ -59,6 +63,9 @@ class _HomePageState extends State<HomePage> {
   late final PageController _drinkController;
   late Future<_HomeBarsData> _homeBarsFuture;
   SiponCityController? _cityController;
+  bool _searchExpanded = false;
+  final GlobalKey<_HomeTopBarState> _homeTopBarKey =
+      GlobalKey<_HomeTopBarState>();
   // ignore: unused_field, prefer_final_fields -- DrinkProduct 功能待定，暂时隐藏，恢复 _DrinkCarousel 时启用
   int _currentDrink = 1;
 
@@ -94,6 +101,13 @@ class _HomePageState extends State<HomePage> {
     }
 
     setState(() => _homeBarsFuture = _loadHomeBars());
+  }
+
+  void _setSearchExpanded(bool expanded) {
+    if (!mounted || _searchExpanded == expanded) {
+      return;
+    }
+    setState(() => _searchExpanded = expanded);
   }
 
   Future<_HomeBarsData> _loadHomeBars() async {
@@ -135,66 +149,113 @@ class _HomePageState extends State<HomePage> {
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
-            child: CustomScrollView(
-              physics: const BottomClampingBouncingScrollPhysics(),
-              slivers: [
-                SliverPadding(
-                  padding: EdgeInsets.fromLTRB(
-                    23,
-                    16,
-                    0,
-                    24 + widget.bottomOverlayInset,
-                  ),
-                  sliver: SliverList.list(
-                    children: [
-                      const Padding(
-                        padding: EdgeInsets.only(right: 18),
-                        child: _HomeTopBar(),
+            child: Stack(
+              children: [
+                CustomScrollView(
+                  physics: const BottomClampingBouncingScrollPhysics(),
+                  slivers: [
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(
+                        23,
+                        16,
+                        0,
+                        24 + widget.bottomOverlayInset,
                       ),
-                      const SizedBox(height: 16),
-                      // TODO: 首页 _DrinkProduct / _DrinkCarousel 功能待定，暂时注释隐藏。
-                      // 恢复时取消下面注释即可。
-                      // _DrinkCarousel(
-                      //   controller: _drinkController,
-                      //   currentIndex: _currentDrink,
-                      //   onPageChanged: (index) {
-                      //     setState(() => _currentDrink = index);
-                      //   },
-                      // ),
-                      // const SizedBox(height: 18),
-                      Padding(
-                        padding: const EdgeInsets.only(right: 23),
-                        child: _SectionHeader(
-                          title: text.t('鸡尾酒推荐'),
-                          onMorePressed: () => _pushCocktailList(context),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      const _CocktailScroller(),
-                      const SizedBox(height: 18),
-                      Padding(
-                        padding: const EdgeInsets.only(right: 23),
-                        child: _HomeRecordPrompt(
-                          onPressed: widget.onRecordPressed,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      FutureBuilder<_HomeBarsData>(
-                        future: _homeBarsFuture,
-                        builder: (context, snapshot) {
-                          final data =
-                              snapshot.data ??
-                              const _HomeBarsData(
-                                bars: _fallbackHomeBars,
-                                statusMessage: '正在加载接口数据...',
-                              );
+                      sliver: SliverList.list(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(right: 22),
+                            child: _searchExpanded
+                                ? const SizedBox(height: 52)
+                                : _HomeTopBar(
+                                    key: _homeTopBarKey,
+                                    expanded: false,
+                                    onExpandedChanged: _setSearchExpanded,
+                                  ),
+                          ),
+                          const SizedBox(height: 16),
+                          // TODO: 首页 _DrinkProduct / _DrinkCarousel 功能待定，暂时注释隐藏。
+                          // 恢复时取消下面注释即可。
+                          // _DrinkCarousel(
+                          //   controller: _drinkController,
+                          //   currentIndex: _currentDrink,
+                          //   onPageChanged: (index) {
+                          //     setState(() => _currentDrink = index);
+                          //   },
+                          // ),
+                          // const SizedBox(height: 18),
+                          Padding(
+                            padding: const EdgeInsets.only(right: 23),
+                            child: _SectionHeader(
+                              title: text.t('鸡尾酒推荐'),
+                              onMorePressed: () => _pushCocktailList(context),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          const _CocktailScroller(),
+                          const SizedBox(height: 18),
+                          Padding(
+                            padding: const EdgeInsets.only(right: 23),
+                            child: _HomeRecordPrompt(
+                              onPressed: widget.onRecordPressed,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          FutureBuilder<_HomeBarsData>(
+                            future: _homeBarsFuture,
+                            builder: (context, snapshot) {
+                              final data =
+                                  snapshot.data ??
+                                  const _HomeBarsData(
+                                    bars: _fallbackHomeBars,
+                                    statusMessage: '正在加载接口数据...',
+                                  );
 
-                          return _HomeDataSections(data: data);
-                        },
+                              return _HomeDataSections(data: data);
+                            },
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+                Positioned.fill(
+                  top: 52,
+                  child: IgnorePointer(
+                    ignoring: !_searchExpanded,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        FocusManager.instance.primaryFocus?.unfocus();
+                        _setSearchExpanded(false);
+                      },
+                      child: AnimatedOpacity(
+                        duration: _HomeTopBarState._searchAnimationDuration,
+                        curve: Curves.easeOutCubic,
+                        opacity: _searchExpanded ? 1 : 0,
+                        child: ClipRect(
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                            child: ColoredBox(
+                              color: Colors.white.withValues(alpha: 0.38),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
+                if (_searchExpanded)
+                  Positioned(
+                    top: 16,
+                    left: 23,
+                    right: 22,
+                    child: _HomeTopBar(
+                      key: _homeTopBarKey,
+                      expanded: true,
+                      onExpandedChanged: _setSearchExpanded,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -204,46 +265,298 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-class _HomeTopBar extends StatelessWidget {
-  const _HomeTopBar();
+class _HomeTopBar extends StatefulWidget {
+  const _HomeTopBar({
+    super.key,
+    required this.expanded,
+    required this.onExpandedChanged,
+  });
+
+  final bool expanded;
+  final ValueChanged<bool> onExpandedChanged;
+
+  @override
+  State<_HomeTopBar> createState() => _HomeTopBarState();
+}
+
+class _HomeTopBarState extends State<_HomeTopBar> {
+  static const Duration _searchAnimationDuration = Duration(milliseconds: 280);
+
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  final SiponApiService _cocktailApi = SiponApiService();
+  final List<CocktailInfo> _suggestions = [];
+  Timer? _searchDebounce;
+  bool _loadingSuggestions = false;
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    final keyword = value.trim();
+    if (keyword.isEmpty) {
+      setState(() {
+        _suggestions.clear();
+        _loadingSuggestions = false;
+      });
+      return;
+    }
+
+    setState(() => _loadingSuggestions = true);
+    _searchDebounce = Timer(const Duration(milliseconds: 260), () async {
+      try {
+        final data = await _cocktailApi.searchCocktails(
+          keyword: keyword,
+          page: const SiponPage(limit: 3),
+        );
+        if (!mounted || _searchController.text.trim() != keyword) return;
+        setState(() {
+          _suggestions
+            ..clear()
+            ..addAll(CocktailInfo.listFromJson(data));
+          _loadingSuggestions = false;
+        });
+      } on Exception {
+        if (mounted && _searchController.text.trim() == keyword) {
+          setState(() => _loadingSuggestions = false);
+        }
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _HomeTopBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.expanded && widget.expanded) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.expanded) _searchFocusNode.requestFocus();
+      });
+    } else if (oldWidget.expanded && !widget.expanded) {
+      _searchFocusNode.unfocus();
+    }
+  }
+
+  void _openSearch() {
+    if (!widget.expanded) {
+      widget.onExpandedChanged(true);
+      return;
+    }
+    _submitSearch();
+  }
+
+  void _submitSearch() {
+    final keyword = _searchController.text.trim();
+    if (keyword.isEmpty) {
+      _searchFocusNode.requestFocus();
+      return;
+    }
+
+    _searchFocusNode.unfocus();
+    widget.onExpandedChanged(false);
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CocktailListPage(initialKeyword: keyword),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
 
-    return SizedBox(
-      height: 52,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Center(child: Image.asset(HomePage.nameAsset, width: 82, height: 30)),
-          Row(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: 52,
+          child: LayoutBuilder(
+          builder: (context, constraints) => Stack(
+            alignment: Alignment.center,
             children: [
-              const SiponCityButton(compact: true),
-              const Spacer(),
-              Tooltip(
+            AnimatedOpacity(
+              duration: _searchAnimationDuration,
+              curve: Curves.easeOutCubic,
+              opacity: widget.expanded ? 0 : 1,
+              child: IgnorePointer(
+                ignoring: widget.expanded,
+                child: Center(
+                  child: Image.asset(HomePage.nameAsset, width: 82, height: 30),
+                ),
+              ),
+            ),
+            AnimatedOpacity(
+              duration: _searchAnimationDuration,
+              curve: Curves.easeOutCubic,
+              opacity: widget.expanded ? 0 : 1,
+              child: IgnorePointer(
+                ignoring: widget.expanded,
+                child: const Align(
+                  alignment: Alignment.centerLeft,
+                  child: SiponCityButton(),
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Tooltip(
                 message: text.t('搜索'),
-                child: IconButton(
-                  onPressed: () {},
-                  style: IconButton.styleFrom(
-                    fixedSize: const Size(44, 44),
-                    backgroundColor: const Color(0xFFFFF8EC),
-                    foregroundColor: const Color(0xFF6B666B),
-                    padding: EdgeInsets.zero,
-                    shape: const CircleBorder(),
+                child: AnimatedContainer(
+                  duration: _searchAnimationDuration,
+                  curve: Curves.easeOutCubic,
+                  width: widget.expanded ? constraints.maxWidth : 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF2F2F2),
+                    borderRadius: BorderRadius.circular(22),
                   ),
-                  icon: Image.asset(
-                    HomePage.searchAsset,
-                    width: 22,
-                    height: 22,
-                    color: const Color(0xFF6B666B),
+                  child: LayoutBuilder(
+                    builder: (context, searchConstraints) => Row(
+                    children: [
+                      if (widget.expanded && searchConstraints.maxWidth > 100)
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 16),
+                            child: TextField(
+                              controller: _searchController,
+                              focusNode: _searchFocusNode,
+                              autofocus: true,
+                              textInputAction: TextInputAction.search,
+                              onChanged: _onSearchChanged,
+                              onSubmitted: (_) => _submitSearch(),
+                              style: const TextStyle(
+                                color: HomePage.ink,
+                                fontSize: 14,
+                                letterSpacing: 0,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: text.t('搜索鸡尾酒'),
+                                hintStyle: const TextStyle(
+                                  color: HomePage.muted,
+                                  fontSize: 13,
+                                  letterSpacing: 0,
+                                ),
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                          ),
+                        ),
+                      Tooltip(
+                        message: text.t('搜索'),
+                        child: SizedBox(
+                          width: 44,
+                          height: 44,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: _openSearch,
+                            child: Center(
+                              child: Image.asset(
+                                HomePage.searchAsset,
+                                width: 22,
+                                height: 22,
+                                color: const Color(0xFF6B666B),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                    ),
                   ),
                 ),
               ),
+            ),
             ],
+          ),
+          ),
+        ),
+        if (widget.expanded &&
+            (_loadingSuggestions || _suggestions.isNotEmpty))
+          _CocktailSuggestions(
+            loading: _loadingSuggestions,
+            items: _suggestions,
+            onSelected: (item) {
+              final keyword = item.name ?? item.nameEn ?? '';
+              if (keyword.isEmpty) return;
+              _searchController.text = keyword;
+              _submitSearch();
+            },
+          ),
+      ],
+    );
+  }
+}
+
+class _CocktailSuggestions extends StatelessWidget {
+  const _CocktailSuggestions({
+    required this.loading,
+    required this.items,
+    required this.onSelected,
+  });
+
+  final bool loading;
+  final List<CocktailInfo> items;
+  final ValueChanged<CocktailInfo> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = SiponLanguageScope.textOf(context);
+    return Container(
+      margin: const EdgeInsets.only(top: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x16000000),
+            blurRadius: 14,
+            offset: Offset(0, 6),
           ),
         ],
       ),
+      child: loading
+          ? const SizedBox(
+              height: 52,
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          : Column(
+              children: [
+                for (final item in items)
+                  ListTile(
+                    dense: true,
+                    minVerticalPadding: 0,
+                    leading: const Icon(
+                      Icons.local_bar_outlined,
+                      color: HomePage.brand,
+                      size: 20,
+                    ),
+                    title: Text(
+                      item.name ?? item.nameEn ?? text.t('鸡尾酒'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: HomePage.ink,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    onTap: () => onSelected(item),
+                  ),
+              ],
+            ),
     );
   }
 }
@@ -363,16 +676,16 @@ class _HomeDataSections extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         const _CategoryScroller(),
-        const SizedBox(height: 22),
-        Padding(
-          padding: const EdgeInsets.only(right: 23),
-          child: _SectionHeader(title: text.t('调酒师故事')),
-        ),
-        const SizedBox(height: 14),
-        const Padding(
-          padding: EdgeInsets.only(right: 23),
-          child: _BartenderStories(),
-        ),
+        // const SizedBox(height: 22),
+        // Padding(
+        //   padding: const EdgeInsets.only(right: 23),
+        //   child: _SectionHeader(title: text.t('调酒师故事')),
+        // ),
+        // const SizedBox(height: 14),
+        // const Padding(
+        //   padding: EdgeInsets.only(right: 23),
+        //   child: _BartenderStories(),
+        // ),
         const SizedBox(height: 26),
         _TopBarsSection(bars: data.bars),
       ],

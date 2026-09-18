@@ -9,7 +9,9 @@ import 'language_transform.dart';
 
 /// 鸡尾酒百科——列表/搜索页（GET /api/cocktails）。
 class CocktailListPage extends StatefulWidget {
-  const CocktailListPage({super.key});
+  const CocktailListPage({super.key, this.initialKeyword});
+
+  final String? initialKeyword;
 
   @override
   State<CocktailListPage> createState() => _CocktailListPageState();
@@ -38,6 +40,8 @@ class _CocktailListPageState extends State<CocktailListPage> {
   @override
   void initState() {
     super.initState();
+    _keyword = widget.initialKeyword?.trim() ?? '';
+    _searchController.text = _keyword;
     // 监听滚动到底部，触发分页加载更多。
     _scrollController.addListener(_onScroll);
     _load(reset: true);

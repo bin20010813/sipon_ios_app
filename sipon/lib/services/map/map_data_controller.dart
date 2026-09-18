@@ -30,6 +30,7 @@ class MapDataController extends ChangeNotifier {
   String _city;
   List<MapVenue> _venues;
   MapVenueKind? _categoryFilter;
+  String _searchQuery = '';
   String? _selectedVenueId;
   MapDataStatus _status = MapDataStatus.idle;
   String? _failureDetail;
@@ -47,18 +48,31 @@ class MapDataController extends ChangeNotifier {
   MapDataStatus get status => _status;
   String? get failureDetail => _failureDetail;
   MapVenueKind? get categoryFilter => _categoryFilter;
+  String get searchQuery => _searchQuery;
   MapBaseStyle get style => _style;
   double get zoom => _zoom;
 
   /// 当前分类筛选下要显示的酒吧。
   List<MapVenue> get visibleVenues {
     final filter = _categoryFilter;
-    if (filter == null) {
-      return _venues;
-    }
+    final query = _searchQuery;
 
     return _venues
-        .where((venue) => venue.kind == filter)
+        .where((venue) {
+          if (filter != null && venue.kind != filter) {
+            return false;
+          }
+          if (query.isEmpty) {
+            return true;
+          }
+
+          final searchable = [
+            venue.name,
+            venue.address,
+            ...venue.tags,
+          ].join(' ').toLowerCase();
+          return searchable.contains(query);
+        })
         .toList(growable: false);
   }
 
@@ -174,8 +188,7 @@ class MapDataController extends ChangeNotifier {
   void _applyVenues(List<MapVenue> venues, MapViewport viewport) {
     final pinned = _pinnedVenue;
 
-    _venues = pinned == null ||
-            venues.any((venue) => venue.id == pinned.id)
+    _venues = pinned == null || venues.any((venue) => venue.id == pinned.id)
         ? venues
         : [pinned, ...venues];
     _loadedViewport = viewport;
@@ -222,6 +235,17 @@ class MapDataController extends ChangeNotifier {
   /// 再点一次已选中的分类就取消筛选（顶部没有「全部」pill）。
   void toggleCategory(MapVenueKind kind) {
     _categoryFilter = _categoryFilter == kind ? null : kind;
+    _reconcileSelection();
+    _notify();
+  }
+
+  void setSearchQuery(String query) {
+    final normalized = query.trim().toLowerCase();
+    if (_searchQuery == normalized) {
+      return;
+    }
+
+    _searchQuery = normalized;
     _reconcileSelection();
     _notify();
   }

@@ -269,7 +269,9 @@ class _MapPageState extends State<MapPage> {
           // 收起态卡片原本浮在导航栏之上，这段间距一并算进面板高度，
           // 于是同一个面板既能表现"悬浮卡片"，也能表现"贴底面板"。
           final collapsedBottomGap = math.max(
-            MediaQuery.paddingOf(context).bottom,
+            // 键盘弹出时 padding 会变为 0；地图面板的系统避让应始终以
+            // 设备安全区为准，避免收起态跳动。
+            MediaQuery.viewPaddingOf(context).bottom,
             widget.bottomOverlayInset + 2,
           );
           final collapsedExtent = availableHeight <= 0
@@ -322,8 +324,10 @@ class _MapPageState extends State<MapPage> {
           builder: (context, _) => MapSearchAndFilters(
             selectedKind: _data.categoryFilter,
             status: _data.status,
+            searchQuery: _data.searchQuery,
             onCategoryToggled: _data.toggleCategory,
             onFilterPressed: _showMapTools,
+            onSearchChanged: _data.setSearchQuery,
           ),
         ),
       ),

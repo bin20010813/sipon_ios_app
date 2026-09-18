@@ -191,6 +191,36 @@ void main() {
       expect(controller.visibleVenues, hasLength(3));
     });
 
+    test('搜索按名称、地址和标签过滤，清空后恢复全部', () async {
+      final controller = MapDataController(
+        repository: _StubRepository([
+          _venue('莫吉托酒吧'),
+          MapVenue(
+            id: 'craft-1',
+            name: '河岸精酿',
+            longitude: 121.47,
+            latitude: 31.22,
+            kind: MapVenueKind.craft,
+            rating: 4.5,
+            address: '黄浦区外滩路 1 号',
+            distance: '约1.0km',
+            tags: const ['啤酒', '露台'],
+            imageAsset: MapAssets.barImage,
+          ),
+        ]),
+        city: '上海',
+      );
+      addTearDown(controller.dispose);
+      await controller.syncViewport(_shanghaiViewport);
+
+      controller.setSearchQuery('露台');
+      expect(controller.visibleVenues.map((venue) => venue.id), ['craft-1']);
+      controller.setSearchQuery('外滩');
+      expect(controller.visibleVenues.map((venue) => venue.id), ['craft-1']);
+      controller.setSearchQuery('');
+      expect(controller.visibleVenues, hasLength(2));
+    });
+
     test('所有缩放都保留圆点，只有文字标签按缩放抽样', () async {
       final controller = MapDataController(
         repository: _StubRepository([
