@@ -376,109 +376,113 @@ class _HomeTopBarState extends State<_HomeTopBar> {
         SizedBox(
           height: 52,
           child: LayoutBuilder(
-          builder: (context, constraints) => Stack(
-            alignment: Alignment.center,
-            children: [
-            AnimatedOpacity(
-              duration: _searchAnimationDuration,
-              curve: Curves.easeOutCubic,
-              opacity: widget.expanded ? 0 : 1,
-              child: IgnorePointer(
-                ignoring: widget.expanded,
-                child: Center(
-                  child: Image.asset(HomePage.nameAsset, width: 82, height: 30),
-                ),
-              ),
-            ),
-            AnimatedOpacity(
-              duration: _searchAnimationDuration,
-              curve: Curves.easeOutCubic,
-              opacity: widget.expanded ? 0 : 1,
-              child: IgnorePointer(
-                ignoring: widget.expanded,
-                child: const Align(
-                  alignment: Alignment.centerLeft,
-                  child: SiponCityButton(),
-                ),
-              ),
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Tooltip(
-                message: text.t('搜索'),
-                child: AnimatedContainer(
+            builder: (context, constraints) => Stack(
+              alignment: Alignment.center,
+              children: [
+                AnimatedOpacity(
                   duration: _searchAnimationDuration,
                   curve: Curves.easeOutCubic,
-                  width: widget.expanded ? constraints.maxWidth : 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF2F2F2),
-                    borderRadius: BorderRadius.circular(22),
-                  ),
-                  child: LayoutBuilder(
-                    builder: (context, searchConstraints) => Row(
-                    children: [
-                      if (widget.expanded && searchConstraints.maxWidth > 100)
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(left: 16),
-                            child: TextField(
-                              controller: _searchController,
-                              focusNode: _searchFocusNode,
-                              autofocus: true,
-                              textInputAction: TextInputAction.search,
-                              onChanged: _onSearchChanged,
-                              onSubmitted: (_) => _submitSearch(),
-                              style: const TextStyle(
-                                color: HomePage.ink,
-                                fontSize: 14,
-                                letterSpacing: 0,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: text.t('搜索鸡尾酒'),
-                                hintStyle: const TextStyle(
-                                  color: HomePage.muted,
-                                  fontSize: 13,
-                                  letterSpacing: 0,
-                                ),
-                                border: InputBorder.none,
-                                isDense: true,
-                                contentPadding: EdgeInsets.zero,
-                              ),
-                            ),
-                          ),
-                        ),
-                      Tooltip(
-                        message: text.t('搜索'),
-                        child: SizedBox(
-                          width: 44,
-                          height: 44,
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: _openSearch,
-                            child: Center(
-                              child: Image.asset(
-                                HomePage.searchAsset,
-                                width: 22,
-                                height: 22,
-                                color: const Color(0xFF6B666B),
-                              ),
-                            ),
-                          ),
-                        ),
+                  opacity: widget.expanded ? 0 : 1,
+                  child: IgnorePointer(
+                    ignoring: widget.expanded,
+                    child: Center(
+                      child: Image.asset(
+                        HomePage.nameAsset,
+                        width: 82,
+                        height: 30,
                       ),
-                    ],
                     ),
                   ),
                 ),
-              ),
+                AnimatedOpacity(
+                  duration: _searchAnimationDuration,
+                  curve: Curves.easeOutCubic,
+                  opacity: widget.expanded ? 0 : 1,
+                  child: IgnorePointer(
+                    ignoring: widget.expanded,
+                    child: const Align(
+                      alignment: Alignment.centerLeft,
+                      child: SiponCityButton(),
+                    ),
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Tooltip(
+                    message: text.t('搜索'),
+                    child: AnimatedContainer(
+                      duration: _searchAnimationDuration,
+                      curve: Curves.easeOutCubic,
+                      width: widget.expanded ? constraints.maxWidth : 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF2F2F2),
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      child: LayoutBuilder(
+                        builder: (context, searchConstraints) => Row(
+                          children: [
+                            if (widget.expanded &&
+                                searchConstraints.maxWidth > 100)
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(left: 16),
+                                  child: TextField(
+                                    controller: _searchController,
+                                    focusNode: _searchFocusNode,
+                                    autofocus: true,
+                                    textInputAction: TextInputAction.search,
+                                    onChanged: _onSearchChanged,
+                                    onSubmitted: (_) => _submitSearch(),
+                                    style: const TextStyle(
+                                      color: HomePage.ink,
+                                      fontSize: 14,
+                                      letterSpacing: 0,
+                                    ),
+                                    decoration: InputDecoration(
+                                      hintText: text.t('搜索鸡尾酒'),
+                                      hintStyle: const TextStyle(
+                                        color: HomePage.muted,
+                                        fontSize: 13,
+                                        letterSpacing: 0,
+                                      ),
+                                      border: InputBorder.none,
+                                      isDense: true,
+                                      contentPadding: EdgeInsets.zero,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            Tooltip(
+                              message: text.t('搜索'),
+                              child: SizedBox(
+                                width: 44,
+                                height: 44,
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: _openSearch,
+                                  child: Center(
+                                    child: Image.asset(
+                                      HomePage.searchAsset,
+                                      width: 22,
+                                      height: 22,
+                                      color: const Color(0xFF6B666B),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-            ],
-          ),
           ),
         ),
-        if (widget.expanded &&
-            (_loadingSuggestions || _suggestions.isNotEmpty))
+        if (widget.expanded && (_loadingSuggestions || _suggestions.isNotEmpty))
           _CocktailSuggestions(
             loading: _loadingSuggestions,
             items: _suggestions,
@@ -778,7 +782,7 @@ class _DrinkCarousel extends StatelessWidget {
     return Column(
       children: [
         SizedBox(
-          height: 248,
+          height: 220,
           child: PageView.builder(
             controller: controller,
             padEnds: false,
@@ -893,8 +897,9 @@ class _DrinkProductCard extends StatelessWidget {
               ),
             ],
           ),
-          Expanded(
-            child: Center(child: _DrinkVisual(product: product)),
+          const SizedBox(height: 6),
+          Center(
+            child: SizedBox(height: 116, child: _DrinkVisual(product: product)),
           ),
         ],
       ),
@@ -2009,7 +2014,7 @@ class _CocktailScrollerState extends State<_CocktailScroller> {
     );
 
     return SizedBox(
-      height: 262,
+      height: 232,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),

@@ -150,62 +150,58 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
                 // 返回按钮。
                 _FloatingBackButton(back: text.back),
                 const SizedBox(height: 16),
-                // 豆瓣图书详情页式头部：左竖版封面 + 右书名/评分/标签。
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                // 居中大图头部。
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    _DetailCover(
-                      imageUrl: imageUrl,
-                      fallbackAsset: _fallbackAsset,
-                    ),
-                    const SizedBox(width: 18),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: _ink,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0,
-                            ),
-                          ),
-                          if (summary.nameEn != null &&
-                              summary.nameEn!.isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              summary.nameEn!,
-                              style: const TextStyle(
-                                color: _muted,
-                                fontSize: 13,
-                                letterSpacing: 0,
-                              ),
-                            ),
-                          ],
-                          if (summary.starRating != null) ...[
-                            const SizedBox(height: 12),
-                            _DoubanRating(rating: summary.starRating!),
-                          ],
-                          const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              if (summary.difficulty != null &&
-                                  summary.difficulty!.isNotEmpty)
-                                _MetaTag(label: summary.difficulty!),
-                              if (summary.ingredientCount != null)
-                                _MetaTag(
-                                  label: '${summary.ingredientCount}种用料',
-                                ),
-                            ],
-                          ),
-                        ],
+                    Center(
+                      child: _DetailCover(
+                        imageUrl: imageUrl,
+                        fallbackAsset: _fallbackAsset,
                       ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: _ink,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    if (summary.nameEn != null &&
+                        summary.nameEn!.isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        summary.nameEn!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: _muted,
+                          fontSize: 13,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ],
+                    if (summary.starRating != null) ...[
+                      const SizedBox(height: 12),
+                      Center(child: _DoubanRating(rating: summary.starRating!)),
+                    ],
+                    const SizedBox(height: 12),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        if (summary.difficulty != null &&
+                            summary.difficulty!.isNotEmpty)
+                          _MetaTag(label: summary.difficulty!),
+                        if (summary.ingredientCount != null)
+                          _MetaTag(label: '${summary.ingredientCount}种用料'),
+                      ],
                     ),
                   ],
                 ),
@@ -284,7 +280,7 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
   }
 }
 
-/// 豆瓣图书详情页式竖版封面（图书比例，约 2:2.75）。
+/// 居中大图封面。
 class _DetailCover extends StatelessWidget {
   const _DetailCover({this.imageUrl, required this.fallbackAsset});
 
@@ -293,32 +289,121 @@ class _DetailCover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const coverWidth = 128.0;
-    const coverHeight = 176.0;
+    const coverWidth = 260.0;
+    const coverHeight = 347.0;
+    const radius = 24.0;
     final url = imageUrl;
-    if (url != null && url.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: Image.network(
+
+    Widget image() {
+      if (url != null && url.isNotEmpty) {
+        return Image.network(
           url,
           width: coverWidth,
           height: coverHeight,
           fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => _fallback(),
-        ),
+          errorBuilder: (_, _, _) => Image.asset(
+            fallbackAsset,
+            width: coverWidth,
+            height: coverHeight,
+            fit: BoxFit.cover,
+          ),
+        );
+      }
+      return Image.asset(
+        fallbackAsset,
+        width: coverWidth,
+        height: coverHeight,
+        fit: BoxFit.cover,
       );
     }
-    return _fallback();
-  }
 
-  Widget _fallback() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: Image.asset(
-        fallbackAsset,
-        width: 128,
-        height: 176,
-        fit: BoxFit.cover,
+    return SizedBox(
+      width: coverWidth,
+      height: coverHeight + 27,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(radius),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF77727A).withValues(alpha: 0.24),
+                  blurRadius: 18,
+                  spreadRadius: 2,
+                  offset: const Offset(0, 9),
+                ),
+                BoxShadow(
+                  color: Colors.white.withValues(alpha: 0.7),
+                  blurRadius: 6,
+                  spreadRadius: -2,
+                  offset: const Offset(0, -2),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(radius),
+              child: Stack(
+                children: [
+                  image(),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    height: 36,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.white.withValues(alpha: 0),
+                            Colors.white.withValues(alpha: 0.22),
+                            const Color(0xFFB9B9C0).withValues(alpha: 0.3),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            left: 8,
+            right: 8,
+            top: coverHeight + 1,
+            height: 36,
+            child: ShaderMask(
+              blendMode: BlendMode.dstIn,
+              shaderCallback: (bounds) => const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.white, Colors.transparent],
+              ).createShader(bounds),
+              child: ClipRect(
+                child: Opacity(
+                  opacity: 0.25,
+                  child: OverflowBox(
+                    alignment: Alignment.topCenter,
+                    minWidth: coverWidth - 16,
+                    maxWidth: coverWidth - 16,
+                    minHeight: coverHeight,
+                    maxHeight: coverHeight,
+                    child: Transform(
+                      alignment: Alignment.center,
+                      transform: Matrix4.identity()..scale(1.0, -1.0),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(radius),
+                        child: image(),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -333,6 +418,7 @@ class _DoubanRating extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         for (var i = 0; i < rating.clamp(0, 5); i++)
           const Icon(Icons.star_rounded, size: 18, color: Color(0xFFF2A33C)),
