@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../pages/language_transform.dart';
 import '../services/map/map_display_options.dart';
@@ -21,6 +24,8 @@ class AddVenuePage extends StatefulWidget {
 }
 
 class _AddVenuePageState extends State<AddVenuePage> {
+  static const _maxImageCount = 3;
+
   final _formKey = GlobalKey<FormState>();
   final _api = SiponApiService();
   final _nameController = TextEditingController();
@@ -31,13 +36,17 @@ class _AddVenuePageState extends State<AddVenuePage> {
   final _phoneController = TextEditingController();
   final _openingHoursController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _mediaUrlsController = TextEditingController();
+  final _picker = ImagePicker();
+  final _storefrontImages = <XFile>[];
+  final _menuImages = <XFile>[];
 
   late final MapSceneController _scene;
   MapVenueKind _kind = MapVenueKind.pub;
   bool _submitting = false;
   bool _cityInitialized = false;
   bool _mapReady = false;
+
+  int get _imageCount => _storefrontImages.length + _menuImages.length;
 
   @override
   void initState() {
@@ -67,7 +76,6 @@ class _AddVenuePageState extends State<AddVenuePage> {
     _phoneController.dispose();
     _openingHoursController.dispose();
     _descriptionController.dispose();
-    _mediaUrlsController.dispose();
     _scene.detach();
     super.dispose();
   }
@@ -102,24 +110,34 @@ class _AddVenuePageState extends State<AddVenuePage> {
   Future<void> _submit() async {
     if (_submitting || !_formKey.currentState!.validate()) return;
 
+    if (!_mapReady) {
+      _showMessage('地图还在加载，请稍候再提交');
+      return;
+    }
     final longitude = _parseCoordinate(_longitudeController.text);
     final latitude = _parseCoordinate(_latitudeController.text);
     if (longitude == null || latitude == null) return;
-    final mediaUrls = _mediaUrlsController.text
-        .split(RegExp(r'[\n,，]+'))
-        .map((url) => url.trim())
-        .where((url) => url.isNotEmpty)
-        .take(9)
-        .toList(growable: false);
 
     setState(() => _submitting = true);
     try {
+      final storefrontMediaUrls = await _uploadImages(
+        _storefrontImages,
+        purpose: 'poi_storefront',
+      );
+      final menuMediaUrls = await _uploadImages(
+        _menuImages,
+        purpose: 'poi_menu',
+      );
       final body = <String, Object?>{
         'name': _nameController.text.trim(),
         'longitude': longitude,
         'latitude': latitude,
         'subtypeCode': _kind.id,
-        if (mediaUrls.isNotEmpty) 'mediaUrls': mediaUrls,
+        if (storefrontMediaUrls.isNotEmpty)
+          'storefrontMediaUrls': storefrontMediaUrls,
+        if (menuMediaUrls.isNotEmpty) 'menuMediaUrls': menuMediaUrls,
+        if (storefrontMediaUrls.isNotEmpty || menuMediaUrls.isNotEmpty)
+          'mediaUrls': [...storefrontMediaUrls, ...menuMediaUrls],
       };
       _addOptional(body, 'address', _emptyToNull(_addressController));
       _addOptional(body, 'city', _emptyToNull(_cityController));
@@ -149,16 +167,102 @@ class _AddVenuePageState extends State<AddVenuePage> {
 
   double? _parseCoordinate(String value) => double.tryParse(value.trim());
 
-  String? _requiredText(String? value) {
-    if (value == null || value.trim().isEmpty) return '请填写此项';
-    return null;
+  Future<void> _pickImages(List<XFile> target) async {
+    if (_imageCount >= _maxImageCount) {
+      _showMessage('最多上传 3 张图片');
+      return;
+    }
+
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            const Text(
+              '选择图片来源',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('从相册选择'),
+              onTap: () => Navigator.of(sheetContext).pop(ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('拍照'),
+              onTap: () => Navigator.of(sheetContext).pop(ImageSource.camera),
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+
+    try {
+      final image = await _picker.pickImage(
+        source: source,
+        maxWidth: 1920,
+        imageQuality: 85,
+      );
+      if (image == null || !mounted) return;
+      setState(() => target.add(image));
+    } on Exception {
+      _showMessage('图片选择失败，请重试');
+    }
   }
 
-  String? _coordinateValidator(String? value, {required bool longitude}) {
-    final parsed = double.tryParse(value?.trim() ?? '');
-    if (parsed == null) return '请填写有效坐标';
-    if (longitude && (parsed < -180 || parsed > 180)) return '经度范围 -180 到 180';
-    if (!longitude && (parsed < -90 || parsed > 90)) return '纬度范围 -90 到 90';
+  Future<List<String>> _uploadImages(
+    List<XFile> images, {
+    required String purpose,
+  }) async {
+    final urls = <String>[];
+    for (final image in images) {
+      final bytes = await image.readAsBytes();
+      if (bytes.length > 10 * 1024 * 1024) {
+        throw Exception('图片超过 10MiB 限制，请更换图片');
+      }
+      final response = await _api.uploadMedia(
+        fileBytes: bytes,
+        filename: image.name,
+        mimeType: _mimeTypeFor(image),
+        purpose: purpose,
+      );
+      final mediaId = _extractMediaId(response);
+      if (mediaId == null) throw Exception('图片上传失败，请重试');
+      urls.add('/api/uploads/$mediaId/content');
+    }
+    return urls;
+  }
+
+  String? _extractMediaId(dynamic response) {
+    if (response is! Map) return null;
+    final raw =
+        response['mediaId'] ??
+        response['id'] ??
+        (response['data'] is Map ? response['data']['mediaId'] : null);
+    final id = raw?.toString().trim();
+    return id == null || id.isEmpty ? null : id;
+  }
+
+  String _mimeTypeFor(XFile image) {
+    final mime = image.mimeType?.trim();
+    if (mime != null && mime.isNotEmpty) return mime;
+    final name = image.name.toLowerCase();
+    if (name.endsWith('.png')) return 'image/png';
+    if (name.endsWith('.webp')) return 'image/webp';
+    if (name.endsWith('.heic') || name.endsWith('.heif')) return 'image/heic';
+    return 'image/jpeg';
+  }
+
+  String? _requiredText(String? value) {
+    if (value == null || value.trim().isEmpty) return '请填写此项';
     return null;
   }
 
@@ -208,16 +312,6 @@ class _AddVenuePageState extends State<AddVenuePage> {
                         ),
                       ),
                       const SizedBox(height: 18),
-                      _VenueFormPreview(
-                        name: _nameController.text.trim().isEmpty
-                            ? text.t('未命名酒吧')
-                            : _nameController.text.trim(),
-                        address: _addressController.text.trim().isEmpty
-                            ? text.t('地点位置')
-                            : _addressController.text.trim(),
-                        kind: _kind,
-                      ),
-                      const SizedBox(height: 18),
                       _FieldLabel(text.t('基础信息')),
                       const SizedBox(height: 10),
                       _VenueTextField(
@@ -228,66 +322,13 @@ class _AddVenuePageState extends State<AddVenuePage> {
                         validator: _requiredText,
                         onChanged: (_) => setState(() {}),
                       ),
-                      const SizedBox(height: 12),
-                      _VenueTextField(
-                        controller: _addressController,
-                        label: text.t('详细地址'),
-                        hint: text.t('街道门牌、商场楼层或地标'),
-                        icon: Icons.location_on_outlined,
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: 12),
-                      _VenueTextField(
-                        controller: _cityController,
-                        label: text.t('城市'),
-                        hint: text.t('上海'),
-                        icon: Icons.location_city_rounded,
-                        validator: _requiredText,
-                      ),
+
                       const SizedBox(height: 18),
                       _FieldLabel(text.t('地点类型')),
                       const SizedBox(height: 10),
                       _KindSelector(
                         selected: _kind,
                         onChanged: (kind) => setState(() => _kind = kind),
-                      ),
-                      const SizedBox(height: 18),
-                      _FieldLabel(text.t('地图坐标')),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _VenueTextField(
-                              controller: _longitudeController,
-                              label: text.t('经度'),
-                              hint: '121.4737',
-                              icon: Icons.explore_outlined,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                    signed: true,
-                                  ),
-                              validator: (value) =>
-                                  _coordinateValidator(value, longitude: true),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _VenueTextField(
-                              controller: _latitudeController,
-                              label: text.t('纬度'),
-                              hint: '31.2304',
-                              icon: Icons.explore_rounded,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                    signed: true,
-                                  ),
-                              validator: (value) =>
-                                  _coordinateValidator(value, longitude: false),
-                            ),
-                          ),
-                        ],
                       ),
                       const SizedBox(height: 18),
                       _VenueTextField(
@@ -304,6 +345,52 @@ class _AddVenuePageState extends State<AddVenuePage> {
                         hint: text.t('例如：18:00-02:00'),
                         icon: Icons.schedule_rounded,
                       ),
+                      const SizedBox(height: 12),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final totalGap = 18.0;
+                          final storefrontWidth =
+                              (constraints.maxWidth - totalGap) * 0.62;
+                          final menuWidth =
+                              constraints.maxWidth - totalGap - storefrontWidth;
+
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SizedBox(
+                                width: storefrontWidth,
+                                child: ClipRect(
+                                  child: _VenueImageSection(
+                                    title: text.t('店面照片'),
+                                    images: _storefrontImages,
+                                    canAdd: _imageCount < _maxImageCount,
+                                    onAdd: () => _pickImages(_storefrontImages),
+                                    onRemove: (index) => setState(
+                                      () => _storefrontImages.removeAt(index),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 18),
+                              SizedBox(
+                                width: menuWidth,
+                                child: ClipRect(
+                                  child: _VenueImageSection(
+                                    title: text.t('菜单照片'),
+                                    images: _menuImages,
+                                    canAdd: _imageCount < _maxImageCount,
+                                    onAdd: () => _pickImages(_menuImages),
+                                    onRemove: (index) => setState(
+                                      () => _menuImages.removeAt(index),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+
                       const SizedBox(height: 18),
                       _FieldLabel(text.t('补充信息')),
                       const SizedBox(height: 10),
@@ -315,15 +402,7 @@ class _AddVenuePageState extends State<AddVenuePage> {
                         minLines: 3,
                         maxLines: 5,
                       ),
-                      const SizedBox(height: 12),
-                      _VenueTextField(
-                        controller: _mediaUrlsController,
-                        label: text.t('图片链接'),
-                        hint: text.t('每行一个图片 URL，最多 9 张'),
-                        icon: Icons.image_outlined,
-                        minLines: 2,
-                        maxLines: 4,
-                      ),
+
                       const SizedBox(height: 18),
                       FilledButton.icon(
                         onPressed: _submitting ? null : _submit,
@@ -486,117 +565,6 @@ class _LocationPicker extends StatelessWidget {
   }
 }
 
-class _VenueFormPreview extends StatelessWidget {
-  const _VenueFormPreview({
-    required this.name,
-    required this.address,
-    required this.kind,
-  });
-
-  final String name;
-  final String address;
-  final MapVenueKind kind;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = SiponLanguageScope.textOf(context);
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0x11000000)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x129A3D78),
-            blurRadius: 18,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: VenueImage(
-                imageUrl: null,
-                assetPath: MapAssets.coverForIndex(kind.index),
-                width: 90,
-                height: 102,
-              ),
-            ),
-            const SizedBox(width: 13),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    text.t(name),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: MapDesign.ink,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      VenueTag(label: text.t(kind.label)),
-                      VenueTag(label: text.t('待审核')),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(
-                        Icons.location_on_outlined,
-                        color: MapDesign.brand,
-                        size: 17,
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          text.t(address),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: MapDesign.muted,
-                            fontSize: 12,
-                            letterSpacing: 0,
-                            height: 1.25,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    text.t('审核通过后进入地图点位'),
-                    style: const TextStyle(
-                      color: MapDesign.muted,
-                      fontSize: 12,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _KindSelector extends StatelessWidget {
   const _KindSelector({required this.selected, required this.onChanged});
 
@@ -607,34 +575,44 @@ class _KindSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
 
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final kind in MapVenueKind.values)
-          ChoiceChip(
-            label: Text(text.t(kind.label)),
-            avatar: Image.asset(kind.iconAsset, width: 18, height: 18),
-            selected: selected == kind,
-            onSelected: (_) => onChanged(kind),
-            showCheckmark: false,
-            selectedColor: const Color(0x1F9A3D78),
-            backgroundColor: const Color(0xFFF7F2F5),
-            side: BorderSide(
-              color: selected == kind
-                  ? MapDesign.brand
-                  : const Color(0x00000000),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (final kind in MapVenueKind.values)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(text.t(kind.label)),
+                avatar: ColorFiltered(
+                  colorFilter: ColorFilter.mode(
+                    selected == kind ? MapDesign.brand : MapDesign.ink,
+                    BlendMode.srcIn,
+                  ),
+                  child: Image.asset(kind.iconAsset, width: 18, height: 18),
+                ),
+                selected: selected == kind,
+                onSelected: (_) => onChanged(kind),
+                showCheckmark: false,
+                selectedColor: const Color(0x1F9A3D78),
+                backgroundColor: const Color(0xFFF7F2F5),
+                side: BorderSide(
+                  color: selected == kind
+                      ? MapDesign.brand
+                      : const Color(0x00000000),
+                ),
+                labelStyle: TextStyle(
+                  color: selected == kind ? MapDesign.brand : MapDesign.ink,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
             ),
-            labelStyle: TextStyle(
-              color: selected == kind ? MapDesign.brand : MapDesign.ink,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -675,6 +653,11 @@ class _VenueTextField extends StatelessWidget {
           ? TextInputAction.next
           : TextInputAction.newline,
       decoration: InputDecoration(
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 10,
+        ),
         labelText: label,
         hintText: hint,
         prefixIcon: Icon(icon),
@@ -703,6 +686,189 @@ class _VenueTextField extends StatelessWidget {
         ),
         hintStyle: const TextStyle(color: Color(0x998F8790), letterSpacing: 0),
       ),
+    );
+  }
+}
+
+class _VenueImageSection extends StatelessWidget {
+  const _VenueImageSection({
+    required this.title,
+    required this.images,
+    required this.canAdd,
+    required this.onAdd,
+    required this.onRemove,
+  });
+
+  final String title;
+  final List<XFile> images;
+  final bool canAdd;
+  final VoidCallback onAdd;
+  final ValueChanged<int> onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    const slotSize = 104.0;
+    const gap = 8.0;
+    final slots = List.generate(3, (index) {
+      if (index < images.length) {
+        return SizedBox(
+          width: slotSize,
+          height: slotSize,
+          child: _ImagePreview(
+            image: images[index],
+            onRemove: () => onRemove(index),
+          ),
+        );
+      }
+      if (index == images.length && canAdd) {
+        return SizedBox(
+          width: slotSize,
+          height: slotSize,
+          child: _AddImageSlot(onTap: onAdd),
+        );
+      }
+      return SizedBox(
+        width: slotSize,
+        height: slotSize,
+        child: const _EmptyImageSlot(),
+      );
+    });
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  color: MapDesign.ink,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+            Text(
+              '${images.length}/3',
+              style: const TextStyle(
+                color: MapDesign.muted,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          height: slotSize + 14,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            clipBehavior: Clip.hardEdge,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: EdgeInsets.zero,
+              physics: const ClampingScrollPhysics(),
+              clipBehavior: Clip.hardEdge,
+              itemCount: slots.length,
+              separatorBuilder: (_, __) => const SizedBox(width: gap),
+              itemBuilder: (_, index) => SizedBox(
+                width: slotSize,
+                height: slotSize,
+                child: slots[index],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AddImageSlot extends StatelessWidget {
+  const _AddImageSlot({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Ink(
+        width: 78,
+        height: 78,
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F2F5),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0x1A9A3D78)),
+        ),
+        child: const Icon(Icons.add_a_photo_outlined, color: MapDesign.brand),
+      ),
+    );
+  }
+}
+
+class _EmptyImageSlot extends StatelessWidget {
+  const _EmptyImageSlot();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 78,
+      height: 78,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F2F5),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0x1A9A3D78)),
+      ),
+    );
+  }
+}
+
+class _ImagePreview extends StatelessWidget {
+  const _ImagePreview({required this.image, required this.onRemove});
+
+  final XFile image;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Image.file(
+            File(image.path),
+            width: 78,
+            height: 78,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => const ColoredBox(
+              color: Color(0xFFF7F2F5),
+              child: SizedBox(
+                width: 78,
+                height: 78,
+                child: Icon(Icons.broken_image_outlined),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          top: 3,
+          right: 3,
+          child: GestureDetector(
+            onTap: onRemove,
+            child: const CircleAvatar(
+              radius: 11,
+              backgroundColor: Color(0xCC292B32),
+              child: Icon(Icons.close_rounded, size: 14, color: Colors.white),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
