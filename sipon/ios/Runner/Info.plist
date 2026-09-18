@@ -66,6 +66,8 @@
 	<string>SipOn 需要使用相机拍照，用于提交反馈问题时附上现场照片。</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>SipOn 需要访问相册以选择图片，用于提交反馈问题时附上截图。</string>
+	<key>NSMotionUsageDescription</key>
+	<string>使用手机倾斜方向，让个人页面贴纸在贴纸池内滚动。</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

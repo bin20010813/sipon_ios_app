@@ -1,8 +1,11 @@
+import CoreMotion
 import Flutter
 import UIKit
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
+  private let stickerMotion = StickerMotionStream()
+
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -14,6 +17,15 @@ import UIKit
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     registerSiponMapView(with: engineBridge.pluginRegistry)
     registerSiponSticker(with: engineBridge.pluginRegistry)
+
+    if let registrar = engineBridge.pluginRegistry.registrar(
+      forPlugin: "StickerMotion"
+    ) {
+      FlutterEventChannel(
+        name: "sipon/sticker_motion",
+        binaryMessenger: registrar.messenger()
+      ).setStreamHandler(stickerMotion)
+    }
   }
 
   private func registerSiponSticker(with registry: FlutterPluginRegistry) {
@@ -27,5 +39,55 @@ import UIKit
     guard let registrar = registry.registrar(forPlugin: "SiponMapFactory") else { return }
     let factory = SiponMapFactory(messenger: registrar.messenger())
     registrar.register(factory, withId: SiponMapProtocol.viewType)
+  }
+}
+
+// 只在贴纸池订阅期间采集手机重力方向。
+private final class StickerMotionStream: NSObject, FlutterStreamHandler {
+  private let manager = CMMotionManager()
+
+  func onListen(
+    withArguments arguments: Any?,
+    eventSink events: @escaping FlutterEventSink
+  ) -> FlutterError? {
+    guard manager.isDeviceMotionAvailable else {
+      events(FlutterEndOfEventStream)
+      return nil
+    }
+
+    manager.deviceMotionUpdateInterval = 1.0 / 30.0
+
+    manager.startDeviceMotionUpdates(to: .main) { motion, error in
+      guard let gravity = motion?.gravity, error == nil else {
+        return
+      }
+
+      let orientation = UIApplication.shared.connectedScenes
+        .compactMap { $0 as? UIWindowScene }
+        .first { $0.activationState == .foregroundActive }?
+        .interfaceOrientation
+
+      switch orientation {
+      case .landscapeLeft:
+        events([-gravity.y, -gravity.x])
+      case .landscapeRight:
+        events([gravity.y, gravity.x])
+      case .portraitUpsideDown:
+        events([-gravity.x, gravity.y])
+      default:
+        events([gravity.x, -gravity.y])
+      }
+    }
+
+    return nil
+  }
+
+  func onCancel(withArguments arguments: Any?) -> FlutterError? {
+    manager.stopDeviceMotionUpdates()
+    return nil
+  }
+
+  deinit {
+    manager.stopDeviceMotionUpdates()
   }
 }

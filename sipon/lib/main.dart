@@ -400,11 +400,14 @@ class _SiponShellState extends State<_SiponShell> {
                 onRecordPressed: _openDrinkRecord,
               ),
               MapPage(bottomOverlayInset: _effectiveNavigationReserveHeight),
-              ProfilePage(
-                key: _profilePageKey,
-                bottomOverlayInset: _effectiveNavigationReserveHeight,
-                onRecordPressed: _openDrinkRecord,
-                onLogoutSucceeded: widget.onLogoutSucceeded,
+              TickerMode(
+                enabled: _currentIndex == 2,
+                child: ProfilePage(
+                  key: _profilePageKey,
+                  bottomOverlayInset: _effectiveNavigationReserveHeight,
+                  onRecordPressed: _openDrinkRecord,
+                  onLogoutSucceeded: widget.onLogoutSucceeded,
+                ),
               ),
             ],
           ),

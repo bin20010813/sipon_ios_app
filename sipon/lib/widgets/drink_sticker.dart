@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 
 import '../services/drink_budget_store.dart';
+import '../services/sticker_physics.dart';
 
 Color drinkStickerColorForType(String type) {
   return switch (type) {
@@ -293,71 +297,194 @@ class DrinkStickerGravityPool extends StatefulWidget {
 }
 
 class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  List<_StickerParticle> _particles = const [];
-  Size _lastSize = Size.zero;
-  bool _playScheduled = false;
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  static const _motion = EventChannel('sipon/sticker_motion');
+
+  final _physics = StickerPhysics();
+  late final Ticker _ticker;
+
+  StreamSubscription<dynamic>? _subscription;
+  Offset _filtered = Offset.zero;
+  Duration? _last;
+
+  List<DrinkBudgetRecord> _records = const [];
+  Size _bounds = Size.zero;
+  bool _initialized = false;
+  bool _appActive = true;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    );
+    WidgetsBinding.instance.addObserver(this);
+    _ticker = createTicker(_onTick);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncMotionSubscription();
   }
 
   @override
   void didUpdateWidget(covariant DrinkStickerGravityPool oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.records.map((r) => r.id).join(',') !=
-        widget.records.map((r) => r.id).join(',')) {
-      _particles = const [];
-      _lastSize = Size.zero;
-      _controller
-        ..stop()
-        ..value = 0;
+    if (_idsChanged(oldWidget.records, widget.records)) {
+      _initialized = false;
+      _bounds = Size.zero;
+      if (widget.records.isEmpty) {
+        _ticker.stop();
+        _last = null;
+        _physics.reset(const []);
+        _records = const [];
+      }
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _appActive = true;
+      _syncMotionSubscription();
+      _wake();
+    } else if (state == AppLifecycleState.paused) {
+      _appActive = false;
+      _syncMotionSubscription();
+      _ticker.stop();
+      _last = null;
     }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _subscription?.cancel();
+    _subscription = null;
+    _ticker
+      ..stop()
+      ..dispose();
     super.dispose();
   }
 
-  void _ensureParticles(Size size) {
-    if (_particles.isNotEmpty && _lastSize == size) return;
-    _lastSize = size;
-    final visible = widget.records.take(36).toList();
-    final random = math.Random(visible.length * 19 + 7);
-    _particles = [
-      for (var index = 0; index < visible.length; index++)
-        _StickerParticle(
-          record: visible[index],
-          size: 40 + random.nextDouble() * 18,
-          x: 14 + random.nextDouble() * math.max(24, size.width - 70),
-          y: -90 - random.nextDouble() * 180 - index * 9,
-          drift: -18 + random.nextDouble() * 36,
-          rotation: -0.25 + random.nextDouble() * 0.5,
-          angularVelocity: -0.18 + random.nextDouble() * 0.36,
-          delay: visible.length <= 1
-              ? 0
-              : index / (visible.length - 1) * 0.32,
-        ),
-    ];
-    _schedulePlayOnce();
+  bool _idsChanged(
+    List<DrinkBudgetRecord> a,
+    List<DrinkBudgetRecord> b,
+  ) {
+    if (a.length != b.length) return true;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].id != b[i].id) return true;
+    }
+    return false;
   }
 
-  void _schedulePlayOnce() {
-    if (_playScheduled) return;
-    _playScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _playScheduled = false;
-      if (!mounted || _particles.isEmpty) return;
-      _controller.forward(from: 0);
-    });
+  bool get _sensorEnabled => _appActive && TickerMode.valuesOf(context).enabled;
+
+  void _syncMotionSubscription() {
+    if (!mounted) return;
+    final shouldListen = _sensorEnabled;
+    if (shouldListen && _subscription == null) {
+      _subscription = _motion.receiveBroadcastStream().listen(
+        _onMotionEvent,
+        onError: (Object _) {},
+      );
+    } else if (!shouldListen && _subscription != null) {
+      _subscription?.cancel();
+      _subscription = null;
+    }
+  }
+
+  void _onMotionEvent(dynamic event) {
+    if (!mounted || event is! List || event.length < 2) return;
+    final x = (event[0] as num).toDouble();
+    final y = (event[1] as num).toDouble();
+
+    final target = Offset(
+      x.abs() < .04 ? 0 : x * 1100,
+      y.abs() < .08 ? 550 : y * 1100,
+    );
+
+    _filtered = Offset.lerp(_filtered, target, .18)!;
+
+    if ((_filtered - _physics.gravity).distance > 35) {
+      _physics.gravity = _filtered;
+      _wake();
+    }
+  }
+
+  void _wake() {
+    if (!mounted) return;
+    _physics.wake();
+    if (!_ticker.isActive) {
+      _last = null;
+      _ticker.start();
+    }
+  }
+
+  void _onTick(Duration elapsed) {
+    final last = _last;
+    _last = elapsed;
+    if (last == null) return;
+
+    final dt = (elapsed - last).inMicroseconds / 1e6;
+    if (dt <= 0) return;
+
+    _physics.step(dt, _bounds);
+
+    if (_physics.sleeping) {
+      _ticker.stop();
+      _last = null;
+    } else {
+      setState(() {});
+    }
+  }
+
+  void _ensureBodies(Size size) {
+    if (_initialized && _bounds == size) return;
+    _bounds = size;
+    _initialized = true;
+
+    final visible = widget.records.take(36).toList();
+    _records = visible;
+    final scale = _poolScale(visible.length, size);
+    final random = math.Random(visible.length * 19 + 7);
+
+    _physics.reset([
+      for (var index = 0; index < visible.length; index++)
+        _createBody(visible[index], scale, random, size),
+    ]);
+    _wake();
+  }
+
+  StickerBody _createBody(
+    DrinkBudgetRecord record,
+    double scale,
+    math.Random random,
+    Size bounds,
+  ) {
+    final diameter = stickerSizeForAmount(record.amount) * scale;
+    final left = diameter / 2;
+    final right = math.max(left, bounds.width - diameter / 2);
+    return StickerBody(
+      position: Offset(
+        left + random.nextDouble() * (right - left),
+        -diameter - random.nextDouble() * 140,
+      ),
+      velocity: Offset(
+        -30 + random.nextDouble() * 60,
+        -20 + random.nextDouble() * 40,
+      ),
+      size: diameter,
+      angle: -0.25 + random.nextDouble() * 0.5,
+      angularVelocity: -0.4 + random.nextDouble() * 0.8,
+    );
+  }
+
+  double _poolScale(int count, Size bounds) {
+    if (count <= 1) return 1;
+    final area = math.max(1.0, bounds.width * bounds.height);
+    final need = count * 46.0 * 46.0;
+    final ratio = area * 0.78 / need;
+    if (ratio >= 1) return 1;
+    return math.sqrt(ratio).clamp(0.5, 1.0);
   }
 
   @override
@@ -386,7 +513,7 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
     return LayoutBuilder(
       builder: (context, constraints) {
         final size = Size(constraints.maxWidth, widget.height);
-        _ensureParticles(size);
+        _ensureBodies(size);
         return ClipRRect(
           borderRadius: BorderRadius.circular(14),
           child: Container(
@@ -415,15 +542,8 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
                     ),
                   ),
                 ),
-                for (final particle in _particles)
-                  _AnimatedStickerParticle(
-                    particle: particle,
-                    animation: _controller,
-                    bounds: size,
-                    onTap: widget.onStickerTap == null
-                        ? null
-                        : () => widget.onStickerTap!(particle.record),
-                  ),
+                for (var index = 0; index < _records.length; index++)
+                  _buildSticker(index),
               ],
             ),
           ),
@@ -431,82 +551,26 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
       },
     );
   }
-}
 
-class _AnimatedStickerParticle extends StatelessWidget {
-  const _AnimatedStickerParticle({
-    required this.particle,
-    required this.animation,
-    required this.bounds,
-    this.onTap,
-  });
+  Widget _buildSticker(int index) {
+    final body = _physics.bodies[index];
+    final record = _records[index];
 
-  final _StickerParticle particle;
-  final Animation<double> animation;
-  final Size bounds;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
     return Positioned(
-      left: 0,
-      top: 0,
-      child: AnimatedBuilder(
-        animation: animation,
+      left: body.position.dx - body.size / 2,
+      top: body.position.dy - body.size / 2,
+      child: Transform.rotate(
+        angle: body.angle,
         child: RepaintBoundary(
           child: DrinkSticker(
-            record: particle.record,
-            size: particle.size,
-            onTap: onTap,
+            record: record,
+            size: body.size,
+            onTap: widget.onStickerTap == null
+                ? null
+                : () => widget.onStickerTap!(record),
           ),
         ),
-        builder: (context, child) {
-          final progress = ((animation.value - particle.delay) /
-                  math.max(0.001, 1 - particle.delay))
-              .clamp(0.0, 1.0);
-          final fallProgress = Curves.bounceOut.transform(progress);
-          final landingY = bounds.height - particle.size - 8;
-          final y = particle.y + (landingY - particle.y) * fallProgress;
-          final settleFactor = 1 - progress;
-          final x = (particle.x +
-                  math.sin(progress * math.pi) *
-                      particle.drift *
-                      settleFactor)
-              .clamp(8.0, bounds.width - particle.size - 8);
-          final rotation =
-              particle.rotation +
-              particle.angularVelocity *
-                  math.sin(progress * math.pi * 3) *
-                  settleFactor;
-
-          return Transform.translate(
-            offset: Offset(x, y),
-            child: Transform.rotate(angle: rotation, child: child),
-          );
-        },
       ),
     );
   }
-}
-
-class _StickerParticle {
-  _StickerParticle({
-    required this.record,
-    required this.size,
-    required this.x,
-    required this.y,
-    required this.drift,
-    required this.rotation,
-    required this.angularVelocity,
-    required this.delay,
-  });
-
-  final DrinkBudgetRecord record;
-  final double size;
-  final double x;
-  final double y;
-  final double drift;
-  final double rotation;
-  final double angularVelocity;
-  final double delay;
 }

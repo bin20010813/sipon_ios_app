@@ -1575,6 +1575,7 @@ class _CategoryChip extends StatelessWidget {
   }
 }
 
+// ignore: unused_element -- 调酒师故事模块暂时隐藏，恢复时取消首页 build 中的注释即可
 class _BartenderStories extends StatelessWidget {
   const _BartenderStories();
 
@@ -1623,6 +1624,7 @@ class _BartenderStories extends StatelessWidget {
   }
 }
 
+// ignore: unused_element -- 调酒师故事模块暂时隐藏，恢复时取消首页 build 中的注释即可
 class _StoryCard extends StatelessWidget {
   const _StoryCard({
     required this.height,
