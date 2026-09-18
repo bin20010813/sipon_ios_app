@@ -10,10 +10,14 @@ import '../services/map/sipon_map_host.dart';
 import '../services/map/sipon_map_widget.dart';
 import '../services/sipon_api_config.dart';
 import '../services/sipon_api_service.dart';
+import '../services/sipon_auth_service.dart';
+import '../services/user_profile_data.dart';
 import '../widgets/bottom_clamping_bouncing_scroll_physics.dart';
 import '../widgets/drink_sticker.dart';
 import 'drink_sticker_calendar_page.dart';
 import 'language_transform.dart';
+import 'profile_edit_page.dart';
+import 'public_profile_page.dart';
 import 'settings_support_page.dart';
 
 String _formatCurrency(double value) {
@@ -81,6 +85,8 @@ class ProfilePage extends StatefulWidget {
 class ProfilePageState extends State<ProfilePage> {
   final GlobalKey<_QuickEntryCardState> _quickEntryKey = GlobalKey();
   final SiponApiService _api = SiponApiService();
+  UserProfileData? _profile;
+  bool _profileLoading = true;
 
   /// 礼券数量；为 null 表示尚未加载或加载失败。
   int? _couponCount;
@@ -92,7 +98,57 @@ class ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
+    _loadProfile();
     _loadBenefits();
+  }
+
+  /// 资料和概览分开请求；概览失败不会阻塞用户基础信息展示。
+  Future<void> _loadProfile() async {
+    UserProfileData? profile;
+    try {
+      final rawProfile = await _api.getMyProfile();
+      profile = UserProfileData.fromJson(rawProfile);
+      try {
+        profile = profile.mergeOverview(await _api.getMyOverview());
+      } on Exception {
+        // 概览接口暂不可用时，仍展示 GET /users/me 的资料。
+      }
+    } on Exception {
+      final cachedUser = SiponAuthService.instance.session?.user;
+      if (cachedUser != null && cachedUser.isNotEmpty) {
+        profile = UserProfileData.fromJson(cachedUser);
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _profile = profile;
+      _profileLoading = false;
+    });
+  }
+
+  Future<void> _editProfile() async {
+    final current = _profile;
+    if (current == null) {
+      _showProfileMessage(context, '资料仍在加载，请稍后重试。');
+      return;
+    }
+    final updated = await Navigator.of(context).push<UserProfileData>(
+      MaterialPageRoute(builder: (_) => ProfileEditPage(profile: current)),
+    );
+    if (updated != null && mounted) {
+      setState(() => _profile = updated);
+      _loadProfile();
+    }
+  }
+
+  void _openPublicProfile() {
+    final id = _profile?.id;
+    if (id == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PublicProfilePage(userId: id, isCurrentUser: true),
+      ),
+    );
   }
 
   /// 重新拉取三个快捷入口的计数，保证与后端最新数据一致。
@@ -191,7 +247,14 @@ class ProfilePageState extends State<ProfilePage> {
                           onLogoutSucceeded: onLogoutSucceeded,
                         ),
                         const SizedBox(height: 22),
-                        const _ProfileHeader(),
+                        _ProfileHeader(
+                          profile: _profile,
+                          loading: _profileLoading,
+                          onEdit: _editProfile,
+                          onViewPublicProfile: _profile?.id == null
+                              ? null
+                              : _openPublicProfile,
+                        ),
                         const SizedBox(height: 22),
                         _QuickEntryCard(key: _quickEntryKey),
                         const SizedBox(height: 18),
@@ -325,7 +388,17 @@ class _TopIconButton extends StatelessWidget {
 }
 
 class _ProfileHeader extends StatelessWidget {
-  const _ProfileHeader();
+  const _ProfileHeader({
+    required this.profile,
+    required this.loading,
+    required this.onEdit,
+    this.onViewPublicProfile,
+  });
+
+  final UserProfileData? profile;
+  final bool loading;
+  final VoidCallback onEdit;
+  final VoidCallback? onViewPublicProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -335,14 +408,14 @@ class _ProfileHeader extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        const _ProfileAvatar(),
+        _ProfileAvatar(avatarUrl: profile?.avatarUrl),
         const SizedBox(width: 14),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                text.profileName,
+                loading ? '加载中…' : (profile?.name ?? text.profileName),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: textTheme.titleLarge?.copyWith(
@@ -353,7 +426,9 @@ class _ProfileHeader extends StatelessWidget {
               ),
               const SizedBox(height: 5),
               Text(
-                text.profileId,
+                profile?.id == null
+                    ? text.profileId
+                    : 'Sipon ID: ${profile!.id}',
                 style: textTheme.bodySmall?.copyWith(
                   color: ProfilePage._muted,
                   letterSpacing: 0,
@@ -362,8 +437,15 @@ class _ProfileHeader extends StatelessWidget {
             ],
           ),
         ),
+        if (onViewPublicProfile != null)
+          IconButton(
+            tooltip: '查看公开主页',
+            onPressed: onViewPublicProfile,
+            icon: const Icon(Icons.visibility_outlined, size: 20),
+            color: const Color(0xFF8E8790),
+          ),
         TextButton(
-          onPressed: () {},
+          onPressed: loading ? null : onEdit,
           style: TextButton.styleFrom(
             foregroundColor: const Color(0xFFB7ABB3),
             padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -385,7 +467,9 @@ class _ProfileHeader extends StatelessWidget {
 }
 
 class _ProfileAvatar extends StatelessWidget {
-  const _ProfileAvatar();
+  const _ProfileAvatar({this.avatarUrl});
+
+  final String? avatarUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -414,13 +498,7 @@ class _ProfileAvatar extends StatelessWidget {
                   ),
                 ],
               ),
-              child: ClipOval(
-                child: Image.asset(
-                  ProfilePage._avatarAsset,
-                  fit: BoxFit.cover,
-                  alignment: Alignment.topCenter,
-                ),
-              ),
+              child: ClipOval(child: _buildAvatarImage()),
             ),
           ),
           Positioned(
@@ -467,6 +545,26 @@ class _ProfileAvatar extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAvatarImage() {
+    final rawUrl = avatarUrl?.trim();
+    if (rawUrl == null || rawUrl.isEmpty) {
+      return Image.asset(
+        ProfilePage._avatarAsset,
+        fit: BoxFit.cover,
+        alignment: Alignment.topCenter,
+      );
+    }
+    return Image.network(
+      SiponApiConfig.instance.resolveUri(rawUrl).toString(),
+      fit: BoxFit.cover,
+      errorBuilder: (_, _, _) => Image.asset(
+        ProfilePage._avatarAsset,
+        fit: BoxFit.cover,
+        alignment: Alignment.topCenter,
       ),
     );
   }
