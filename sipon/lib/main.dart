@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -317,7 +318,7 @@ class _SiponShellState extends State<_SiponShell> {
     Navigator.of(context).push(
       PageRouteBuilder<void>(
         opaque: false,
-        barrierColor: const Color(0x66000000),
+        barrierColor: Colors.transparent,
         barrierDismissible: true,
         transitionDuration: const Duration(milliseconds: 280),
         reverseTransitionDuration: const Duration(milliseconds: 220),
@@ -761,27 +762,30 @@ class _SiponPlusSheet extends StatelessWidget {
     final text = SiponLanguageScope.textOf(context);
     final mediaQuery = MediaQuery.of(context);
     final viewInsets = mediaQuery.viewInsets.bottom;
+    final bottomSafeInset = math.max(mediaQuery.viewPadding.bottom, 16.0);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
+      resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
           Positioned.fill(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () => Navigator.of(context).maybePop(),
+              child: const ColoredBox(color: Color(0x1A1B1219)),
             ),
           ),
           Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
+            left: 16,
+            right: 16,
+            bottom: viewInsets + bottomSafeInset,
             child: Padding(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, viewInsets),
+              padding: EdgeInsets.zero,
               child: Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF7F2F5),
                   borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: const Color(0x66FFFFFF)),
                   boxShadow: const [
                     BoxShadow(
                       color: Color(0x33000000),
@@ -790,14 +794,21 @@ class _SiponPlusSheet extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(18, 12, 18, 22),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(28),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                    child: ColoredBox(
+                      color: const Color(0xBFF7F2F5),
+                      child: SafeArea(
+                        top: false,
+                        bottom: false,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(18, 12, 18, 22),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
                         Center(
                           child: Container(
                             width: 44,
@@ -834,7 +845,10 @@ class _SiponPlusSheet extends StatelessWidget {
                           onCheckIn: onCheckIn,
                           onAddVenue: onAddVenue,
                         ),
-                      ],
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
