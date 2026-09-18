@@ -34,6 +34,7 @@ class MapPage extends StatefulWidget {
     this.showMapControls = true,
     this.allowSheetCollapse = true,
     this.onVenueClose,
+    this.onSheetProgressChanged,
   });
 
   final double bottomOverlayInset;
@@ -42,6 +43,7 @@ class MapPage extends StatefulWidget {
   final bool showMapControls;
   final bool allowSheetCollapse;
   final VoidCallback? onVenueClose;
+  final ValueChanged<double>? onSheetProgressChanged;
 
   @override
   State<MapPage> createState() => _MapPageState();
@@ -65,6 +67,7 @@ class _MapPageState extends State<MapPage> {
   void initState() {
     super.initState();
     _sheet = VenueSheetController(initialStage: widget.initialSheetStage);
+    _sheet.extent.addListener(_handleSheetExtent);
     _data = MapDataController(
       repository: SiponApiMapVenueRepository(),
       city: SiponCityController.defaultCity,
@@ -103,6 +106,7 @@ class _MapPageState extends State<MapPage> {
     _data.removeListener(_handleDataChanged);
     _scene.detach();
     _sheet.removeListener(_handleSheetStage);
+    _sheet.extent.removeListener(_handleSheetExtent);
     _sheet.dispose();
     _data.dispose();
     super.dispose();
@@ -149,6 +153,12 @@ class _MapPageState extends State<MapPage> {
   void _handleSheetStage() {
     if (!mounted || !_scene.isAttached) return;
     unawaited(_applyStage());
+  }
+
+  void _handleSheetExtent() {
+    widget.onSheetProgressChanged?.call(
+      _sheet.progressFor(_sheet.currentExtent),
+    );
   }
 
   /// 把当前数据整帧交给地图。[MapSceneController] 自己比指纹决定要不要真下发。
@@ -321,21 +331,38 @@ class _MapPageState extends State<MapPage> {
   }
 
   Widget _buildTopControls() {
-    return SafeArea(
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: ListenableBuilder(
-          listenable: _data,
-          builder: (context, _) => MapSearchAndFilters(
-            selectedKind: _data.categoryFilter,
-            status: _data.status,
-            searchQuery: _data.searchQuery,
-            onCategoryToggled: _data.toggleCategory,
-            onFilterPressed: _showMapTools,
-            onSearchChanged: _data.setSearchQuery,
+    return ValueListenableBuilder<double>(
+      valueListenable: _sheet.extent,
+      builder: (context, rawExtent, _) {
+        final progress = _sheet.progressFor(
+          rawExtent <= 0 ? _sheet.collapsedExtent : rawExtent,
+        );
+        return IgnorePointer(
+          ignoring: progress > 0.05,
+          child: Opacity(
+            opacity: 1 - progress,
+            child: Transform.translate(
+              offset: Offset(0, -32 * progress),
+              child: SafeArea(
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: ListenableBuilder(
+                    listenable: _data,
+                    builder: (context, _) => MapSearchAndFilters(
+                      selectedKind: _data.categoryFilter,
+                      status: _data.status,
+                      searchQuery: _data.searchQuery,
+                      onCategoryToggled: _data.toggleCategory,
+                      onFilterPressed: _showMapTools,
+                      onSearchChanged: _data.setSearchQuery,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -408,7 +435,11 @@ class _MapPageState extends State<MapPage> {
                       progress: _sheet.progressFor(extent),
                       fullscreenProgress: _sheet.fullscreenProgressFor(extent),
                       collapsedBottomGap: collapsedBottomGap,
-                      bottomOverlayInset: widget.bottomOverlayInset,
+                      bottomOverlayInset: mapLerp(
+                        widget.bottomOverlayInset,
+                        MediaQuery.paddingOf(context).bottom,
+                        _sheet.progressFor(extent),
+                      ),
                       onExpand: _sheet.expand,
                       onCollapse: widget.onVenueClose ?? _sheet.collapse,
                     );

@@ -53,8 +53,8 @@ class VenueSheetController extends ChangeNotifier {
          initialStage == VenueSheetStage.collapsed
              ? 0
              : initialStage == VenueSheetStage.half
-                 ? halfExtent
-                 : maxExtent,
+             ? halfExtent
+             : maxExtent,
        ),
        _stage = initialStage;
 
@@ -206,6 +206,8 @@ class VenueSheetController extends ChangeNotifier {
       return;
     }
 
+    // 点击展开时就开始调整地图视角，不必等面板动画结束后再取景。
+    _moveToStage(VenueSheetStage.half);
     unawaited(
       sheet.animateTo(halfExtent, duration: motionDuration, curve: motionCurve),
     );
@@ -217,6 +219,7 @@ class VenueSheetController extends ChangeNotifier {
       return;
     }
 
+    _moveToStage(VenueSheetStage.collapsed);
     unawaited(
       sheet
           .animateTo(

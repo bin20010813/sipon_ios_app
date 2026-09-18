@@ -278,6 +278,19 @@ class _SiponShellState extends State<_SiponShell> {
 
   int _currentIndex = 0;
   bool _recordRouteOpening = false;
+  final ValueNotifier<double> _mapSheetProgress = ValueNotifier<double>(0);
+
+  @override
+  void dispose() {
+    _mapSheetProgress.dispose();
+    super.dispose();
+  }
+
+  void _handleMapSheetProgress(double progress) {
+    if (_mapSheetProgress.value != progress) {
+      _mapSheetProgress.value = progress;
+    }
+  }
 
   @override
   void initState() {
@@ -400,7 +413,10 @@ class _SiponShellState extends State<_SiponShell> {
                 bottomOverlayInset: _effectiveNavigationReserveHeight,
                 onRecordPressed: _openDrinkRecord,
               ),
-              MapPage(bottomOverlayInset: _effectiveNavigationReserveHeight),
+              MapPage(
+                bottomOverlayInset: _effectiveNavigationReserveHeight,
+                onSheetProgressChanged: _handleMapSheetProgress,
+              ),
               TickerMode(
                 enabled: _currentIndex == 2,
                 child: ProfilePage(
@@ -412,28 +428,45 @@ class _SiponShellState extends State<_SiponShell> {
               ),
             ],
           ),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: IgnorePointer(
-              ignoring: keyboardVisible,
-              child: AnimatedSlide(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOutCubic,
-                offset: keyboardVisible ? const Offset(0, 1.25) : Offset.zero,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 120),
-                  opacity: keyboardVisible ? 0 : 1,
-                  child: SafeArea(
-                    minimum: const EdgeInsets.fromLTRB(34, 0, 34, 1),
-                    child: _SiponBottomJumpBar(
-                      currentIndex: _currentIndex,
-                      onTabSelected: _selectTab,
-                      onPlusPressed: _openPlusSheet,
+          ValueListenableBuilder<double>(
+            valueListenable: _mapSheetProgress,
+            builder: (context, sheetProgress, _) {
+              final progress = _currentIndex == 1 ? sheetProgress : 0.0;
+              return Align(
+                alignment: Alignment.bottomCenter,
+                child: IgnorePointer(
+                  ignoring: keyboardVisible || progress > 0.05,
+                  child: AnimatedSlide(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    offset: keyboardVisible
+                        ? const Offset(0, 1.25)
+                        : Offset.zero,
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 120),
+                      opacity: keyboardVisible ? 0 : 1,
+                      child: Transform.translate(
+                        offset: Offset(
+                          0,
+                          (_effectiveNavigationReserveHeight + 12) * progress,
+                        ),
+                        child: Opacity(
+                          opacity: 1 - progress,
+                          child: SafeArea(
+                            minimum: const EdgeInsets.fromLTRB(34, 0, 34, 1),
+                            child: _SiponBottomJumpBar(
+                              currentIndex: _currentIndex,
+                              onTabSelected: _selectTab,
+                              onPlusPressed: _openPlusSheet,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ],
       ),
@@ -809,42 +842,42 @@ class _SiponPlusSheet extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                        Center(
-                          child: Container(
-                            width: 44,
-                            height: 5,
-                            decoration: BoxDecoration(
-                              color: const Color(0x22000000),
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        Text(
-                          text.plusSheetTitle,
-                          style: TextStyle(
-                            color: Color(0xFF252229),
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          text.plusSheetHint,
-                          style: TextStyle(
-                            color: _muted,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0,
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        _SiponPlusSheetGrid(
-                          onPlanRoute: onPlanRoute,
-                          onCheckIn: onCheckIn,
-                          onAddVenue: onAddVenue,
-                        ),
+                              Center(
+                                child: Container(
+                                  width: 44,
+                                  height: 5,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0x22000000),
+                                    borderRadius: BorderRadius.circular(3),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 18),
+                              Text(
+                                text.plusSheetTitle,
+                                style: TextStyle(
+                                  color: Color(0xFF252229),
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                text.plusSheetHint,
+                                style: TextStyle(
+                                  color: _muted,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0,
+                                ),
+                              ),
+                              const SizedBox(height: 18),
+                              _SiponPlusSheetGrid(
+                                onPlanRoute: onPlanRoute,
+                                onCheckIn: onCheckIn,
+                                onAddVenue: onAddVenue,
+                              ),
                             ],
                           ),
                         ),
