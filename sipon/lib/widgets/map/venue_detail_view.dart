@@ -32,6 +32,7 @@ class VenueDetailContent extends StatefulWidget {
     required this.topInset,
     required this.bottomOverlayInset,
     required this.onClose,
+    this.onAddressTap,
     this.repository,
   });
 
@@ -52,6 +53,9 @@ class VenueDetailContent extends StatefulWidget {
 
   /// 点击关闭按钮的回调。
   final VoidCallback onClose;
+
+  /// 独立详情页可接管地址点击；地图面板未传时仍打开外部导航。
+  final ValueChanged<MapVenue>? onAddressTap;
 
   /// 详情数据源；为 null 时使用 Mock，保持既有演示行为。
   final VenueDetailRepository? repository;
@@ -706,7 +710,10 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
           const SizedBox(height: 18),
           _VenueInfoCard(
             detail: detail,
-            onOpenMap: _openPoiNavigation,
+            onOpenMap: widget.onAddressTap == null
+                ? _openPoiNavigation
+                : () => widget.onAddressTap!(detail?.venue ?? widget.venue),
+            addressActionLabel: widget.onAddressTap == null ? '点击导航' : '查看地图',
             onCall: () =>
                 _showMockToast(text.t('正在拨打 ${detail?.phone ?? ''}（演示）')),
           ),
@@ -1154,11 +1161,13 @@ class _VenueInfoCard extends StatelessWidget {
   const _VenueInfoCard({
     required this.detail,
     required this.onOpenMap,
+    required this.addressActionLabel,
     required this.onCall,
   });
 
   final VenueDetail? detail;
   final VoidCallback onOpenMap;
+  final String addressActionLabel;
   final VoidCallback onCall;
 
   @override
@@ -1189,7 +1198,8 @@ class _VenueInfoCard extends StatelessWidget {
           _InfoTile(
             icon: Icons.location_on_outlined,
             title: text.t(data.venue.address),
-            subtitle: '${text.t(data.venue.distance)} · ${text.t('点击导航')}',
+            subtitle:
+                '${text.t(data.venue.distance)} · ${text.t(addressActionLabel)}',
             onTap: onOpenMap,
           ),
           const Divider(

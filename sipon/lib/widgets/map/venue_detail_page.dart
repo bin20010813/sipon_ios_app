@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../pages/venue_map_half_page.dart';
 import '../../services/map/api_venue_detail_repository.dart';
 import '../../services/map/map_models.dart';
 import 'venue_detail_view.dart';
@@ -20,9 +21,33 @@ class VenueDetailPage extends StatefulWidget {
 
 class _VenueDetailPageState extends State<VenueDetailPage> {
   final _scrollController = ScrollController();
+  bool _openingMap = false;
 
   /// 详情数据源：数字 id 走真接口，演示数据自动回退 Mock。
   final _repository = SiponApiVenueDetailRepository();
+
+  Future<void> _openMap(MapVenue venue) async {
+    if (_openingMap) return;
+    final longitude = venue.longitude;
+    final latitude = venue.latitude;
+    if (!longitude.isFinite ||
+        !latitude.isFinite ||
+        longitude.abs() > 180 ||
+        latitude.abs() > 90 ||
+        (longitude == 0 && latitude == 0)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('该地点暂无可用位置')));
+      return;
+    }
+
+    _openingMap = true;
+    try {
+      await openVenueMapHalfPage<void>(context, venue);
+    } finally {
+      _openingMap = false;
+    }
+  }
 
   @override
   void dispose() {
@@ -42,6 +67,7 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
       topInset: MediaQuery.paddingOf(context).top,
       bottomOverlayInset: 0,
       onClose: () => Navigator.of(context).pop(),
+      onAddressTap: _openMap,
       repository: _repository,
     ),
   );
