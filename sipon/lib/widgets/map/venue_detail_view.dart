@@ -724,7 +724,9 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
         _pagePadding,
         18,
         _pagePadding,
-        widget.bottomOverlayInset + MediaQuery.paddingOf(context).bottom + 24,
+        // bottomOverlayInset 已经包含全局底栏高度和系统底部安全区，不能
+        // 再叠加一次 MediaQuery bottom inset。
+        widget.bottomOverlayInset + 24,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

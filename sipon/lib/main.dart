@@ -263,8 +263,13 @@ class _SiponShell extends StatefulWidget {
 class _SiponShellState extends State<_SiponShell> {
   static const double _navigationBarHeight = 62;
 
+  // viewPadding 是设备的固定系统安全区；padding 会在键盘出现时扣掉
+  // viewInsets，因此不能用它来决定全局悬浮导航的基线位置。
+  double get _systemBottomInset =>
+      math.max(MediaQuery.viewPaddingOf(context).bottom, 4);
+
   double get _effectiveNavigationReserveHeight =>
-      _navigationBarHeight + math.max(MediaQuery.paddingOf(context).bottom, 4);
+      _navigationBarHeight + _systemBottomInset;
 
   /// 我的页状态引用，用于切回 tab / 规划路线 / 打卡返回后刷新快捷入口计数。
   final GlobalKey<ProfilePageState> _profilePageKey =
@@ -379,7 +384,12 @@ class _SiponShellState extends State<_SiponShell> {
 
   @override
   Widget build(BuildContext context) {
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
+
     return Scaffold(
+      // 搜索框获取焦点时，不让 Scaffold 缩短 Stack 的可用高度；否则底栏会
+      // 被键盘顶起。键盘期间底栏会隐藏，搜索框仍位于屏幕顶部可正常输入。
+      resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
           IndexedStack(
@@ -400,12 +410,24 @@ class _SiponShellState extends State<_SiponShell> {
           ),
           Align(
             alignment: Alignment.bottomCenter,
-            child: SafeArea(
-              minimum: const EdgeInsets.fromLTRB(34, 0, 34, 1),
-              child: _SiponBottomJumpBar(
-                currentIndex: _currentIndex,
-                onTabSelected: _selectTab,
-                onPlusPressed: _openPlusSheet,
+            child: IgnorePointer(
+              ignoring: keyboardVisible,
+              child: AnimatedSlide(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                offset: keyboardVisible ? const Offset(0, 1.25) : Offset.zero,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 120),
+                  opacity: keyboardVisible ? 0 : 1,
+                  child: SafeArea(
+                    minimum: const EdgeInsets.fromLTRB(34, 0, 34, 1),
+                    child: _SiponBottomJumpBar(
+                      currentIndex: _currentIndex,
+                      onTabSelected: _selectTab,
+                      onPlusPressed: _openPlusSheet,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
