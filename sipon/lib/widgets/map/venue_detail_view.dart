@@ -225,9 +225,9 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
       );
   }
 
-  Future<void> _openPoiNavigation() async {
+  Future<void> _openNavigation() async {
     final text = SiponLanguageScope.textOf(context);
-    final apps = await ExternalMapLauncher.availablePoiApps();
+    final apps = await ExternalMapLauncher.availableNavigationApps();
     if (!mounted) {
       return;
     }
@@ -275,7 +275,7 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
                   ),
                 ),
                 subtitle: Text(
-                  text.t('打开点位后选择交通方式'),
+                  text.t('以当前位置规划路线，可选择交通方式'),
                   style: const TextStyle(
                     color: MapDesign.muted,
                     fontSize: 12,
@@ -293,12 +293,11 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
       return;
     }
 
-    final result = await ExternalMapLauncher.openPoi(
+    final result = await ExternalMapLauncher.openNavigation(
       app: selected,
       name: widget.venue.name,
       longitude: widget.venue.longitude,
       latitude: widget.venue.latitude,
-      address: widget.venue.address,
     );
     if (!mounted) {
       return;
@@ -705,13 +704,13 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
             detail: detail,
             favorite: _favorite,
             onToggleFavorite: _toggleFavorite,
-            onNavigate: _openPoiNavigation,
+            onNavigate: _openNavigation,
           ),
           const SizedBox(height: 18),
           _VenueInfoCard(
             detail: detail,
             onOpenMap: widget.onAddressTap == null
-                ? _openPoiNavigation
+                ? _openNavigation
                 : () => widget.onAddressTap!(detail?.venue ?? widget.venue),
             addressActionLabel: widget.onAddressTap == null ? '点击导航' : '查看地图',
             onCall: () =>

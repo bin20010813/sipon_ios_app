@@ -1,6 +1,6 @@
 import 'package:url_launcher/url_launcher.dart';
 
-/// 可从 POI 详情页唤起的外部地图 App。
+/// 可从地点详情页唤起的外部地图 App。
 enum ExternalMapApp {
   apple('Apple 地图'),
   amap('高德地图'),
@@ -20,7 +20,7 @@ class ExternalMapLaunchResult {
   final String message;
 
   static ExternalMapLaunchResult success(ExternalMapApp app) =>
-      ExternalMapLaunchResult._(true, '已打开${app.label}，请在地图内选择交通方式');
+      ExternalMapLaunchResult._(true, '已打开${app.label}路线规划，请选择交通方式出发');
 
   static ExternalMapLaunchResult unavailable([ExternalMapApp? app]) =>
       ExternalMapLaunchResult._(
@@ -31,13 +31,13 @@ class ExternalMapLaunchResult {
 
 /// 第三方地图唤起服务。
 ///
-/// POI 详情页只把目标点交给外部地图展示，不直接指定驾车/步行路线。
-/// 用户进入地图 App 后再按自己的场景选择交通方式，符合 iOS MapKit/地图 App
-/// 对地点展示与路线规划的分工。
+/// 「出发」按钮以当前位置为起点、目标地点为终点，调起外部地图的
+/// 路线规划界面（而非地点详情）。起点坐标不传，由地图 App 默认取
+/// 当前定位；具体交通方式（驾车/步行/公交等）在地图 App 内选择。
 class ExternalMapLauncher {
   const ExternalMapLauncher._();
 
-  static Future<List<ExternalMapApp>> availablePoiApps() async {
+  static Future<List<ExternalMapApp>> availableNavigationApps() async {
     final apps = <ExternalMapApp>[ExternalMapApp.apple];
     for (final app in const [
       ExternalMapApp.amap,
@@ -51,24 +51,22 @@ class ExternalMapLauncher {
     return apps;
   }
 
-  static Future<ExternalMapLaunchResult> openPoi({
+  static Future<ExternalMapLaunchResult> openNavigation({
     required ExternalMapApp app,
     required String name,
     required double longitude,
     required double latitude,
-    String? address,
   }) async {
     if (!longitude.isFinite || !latitude.isFinite) {
       return ExternalMapLaunchResult.unavailable(app);
     }
 
-    final poiName = name.trim().isEmpty ? '目的地' : name.trim();
-    final uri = _poiUri(
+    final destinationName = name.trim().isEmpty ? '目的地' : name.trim();
+    final uri = _routeUri(
       app: app,
-      name: poiName,
+      name: destinationName,
       longitude: longitude,
       latitude: latitude,
-      address: address,
     );
 
     if (!await canLaunchUrl(uri)) {
@@ -90,41 +88,43 @@ class ExternalMapLauncher {
     };
   }
 
-  static Uri _poiUri({
+  /// 各地图路线规划的 URL Scheme：
+  /// - Apple：`daddr` 打开路线页，起点默认当前位置；
+  /// - 高德：`path` 路线规划，`dev=1` 表示传入 WGS-84 坐标，由高德纠偏；
+  /// - 百度：`direction` 路线规划，`coord_type=wgs84` 由百度纠偏；
+  /// - 腾讯：`routeplan` 路线规划，`coord_type=1` 表示 GPS(WGS-84) 坐标。
+  static Uri _routeUri({
     required ExternalMapApp app,
     required String name,
     required double longitude,
     required double latitude,
-    String? address,
   }) {
     final lat = latitude.toStringAsFixed(8);
     final lng = longitude.toStringAsFixed(8);
-    final addr = address?.trim();
 
     return switch (app) {
       ExternalMapApp.apple => Uri.https('maps.apple.com', '/', {
-        'll': '$lat,$lng',
-        'q': name,
+        'daddr': '$lat,$lng',
       }),
       ExternalMapApp.amap => Uri(
         scheme: 'iosamap',
-        host: 'viewMap',
+        host: 'path',
         queryParameters: {
           'sourceApplication': 'Sipon',
-          'poiname': name,
-          'lat': lat,
-          'lon': lng,
+          'dname': name,
+          'dlat': lat,
+          'dlon': lng,
           'dev': '1',
+          't': '0',
         },
       ),
       ExternalMapApp.baidu => Uri(
         scheme: 'baidumap',
         host: 'map',
-        path: '/marker',
+        path: '/direction',
         queryParameters: {
-          'location': '$lat,$lng',
-          'title': name,
-          'content': (addr == null || addr.isEmpty) ? name : addr,
+          'destination': '$lat,$lng',
+          'mode': 'driving',
           'coord_type': 'wgs84',
           'src': 'Sipon',
         },
@@ -132,10 +132,12 @@ class ExternalMapLauncher {
       ExternalMapApp.tencent => Uri(
         scheme: 'qqmap',
         host: 'map',
-        path: '/marker',
+        path: '/routeplan',
         queryParameters: {
-          'marker':
-              'coord:$lat,$lng;title:$name${addr == null || addr.isEmpty ? '' : ';addr:$addr'}',
+          'type': 'drive',
+          'to': name,
+          'tocoord': '$lat,$lng',
+          'coord_type': '1',
           'referer': 'Sipon',
         },
       ),
