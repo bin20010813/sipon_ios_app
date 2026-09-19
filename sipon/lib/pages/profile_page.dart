@@ -17,6 +17,7 @@ import '../widgets/drink_sticker.dart';
 import 'drink_sticker_calendar_page.dart';
 import 'language_transform.dart';
 import 'profile_edit_page.dart';
+import 'venue_map_half_page.dart';
 import 'public_profile_page.dart';
 import 'settings_support_page.dart';
 
@@ -721,6 +722,7 @@ class _ProfileListEntry {
     required this.meta,
     this.id,
     this.imageUrl,
+    this.venue,
     this.isPrivate = false,
     this.viewCount,
     this.stops = const [],
@@ -735,6 +737,9 @@ class _ProfileListEntry {
 
   /// 后端返回的封面图（相对或绝对地址）；为空或加载失败时用 [fallbackImagePath]。
   final String? imageUrl;
+
+  /// 解析出的地点信息；喝过/想喝条目用于跳转半屏地图，礼券等无地点列表为 null。
+  final MapVenue? venue;
 
   /// 封面加载失败时的本地兜底素材。
   String get fallbackImagePath => 'assest/首页/图片素材/酒吧1.png';
@@ -935,6 +940,75 @@ String? _pickFirstUrl(Map<String, dynamic> map, List<String> keys) {
   return null;
 }
 
+/// 从喝过/想喝条目的原始 JSON 里解析跳转半屏地图所需的 [MapVenue]。
+/// 喝过条目（CheckIn）的酒吧字段可能平铺在顶层，也可能嵌在 bar/barInfo 等对象里；
+/// 坐标缺失时以 0 占位，跳转前由 [_openVenueHalfMap] 统一校验。
+MapVenue _venueFromEntryMap(Map<String, dynamic> map, {required String name}) {
+  final nested = _pickMapOf(map, ['bar', 'barInfo', 'venue', 'place']);
+  const empty = <String, dynamic>{};
+  // 嵌套对象可能不存在，统一用空 map 兜底，便于直接复用宽松取值函数。
+  final bar = nested ?? empty;
+  final rawTags = _pickList(map, ['tags']) ?? _pickList(bar, ['tags']);
+  return MapVenue(
+    id:
+        (_pickNum(map, ['barId', 'id']) ?? _pickNum(bar, ['barId', 'id']))
+            ?.toString() ??
+        name,
+    name: name,
+    longitude:
+        _pickCoordinate(map, longitude: true) ??
+        _pickCoordinate(nested, longitude: true) ??
+        0,
+    latitude:
+        _pickCoordinate(map, longitude: false) ??
+        _pickCoordinate(nested, longitude: false) ??
+        0,
+    kind: MapVenueKind.fromRaw(
+      _pickString(map, ['barSubtype', 'subtype', 'kind', 'type']) ??
+          _pickString(bar, ['barSubtype', 'subtype', 'kind', 'type']),
+    ),
+    rating:
+        (_pickNum(map, ['averageRating', 'rating', 'score']) ??
+                _pickNum(bar, ['averageRating', 'rating', 'score']))
+            ?.toDouble() ??
+        0,
+    address:
+        _pickString(map, ['address']) ?? _pickString(bar, ['address']) ?? '',
+    distance: '',
+    tags: [
+      if (rawTags != null)
+        for (final tag in rawTags)
+          if (tag != null) tag.toString(),
+    ],
+    imageAsset: 'assest/首页/图片素材/酒吧1.png',
+    imageUrl:
+        _pickString(map, ['imageUrl', 'image', 'cover', 'coverUrl']) ??
+        _pickString(bar, ['imageUrl', 'image', 'cover', 'coverUrl']),
+  );
+}
+
+/// 点击喝过/想喝条目：坐标有效时打开锁定的半屏地图（[VenueMapHalfPage]），
+/// 否则提示暂无位置，与独立详情页点地址的行为一致。
+Future<void> _openVenueHalfMap(BuildContext context, MapVenue venue) async {
+  final longitude = venue.longitude;
+  final latitude = venue.latitude;
+  if (!longitude.isFinite ||
+      !latitude.isFinite ||
+      longitude.abs() > 180 ||
+      latitude.abs() > 90 ||
+      (longitude == 0 && latitude == 0)) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('该地点暂无可用位置'),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+    return;
+  }
+  await openVenueMapHalfPage<void>(context, venue);
+}
+
 /// ISO 时间截断为 `yyyy-MM-dd` 日期文案。
 String _shortDate(String? iso) {
   if (iso == null || iso.length < 10) return '';
@@ -967,6 +1041,7 @@ Future<_ProfileListPage> _loadCheckInEntries(
           description: _pickString(map, ['content']) ?? '',
           meta: meta,
           imageUrl: _pickFirstUrl(map, ['mediaUrls', 'media', 'gallery']),
+          venue: _venueFromEntryMap(map, name: name),
         );
       }(),
   ].whereType<_ProfileListEntry>().toList(growable: false);
@@ -1001,6 +1076,7 @@ Future<_ProfileListPage> _loadWishlistEntries(
           imageUrl:
               _pickString(map, ['imageUrl', 'image', 'cover', 'coverUrl']) ??
               _pickFirstUrl(map, ['gallery']),
+          venue: _venueFromEntryMap(map, name: name),
         );
       }(),
   ].whereType<_ProfileListEntry>().toList(growable: false);
@@ -1571,16 +1647,22 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
       shrinkWrap: true,
       itemCount: _items.length + (_hasMore || _loadingMore ? 1 : 0),
       separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (_, index) {
+      itemBuilder: (context, index) {
         if (index >= _items.length) {
           return _ProfileListFooter(
             loading: _loadingMore,
             onLoadMore: _loadMore,
           );
         }
+        final item = _items[index];
         return widget.routeStyle
-            ? _MockRouteCard(item: _items[index], index: index)
-            : _MockListCard(item: _items[index]);
+            ? _MockRouteCard(item: item, index: index)
+            : _MockListCard(
+                item: item,
+                onOpenMap: item.venue == null
+                    ? null
+                    : () => _openVenueHalfMap(context, item.venue!),
+              );
       },
     );
   }
@@ -1649,69 +1731,77 @@ Widget _entryImage(
 }
 
 class _MockListCard extends StatelessWidget {
-  const _MockListCard({required this.item});
+  const _MockListCard({required this.item, this.onOpenMap});
   final _ProfileListEntry item;
+
+  /// 点击条目打开半屏地图；无地点的列表（如礼券）为 null，整卡不响应。
+  final VoidCallback? onOpenMap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: _entryImage(item, width: 88, height: 88),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  item.description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF858991),
-                    height: 1.3,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  item.meta,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF9A3D78),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+    return InkWell(
+      onTap: onOpenMap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: _entryImage(item, width: 88, height: 88),
             ),
-          ),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(
-              Icons.arrow_forward_ios_rounded,
-              size: 16,
-              color: Color(0xFF9A3D78),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    item.description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF858991),
+                      height: 1.3,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    item.meta,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF9A3D78),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            IconButton(
+              // 箭头与整卡同行为；无地点列表保持原先"可点无操作"，避免变灰。
+              onPressed: onOpenMap ?? () {},
+              icon: const Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 16,
+                color: Color(0xFF9A3D78),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -3243,9 +3333,7 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
             ),
           // 尾部留白 = 原有间距 32 + 底部安全区，保证静止时明细不被
           // 小白条遮挡；滚动中该区域随内容一起滑入滑出。
-          SliverToBoxAdapter(
-            child: SizedBox(height: 32 + bottomSafeInset),
-          ),
+          SliverToBoxAdapter(child: SizedBox(height: 32 + bottomSafeInset)),
         ],
       ),
     );
