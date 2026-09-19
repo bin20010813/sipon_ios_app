@@ -156,6 +156,9 @@ class _IngredientListPageState extends State<IngredientListPage> {
           ),
         ),
         child: SafeArea(
+          // bottom:false 让列表视口延伸到屏幕底，内容可滚过小白条区域；
+          // 底部空间由列表自身的 padding 预留。
+          bottom: false,
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 430),
@@ -247,7 +250,13 @@ class _IngredientListPageState extends State<IngredientListPage> {
     return ListView.separated(
       controller: _scrollController,
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(22, 14, 22, 28),
+      // 底部预留系统安全区（Home Indicator），内容滚动时可经过小白条区域。
+      padding: EdgeInsets.fromLTRB(
+        22,
+        14,
+        22,
+        28 + MediaQuery.paddingOf(context).bottom,
+      ),
       itemCount: _items.length + (_hasMore ? 1 : 0),
       separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {

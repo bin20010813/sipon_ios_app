@@ -122,6 +122,9 @@ class _IngredientDetailPageState extends State<IngredientDetailPage> {
           ),
         ),
         child: SafeArea(
+          // bottom:false 让详情内容视口延伸到屏幕底，内容可滚过小白条区域；
+          // 底部空间由 CustomScrollView 末尾的 SliverPadding 预留。
+          bottom: false,
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 430),
@@ -197,7 +200,13 @@ class _IngredientDetailPageState extends State<IngredientDetailPage> {
           ),
         ),
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(22, 18, 22, 28),
+          // 底部预留系统安全区（Home Indicator）。
+          padding: EdgeInsets.fromLTRB(
+            22,
+            18,
+            22,
+            28 + MediaQuery.paddingOf(context).bottom,
+          ),
           sliver: SliverList.list(
             children: [
               // 名称与分类信息。

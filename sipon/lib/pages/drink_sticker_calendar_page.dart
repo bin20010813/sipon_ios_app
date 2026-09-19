@@ -166,6 +166,9 @@ class _DrinkStickerCalendarPageState extends State<DrinkStickerCalendarPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
+        // bottom:false 让内容视口延伸到屏幕底，可滚过小白条区域；
+        // 底部空间由 CustomScrollView 的 SliverPadding 预留。
+        bottom: false,
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
@@ -173,7 +176,13 @@ class _DrinkStickerCalendarPageState extends State<DrinkStickerCalendarPage> {
               physics: const BouncingScrollPhysics(),
               slivers: [
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 26),
+                  // 底部预留系统安全区（Home Indicator）。
+                  padding: EdgeInsets.fromLTRB(
+                    20,
+                    8,
+                    20,
+                    26 + MediaQuery.paddingOf(context).bottom,
+                  ),
                   sliver: SliverList.list(
                     children: [
                       SizedBox(

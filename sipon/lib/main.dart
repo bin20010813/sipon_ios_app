@@ -249,6 +249,20 @@ class _StartupGateState extends State<_StartupGate> {
   }
 }
 
+/// 悬浮底栏与 Plus 弹层底边距离屏幕底边的间距。
+///
+/// iOS 与安卓的系统底部安全区差异很大（iPhone 恒为 34pt，安卓手势导航通常
+/// 0~24dp、三键导航约 48dp），因此拆成两个独立旋钮：
+/// - iOS 调减数 `- 20`（越小底栏越高，iPhone 上离底 = 34 - 减数）；
+/// - 安卓调加数 `+ 0`（越大底栏越高；加法在任何安卓机型都生效，
+///   而减法结果会落到底部下限之下，看起来就是"改了没反应"）。
+double _bottomBarBottomGapFor(double safeBottom) {
+  if (defaultTargetPlatform == TargetPlatform.iOS) {
+    return math.max(safeBottom - 18, 10);
+  }
+  return math.max(safeBottom + 2, 12);
+}
+
 class _SiponShell extends StatefulWidget {
   const _SiponShell({
     this.openRecordInitially = false,
@@ -265,13 +279,12 @@ class _SiponShell extends StatefulWidget {
 class _SiponShellState extends State<_SiponShell> {
   static const double _navigationBarHeight = 62;
 
-  // 悬浮底栏底边与屏幕底边的间距：只需部分让出系统底部安全区（iPhone 上
-  // 34-20=14pt，正好避开 Home Indicator 的绘制区），把整个安全区都垫在
-  // 栏下会让底栏悬空离底过远。viewPadding 是设备的固定系统安全区；
-  // padding 会在键盘出现时扣掉 viewInsets，因此不能用它来决定全局悬浮
-  // 导航的基线位置。
-  double get _bottomBarBottomGap =>
-      math.max(MediaQuery.viewPaddingOf(context).bottom - 20, 10);
+  // viewPadding 是设备的固定系统安全区；padding 会在键盘出现时扣掉
+  // viewInsets，因此不能用它来决定全局悬浮导航的基线位置。间距按平台
+  // 的具体旋钮见 _bottomBarBottomGapFor 的文档注释。
+  double get _bottomBarBottomGap => _bottomBarBottomGapFor(
+    MediaQuery.viewPaddingOf(context).bottom,
+  );
 
   /// 底栏占据的总高度，各页面用它做列表底部的滚动预留。
   double get _effectiveNavigationReserveHeight =>
@@ -844,7 +857,9 @@ class _SiponPlusSheet extends StatelessWidget {
     final text = SiponLanguageScope.textOf(context);
     final mediaQuery = MediaQuery.of(context);
     final viewInsets = mediaQuery.viewInsets.bottom;
-    final bottomSafeInset = math.max(mediaQuery.viewPadding.bottom - 20, 10.0);
+    final bottomSafeInset = _bottomBarBottomGapFor(
+      mediaQuery.viewPadding.bottom,
+    );
 
     return Scaffold(
       backgroundColor: Colors.transparent,

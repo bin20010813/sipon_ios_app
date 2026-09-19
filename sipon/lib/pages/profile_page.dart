@@ -1209,8 +1209,14 @@ class _MembershipSheetState extends State<_MembershipSheet> {
 
   @override
   Widget build(BuildContext context) {
+    // 固定弹窗高度：让加载/空态/数据态高度一致，避免接口返回时 bottom sheet
+    // 因内容高度变化重新调整尺寸，弹出时出现“闪一下”。
+    final sheetHeight = math.min(
+      480.0,
+      MediaQuery.of(context).size.height * 0.7,
+    );
     return Container(
-      constraints: const BoxConstraints(maxHeight: 480),
+      height: sheetHeight,
       decoration: const BoxDecoration(
         color: Color(0xFFF5F6F8),
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -1220,7 +1226,6 @@ class _MembershipSheetState extends State<_MembershipSheet> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             children: [
               Container(
                 width: 38,

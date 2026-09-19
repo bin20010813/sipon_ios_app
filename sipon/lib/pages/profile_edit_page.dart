@@ -305,10 +305,19 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         ],
       ),
       body: SafeArea(
+        // bottom:false 让滚动视口延伸到屏幕底，可滚过小白条区域；
+        // 底部空间由 ListView 的 padding 预留。
+        bottom: false,
         child: Form(
           key: _formKey,
           child: ListView(
-            padding: const EdgeInsets.all(20),
+            // 底部预留系统安全区（Home Indicator）。
+            padding: EdgeInsets.fromLTRB(
+              20,
+              20,
+              20,
+              20 + MediaQuery.paddingOf(context).bottom,
+            ),
             children: [
               const _EditHint('头像、昵称、简介和所在城市会展示在你的公开主页；邮箱和账号 ID 不会在这里修改。'),
               const SizedBox(height: 24),
