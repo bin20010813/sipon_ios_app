@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' hide Visibility;
 
 import '../../pages/language_transform.dart';
+import '../../pages/venue_contribution_page.dart';
 import '../../services/external_map_launcher.dart';
 import '../../services/map/api_venue_detail_repository.dart';
 import '../../services/map/map_models.dart';
@@ -450,6 +451,19 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
     }
   }
 
+  /// 打开补充信息共建页；提交成功后向用户致谢。
+  Future<void> _openContribution() async {
+    final submitted = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => VenueContributionPage(venue: widget.venue),
+      ),
+    );
+    if (!mounted || submitted != true) {
+      return;
+    }
+    _showMockToast(SiponLanguageScope.textOf(context).t('感谢共建！信息已提交审核'));
+  }
+
   void _openReviewComposer() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -709,6 +723,7 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
           const SizedBox(height: 18),
           _VenueInfoCard(
             detail: detail,
+            onContribute: _openContribution,
             onOpenMap: widget.onAddressTap == null
                 ? _openNavigation
                 : () => widget.onAddressTap!(detail?.venue ?? widget.venue),
@@ -739,13 +754,15 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
         children: [
           KeyedSubtree(
             key: _sectionKeys[0],
-            child: _VenueAbout(detail: detail),
+            child: _VenueAbout(detail: detail, onContribute: _openContribution),
           ),
           const SizedBox(height: 35),
           KeyedSubtree(
             key: _sectionKeys[1],
             child: _VenueLatestUpdates(
               updates: detail?.latestUpdates ?? const [],
+              loaded: detail != null,
+              onContribute: _openContribution,
               headingKey: _updatesHeadingKey,
             ),
           ),
@@ -754,6 +771,8 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
             key: _sectionKeys[2],
             child: _VenueDrinks(
               drinks: detail?.signatureDrinks ?? const [],
+              loaded: detail != null,
+              onContribute: _openContribution,
               headingKey: _drinksHeadingKey,
             ),
           ),
@@ -765,6 +784,8 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
               totalCount: _reviewTotal,
               hasMoreReviews: _reviewsHasMore,
               reviewsLoading: _reviewsLoading,
+              loaded: detail != null,
+              onContribute: _openContribution,
               sort: _reviewFilter,
               onSortChanged: (filter) => setState(() => _reviewFilter = filter),
               onAddReview: _openReviewComposer,
@@ -1159,12 +1180,14 @@ class _VenueInfoCard extends StatelessWidget {
   /// 创建信息卡。
   const _VenueInfoCard({
     required this.detail,
+    required this.onContribute,
     required this.onOpenMap,
     required this.addressActionLabel,
     required this.onCall,
   });
 
   final VenueDetail? detail;
+  final VoidCallback onContribute;
   final VoidCallback onOpenMap;
   final String addressActionLabel;
   final VoidCallback onCall;
@@ -1187,7 +1210,7 @@ class _VenueInfoCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _OpenStatusRow(detail: data),
+          _OpenStatusRow(detail: data, onContribute: onContribute),
           const Divider(
             height: 1,
             thickness: 1,
@@ -1222,9 +1245,12 @@ class _VenueInfoCard extends StatelessWidget {
 /// 信息卡顶部的营业状态行。
 class _OpenStatusRow extends StatelessWidget {
   /// 创建营业状态行。
-  const _OpenStatusRow({required this.detail});
+  const _OpenStatusRow({required this.detail, required this.onContribute});
 
   final VenueDetail detail;
+
+  /// 点击行尾「补充信息」按钮的回调。
+  final VoidCallback onContribute;
 
   @override
   Widget build(BuildContext context) {
@@ -1233,7 +1259,7 @@ class _OpenStatusRow extends StatelessWidget {
     final statusColor = detail.openNow ? MapDesign.success : MapDesign.alert;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+      padding: const EdgeInsets.fromLTRB(14, 15, 10, 15),
       child: Row(
         children: [
           Container(
@@ -1277,7 +1303,59 @@ class _OpenStatusRow extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(width: 8),
+          _ContributePillButton(
+            label: text.t('补充信息'),
+            onTap: onContribute,
+          ),
         ],
+      ),
+    );
+  }
+}
+
+/// 「补充信息」胶囊按钮：营业时间行尾与共建引导插画共用。
+class _ContributePillButton extends StatelessWidget {
+  /// 创建补充信息按钮。
+  const _ContributePillButton({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    // edit_note 传达「帮忙修订/补全信息」，比加号更贴共建语义。
+    return Material(
+      color: Colors.white,
+      shape: const StadiumBorder(
+        side: BorderSide(color: Color(0x2E9A3D78)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.edit_note_rounded,
+                color: MapDesign.brand,
+                size: 17,
+              ),
+              const SizedBox(width: 2),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: MapDesign.brand,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1360,9 +1438,12 @@ class _InfoTile extends StatelessWidget {
 /// 酒吧简介 + 特色标签。未加载完成时显示占位行。
 class _VenueAbout extends StatelessWidget {
   /// 创建简介区。
-  const _VenueAbout({this.detail});
+  const _VenueAbout({this.detail, this.onContribute});
 
   final VenueDetail? detail;
+
+  /// 空信息时引导用户共建补充的入口。
+  final VoidCallback? onContribute;
 
   @override
   Widget build(BuildContext context) {
@@ -1370,8 +1451,16 @@ class _VenueAbout extends StatelessWidget {
     final paragraphs = detail?.description;
     final features = detail?.features ?? const <String>[];
 
-    if (paragraphs == null || paragraphs.isEmpty) {
+    if (paragraphs == null) {
       return const _PlaceholderBlock(width: double.infinity, height: 66);
+    }
+    if (paragraphs.isEmpty) {
+      return _ContributionHint(
+        icon: Icons.local_bar_rounded,
+        title: text.t('还没有介绍'),
+        subtitle: text.t('写下这里的氛围与特色，帮大家种草'),
+        onTap: onContribute,
+      );
     }
 
     return Column(
@@ -1445,9 +1534,21 @@ class _FeatureChip extends StatelessWidget {
 
 /// 地点最新动态列表。
 class _VenueLatestUpdates extends StatelessWidget {
-  const _VenueLatestUpdates({required this.updates, this.headingKey});
+  const _VenueLatestUpdates({
+    required this.updates,
+    this.loaded = true,
+    this.onContribute,
+    this.headingKey,
+  });
 
   final List<String> updates;
+
+  /// 详情是否已加载完成；未完成时保持占位块，加载后仍为空才展示引导。
+  final bool loaded;
+
+  /// 空信息时引导用户共建补充的入口。
+  final VoidCallback? onContribute;
+
   final Key? headingKey;
 
   @override
@@ -1468,8 +1569,15 @@ class _VenueLatestUpdates extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        if (updates.isEmpty)
+        if (updates.isEmpty && !loaded)
           const _PlaceholderBlock(width: double.infinity, height: 56)
+        else if (updates.isEmpty)
+          _ContributionHint(
+            icon: Icons.campaign_rounded,
+            title: text.t('还没有动态'),
+            subtitle: text.t('分享这里的最新活动与消息'),
+            onTap: onContribute,
+          )
         else
           for (final update in updates)
             Padding(
@@ -1505,9 +1613,20 @@ class _VenueLatestUpdates extends StatelessWidget {
 /// 招牌酒款横向滚动列表，单卡保持 3:4 纵向比例。
 class _VenueDrinks extends StatelessWidget {
   /// 创建酒款列表。
-  const _VenueDrinks({required this.drinks, this.headingKey});
+  const _VenueDrinks({
+    required this.drinks,
+    this.loaded = true,
+    this.onContribute,
+    this.headingKey,
+  });
 
   final List<VenueDrink> drinks;
+
+  /// 详情是否已加载完成；未完成时保持占位块，加载后仍为空才展示引导。
+  final bool loaded;
+
+  /// 空信息时引导用户共建补充的入口。
+  final VoidCallback? onContribute;
 
   /// 板块小标题的 key，供 tab 跳转时测量标题高度。
   final Key? headingKey;
@@ -1521,7 +1640,7 @@ class _VenueDrinks extends StatelessWidget {
       children: [
         Text(
           key: headingKey,
-          text.t('招牌酒款'),
+          text.t('菜单'),
           style: const TextStyle(
             color: MapDesign.ink,
             fontSize: 17,
@@ -1530,8 +1649,15 @@ class _VenueDrinks extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        if (drinks.isEmpty)
+        if (drinks.isEmpty && !loaded)
           const _PlaceholderBlock(width: double.infinity, height: 132)
+        else if (drinks.isEmpty)
+          _ContributionHint(
+            icon: Icons.wine_bar_rounded,
+            title: text.t('还没有菜单'),
+            subtitle: text.t('拍张菜单或补充招牌酒款'),
+            onTap: onContribute,
+          )
         else
           SizedBox(
             height: 248,
@@ -1659,6 +1785,8 @@ class _VenueReviewsSection extends StatelessWidget {
     required this.totalCount,
     required this.hasMoreReviews,
     required this.reviewsLoading,
+    this.loaded = true,
+    this.onContribute,
     required this.sort,
     required this.onSortChanged,
     required this.onAddReview,
@@ -1678,6 +1806,12 @@ class _VenueReviewsSection extends StatelessWidget {
 
   /// 正在翻页加载评价。
   final bool reviewsLoading;
+
+  /// 详情是否已加载完成；未完成时保持占位块，加载后仍无评价才展示引导。
+  final bool loaded;
+
+  /// 无评价时引导用户共建补充的入口。
+  final VoidCallback? onContribute;
 
   final _ReviewFilter sort;
   final ValueChanged<_ReviewFilter> onSortChanged;
@@ -1870,7 +2004,14 @@ class _VenueReviewsSection extends StatelessWidget {
           ),
           const SizedBox(height: 18),
         ],
-        if (reviews.isEmpty)
+        if (reviews.isEmpty && loaded && totalCount == 0)
+          _ContributionHint(
+            icon: Icons.rate_review_rounded,
+            title: text.t('还没有评价'),
+            subtitle: text.t('说说你的微醺体验，给后来人参考'),
+            onTap: onContribute,
+          )
+        else if (reviews.isEmpty)
           const _PlaceholderBlock(width: double.infinity, height: 72)
         else ...[
           for (var i = 0; i < visibleReviews.length; i++) ...[
@@ -2172,6 +2313,157 @@ class _PlaceholderBlock extends StatelessWidget {
       decoration: BoxDecoration(
         color: MapDesign.hairline,
         borderRadius: BorderRadius.circular(6),
+      ),
+    );
+  }
+}
+
+/// 空信息时的共建引导：纯 Flutter 绘制的轻量插画 + 文案 + 补充入口。
+///
+/// 项目内没有插画图片资源，这里用图标组合出「卡片 + 闪光」的画面，
+/// 各板块通过 [icon] 区分主题（介绍/动态/菜单/评价）。
+class _ContributionHint extends StatelessWidget {
+  /// 创建共建引导插画。
+  const _ContributionHint({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  /// 插画主图标，表达当前缺失内容的主题。
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  /// 点击「补充信息」的回调。
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = SiponLanguageScope.textOf(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9F5F8),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          _buildIllustration(),
+          const SizedBox(height: 14),
+          Text(
+            title,
+            style: const TextStyle(
+              color: MapDesign.ink,
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: MapDesign.muted,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 14),
+          _ContributePillButton(label: text.t('补充信息'), onTap: onTap ?? () {}),
+        ],
+      ),
+    );
+  }
+
+  /// 中央插画：渐变圆底 + 主题图标，四周用小圆点与星光点缀。
+  Widget _buildIllustration() {
+    return SizedBox(
+      width: 96,
+      height: 68,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned(
+            bottom: 2,
+            child: Container(
+              width: 52,
+              height: 8,
+              decoration: BoxDecoration(
+                color: MapDesign.hairline,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+          ),
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFFFEDF7), Color(0xFFFFF8FB)],
+              ),
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0x149A3D78)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x149A3D78),
+                  blurRadius: 10,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: MapDesign.brand, size: 26),
+          ),
+          const Positioned(
+            top: 0,
+            right: 20,
+            child: Icon(
+              Icons.auto_awesome_rounded,
+              color: Color(0xFFD9A8C7),
+              size: 15,
+            ),
+          ),
+          const Positioned(
+            bottom: 10,
+            left: 20,
+            child: Icon(
+              Icons.auto_awesome_rounded,
+              color: Color(0x669A3D78),
+              size: 11,
+            ),
+          ),
+          Positioned(
+            top: 12,
+            left: 14,
+            child: Container(
+              width: 6,
+              height: 6,
+              decoration: const BoxDecoration(
+                color: Color(0x409A3D78),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 14,
+            right: 10,
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(
+                color: Color(0x269A3D78),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
