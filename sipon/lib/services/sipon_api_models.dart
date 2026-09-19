@@ -400,6 +400,10 @@ String _formatDistanceMeters(double? meters) {
 }
 
 /// 鸡尾酒列表项 / 详情基础信息（对应 GET /api/cocktails 系列接口）。
+///
+/// 图片分三档：`imageUrl` 原图（详情放大）、`thumbnailUrl` 长边 320px
+/// （列表/小贴纸）、`mediumImageUrl` 长边 640px（大卡片）；任一缩略图
+/// 缺失时按文档约定逐级回退原图。
 class CocktailInfo {
   const CocktailInfo({
     this.id,
@@ -408,6 +412,8 @@ class CocktailInfo {
     this.nameEn,
     this.description,
     this.imageUrl,
+    this.thumbnailUrl,
+    this.mediumImageUrl,
     this.starRating,
     this.ingredientCount,
     this.difficulty,
@@ -422,6 +428,8 @@ class CocktailInfo {
       nameEn: _readString(map, ['nameEn']),
       description: _readString(map, ['description']),
       imageUrl: _readString(map, ['imageUrl', 'image']),
+      thumbnailUrl: _readString(map, ['thumbnailUrl']),
+      mediumImageUrl: _readString(map, ['mediumImageUrl']),
       starRating: _readInt(map, ['starRating', 'rating', 'star']),
       ingredientCount: _readInt(map, ['ingredientCount']),
       difficulty: _readString(map, ['difficulty']),
@@ -452,20 +460,43 @@ class CocktailInfo {
   final String? nameEn;
   final String? description;
   final String? imageUrl;
+
+  /// 长边 320px 缩略图；后端未生成时为 null，展示时回退原图。
+  final String? thumbnailUrl;
+
+  /// 长边 640px 中图；后端未生成时为 null，展示时逐级回退。
+  final String? mediumImageUrl;
   final int? starRating;
   final int? ingredientCount;
   final String? difficulty;
 
-  /// 把后端可能返回的相对路径图片地址解析为完整 URL；
-  /// 缺少图片地址时按鸡尾酒接口的资源路径回退。
-  String? resolvedImageUrl([SiponApiConfig? config]) {
-    final raw =
-        imageUrl ??
-        (code == null || code!.trim().isEmpty
-            ? null
-            : '/api/cocktails/${code!.trim()}.png');
-    if (raw == null || raw.trim().isEmpty) return null;
-    return (config ?? SiponApiConfig.instance).resolveUri(raw).toString();
+  /// 原图完整地址（详情放大用）；缺少图片地址时按 code 推导游戏素材路径。
+  String? resolvedImageUrl([SiponApiConfig? config]) =>
+      _resolveAsset(config, imageUrl, 'cocktails');
+
+  /// 缩略图（长边 320px，列表/小贴纸优先）：缺省时按文档回退原图，
+  /// 原图也没有时按 code 推导 320 素材路径。
+  String? resolvedThumbnailUrl([SiponApiConfig? config]) =>
+      _resolveAsset(config, thumbnailUrl ?? imageUrl, 'cocktails-320');
+
+  /// 中图（长边 640px，大卡片用）：逐级回退 thumbnailUrl、imageUrl。
+  String? resolvedMediumImageUrl([SiponApiConfig? config]) =>
+      _resolveAsset(config, mediumImageUrl ?? thumbnailUrl ?? imageUrl, 'cocktails-640');
+
+  /// 把后端可能返回的相对路径解析为完整 URL；[raw] 为空时按
+  /// `/api/cocktail-game/assets/{assetGroup}/{code}.png` 推导（该分组
+  /// 是文档中真实存在的公开素材端点），连 code 都没有时返回 null，
+  /// 由页面展示本地占位图。
+  String? _resolveAsset(SiponApiConfig? config, String? raw, String assetGroup) {
+    final value = raw?.trim();
+    if (value == null || value.isEmpty) {
+      final code = this.code?.trim();
+      if (code == null || code.isEmpty) return null;
+      return (config ?? SiponApiConfig.instance)
+          .resolveUri('/api/cocktail-game/assets/$assetGroup/$code.png')
+          .toString();
+    }
+    return (config ?? SiponApiConfig.instance).resolveUri(value).toString();
   }
 }
 

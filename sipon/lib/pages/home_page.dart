@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../services/cocktail_recommendation_store.dart';
 import '../services/map/map_models.dart';
 import '../services/sipon_api_models.dart';
 import '../services/sipon_api_service.dart';
@@ -63,7 +64,8 @@ class _HomePageState extends State<HomePage> {
   late Future<_HomeBarsData> _homeBarsFuture;
   SiponCityController? _cityController;
   String? _loadedCity;
-  bool _searchExpanded = false;
+  // 搜索展开状态用 ValueNotifier 局部刷新顶栏/遮罩，避免 setState 重建整个首页列表。
+  final ValueNotifier<bool> _searchExpanded = ValueNotifier<bool>(false);
   final GlobalKey<_HomeTopBarState> _homeTopBarKey =
       GlobalKey<_HomeTopBarState>();
   // ignore: unused_field, prefer_final_fields -- DrinkProduct 功能待定，暂时隐藏，恢复 _DrinkCarousel 时启用
@@ -89,6 +91,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _cityController?.removeListener(_refreshHomeBarsForCity);
+    _searchExpanded.dispose();
     _drinkController.dispose();
     super.dispose();
   }
@@ -104,10 +107,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _setSearchExpanded(bool expanded) {
-    if (!mounted || _searchExpanded == expanded) {
+    if (!mounted || _searchExpanded.value == expanded) {
       return;
     }
-    setState(() => _searchExpanded = expanded);
+    _searchExpanded.value = expanded;
   }
 
   Future<_HomeBarsData> _loadHomeBars(String city) async {
@@ -171,13 +174,17 @@ class _HomePageState extends State<HomePage> {
                         children: [
                           Padding(
                             padding: const EdgeInsets.only(right: 22),
-                            child: _searchExpanded
-                                ? const SizedBox(height: 52)
-                                : _HomeTopBar(
-                                    key: _homeTopBarKey,
-                                    expanded: false,
-                                    onExpandedChanged: _setSearchExpanded,
-                                  ),
+                            child: ValueListenableBuilder<bool>(
+                              valueListenable: _searchExpanded,
+                              builder: (context, searchExpanded, _) =>
+                                  searchExpanded
+                                  ? const SizedBox(height: 52)
+                                  : _HomeTopBar(
+                                      key: _homeTopBarKey,
+                                      expanded: false,
+                                      onExpandedChanged: _setSearchExpanded,
+                                    ),
+                            ),
                           ),
                           const SizedBox(height: 16),
                           // TODO: 首页 _DrinkProduct / _DrinkCarousel 功能待定，暂时注释隐藏。
@@ -225,43 +232,63 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ],
                 ),
-                Positioned.fill(
-                  top: 52,
-                  child: IgnorePointer(
-                    ignoring: !_searchExpanded,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () {
-                        FocusManager.instance.primaryFocus?.unfocus();
-                        _setSearchExpanded(false);
-                      },
-                      child: AnimatedOpacity(
-                        duration: _HomeTopBarState._searchAnimationDuration,
-                        curve: Curves.easeOutCubic,
-                        opacity: _searchExpanded ? 1 : 0,
-                        child: ClipRect(
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                            child: ColoredBox(
-                              color: Colors.white.withValues(alpha: 0.38),
-                            ),
-                          ),
+                ValueListenableBuilder<bool>(
+                  valueListenable: _searchExpanded,
+                  builder: (context, searchExpanded, _) => Positioned.fill(
+                    top: 52,
+                    child: IgnorePointer(
+                      ignoring: !searchExpanded,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          FocusManager.instance.primaryFocus?.unfocus();
+                          _setSearchExpanded(false);
+                        },
+                        // 模糊强度随遮罩透明度同步渐变，避免整段动画每帧全速
+                        // 全屏高斯模糊；进度归零后彻底移除 BackdropFilter，
+                        // 收起状态下滚动首页不再有任何模糊开销。
+                        child: TweenAnimationBuilder<double>(
+                          duration: _HomeTopBarState._searchAnimationDuration,
+                          curve: Curves.easeOutCubic,
+                          tween: Tween<double>(end: searchExpanded ? 1 : 0),
+                          builder: (context, progress, _) {
+                            if (progress <= 0) {
+                              return const SizedBox.shrink();
+                            }
+                            return ClipRect(
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(
+                                  sigmaX: 8 * progress,
+                                  sigmaY: 8 * progress,
+                                ),
+                                child: ColoredBox(
+                                  color: Colors.white.withValues(
+                                    alpha: 0.38 * progress,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ),
                   ),
                 ),
-                if (_searchExpanded)
-                  Positioned(
-                    top: 16,
-                    left: 23,
-                    right: 22,
-                    child: _HomeTopBar(
-                      key: _homeTopBarKey,
-                      expanded: true,
-                      onExpandedChanged: _setSearchExpanded,
-                    ),
-                  ),
+                ValueListenableBuilder<bool>(
+                  valueListenable: _searchExpanded,
+                  builder: (context, searchExpanded, _) => searchExpanded
+                      ? Positioned(
+                          top: 16,
+                          left: 23,
+                          right: 22,
+                          child: _HomeTopBar(
+                            key: _homeTopBarKey,
+                            expanded: true,
+                            onExpandedChanged: _setSearchExpanded,
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
               ],
             ),
           ),
@@ -421,65 +448,66 @@ class _HomeTopBarState extends State<_HomeTopBar> {
                       curve: Curves.easeOutCubic,
                       width: widget.expanded ? constraints.maxWidth : 44,
                       height: 44,
+                      clipBehavior: Clip.hardEdge,
                       decoration: BoxDecoration(
                         color: const Color(0xFFF2F2F2),
                         borderRadius: BorderRadius.circular(22),
                       ),
-                      child: LayoutBuilder(
-                        builder: (context, searchConstraints) => Row(
-                          children: [
-                            if (widget.expanded &&
-                                searchConstraints.maxWidth > 100)
-                              Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.only(left: 16),
-                                  child: TextField(
-                                    controller: _searchController,
-                                    focusNode: _searchFocusNode,
-                                    autofocus: true,
-                                    textInputAction: TextInputAction.search,
-                                    onChanged: _onSearchChanged,
-                                    onSubmitted: (_) => _submitSearch(),
-                                    style: const TextStyle(
-                                      color: HomePage.ink,
-                                      fontSize: 14,
-                                      letterSpacing: 0,
-                                    ),
-                                    decoration: InputDecoration(
-                                      hintText: text.t('搜索鸡尾酒'),
-                                      hintStyle: const TextStyle(
-                                        color: HomePage.muted,
-                                        fontSize: 13,
+                      // 图标固定贴右缘，输入框占左侧弹性空间随容器展开/收拢；
+                      // 不能用条件直接增删输入框（Row 会塌缩，图标瞬间跳位）。
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: widget.expanded
+                                ? Padding(
+                                    padding: const EdgeInsets.only(left: 16),
+                                    child: TextField(
+                                      controller: _searchController,
+                                      focusNode: _searchFocusNode,
+                                      autofocus: true,
+                                      textInputAction: TextInputAction.search,
+                                      onChanged: _onSearchChanged,
+                                      onSubmitted: (_) => _submitSearch(),
+                                      style: const TextStyle(
+                                        color: HomePage.ink,
+                                        fontSize: 14,
                                         letterSpacing: 0,
                                       ),
-                                      border: InputBorder.none,
-                                      isDense: true,
-                                      contentPadding: EdgeInsets.zero,
+                                      decoration: InputDecoration(
+                                        hintText: text.t('搜索鸡尾酒'),
+                                        hintStyle: const TextStyle(
+                                          color: HomePage.muted,
+                                          fontSize: 13,
+                                          letterSpacing: 0,
+                                        ),
+                                        border: InputBorder.none,
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.zero,
+                                      ),
                                     ),
-                                  ),
-                                ),
-                              ),
-                            Tooltip(
-                              message: text.t('搜索'),
-                              child: SizedBox(
-                                width: 44,
-                                height: 44,
-                                child: GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onTap: _openSearch,
-                                  child: Center(
-                                    child: Image.asset(
-                                      HomePage.searchAsset,
-                                      width: 22,
-                                      height: 22,
-                                      color: const Color(0xFF6B666B),
-                                    ),
+                                  )
+                                : const SizedBox.shrink(),
+                          ),
+                          Tooltip(
+                            message: text.t('搜索'),
+                            child: SizedBox(
+                              width: 44,
+                              height: 44,
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: _openSearch,
+                                child: Center(
+                                  child: Image.asset(
+                                    HomePage.searchAsset,
+                                    width: 22,
+                                    height: 22,
+                                    color: const Color(0xFF6B666B),
                                   ),
                                 ),
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -1969,7 +1997,8 @@ class _CocktailScrollerState extends State<_CocktailScroller> {
     ),
   ];
 
-  final SiponApiService _api = SiponApiService();
+  final CocktailRecommendationStore _recommendations =
+      CocktailRecommendationStore();
   List<CocktailInfo> _cocktails = const [];
 
   @override
@@ -1978,22 +2007,13 @@ class _CocktailScrollerState extends State<_CocktailScroller> {
     _load();
   }
 
-  /// 拉取首页推荐鸡尾酒真实数据；失败/为空时静默回退静态素材，不打扰首页。
+  /// 每次冷启动随机抽取推荐；接口失败退缓存池，缓存也缺失时保持静态素材。
   Future<void> _load() async {
-    try {
-      // 首页只加载首批推荐，完整列表由“更多”入口按页加载。
-      final list = await _api.searchCocktails(
-        page: const SiponPage(limit: _homeLimit),
-      );
-      if (!mounted) return;
-      setState(
-        () => _cocktails = CocktailInfo.listFromJson(
-          list,
-        ).take(_homeLimit).toList(growable: false),
-      );
-    } on Exception {
-      // 网络异常时保持静态素材展示。
-    }
+    final list = await _recommendations.loadRecommendations(
+      count: _homeLimit,
+    );
+    if (!mounted || list.isEmpty) return;
+    setState(() => _cocktails = list);
   }
 
   @override
@@ -2017,7 +2037,8 @@ class _CocktailScrollerState extends State<_CocktailScroller> {
             title: cocktail.name ?? cocktail.nameEn ?? '',
             subtitle: cocktail.nameEn ?? cocktail.difficulty ?? '',
           ),
-          imageUrl: cocktail.resolvedImageUrl(),
+          // 小卡按文档用 320px 缩略图档，缺省自动回退原图。
+          imageUrl: cocktail.resolvedThumbnailUrl(),
           onTap: () => _openDetail(cocktail),
         );
       },
