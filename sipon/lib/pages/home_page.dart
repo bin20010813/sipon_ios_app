@@ -2032,6 +2032,20 @@ class _CocktailScrollerState extends State<_CocktailScroller> {
     );
     if (!mounted || list.isEmpty) return;
     setState(() => _cocktails = list);
+    // 卡片就位后预取详情封面（640 中图），点进详情时直接命中内存缓存。
+    _precacheDetailCovers();
+  }
+
+  /// 把推荐酒款的详情封面图提前拉入图片缓存；失败静默，由详情页兜底。
+  void _precacheDetailCovers() {
+    final context = this.context;
+    if (!context.mounted) return;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    for (final cocktail in _cocktails) {
+      final url = cocktail.resolvedMediumImageUrl();
+      if (url == null || url.isEmpty) continue;
+      precacheImage(cocktailDetailCoverImageProvider(url, dpr), context);
+    }
   }
 
   @override
@@ -2085,7 +2099,11 @@ class _CocktailScrollerState extends State<_CocktailScroller> {
     if (id == null) return;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => CocktailDetailPage(cocktailId: id),
+        builder: (_) => CocktailDetailPage(
+          cocktailId: id,
+          // 带上已有摘要，详情页先渲染封面/名称，不再等接口转圈。
+          initialSummary: cocktail,
+        ),
       ),
     );
   }

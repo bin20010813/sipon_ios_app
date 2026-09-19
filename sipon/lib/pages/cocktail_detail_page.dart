@@ -5,11 +5,29 @@ import '../services/sipon_api_models.dart';
 import '../services/sipon_api_service.dart';
 import 'language_transform.dart';
 
+/// 封面显示尺寸（逻辑像素）；预取与展示共用，保证解码缓存键一致。
+const double kCocktailDetailCoverWidth = 260.0;
+const double kCocktailDetailCoverHeight = 347.0;
+
+/// 详情封面的图片 Provider：按封面显示尺寸（260×347 × dpr）解码。
+/// 首页/列表预取与详情页展示必须共用同一 Provider（同一缓存键），
+/// 预取后点进详情才能直接命中内存缓存。
+ImageProvider cocktailDetailCoverImageProvider(String url, double dpr) =>
+    ResizeImage(
+      NetworkImage(url),
+      width: (kCocktailDetailCoverWidth * dpr).round(),
+      height: (kCocktailDetailCoverHeight * dpr).round(),
+    );
+
 /// 鸡尾酒百科——详情页（GET /api/cocktails/{id}）。
 class CocktailDetailPage extends StatefulWidget {
-  const CocktailDetailPage({super.key, required this.cocktailId});
+  const CocktailDetailPage({super.key, required this.cocktailId, this.initialSummary});
 
   final int cocktailId;
+
+  /// 上游列表页已拿到的摘要；先渲染封面与名称，详情接口后台补齐用料与故事，
+  /// 避免封面等接口返回后才开始下载图片。
+  final CocktailInfo? initialSummary;
 
   @override
   State<CocktailDetailPage> createState() => _CocktailDetailPageState();
@@ -30,6 +48,10 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
   @override
   void initState() {
     super.initState();
+    final initial = widget.initialSummary;
+    if (initial != null) {
+      _detail = CocktailDetailInfo(summary: initial);
+    }
     _load();
   }
 
@@ -135,7 +157,9 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
 
     final summary = detail.summary;
     final name = summary.name ?? (summary.nameEn ?? '');
-    final imageUrl = summary.resolvedImageUrl();
+    // 封面用长边 640px 中图：详情展示尺寸下与原图几乎无差，下载体积小得多；
+    // 后端未生成中图时 resolvedMediumImageUrl 已逐级回退缩略图/原图。
+    final imageUrl = summary.resolvedMediumImageUrl() ?? summary.resolvedImageUrl();
     final ingredients = detail.sortedIngredients;
 
     return CustomScrollView(
@@ -235,7 +259,7 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
                 title: text.t('用料'),
                 child: ingredients.isEmpty
                     ? Text(
-                        text.t('暂无用料信息'),
+                        text.t(_loading ? '加载中…' : '暂无用料信息'),
                         style: const TextStyle(
                           color: _muted,
                           fontSize: 13,
@@ -296,16 +320,32 @@ class _DetailCover extends StatelessWidget {
 
     Widget image() {
       if (url != null && url.isNotEmpty) {
-        return Image.network(
-          url,
-          width: coverWidth,
-          height: coverHeight,
-          fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => Image.asset(
-            fallbackAsset,
+        return Container(
+          // 加载中/淡入前的占位底色，避免封面区域闪白。
+          color: const Color(0xFFF5EFF4),
+          child: Image(
+            image: cocktailDetailCoverImageProvider(
+              url,
+              MediaQuery.devicePixelRatioOf(context),
+            ),
             width: coverWidth,
             height: coverHeight,
             fit: BoxFit.cover,
+            filterQuality: FilterQuality.low,
+            frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+              if (wasSynchronouslyLoaded) return child;
+              return AnimatedOpacity(
+                opacity: frame == null ? 0 : 1,
+                duration: const Duration(milliseconds: 200),
+                child: child,
+              );
+            },
+            errorBuilder: (_, _, _) => Image.asset(
+              fallbackAsset,
+              width: coverWidth,
+              height: coverHeight,
+              fit: BoxFit.cover,
+            ),
           ),
         );
       }

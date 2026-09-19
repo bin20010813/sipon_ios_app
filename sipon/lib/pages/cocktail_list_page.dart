@@ -119,7 +119,11 @@ class _CocktailListPageState extends State<CocktailListPage> {
     if (id == null) return;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => CocktailDetailPage(cocktailId: id),
+        builder: (_) => CocktailDetailPage(
+          cocktailId: id,
+          // 带上列表已有摘要，详情页先渲染封面/名称，不再等接口转圈。
+          initialSummary: item,
+        ),
       ),
     );
   }
@@ -369,7 +373,8 @@ class _CocktailListCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _CocktailThumb(
-                imageUrl: item.resolvedImageUrl(),
+                // 96pt 小图用 320 档即可，避免 96px 的坑位加载整张原图。
+                imageUrl: item.resolvedThumbnailUrl(),
                 fallbackAsset: _CocktailListPageState._fallbackAsset,
               ),
               const SizedBox(width: 12),
@@ -451,6 +456,7 @@ class _CocktailThumb extends StatelessWidget {
   Widget build(BuildContext context) {
     final url = imageUrl;
     if (url != null && url.isNotEmpty) {
+      final dpr = MediaQuery.devicePixelRatioOf(context);
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: Image.network(
@@ -458,6 +464,10 @@ class _CocktailThumb extends StatelessWidget {
           width: 96,
           height: 96,
           fit: BoxFit.cover,
+          filterQuality: FilterQuality.low,
+          // 按显示尺寸解码，避免小坑位全尺寸解码原图。
+          cacheWidth: (96 * dpr).round(),
+          cacheHeight: (96 * dpr).round(),
           errorBuilder: (_, _, _) => _fallback(),
         ),
       );
