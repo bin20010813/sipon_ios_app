@@ -264,13 +264,17 @@ class _SiponShell extends StatefulWidget {
 class _SiponShellState extends State<_SiponShell> {
   static const double _navigationBarHeight = 62;
 
-  // viewPadding 是设备的固定系统安全区；padding 会在键盘出现时扣掉
-  // viewInsets，因此不能用它来决定全局悬浮导航的基线位置。
-  double get _systemBottomInset =>
-      math.max(MediaQuery.viewPaddingOf(context).bottom, 4);
+  // 悬浮底栏底边与屏幕底边的间距：只需部分让出系统底部安全区（iPhone 上
+  // 34-20=14pt，正好避开 Home Indicator 的绘制区），把整个安全区都垫在
+  // 栏下会让底栏悬空离底过远。viewPadding 是设备的固定系统安全区；
+  // padding 会在键盘出现时扣掉 viewInsets，因此不能用它来决定全局悬浮
+  // 导航的基线位置。
+  double get _bottomBarBottomGap =>
+      math.max(MediaQuery.viewPaddingOf(context).bottom - 20, 10);
 
+  /// 底栏占据的总高度，各页面用它做列表底部的滚动预留。
   double get _effectiveNavigationReserveHeight =>
-      _navigationBarHeight + _systemBottomInset;
+      _navigationBarHeight + _bottomBarBottomGap;
 
   /// 我的页状态引用，用于切回 tab / 规划路线 / 打卡返回后刷新快捷入口计数。
   final GlobalKey<ProfilePageState> _profilePageKey =
@@ -452,9 +456,14 @@ class _SiponShellState extends State<_SiponShell> {
                         ),
                         child: Opacity(
                           opacity: 1 - progress,
-                          child: SafeArea(
-                            minimum: const EdgeInsets.fromLTRB(34, 0, 34, 1),
-                            child: _SiponBottomJumpBar(
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            34,
+                            0,
+                            34,
+                            _bottomBarBottomGap,
+                          ),
+                          child: _SiponBottomJumpBar(
                               currentIndex: _currentIndex,
                               onTabSelected: _selectTab,
                               onPlusPressed: _openPlusSheet,
@@ -795,7 +804,7 @@ class _SiponPlusSheet extends StatelessWidget {
     final text = SiponLanguageScope.textOf(context);
     final mediaQuery = MediaQuery.of(context);
     final viewInsets = mediaQuery.viewInsets.bottom;
-    final bottomSafeInset = math.max(mediaQuery.viewPadding.bottom, 16.0);
+    final bottomSafeInset = math.max(mediaQuery.viewPadding.bottom - 20, 10.0);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
