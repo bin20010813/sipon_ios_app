@@ -77,7 +77,7 @@ class _MapPageState extends State<MapPage> {
       onViewportSettled: _handleViewportSettled,
       onVenueTapped: _handleVenueTapped,
       // 点地图空白处就收起面板。原来这里毫无反应。
-      onBlankTapped: widget.allowSheetCollapse ? _sheet.collapse : () {},
+      onBlankTapped: widget.allowSheetCollapse ? _handleBlankTapped : () {},
     );
 
     // 档位变化时重新取景（收起/半屏/全屏的 padding 不同）。
@@ -227,6 +227,24 @@ class _MapPageState extends State<MapPage> {
     unawaited(_scene.flyToCity(city, zoom: MapSceneController.cityZoom));
   }
 
+  /// 点地图空白处：收起面板，同时收起搜索下拉与键盘。候选列表挂在
+  /// root overlay 上，焦点不收它就一直浮在地图上。
+  void _handleBlankTapped() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    _sheet.collapse();
+  }
+
+  // ------------------------------------------------------------- 地点搜索
+
+  /// 搜索候选被点击：先把候选并入数据集并选中（它可能在当前视野外，
+  /// 不合并的话详情卡片会空窗），再把搜索词对齐成酒吧名，让顶部输入框
+  /// 通过 initialValue 联动回显；相机聚焦由 [_applyStage] 按选中点完成。
+  void _handleSearchVenueSelected(MapVenue venue) {
+    _data.adoptSearchedVenue(venue);
+    _data.setSearchQuery(venue.name);
+    unawaited(_applyStage());
+  }
+
   // ------------------------------------------------------------------ 工具面板
 
   Future<void> _handleStyleChanged(MapBaseStyle style) async {
@@ -352,9 +370,11 @@ class _MapPageState extends State<MapPage> {
                       selectedKind: _data.categoryFilter,
                       status: _data.status,
                       searchQuery: _data.searchQuery,
+                      suggestions: _data.visibleVenues,
                       onCategoryToggled: _data.toggleCategory,
                       onFilterPressed: _showMapTools,
                       onSearchChanged: _data.setSearchQuery,
+                      onVenueSelected: _handleSearchVenueSelected,
                     ),
                   ),
                 ),

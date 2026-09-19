@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import 'map_display_options.dart';
@@ -17,13 +19,27 @@ class MapDataController extends ChangeNotifier {
     required MapVenueRepository repository,
     required String city,
     MapVenue? initialVenue,
+    MapVenueSearchRepository? searchRepository,
   }) : _repository = repository,
+       // 仓库若同时具备关键词搜索能力（真接口实现），搜索词变化时补一次
+       // 远端搜索；纯本地/mock 仓库没有这层能力，就只做视野内过滤。
+       _searchRepository = searchRepository ?? _searchCapabilityOf(repository),
        _city = city,
        _pinnedVenue = initialVenue,
        _venues = initialVenue == null ? const [] : [initialVenue],
        _selectedVenueId = initialVenue?.id;
 
+  static MapVenueSearchRepository? _searchCapabilityOf(
+    MapVenueRepository repository,
+  ) {
+    if (repository is MapVenueSearchRepository) {
+      return repository as MapVenueSearchRepository;
+    }
+    return null;
+  }
+
   final MapVenueRepository _repository;
+  final MapVenueSearchRepository? _searchRepository;
 
   final MapVenue? _pinnedVenue;
 
@@ -42,6 +58,11 @@ class MapDataController extends ChangeNotifier {
 
   /// 目标版本号：最新一次有效视野意图的版本。
   int _targetGeneration = 0;
+
+  /// 关键词远端搜索的去抖定时器与版本号：连续输入只搜最后一个词，
+  /// 城市切换、退出页面后迟到的搜索结果据此作废。
+  Timer? _searchDebounce;
+  int _searchGeneration = 0;
 
   /// 待处理请求快照：只保留最新一份（视野、城市、版本）。
   _PendingRequest? _pendingRequest;
@@ -281,6 +302,67 @@ class MapDataController extends ChangeNotifier {
     _searchQuery = normalized;
     _reconcileSelection();
     _notify();
+    _scheduleVenueSearch();
+  }
+
+  /// 关键词变化后安排一次远端搜索。视野内过滤已经同步生效，这里补的是
+  /// 「跨视野的候选」：去抖后按城市 + 关键词再拉一遍，结果合并进数据集。
+  /// 失败保持静默——主数据（视野取数）没有失败，不能让搜索拖垮状态条。
+  void _scheduleVenueSearch() {
+    _searchDebounce?.cancel();
+    final repository = _searchRepository;
+    final query = _searchQuery;
+    if (repository == null || query.isEmpty) {
+      return;
+    }
+
+    final generation = ++_searchGeneration;
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () async {
+      try {
+        final results = await repository.searchVenues(
+          city: _city,
+          keyword: query,
+        );
+        if (_disposed || generation != _searchGeneration) {
+          return;
+        }
+        _mergeSearchResults(results);
+      } on Exception {
+        // 搜索失败时保留视野内过滤结果，与路线规划页的处理一致。
+      }
+    });
+  }
+
+  /// 远端搜索结果并入当前数据集（按 id 去重）。下一次视野取数会整体覆盖
+  /// `_venues`，搜索带进来的跨视野点自然消失。
+  void _mergeSearchResults(List<MapVenue> results) {
+    final knownIds = {for (final venue in _venues) venue.id};
+    final merged = [
+      for (final venue in results)
+        if (knownIds.add(venue.id)) venue,
+    ];
+    if (merged.isEmpty) {
+      return;
+    }
+
+    _venues = [..._venues, ...merged];
+    _reconcileSelection();
+    _notify();
+  }
+
+  /// 搜索候选被点击：把它并入数据集并选中。候选可能在当前视野外，不先合并
+  /// 的话选中会落空、详情卡片空窗；相机聚焦交给页面的 `_applyStage`。
+  void adoptSearchedVenue(MapVenue venue) {
+    final known = _venues.any((item) => item.id == venue.id);
+    if (known && _selectedVenueId == venue.id) {
+      return;
+    }
+
+    if (!known) {
+      _venues = [..._venues, venue];
+    }
+    _selectedVenueId = venue.id;
+    _notify();
   }
 
   void setStyle(MapBaseStyle style) {
@@ -303,6 +385,9 @@ class MapDataController extends ChangeNotifier {
     _targetGeneration++;
     _pendingRequest = null;
     _loadedViewport = null;
+    // 旧城市的搜索请求与结果一并作废。
+    _searchDebounce?.cancel();
+    _searchGeneration++;
     _venues = const [];
     _selectedVenueId = null;
     _status = MapDataStatus.loading;
@@ -326,6 +411,8 @@ class MapDataController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _searchDebounce?.cancel();
+    _searchGeneration++;
     // 作废版本，迟到的回调不会通知已销毁的控制器。
     _targetGeneration++;
     _pendingRequest = null;

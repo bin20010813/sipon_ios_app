@@ -220,6 +220,25 @@ void main() {
       expect(controller.visibleVenues, hasLength(2));
     });
 
+    test('点击搜索候选并入数据集并选中，视野外的候选也一样', () async {
+      final controller = MapDataController(
+        repository: _StubRepository([_venue('pub-1')]),
+        city: '上海',
+      );
+      addTearDown(controller.dispose);
+      await controller.syncViewport(_shanghaiViewport);
+
+      // 候选在北京（当前视野外），不先并入的话选中会落空、卡片空窗。
+      final remote = _venue('远端精酿', longitude: 116.4, latitude: 39.9);
+      controller.adoptSearchedVenue(remote);
+      expect(controller.selectedVenue?.id, '远端精酿');
+      expect(controller.circlePoints.map((point) => point.id), contains('point-远端精酿'));
+
+      // 与页面点击候选后的行为一致：搜索词对齐成酒吧名，选中不被冲掉。
+      controller.setSearchQuery('远端精酿');
+      expect(controller.visibleVenues.single.id, '远端精酿');
+    });
+
     test('所有缩放都保留圆点，只有文字标签按缩放抽样', () async {
       final controller = MapDataController(
         repository: _StubRepository([
