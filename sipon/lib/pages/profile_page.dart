@@ -2826,6 +2826,9 @@ class BudgetBillPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
+        // 底部不进安全区：内容与背景延伸到屏幕底部，小白条区域由
+        // 列表自身的 padding 预留，避免底部留出一段不参与滚动的白边。
+        bottom: false,
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
@@ -3021,8 +3024,12 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
         ? 0.0
         : (total / _store.monthlyBudget).clamp(0.0, 1.0);
 
+    final bottomSafeInset = MediaQuery.paddingOf(context).bottom;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      // 底部留白放在滚动内容内部（见最后一个 sliver），而不是包住
+      // CustomScrollView：视口延伸到屏幕底部，滚动时内容能自然滑入
+      // 小白条区域，不再留出一条不参与滚动的白边。
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
@@ -3234,7 +3241,11 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
               separatorBuilder: (_, _) =>
                   const Divider(height: 1, color: ProfilePage._line),
             ),
-          const SliverToBoxAdapter(child: SizedBox(height: 12)),
+          // 尾部留白 = 原有间距 32 + 底部安全区，保证静止时明细不被
+          // 小白条遮挡；滚动中该区域随内容一起滑入滑出。
+          SliverToBoxAdapter(
+            child: SizedBox(height: 32 + bottomSafeInset),
+          ),
         ],
       ),
     );

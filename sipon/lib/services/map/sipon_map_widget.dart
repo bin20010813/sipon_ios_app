@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 // PlatformViewHitTestBehavior 在 rendering 层，material.dart 不转出它。
 import 'package:flutter/rendering.dart';
@@ -71,10 +73,18 @@ class _SiponMapWidgetState extends State<SiponMapWidget> {
   Widget build(BuildContext context) {
     return UiKitView(
       viewType: kSiponMapViewType,
-      // opaque：地图必须自己吃掉落在它身上的触摸。默认值虽是 opaque，但显式写上，
-      // 免得哪天被改成 deferToChild —— 那会让拖拽/捏合被外层手势竞技场抢走，
-      // 表现就是「地图不能移动、不能缩放」。
+      // opaque：空白像素区域也算命中平台视图。它只管「命中」，不管手势归属；
+      // 手势竞争由下面的 Eager 识别器解决——没有它，平台视图在竞技场里从不
+      // 主动认领手势，外层的滚动 / BottomSheet 拖拽一胜出，原生地图的捏合、
+      // 拖动就被 cancel（表现即「地图不能缩放」，见
+      // docs/mapkit-gesture-conflict-fix-plan-2026-09-19.md）。
       hitTestBehavior: PlatformViewHitTestBehavior.opaque,
+      // Eager 识别器在竞技场里立即认领落在地图上的每一次触摸，原生
+      // MKMapView 从 touchesBegan 起实时拿到事件流。代价是地图区域内的
+      // Flutter 手势全部让位（点空白收面板走原生 onBlankTapped，不受影响）。
+      gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+        Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
+      },
       onPlatformViewCreated: (viewId) {
         // 处理器必须在创建回调里立刻挂上，否则原生首发事件会丢；
         // 真正的 onMapReady 由 setup 命令触发，见原生侧实现。
