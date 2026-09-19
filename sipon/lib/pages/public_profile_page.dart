@@ -40,9 +40,17 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
   bool _loading = true;
   bool _updatingFollow = false;
 
-  /// 动态瀑布流数据；仅本人主页加载（他人动态暂无公开接口）。
+  /// 动态时间线数据；仅本人主页加载（他人动态暂无公开接口）。
   List<_Moment> _moments = const [];
   bool _momentsLoading = false;
+
+  /// 统计计数：overview 未返回时用动态列表长度兜底（与「我的」页口径一致）。
+  int? _checkInCount;
+  int? _wishCount;
+  int? _routeCount;
+
+  /// 记账喝酒次数（本地账本），仅本人主页展示。
+  int? _drinkCount;
 
   @override
   void initState() {
@@ -57,7 +65,12 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
       _error = null;
     });
     try {
-      final response = await _api.getUserProfile(widget.userId);
+      // 本人主页直接用 /users/me：与编辑资料（PATCH /users/me）同一数据源，
+      // 保证编辑保存后主页立即展示最新值；公开接口 /users/{id}/profile
+      // 可能存在缓存或字段同步延迟。他人主页只能走公开接口。
+      final response = widget.isCurrentUser
+          ? await _api.getMyProfile()
+          : await _api.getUserProfile(widget.userId);
       if (mounted) {
         setState(() => _profile = UserProfileData.fromJson(response));
       }
@@ -89,15 +102,16 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
       // 账本不可用时动态流里少一类卡片即可。
     }
 
+    final checkIns = (results[0] ?? const []).whereType<Map>().toList();
+    final wishes = (results[1] ?? const []).whereType<Map>().toList();
+    final routes = (results[2] ?? const []).whereType<Map>().toList();
+
     final moments = <_Moment>[
-      for (final item in (results[0] ?? const []).whereType<Map>())
+      for (final item in checkIns)
         ..._momentsFromCheckIn(item.cast<String, dynamic>()),
-      for (final item in (results[1] ?? const []).whereType<Map>())
-        ?_momentFromWishlist(item.cast<String, dynamic>()),
-      for (final item in (results[2] ?? const []).whereType<Map>())
-        ?_momentFromRoute(item.cast<String, dynamic>()),
-      for (final record in records)
-        _momentFromDrinkRecord(record),
+      for (final item in wishes) ?_momentFromWishlist(item.cast<String, dynamic>()),
+      for (final item in routes) ?_momentFromRoute(item.cast<String, dynamic>()),
+      for (final record in records) _momentFromDrinkRecord(record),
     ];
     moments.sort((a, b) {
       final aTime = a.time;
@@ -112,6 +126,10 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
     setState(() {
       _moments = moments;
       _momentsLoading = false;
+      _checkInCount = checkIns.length;
+      _wishCount = wishes.length;
+      _routeCount = routes.length;
+      _drinkCount = records.length;
     });
   }
 
@@ -178,6 +196,10 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                       isCurrentUser: widget.isCurrentUser,
                       updatingFollow: _updatingFollow,
                       onFollow: _toggleFollow,
+                      checkInCount: _checkInCount,
+                      wishCount: _wishCount,
+                      routeCount: _routeCount,
+                      drinkCount: _drinkCount,
                     ),
                   ),
                   if (widget.isCurrentUser)
@@ -246,12 +268,24 @@ class _ProfileHeaderSection extends StatelessWidget {
     required this.isCurrentUser,
     required this.updatingFollow,
     required this.onFollow,
+    this.checkInCount,
+    this.wishCount,
+    this.routeCount,
+    this.drinkCount,
   });
 
   final UserProfileData profile;
   final bool isCurrentUser;
   final bool updatingFollow;
   final VoidCallback onFollow;
+
+  /// overview 未返回计数时的列表长度兜底值。
+  final int? checkInCount;
+  final int? wishCount;
+  final int? routeCount;
+
+  /// 记账喝酒次数；仅本人主页展示。
+  final int? drinkCount;
 
   @override
   Widget build(BuildContext context) {
@@ -330,7 +364,14 @@ class _ProfileHeaderSection extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 22),
-          _StatsRow(profile: profile),
+          _StatsRow(
+            profile: profile,
+            isCurrentUser: isCurrentUser,
+            checkInCount: checkInCount,
+            wishCount: wishCount,
+            routeCount: routeCount,
+            drinkCount: drinkCount,
+          ),
           const SizedBox(height: 26),
         ],
       ),
@@ -377,19 +418,34 @@ class _InfoChip extends StatelessWidget {
 }
 
 class _StatsRow extends StatelessWidget {
-  const _StatsRow({required this.profile});
+  const _StatsRow({
+    required this.profile,
+    required this.isCurrentUser,
+    this.checkInCount,
+    this.wishCount,
+    this.routeCount,
+    this.drinkCount,
+  });
 
   final UserProfileData profile;
+  final bool isCurrentUser;
+
+  /// overview 未返回计数时的列表长度兜底值。
+  final int? checkInCount;
+  final int? wishCount;
+  final int? routeCount;
+
+  /// 记账喝酒次数；仅本人主页展示。
+  final int? drinkCount;
 
   @override
   Widget build(BuildContext context) {
+    // 粉丝/关注暂不展示；计数优先用 overview 返回值，兜底用动态列表长度。
     final stats = <_ProfileStat>[
-      _ProfileStat('粉丝', profile.followersCount),
-      _ProfileStat('关注', profile.followingCount),
-      _ProfileStat('打卡', profile.checkInCount),
-      if (profile.wishlistCount != null)
-        _ProfileStat('想喝', profile.wishlistCount),
-      if (profile.routeCount != null) _ProfileStat('路线', profile.routeCount),
+      _ProfileStat('喝过', profile.checkInCount ?? checkInCount),
+      _ProfileStat('想喝', profile.wishlistCount ?? wishCount),
+      _ProfileStat('路线', profile.routeCount ?? routeCount),
+      if (isCurrentUser) _ProfileStat('喝酒次数', drinkCount),
     ];
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),

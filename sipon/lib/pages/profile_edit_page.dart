@@ -1,5 +1,9 @@
-import 'package:flutter/material.dart';
+import 'dart:io';
 
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+
+import '../services/sipon_api_config.dart';
 import '../services/sipon_api_service.dart';
 import '../services/user_profile_data.dart';
 
@@ -15,11 +19,17 @@ class ProfileEditPage extends StatefulWidget {
 class _ProfileEditPageState extends State<ProfileEditPage> {
   final _formKey = GlobalKey<FormState>();
   final _api = SiponApiService();
+  final ImagePicker _picker = ImagePicker();
+  // 与公开主页一致的默认头像占位图。
+  static const String _avatarAsset = 'assest/首页/图片素材/Bharat Balami.png';
+  static const int _maxAvatarBytes = 10 * 1024 * 1024;
   late final TextEditingController _nameController;
   late final TextEditingController _bioController;
   late final TextEditingController _cityController;
   late final TextEditingController _avatarController;
+  XFile? _pickedAvatar;
   bool _saving = false;
+  bool _uploadingAvatar = false;
 
   @override
   void initState() {
@@ -39,14 +49,205 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     super.dispose();
   }
 
+  // ---- 头像编辑：选图 → 上传 /api/uploads → 回填 avatarUrl ----
+
+  Future<void> _changeAvatar() async {
+    if (_uploadingAvatar || _saving) return;
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('从相册选择'),
+              onTap: () => Navigator.of(sheetContext).pop(ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('拍照'),
+              onTap: () => Navigator.of(sheetContext).pop(ImageSource.camera),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+    XFile? file;
+    try {
+      // maxWidth 与 imageQuality 在 iOS/Android 上会把超尺寸图片压缩为
+      // JPEG，未超尺寸的原图保持原始格式，MIME 类型仍按扩展名兜底推断。
+      file = await _picker.pickImage(
+        source: source,
+        maxWidth: 512,
+        imageQuality: 85,
+      );
+    } on Exception {
+      if (mounted) _showMessage('图片选择失败，请重试');
+      return;
+    }
+    if (file == null || !mounted) return;
+    setState(() {
+      _pickedAvatar = file;
+      _uploadingAvatar = true;
+    });
+    try {
+      final bytes = await file.readAsBytes();
+      if (bytes.length > _maxAvatarBytes) {
+        throw const FormatException('图片超过 10MiB 限制，请更换图片');
+      }
+      final response = await _api.uploadMedia(
+        fileBytes: bytes,
+        filename: file.name,
+        mimeType: _mimeTypeFor(file),
+        purpose: 'avatar',
+      );
+      final mediaId = _extractMediaId(response);
+      if (mediaId == null) {
+        throw const FormatException('头像上传失败，请重试');
+      }
+      if (!mounted) return;
+      setState(() {
+        _avatarController.text = '/api/uploads/$mediaId/content';
+        _pickedAvatar = null;
+      });
+    } on FormatException catch (error) {
+      if (!mounted) return;
+      setState(() => _pickedAvatar = null);
+      _showMessage(error.message);
+    } on Exception {
+      if (!mounted) return;
+      setState(() => _pickedAvatar = null);
+      _showMessage('头像上传失败，请重试');
+    } finally {
+      if (mounted) setState(() => _uploadingAvatar = false);
+    }
+  }
+
+  /// 从上传响应的多种字段名中尽力提取媒体 ID。
+  String? _extractMediaId(dynamic response) {
+    if (response is! Map) return null;
+    final raw =
+        response['mediaId'] ??
+        response['id'] ??
+        (response['data'] is Map ? response['data']['mediaId'] : null);
+    final id = raw?.toString().trim();
+    return (id == null || id.isEmpty) ? null : id;
+  }
+
+  /// 根据文件扩展名推断图片 MIME 类型，未知扩展名统一按 JPEG 处理。
+  String _mimeTypeFor(XFile file) {
+    final mime = file.mimeType?.trim();
+    if (mime != null && mime.isNotEmpty) return mime;
+
+    final name = file.name.toLowerCase();
+    if (name.endsWith('.png')) return 'image/png';
+    if (name.endsWith('.webp')) return 'image/webp';
+    if (name.endsWith('.heic') || name.endsWith('.heif')) return 'image/heic';
+    return 'image/jpeg';
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Widget _buildAvatarEditor() {
+    return Center(
+      child: GestureDetector(
+        onTap: _changeAvatar,
+        child: Stack(
+          children: [
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white,
+                border: Border.all(color: const Color(0xFFF0E9ED), width: 2),
+              ),
+              child: ClipOval(child: _buildAvatarImage()),
+            ),
+            if (_uploadingAvatar)
+              Positioned.fill(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.black38,
+                  ),
+                  child: const Center(
+                    child: SizedBox(
+                      width: 26,
+                      height: 26,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation(Colors.white),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF9A3D78),
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+                child: const Icon(
+                  Icons.photo_camera_rounded,
+                  size: 16,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatarImage() {
+    final picked = _pickedAvatar;
+    if (picked != null) {
+      return Image.file(File(picked.path), fit: BoxFit.cover);
+    }
+    final url = _avatarController.text.trim();
+    if (url.isNotEmpty) {
+      return Image.network(
+        SiponApiConfig.instance.resolveUri(url).toString(),
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) =>
+            Image.asset(_avatarAsset, fit: BoxFit.cover),
+      );
+    }
+    return Image.asset(_avatarAsset, fit: BoxFit.cover);
+  }
+
   Future<void> _save() async {
     if (_saving || !(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _saving = true);
+    final name = _nameController.text.trim();
+    final avatar = _nullableValue(_avatarController.text);
+    // 后端对昵称/头像的字段命名尚不统一，同时携带常见别名
+    // （nickname/avatar），后端认哪个用哪个，不识别的会忽略。
+    // 别名字段仅在主字段有值时携带，避免空值覆盖已存数据。
     final body = <String, Object?>{
-      'displayName': _nameController.text.trim(),
+      'displayName': name,
+      if (name.isNotEmpty) 'nickname': name,
       'bio': _nullableValue(_bioController.text),
       'city': _nullableValue(_cityController.text),
-      'avatarUrl': _nullableValue(_avatarController.text),
+      'avatarUrl': avatar,
+      'avatar': ?avatar,
     };
     try {
       final response = await _api.updateMyProfile(body);
@@ -98,7 +299,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         centerTitle: true,
         actions: [
           TextButton(
-            onPressed: _saving ? null : _save,
+            onPressed: _saving || _uploadingAvatar ? null : _save,
             child: Text(_saving ? '保存中…' : '保存'),
           ),
         ],
@@ -110,7 +311,15 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
             padding: const EdgeInsets.all(20),
             children: [
               const _EditHint('头像、昵称、简介和所在城市会展示在你的公开主页；邮箱和账号 ID 不会在这里修改。'),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
+              _buildAvatarEditor(),
+              const SizedBox(height: 6),
+              Text(
+                _uploadingAvatar ? '头像上传中…' : '点击更换头像',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12, color: Color(0xFF6D5E67)),
+              ),
+              const SizedBox(height: 24),
               _ProfileField(
                 controller: _nameController,
                 label: '昵称',
@@ -132,21 +341,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 hint: '例如：上海',
                 maxLength: 40,
               ),
-              _ProfileField(
-                controller: _avatarController,
-                label: '头像链接',
-                hint: 'https://… 或后端返回的资源路径',
-                keyboardType: TextInputType.url,
-                validator: (value) {
-                  final url = value?.trim() ?? '';
-                  if (url.isEmpty || url.startsWith('/')) return null;
-                  final uri = Uri.tryParse(url);
-                  return uri?.hasScheme == true ? null : '请输入有效的图片链接';
-                },
-              ),
               const SizedBox(height: 18),
               FilledButton(
-                onPressed: _saving ? null : _save,
+                onPressed: _saving || _uploadingAvatar ? null : _save,
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(50),
                   backgroundColor: const Color(0xFF9A3D78),
@@ -183,7 +380,6 @@ class _ProfileField extends StatelessWidget {
     required this.hint,
     this.maxLength,
     this.maxLines = 1,
-    this.keyboardType,
     this.validator,
   });
 
@@ -192,7 +388,6 @@ class _ProfileField extends StatelessWidget {
   final String hint;
   final int? maxLength;
   final int maxLines;
-  final TextInputType? keyboardType;
   final FormFieldValidator<String>? validator;
 
   @override
@@ -203,7 +398,6 @@ class _ProfileField extends StatelessWidget {
       validator: validator,
       maxLength: maxLength,
       maxLines: maxLines,
-      keyboardType: keyboardType,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
