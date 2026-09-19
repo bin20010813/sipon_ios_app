@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -283,10 +284,13 @@ class _SiponShellState extends State<_SiponShell> {
   int _currentIndex = 0;
   bool _recordRouteOpening = false;
   final ValueNotifier<double> _mapSheetProgress = ValueNotifier<double>(0);
+  // 首页搜索遮罩展开状态：注入 HomePage，并由悬浮底栏监听以同步隐藏。
+  final ValueNotifier<bool> _homeSearchExpanded = ValueNotifier<bool>(false);
 
   @override
   void dispose() {
     _mapSheetProgress.dispose();
+    _homeSearchExpanded.dispose();
     super.dispose();
   }
 
@@ -402,8 +406,9 @@ class _SiponShellState extends State<_SiponShell> {
 
   @override
   Widget build(BuildContext context) {
-    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
-
+    // 注意：不要在本层读取 MediaQuery.viewInsets —— 键盘滑入动画期间它逐帧
+    // 变化，会导致壳层与 IndexedStack 内三个页面逐帧重建（键盘掉帧的来源）。
+    // 底栏对键盘的响应已隔离到 _ShellBottomBar 内部。
     return Scaffold(
       // 搜索框获取焦点时，不让 Scaffold 缩短 Stack 的可用高度；否则底栏会
       // 被键盘顶起。键盘期间底栏会隐藏，搜索框仍位于屏幕顶部可正常输入。
@@ -416,6 +421,7 @@ class _SiponShellState extends State<_SiponShell> {
               HomePage(
                 bottomOverlayInset: _effectiveNavigationReserveHeight,
                 onRecordPressed: _openDrinkRecord,
+                searchExpanded: _homeSearchExpanded,
               ),
               MapPage(
                 bottomOverlayInset: _effectiveNavigationReserveHeight,
@@ -432,52 +438,86 @@ class _SiponShellState extends State<_SiponShell> {
               ),
             ],
           ),
-          ValueListenableBuilder<double>(
-            valueListenable: _mapSheetProgress,
-            builder: (context, sheetProgress, _) {
-              final progress = _currentIndex == 1 ? sheetProgress : 0.0;
-              return Align(
-                alignment: Alignment.bottomCenter,
-                child: IgnorePointer(
-                  ignoring: keyboardVisible || progress > 0.05,
-                  child: AnimatedSlide(
-                    duration: const Duration(milliseconds: 180),
-                    curve: Curves.easeOutCubic,
-                    offset: keyboardVisible
-                        ? const Offset(0, 1.25)
-                        : Offset.zero,
-                    child: AnimatedOpacity(
-                      duration: const Duration(milliseconds: 120),
-                      opacity: keyboardVisible ? 0 : 1,
-                      child: Transform.translate(
-                        offset: Offset(
-                          0,
-                          (_effectiveNavigationReserveHeight + 12) * progress,
-                        ),
-                        child: Opacity(
-                          opacity: 1 - progress,
-                        child: Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            34,
-                            0,
-                            34,
-                            _bottomBarBottomGap,
-                          ),
-                          child: _SiponBottomJumpBar(
-                              currentIndex: _currentIndex,
-                              onTabSelected: _selectTab,
-                              onPlusPressed: _openPlusSheet,
-                            ),
-                          ),
+          _ShellBottomBar(
+            mapSheetProgress: _mapSheetProgress,
+            searchOverlayActive: _homeSearchExpanded,
+            currentIndex: _currentIndex,
+            reserveHeight: _effectiveNavigationReserveHeight,
+            bottomGap: _bottomBarBottomGap,
+            onTabSelected: _selectTab,
+            onPlusPressed: _openPlusSheet,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 壳层悬浮底栏。对键盘 viewInsets 的依赖被刻意隔离在本组件内：iOS 键盘
+/// 滑入动画期间 engine 逐帧更新 viewInsets，若在壳层 build 读取会让
+/// IndexedStack 里三个页面跟着逐帧重建；在这里读取，每帧只重建这一小块。
+class _ShellBottomBar extends StatelessWidget {
+  const _ShellBottomBar({
+    required this.mapSheetProgress,
+    required this.searchOverlayActive,
+    required this.currentIndex,
+    required this.reserveHeight,
+    required this.bottomGap,
+    required this.onTabSelected,
+    required this.onPlusPressed,
+  });
+
+  final ValueListenable<double> mapSheetProgress;
+  final ValueListenable<bool> searchOverlayActive;
+  final int currentIndex;
+  final double reserveHeight;
+  final double bottomGap;
+  final ValueChanged<int> onTabSelected;
+  final VoidCallback onPlusPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
+
+    return ValueListenableBuilder<double>(
+      valueListenable: mapSheetProgress,
+      builder: (context, sheetProgress, _) => ValueListenableBuilder<bool>(
+        valueListenable: searchOverlayActive,
+        builder: (context, searchActive, _) {
+          final progress = currentIndex == 1 ? sheetProgress : 0.0;
+          // 首页搜索遮罩展开时同步隐藏底栏：既避免底栏浮在模糊层之上，
+          // 也防止搜索模式下误点 tab 切页后首页残留搜索状态。
+          final hidden = keyboardVisible || searchActive;
+          return Align(
+            alignment: Alignment.bottomCenter,
+            child: IgnorePointer(
+              ignoring: hidden || progress > 0.05,
+              child: AnimatedSlide(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                offset: hidden ? const Offset(0, 1.25) : Offset.zero,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 120),
+                  opacity: hidden ? 0 : 1,
+                  child: Transform.translate(
+                    offset: Offset(0, (reserveHeight + 12) * progress),
+                    child: Opacity(
+                      opacity: 1 - progress,
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(34, 0, 34, bottomGap),
+                        child: _SiponBottomJumpBar(
+                          currentIndex: currentIndex,
+                          onTabSelected: onTabSelected,
+                          onPlusPressed: onPlusPressed,
                         ),
                       ),
                     ),
                   ),
                 ),
-              );
-            },
-          ),
-        ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

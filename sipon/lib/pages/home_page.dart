@@ -22,10 +22,15 @@ class HomePage extends StatefulWidget {
     super.key,
     this.bottomOverlayInset = 0,
     this.onRecordPressed,
+    this.searchExpanded,
   });
 
   final double bottomOverlayInset;
   final VoidCallback? onRecordPressed;
+
+  /// 外部共享的搜索展开状态（壳层用它在遮罩出现时同步隐藏底栏）；
+  /// 为空时由页面内部自建，页面可独立使用。
+  final ValueNotifier<bool>? searchExpanded;
 
   static const Color brand = Color(0xFF9A3D78);
   static const Color ink = Color(0xFF252229);
@@ -64,8 +69,9 @@ class _HomePageState extends State<HomePage> {
   late Future<_HomeBarsData> _homeBarsFuture;
   SiponCityController? _cityController;
   String? _loadedCity;
-  // 搜索展开状态用 ValueNotifier 局部刷新顶栏/遮罩，避免 setState 重建整个首页列表。
-  final ValueNotifier<bool> _searchExpanded = ValueNotifier<bool>(false);
+  // 搜索展开状态用 ValueNotifier 局部刷新顶栏/遮罩，避免 setState 重建整个
+  // 首页列表；实例可能由壳层注入（用于联动底栏），见 initState。
+  late final ValueNotifier<bool> _searchExpanded;
   final GlobalKey<_HomeTopBarState> _homeTopBarKey =
       GlobalKey<_HomeTopBarState>();
   // ignore: unused_field, prefer_final_fields -- DrinkProduct 功能待定，暂时隐藏，恢复 _DrinkCarousel 时启用
@@ -74,6 +80,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _searchExpanded = widget.searchExpanded ?? ValueNotifier<bool>(false);
     _drinkController = PageController(initialPage: 1, viewportFraction: 0.52);
   }
 
@@ -91,7 +98,10 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _cityController?.removeListener(_refreshHomeBarsForCity);
-    _searchExpanded.dispose();
+    // 注入的 notifier 由壳层管理生命周期，仅自建时释放。
+    if (widget.searchExpanded == null) {
+      _searchExpanded.dispose();
+    }
     _drinkController.dispose();
     super.dispose();
   }
@@ -320,11 +330,15 @@ class _HomeTopBarState extends State<_HomeTopBar> {
   final SiponApiService _cocktailApi = SiponApiService();
   final List<CocktailInfo> _suggestions = [];
   Timer? _searchDebounce;
+  // 展开动画结束后再请求焦点唤起键盘，避免键盘滑入与宽度/遮罩模糊动画
+  // 叠加在同一个渲染窗口内导致掉帧。
+  Timer? _focusRequestDebounce;
   bool _loadingSuggestions = false;
 
   @override
   void dispose() {
     _searchDebounce?.cancel();
+    _focusRequestDebounce?.cancel();
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
@@ -367,10 +381,13 @@ class _HomeTopBarState extends State<_HomeTopBar> {
   void didUpdateWidget(covariant _HomeTopBar oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!oldWidget.expanded && widget.expanded) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+      // 延迟到展开动画（280ms）结束后再弹键盘，错开 raster 压力峰值。
+      _focusRequestDebounce?.cancel();
+      _focusRequestDebounce = Timer(_searchAnimationDuration, () {
         if (mounted && widget.expanded) _searchFocusNode.requestFocus();
       });
     } else if (oldWidget.expanded && !widget.expanded) {
+      _focusRequestDebounce?.cancel();
       _searchFocusNode.unfocus();
     }
   }
@@ -464,7 +481,8 @@ class _HomeTopBarState extends State<_HomeTopBar> {
                                     child: TextField(
                                       controller: _searchController,
                                       focusNode: _searchFocusNode,
-                                      autofocus: true,
+                                      // 不用 autofocus：焦点由展开动画结束后的
+                                      // 延迟请求统一发起，保证键盘错峰弹出。
                                       textInputAction: TextInputAction.search,
                                       onChanged: _onSearchChanged,
                                       onSubmitted: (_) => _submitSearch(),
