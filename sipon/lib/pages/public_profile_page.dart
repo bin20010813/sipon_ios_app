@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/drink_budget_store.dart';
 import '../services/map/map_models.dart';
 import '../services/sipon_api_config.dart';
+import '../services/sipon_api_client.dart';
 import '../services/sipon_api_service.dart';
 import '../services/user_profile_data.dart';
 import 'drink_sticker_calendar_page.dart';
@@ -509,7 +510,12 @@ class _UserAvatar extends StatelessWidget {
     return CircleAvatar(
       radius: size / 2,
       backgroundColor: const Color(0xFFFFE4F1),
-      backgroundImage: imageUrl == null ? null : NetworkImage(imageUrl),
+      backgroundImage: imageUrl == null
+          ? null
+          : NetworkImage(
+              imageUrl,
+              headers: SiponApiClient.imageRequestHeaders,
+            ),
       onBackgroundImageError: imageUrl == null ? null : (_, _) {},
       child: imageUrl == null
           ? Icon(

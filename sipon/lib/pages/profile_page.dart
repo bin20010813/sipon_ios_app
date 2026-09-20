@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../services/drink_budget_store.dart';
 import '../services/map/map_models.dart';
 import '../services/sipon_api_config.dart';
+import '../services/sipon_api_client.dart';
 import '../services/sipon_api_service.dart';
 import '../services/sipon_auth_service.dart';
 import '../services/user_profile_data.dart';
@@ -135,7 +136,8 @@ class ProfilePageState extends State<ProfilePage> {
     );
     if (updated != null && mounted) {
       setState(() => _profile = updated);
-      _loadProfile();
+      // PATCH 成功后立即 GET 可能命中后端的短暂旧缓存，不能用旧响应覆盖
+      // 刚刚提交的头像；下次进入页面时再按正常流程刷新即可。
     }
   }
 
@@ -579,11 +581,15 @@ class _ProfileAvatar extends StatelessWidget {
     return Image.network(
       SiponApiConfig.instance.resolveUri(rawUrl).toString(),
       fit: BoxFit.cover,
-      errorBuilder: (_, _, _) => Image.asset(
-        ProfilePage._avatarAsset,
-        fit: BoxFit.cover,
-        alignment: Alignment.topCenter,
-      ),
+      headers: SiponApiClient.imageRequestHeaders,
+      errorBuilder: (_, error, stackTrace) {
+        debugPrint('Profile avatar image failed: $rawUrl ($error)');
+        return Image.asset(
+          ProfilePage._avatarAsset,
+          fit: BoxFit.cover,
+          alignment: Alignment.topCenter,
+        );
+      },
     );
   }
 }

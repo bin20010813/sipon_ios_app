@@ -130,14 +130,16 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<_HomeBarsData> _loadHomeBars(String city) async {
-    // 文档 19：/api/home 的 city 与经纬度二选一；有定位/城市锚点时优先按坐标查。
+    // 与打卡页一致按经纬度查附近酒吧；无坐标锚点时回退按城市查。
     final anchor = _cityController?.queryAnchor;
     try {
-      final bars = await SiponDataRepository.instance.fetchHomeRecommendedBars(
-        city: anchor == null ? city : null,
-        longitude: anchor?.longitude,
-        latitude: anchor?.latitude,
-      );
+      final bars = anchor == null
+          ? await SiponDataRepository.instance.fetchHomeBars(city: city)
+          : await SiponDataRepository.instance.fetchNearbyBars(
+              longitude: anchor.longitude,
+              latitude: anchor.latitude,
+              radiusMeters: 5000,
+            );
       if (bars.isEmpty) {
         return _HomeBarsData(
           bars: city == SiponCityController.defaultCity
@@ -743,8 +745,8 @@ class _HomeDataSections extends StatelessWidget {
               onTap: () => _pushVenueDetail(context, data.featuredBar),
             ),
           ),
-        if (data.bars.isNotEmpty) const SizedBox(height: 14),
-        if (data.bars.isNotEmpty) const _CategoryScroller(),
+        // if (data.bars.isNotEmpty) const SizedBox(height: 14),
+        // if (data.bars.isNotEmpty) const _CategoryScroller(),
         // const SizedBox(height: 22),
         // Padding(
         //   padding: const EdgeInsets.only(right: 23),
@@ -1338,11 +1340,12 @@ class _FeaturedBarCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFFF7F7F7),
           borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: HomePage.line),
           boxShadow: const [
             BoxShadow(
-              color: Color(0x0F000000),
-              blurRadius: 16,
-              offset: Offset(0, 8),
+              color: Color(0x1F000000),
+              blurRadius: 24,
+              offset: Offset(0, 12),
             ),
           ],
         ),
@@ -1566,85 +1569,85 @@ class _HomeVenueImage extends StatelessWidget {
   }
 }
 
-class _CategoryScroller extends StatelessWidget {
-  const _CategoryScroller();
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 42,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        children: const [
-          _CategoryChip(
-            label: '清吧',
-            assetPath: HomePage.pubAsset,
-            selected: true,
-          ),
-          _CategoryChip(label: '精酿', assetPath: HomePage.craftAsset),
-          _CategoryChip(label: 'Bistro', assetPath: HomePage.bistroAsset),
-          _CategoryChip(label: '派对', assetPath: HomePage.partyAsset),
-          _CategoryChip(label: 'Livehouse', assetPath: HomePage.livehouseAsset),
-          SizedBox(width: 23),
-        ],
-      ),
-    );
-  }
-}
-
-class _CategoryChip extends StatelessWidget {
-  const _CategoryChip({
-    required this.label,
-    required this.assetPath,
-    this.selected = false,
-  });
-
-  final String label;
-  final String assetPath;
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = SiponLanguageScope.textOf(context);
-
-    return Padding(
-      padding: const EdgeInsets.only(right: 9),
-      child: Material(
-        color: selected ? HomePage.brand : HomePage.chipBg,
-        borderRadius: BorderRadius.circular(22),
-        child: InkWell(
-          onTap: () {},
-          borderRadius: BorderRadius.circular(22),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Image.asset(
-                  assetPath,
-                  width: 22,
-                  height: 22,
-                  color: selected ? Colors.white : HomePage.brand,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  text.t(label),
-                  style: TextStyle(
-                    color: selected ? Colors.white : const Color(0xFF443B43),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
+// class _CategoryScroller extends StatelessWidget {
+//   const _CategoryScroller();
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return SizedBox(
+//       height: 42,
+//       child: ListView(
+//         scrollDirection: Axis.horizontal,
+//         physics: const BouncingScrollPhysics(),
+//         children: const [
+//           _CategoryChip(
+//             label: '清吧',
+//             assetPath: HomePage.pubAsset,
+//             selected: true,
+//           ),
+//           _CategoryChip(label: '精酿', assetPath: HomePage.craftAsset),
+//           _CategoryChip(label: 'Bistro', assetPath: HomePage.bistroAsset),
+//           _CategoryChip(label: '派对', assetPath: HomePage.partyAsset),
+//           _CategoryChip(label: 'Livehouse', assetPath: HomePage.livehouseAsset),
+//           SizedBox(width: 23),
+//         ],
+//       ),
+//     );
+//   }
+// }
+//
+// class _CategoryChip extends StatelessWidget {
+//   const _CategoryChip({
+//     required this.label,
+//     required this.assetPath,
+//     this.selected = false,
+//   });
+//
+//   final String label;
+//   final String assetPath;
+//   final bool selected;
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     final text = SiponLanguageScope.textOf(context);
+//
+//     return Padding(
+//       padding: const EdgeInsets.only(right: 9),
+//       child: Material(
+//         color: selected ? HomePage.brand : HomePage.chipBg,
+//         borderRadius: BorderRadius.circular(22),
+//         child: InkWell(
+//           onTap: () {},
+//           borderRadius: BorderRadius.circular(22),
+//           child: Padding(
+//             padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+//             child: Row(
+//               mainAxisSize: MainAxisSize.min,
+//               children: [
+//                 Image.asset(
+//                   assetPath,
+//                   width: 22,
+//                   height: 22,
+//                   color: selected ? Colors.white : HomePage.brand,
+//                 ),
+//                 const SizedBox(width: 6),
+//                 Text(
+//                   text.t(label),
+//                   style: TextStyle(
+//                     color: selected ? Colors.white : const Color(0xFF443B43),
+//                     fontSize: 14,
+//                     fontWeight: FontWeight.w700,
+//                     letterSpacing: 0,
+//                   ),
+//                 ),
+//               ],
+//             ),
+//           ),
+//         ),
+//       ),
+//     );
+//   }
+// }
 
 // ignore: unused_element -- 调酒师故事模块暂时隐藏，恢复时取消首页 build 中的注释即可
 class _BartenderStories extends StatelessWidget {
@@ -1825,38 +1828,44 @@ class _TopBarsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
-    final primaryBars = bars.take(3).toList();
-    final secondaryBars = bars.skip(3).take(3).toList();
+    final primaryBars = bars.take(5).toList();
+    final secondaryBars = bars.skip(5).take(3).toList();
 
-    return SizedBox(
-      height: 306,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        children: [
-          _RankingCard(
-            title: text.t('酒吧推荐'),
-            items: primaryBars.map((bar) => bar.toRankingItem(text)).toList(),
-            onItemTap: [
-              for (final bar in primaryBars)
-                () => _pushVenueDetail(context, bar),
-            ],
-          ),
-          if (secondaryBars.isNotEmpty) const SizedBox(width: 16),
-          if (secondaryBars.isNotEmpty)
+    return LayoutBuilder(
+      builder: (context, constraints) => SizedBox(
+        height: 481,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          // 底部留白防止卡片阴影被 ListView 裁切。
+          padding: const EdgeInsets.only(bottom: 16),
+          children: [
             _RankingCard(
-              title: text.t('更多酒吧'),
-              compact: true,
-              items: secondaryBars
-                  .map((bar) => bar.toRankingItem(text))
-                  .toList(),
+              // 与上方 _FeaturedBarCard 等卡片右边缘对齐（各留 23 边距）。
+              width: constraints.maxWidth - 23,
+              title: text.t('更多酒吧推荐'),
+              items: primaryBars.map((bar) => bar.toRankingItem(text)).toList(),
               onItemTap: [
-                for (final bar in secondaryBars)
+                for (final bar in primaryBars)
                   () => _pushVenueDetail(context, bar),
               ],
             ),
-          const SizedBox(width: 23),
-        ],
+            if (secondaryBars.isNotEmpty) const SizedBox(width: 16),
+            // if (secondaryBars.isNotEmpty)
+            //   _RankingCard(
+            //     title: text.t('更多酒吧'),
+            //     compact: true,
+            //     items: secondaryBars
+            //         .map((bar) => bar.toRankingItem(text))
+            //         .toList(),
+            //     onItemTap: [
+            //       for (final bar in secondaryBars)
+            //         () => _pushVenueDetail(context, bar),
+            //     ],
+            //   ),
+            const SizedBox(width: 23),
+          ],
+        ),
       ),
     );
   }
@@ -1866,13 +1875,13 @@ class _RankingCard extends StatelessWidget {
   const _RankingCard({
     required this.title,
     required this.items,
+    required this.width,
     this.onItemTap,
-    this.compact = false,
   });
 
   final String title;
   final List<_RankingItem> items;
-  final bool compact;
+  final double width;
 
   /// 与 [items] 一一对应的点击回调，用于跳转到对应地点详情页。
   final List<VoidCallback>? onItemTap;
@@ -1880,7 +1889,7 @@ class _RankingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: compact ? 184 : 302,
+      width: width,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -1888,9 +1897,9 @@ class _RankingCard extends StatelessWidget {
           border: Border.all(color: HomePage.line),
           boxShadow: const [
             BoxShadow(
-              color: Color(0x08000000),
-              blurRadius: 16,
-              offset: Offset(0, 8),
+              color: Color(0x14000000),
+              blurRadius: 20,
+              offset: Offset(0, 10),
             ),
           ],
         ),
@@ -1918,11 +1927,7 @@ class _RankingCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     for (var i = 0; i < items.length; i++)
-                      _RankingTile(
-                        item: items[i],
-                        compact: compact,
-                        onTap: onItemTap?[i],
-                      ),
+                      _RankingTile(item: items[i], onTap: onItemTap?[i]),
                   ],
                 ),
               ),
@@ -1935,7 +1940,7 @@ class _RankingCard extends StatelessWidget {
 }
 
 class _RankingTile extends StatelessWidget {
-  const _RankingTile({required this.item, required this.compact, this.onTap});
+  const _RankingTile({required this.item, this.compact = false, this.onTap});
 
   final _RankingItem item;
   final bool compact;
@@ -2040,9 +2045,7 @@ class _CocktailScrollerState extends State<_CocktailScroller> {
 
   /// 每次冷启动随机抽取推荐；接口失败退缓存池，缓存也缺失时保持静态素材。
   Future<void> _load() async {
-    final list = await _recommendations.loadRecommendations(
-      count: _homeLimit,
-    );
+    final list = await _recommendations.loadRecommendations(count: _homeLimit);
     if (!mounted || list.isEmpty) return;
     setState(() => _cocktails = list);
     // 卡片就位后预取详情封面（640 中图），点进详情时直接命中内存缓存。

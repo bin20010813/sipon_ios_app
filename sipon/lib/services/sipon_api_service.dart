@@ -309,16 +309,38 @@ class SiponApiService {
     required String filename,
     required String mimeType,
     String purpose = 'feedback',
+    bool purposeInQuery = false,
   }) async {
-    return _unwrapData(
-      await _apiClient.postMultipart(
-        '/api/uploads',
-        fileBytes: fileBytes,
-        filename: filename,
-        mimeType: mimeType,
-        fields: {'purpose': purpose},
-      ),
+    Future<dynamic> upload({
+      required Map<String, String> fields,
+      required Map<String, Object?> queryParameters,
+    }) => _apiClient.postMultipart(
+      '/api/uploads',
+      fileBytes: fileBytes,
+      filename: filename,
+      mimeType: mimeType,
+      fields: fields,
+      queryParameters: queryParameters,
     );
+
+    if (!purposeInQuery) {
+      return _unwrapData(
+        await upload(fields: {'purpose': purpose}, queryParameters: const {}),
+      );
+    }
+
+    try {
+      // 新版头像接口：POST /api/uploads?purpose=avatar。
+      return _unwrapData(
+        await upload(fields: const {}, queryParameters: {'purpose': purpose}),
+      );
+    } on SiponApiException catch (error) {
+      if (error.statusCode != 400) rethrow;
+      // 兼容仍从 multipart 表单读取 purpose 的服务端，且绝不重复发送同名参数。
+      return _unwrapData(
+        await upload(fields: {'purpose': purpose}, queryParameters: const {}),
+      );
+    }
   }
 
   Future<List<int>> downloadMedia(String id) async {

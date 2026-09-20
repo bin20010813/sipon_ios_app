@@ -34,6 +34,15 @@ class SiponApiClient {
     _sharedSessionRefresher = null;
   }
 
+  /// 受登录保护的上传内容用于 Flutter 图片组件时所需的请求头。
+  /// 不在日志中输出 token。
+  static Map<String, String> get imageRequestHeaders {
+    final token = _sharedSessionAccessToken;
+    return token == null || token.isEmpty
+        ? const <String, String>{}
+        : <String, String>{'Authorization': 'Bearer $token'};
+  }
+
   Future<dynamic> getJson(
     String path, {
     Map<String, Object?> queryParameters = const {},
@@ -121,8 +130,12 @@ class SiponApiClient {
     required String filename,
     required String mimeType,
     Map<String, String> fields = const {},
+    Map<String, Object?> queryParameters = const {},
   }) async {
-    final request = http.MultipartRequest('POST', config.uri(path));
+    final request = http.MultipartRequest(
+      'POST',
+      config.uri(path, queryParameters),
+    );
     request.headers.addAll(
       config.headers(accessTokenOverride: _sharedSessionAccessToken),
     );
@@ -140,7 +153,10 @@ class SiponApiClient {
       await _httpClient.send(request).timeout(config.timeout),
     ).timeout(config.timeout);
     if (response.statusCode == 401 && await _refreshSession()) {
-      final retry = http.MultipartRequest('POST', config.uri(path));
+      final retry = http.MultipartRequest(
+        'POST',
+        config.uri(path, queryParameters),
+      );
       retry.headers.addAll(
         config.headers(accessTokenOverride: _sharedSessionAccessToken),
       );

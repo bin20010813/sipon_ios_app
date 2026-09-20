@@ -83,6 +83,7 @@ class SiponBarMapItem {
     required this.distance,
     required this.tags,
     required this.imageUrl,
+    this.hasImage = false,
     this.thumbnailUrl,
     this.mediumImageUrl,
   });
@@ -99,6 +100,7 @@ class SiponBarMapItem {
   final String distance;
   final List<String> tags;
   final String? imageUrl;
+  final bool hasImage;
 
   /// 三档图（文档 4.9）：`imageUrl` 原图、`thumbnailUrl` 长边 320px、
   /// `mediumImageUrl` 长边 640px；均为 `/api/bars/{id}/images/{variant}`
@@ -114,7 +116,33 @@ class SiponBarMapItem {
   String? get resolvedMediumImageUrl =>
       mediumImageUrl ?? thumbnailUrl ?? imageUrl;
 
+  /// 后端 `hasImage` 可能为 false，但真实返回里仍携带相对路径图地址；
+  /// 所以首页推荐应按“是否存在可展示图源”优先，而不是仅信任单字段。
+  bool get hasVisualAsset =>
+      hasImage ||
+      (imageUrl != null && imageUrl!.trim().isNotEmpty) ||
+      (thumbnailUrl != null && thumbnailUrl!.trim().isNotEmpty) ||
+      (mediumImageUrl != null && mediumImageUrl!.trim().isNotEmpty);
+
   bool get hasCoordinates => longitude != null && latitude != null;
+
+  static List<SiponBarMapItem> sortForHomeRecommendation(
+    Iterable<SiponBarMapItem> items,
+  ) {
+    final sorted = items.toList(growable: false);
+    sorted.sort((a, b) {
+      final imagePriority = (b.hasVisualAsset ? 1 : 0).compareTo(
+        a.hasVisualAsset ? 1 : 0,
+      );
+      if (imagePriority != 0) return imagePriority;
+
+      final ratingPriority = b.rating.compareTo(a.rating);
+      if (ratingPriority != 0) return ratingPriority;
+
+      return a.name.compareTo(b.name);
+    });
+    return sorted;
+  }
 
   factory SiponBarMapItem.fromJson(Map<String, dynamic> json) {
     final properties = _asMap(json['properties']);
@@ -141,6 +169,10 @@ class SiponBarMapItem {
     final parsedTags =
         _readStringList(json, ['tags', 'labels', 'categories']) ??
         _readStringList(properties, ['tags', 'labels', 'categories']);
+    final hasImage =
+        _readBool(json, ['hasImage']) ??
+        _readBool(properties, ['hasImage']) ??
+        false;
     final subtypeTags = subtype == null ? null : _splitTags(subtype);
     final tags = parsedTags ?? subtypeTags ?? const <String>[];
     final fallbackKind = _kindFromTags(tags);
@@ -163,8 +195,13 @@ class SiponBarMapItem {
       count: count,
       kind: kind,
       rating:
-          _readDouble(json, ['rating', 'score', 'star']) ??
-          _readDouble(properties, ['rating', 'score', 'star']) ??
+          _readDouble(json, ['averageRating', 'rating', 'score', 'star']) ??
+          _readDouble(properties, [
+            'averageRating',
+            'rating',
+            'score',
+            'star',
+          ]) ??
           4.8,
       address:
           _readString(json, ['address', 'addr', 'locationText', 'city']) ??
@@ -186,6 +223,7 @@ class SiponBarMapItem {
       imageUrl:
           _readString(json, ['imageUrl', 'image', 'cover', 'coverUrl']) ??
           _readString(properties, ['imageUrl', 'image', 'cover', 'coverUrl']),
+      hasImage: hasImage,
       thumbnailUrl:
           _readString(json, ['thumbnailUrl']) ??
           _readString(properties, ['thumbnailUrl']),
@@ -502,14 +540,21 @@ class CocktailInfo {
       _resolveAsset(config, thumbnailUrl ?? imageUrl, 'cocktails-320');
 
   /// 中图（长边 640px，大卡片用）：逐级回退 thumbnailUrl、imageUrl。
-  String? resolvedMediumImageUrl([SiponApiConfig? config]) =>
-      _resolveAsset(config, mediumImageUrl ?? thumbnailUrl ?? imageUrl, 'cocktails-640');
+  String? resolvedMediumImageUrl([SiponApiConfig? config]) => _resolveAsset(
+    config,
+    mediumImageUrl ?? thumbnailUrl ?? imageUrl,
+    'cocktails-640',
+  );
 
   /// 把后端可能返回的相对路径解析为完整 URL；[raw] 为空时按
   /// `/api/cocktail-game/assets/{assetGroup}/{code}.png` 推导（该分组
   /// 是文档中真实存在的公开素材端点），连 code 都没有时返回 null，
   /// 由页面展示本地占位图。
-  String? _resolveAsset(SiponApiConfig? config, String? raw, String assetGroup) {
+  String? _resolveAsset(
+    SiponApiConfig? config,
+    String? raw,
+    String assetGroup,
+  ) {
     final value = raw?.trim();
     if (value == null || value.isEmpty) {
       final code = this.code?.trim();

@@ -1,9 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../services/sipon_api_config.dart';
+import '../services/sipon_api_client.dart';
 import '../services/sipon_api_service.dart';
 import '../services/user_profile_data.dart';
 
@@ -91,6 +94,47 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       return;
     }
     if (file == null || !mounted) return;
+    try {
+      final cropped = await ImageCropper().cropImage(
+        sourcePath: file.path,
+        aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+        compressFormat: ImageCompressFormat.jpg,
+        compressQuality: 90,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: '裁切头像',
+            lockAspectRatio: true,
+            hideBottomControls: true,
+          ),
+          IOSUiSettings(
+            title: '裁切头像',
+            aspectRatioLockEnabled: true,
+            resetAspectRatioEnabled: false,
+          ),
+        ],
+      );
+      // 用户取消裁切时不更改当前头像，也不发起上传。
+      if (cropped == null || !mounted) return;
+      file = XFile(cropped.path, name: 'avatar.jpg', mimeType: 'image/jpeg');
+    } on MissingPluginException {
+      // 新增原生插件后，Hot Reload/Hot Restart 不会注册插件；必须完整重启应用。
+      if (mounted) {
+        _showMessage('图片裁切组件尚未加载，请完全停止应用后重新运行');
+      }
+      return;
+    } on PlatformException catch (error) {
+      if (mounted) {
+        _showMessage(
+          error.message?.trim().isNotEmpty == true
+              ? '图片裁切失败：${error.message}'
+              : '图片裁切失败，请重试',
+        );
+      }
+      return;
+    } on Exception {
+      if (mounted) _showMessage('图片裁切失败，请重试');
+      return;
+    }
     setState(() {
       _pickedAvatar = file;
       _uploadingAvatar = true;
@@ -105,23 +149,38 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         filename: file.name,
         mimeType: _mimeTypeFor(file),
         purpose: 'avatar',
+        purposeInQuery: true,
       );
+      debugPrint('Avatar upload response: $response');
       final mediaId = _extractMediaId(response);
       if (mediaId == null) {
-        throw const FormatException('头像上传失败，请重试');
+        debugPrint('Avatar upload returned no media ID: $response');
+        throw const FormatException('上传成功但服务端未返回媒体 ID');
       }
       if (!mounted) return;
       setState(() {
-        _avatarController.text = '/api/uploads/$mediaId/content';
-        _pickedAvatar = null;
+        _avatarController.text = _avatarUrlFromUpload(response, mediaId);
       });
+      _showMessage('头像已上传，请点击保存资料');
     } on FormatException catch (error) {
       if (!mounted) return;
       setState(() => _pickedAvatar = null);
       _showMessage(error.message);
-    } on Exception {
+    } on SiponApiException catch (error) {
       if (!mounted) return;
       setState(() => _pickedAvatar = null);
+      debugPrint(
+        'Avatar upload failed: status=${error.statusCode}, '
+        'code=${error.code}, path=${error.path}, '
+        'requestId=${error.requestId}, message=${error.message}',
+      );
+      _showMessage(
+        '上传失败（${error.statusCode}）：${_compactErrorMessage(error.message ?? '')}',
+      );
+    } on Exception catch (error, stackTrace) {
+      if (!mounted) return;
+      setState(() => _pickedAvatar = null);
+      debugPrint('Avatar upload failed: $error\n$stackTrace');
       _showMessage('头像上传失败，请重试');
     } finally {
       if (mounted) setState(() => _uploadingAvatar = false);
@@ -134,9 +193,32 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     final raw =
         response['mediaId'] ??
         response['id'] ??
-        (response['data'] is Map ? response['data']['mediaId'] : null);
+        (response['data'] is Map
+            ? (response['data']['mediaId'] ?? response['data']['id'])
+            : null);
     final id = raw?.toString().trim();
     return (id == null || id.isEmpty) ? null : id;
+  }
+
+  /// 资料接口会校验上传归属，必须提交上传接口原样返回的相对内容路径。
+  String _avatarUrlFromUpload(dynamic response, String mediaId) {
+    String? url;
+    if (response is Map) {
+      final raw = response['url'] ??
+          (response['data'] is Map ? response['data']['url'] : null);
+      url = raw?.toString().trim();
+    }
+    return url?.isNotEmpty == true
+        ? url!
+        : '/api/uploads/${Uri.encodeComponent(mediaId)}/content';
+  }
+
+  String _compactErrorMessage(String message) {
+    final normalized = message.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (normalized.isEmpty) return '请稍后重试';
+    return normalized.length <= 80
+        ? normalized
+        : '${normalized.substring(0, 80)}…';
   }
 
   /// 根据文件扩展名推断图片 MIME 类型，未知扩展名统一按 JPEG 处理。
@@ -226,6 +308,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       return Image.network(
         SiponApiConfig.instance.resolveUri(url).toString(),
         fit: BoxFit.cover,
+        headers: SiponApiClient.imageRequestHeaders,
         errorBuilder: (_, _, _) =>
             Image.asset(_avatarAsset, fit: BoxFit.cover),
       );
@@ -238,19 +321,17 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     setState(() => _saving = true);
     final name = _nameController.text.trim();
     final avatar = _nullableValue(_avatarController.text);
-    // 后端对昵称/头像的字段命名尚不统一，同时携带常见别名
-    // （nickname/avatar），后端认哪个用哪个，不识别的会忽略。
-    // 别名字段仅在主字段有值时携带，避免空值覆盖已存数据。
+    // 按用户资料接口约定提交字段，避免未定义别名被后端静默忽略。
     final body = <String, Object?>{
       'displayName': name,
-      if (name.isNotEmpty) 'nickname': name,
       'bio': _nullableValue(_bioController.text),
       'city': _nullableValue(_cityController.text),
       'avatarUrl': avatar,
-      'avatar': ?avatar,
     };
     try {
+      debugPrint('Profile save request: $body');
       final response = await _api.updateMyProfile(body);
+      debugPrint('Profile save response: $response');
       if (!mounted) return;
       // 有些 PATCH 实现返回 204 或仅返回变更字段；用提交值补齐展示资料。
       final returnedFields = response is Map
@@ -263,12 +344,21 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         ...body,
         ...returnedFields,
       });
+      _showMessage('资料已保存');
       Navigator.of(context).pop(updated);
-    } on Exception {
+    } on SiponApiException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('保存失败，请稍后重试。')));
+      debugPrint(
+        'Profile save failed: status=${error.statusCode}, '
+        'requestId=${error.requestId}, message=${error.message}',
+      );
+      _showMessage(
+        '保存失败（${error.statusCode}）：${_compactErrorMessage(error.message ?? '')}',
+      );
+    } on Exception catch (error, stackTrace) {
+      if (!mounted) return;
+      debugPrint('Profile save failed: $error\n$stackTrace');
+      _showMessage('保存失败，请稍后重试');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -297,12 +387,6 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       appBar: AppBar(
         title: const Text('编辑资料'),
         centerTitle: true,
-        actions: [
-          TextButton(
-            onPressed: _saving || _uploadingAvatar ? null : _save,
-            child: Text(_saving ? '保存中…' : '保存'),
-          ),
-        ],
       ),
       body: SafeArea(
         // bottom:false 让滚动视口延伸到屏幕底，可滚过小白条区域；

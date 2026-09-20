@@ -49,40 +49,51 @@ class SiponDataRepository {
       queryParameters: {
         'city': city == null ? null : siponApiCityName(city),
         'keyword': keyword,
+        'hasImage': true,
         'limit': limit,
         'offset': offset,
       },
     );
-    return SiponBarMapResponse.fromJson(
-      json,
-    ).items.where((item) => !item.cluster).toList(growable: false);
+    final items = SiponBarMapResponse.fromJson(json).items
+        .where((item) => !item.cluster)
+        // 服务端即使收到 hasImage=true，仍可能返回带占位图片路径但
+        // `hasImage=false` 的酒吧。首页推荐只接受已确认拥有照片的条目。
+        .where((item) => item.hasImage)
+        .toList(growable: false);
+    return SiponBarMapItem.sortForHomeRecommendation(items);
   }
 
-  /// 拉取首页聚合数据（文档 19）：[city] 与经纬度二选一，坐标需成对提供。
-  Future<List<SiponBarMapItem>> fetchHomeRecommendedBars({
-    String? city,
-    double? longitude,
-    double? latitude,
+  /// 按经纬度拉取附近酒吧（文档 4.5）：radiusMeters 限 1000~5000，limit 1~10000。
+  Future<List<SiponBarMapItem>> fetchNearbyBars({
+    required double longitude,
+    required double latitude,
+    int radiusMeters = 3000,
+    int limit = 20,
   }) async {
     final json = await _apiClient.getJson(
-      '/api/home',
+      '/api/bars/nearby',
       queryParameters: {
-        'city': city == null ? null : siponApiCityName(city),
         'longitude': longitude,
         'latitude': latitude,
+        'radiusMeters': radiusMeters,
+        'hasImage': true,
+        'limit': limit,
       },
     );
-    final root = json is Map ? (json['data'] ?? json) : json;
-    final sections = root is Map ? root['sections'] : null;
-    if (sections is! List) return const [];
+    final items = json is List
+        ? json
+        : json is Map && json['data'] is List
+        ? json['data'] as List
+        : const [];
 
-    return [
-      for (final section in sections.whereType<Map>())
-        if (section['type']?.toString() == 'bars')
-          for (final item in (section['items'] as List? ?? const []))
-            if (item is Map)
-              SiponBarMapItem.fromJson(item.cast<String, dynamic>()),
-    ].where((item) => !item.cluster).toList(growable: false);
+    final bars = items
+        .whereType<Map>()
+        .map((item) => SiponBarMapItem.fromJson(item.cast<String, dynamic>()))
+        .where((item) => item.hasCoordinates)
+        // 同样在客户端严格过滤，避免附近推荐混入没有照片的酒吧。
+        .where((item) => item.hasImage)
+        .toList(growable: false);
+    return SiponBarMapItem.sortForHomeRecommendation(bars);
   }
 
   Future<List<String>> fetchCities() async {
