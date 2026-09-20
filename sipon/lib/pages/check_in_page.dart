@@ -92,7 +92,8 @@ class _CheckInPageState extends State<CheckInPage> {
     super.dispose();
   }
 
-  /// nearby 接口仅支持 limit，不支持 offset；城市切换时重新请求。
+  /// nearby 接口：radiusMeters 限 1000~5000，limit 1~10000（不传=范围内全量），
+  /// offset 仅在传 limit 时分页生效；当前一次拉一页展示，城市切换时重新请求。
   Future<void> _loadNearbyBars() async {
     final version = ++_requestVersion;
     final anchor = await _cityController?.resolveQueryAnchor();
@@ -441,9 +442,9 @@ class _CheckInCommentPageState extends State<_CheckInCommentPage> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  /// 逐张上传打卡图片（purpose=check_in），返回内容 URL 列表。
+  /// 逐张上传打卡图片（purpose=check_in），返回上传媒体 ID 列表。
   Future<List<String>> _uploadImages() async {
-    final urls = <String>[];
+    final mediaIds = <String>[];
     for (final file in _images) {
       final bytes = await file.readAsBytes();
       if (bytes.length > _maxUploadBytes) {
@@ -459,9 +460,9 @@ class _CheckInCommentPageState extends State<_CheckInCommentPage> {
       if (mediaId == null) {
         throw Exception('图片上传失败，请重试');
       }
-      urls.add('/api/uploads/$mediaId/content');
+      mediaIds.add(mediaId);
     }
-    return urls;
+    return mediaIds;
   }
 
   /// 从上传响应的多种字段名中尽力提取媒体 ID。
@@ -503,7 +504,7 @@ class _CheckInCommentPageState extends State<_CheckInCommentPage> {
     setState(() => _submitting = true);
     FocusScope.of(context).unfocus();
     try {
-      final mediaUrls = await _uploadImages();
+      final mediaIds = await _uploadImages();
       await _api.createCheckIn({
         'barId': barId,
         'rating': _rating,
@@ -511,7 +512,7 @@ class _CheckInCommentPageState extends State<_CheckInCommentPage> {
           'content': _controller.text.trim(),
         'visibility': 'public',
         'visitedAt': DateTime.now().toUtc().toIso8601String(),
-        if (mediaUrls.isNotEmpty) 'mediaUrls': mediaUrls,
+        if (mediaIds.isNotEmpty) 'mediaIds': mediaIds,
       });
       if (!mounted) return;
       _showMessage('打卡成功');

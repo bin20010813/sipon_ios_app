@@ -97,7 +97,7 @@ class SiponApiMapVenueRepository
           : item.distance,
       tags: item.tags,
       imageAsset: MapAssets.coverForIndex(index),
-      imageUrl: item.imageUrl,
+      imageUrl: item.resolvedMediumImageUrl,
     );
   }
 }

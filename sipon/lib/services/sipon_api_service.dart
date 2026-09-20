@@ -190,6 +190,14 @@ class SiponApiService {
 
   Future<void> deleteCheckIn(int id) => _deleteEmpty('/api/check-ins/$id');
 
+  /// 给签到点赞/点踩，[reaction] 取 `like` / `dislike`；传 null 表示取消。
+  Future<void> setCheckInReaction(int checkInId, String? reaction) {
+    final path = '/api/check-ins/$checkInId/reaction';
+    return reaction == null
+        ? _deleteEmpty(path)
+        : _putJson(path, body: {'reaction': reaction});
+  }
+
   Future<List<dynamic>> getMyCheckIns({SiponPage page = const SiponPage()}) =>
       _getList(
         '/api/users/me/check-ins',
@@ -324,6 +332,10 @@ class SiponApiService {
 
   Future<List<dynamic>> getMyFeedback({SiponPage page = const SiponPage()}) =>
       _getList('/api/users/me/feedback', queryParameters: page.queryParameters);
+
+  /// 举报内容，请求体字段见接口文档：`contentType` 取 `check_in` / `user`。
+  Future<dynamic> createReport(Map<String, Object?> body) =>
+      _postJson('/api/reports', body: body);
 
   Future<dynamic> _get(
     String path, {

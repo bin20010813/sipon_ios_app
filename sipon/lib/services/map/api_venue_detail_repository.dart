@@ -146,7 +146,7 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
   MapVenue _mergeVenue(MapVenue venue, Map<String, dynamic> bar) {
     final barTags = _readStrList(bar, ['tags', 'labels']);
     final imageUrl =
-        _readStr(bar, ['imageUrl', 'image', 'cover', 'coverUrl']) ??
+        _readStr(bar, ['mediumImageUrl', 'imageUrl', 'image', 'cover', 'coverUrl']) ??
         _firstGalleryUrl(bar['gallery']);
     return MapVenue(
       id: venue.id,
@@ -368,7 +368,19 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
         .toList(growable: false);
   }
 
-  /// 评价列表元素是 CheckIn 结构：author 里取昵称/头像，mediaUrls 取图。
+  /// 签到配图：`mediaIds` 是上传 ID，需换成上传内容相对路径才能展示；
+  /// 没有 `mediaIds` 时回退旧的 `mediaUrls` / `media` 字段。
+  List<String> _readCheckInImages(Map<String, dynamic> map) {
+    final fromIds = _readUrlList(map['mediaIds'])
+        .map((mediaId) => '/api/uploads/$mediaId/content')
+        .toList(growable: false);
+    if (fromIds.isNotEmpty) {
+      return fromIds;
+    }
+    return _readUrlList(map['mediaUrls'] ?? map['media']);
+  }
+
+  /// 评价列表元素是 CheckIn 结构：author 里取昵称/头像，配图取 mediaIds。
   VenueReview? _parseReview(Map<String, dynamic> map) {
     final author = _asMap(map['author']);
     final content = _readStr(map, ['content', 'text', 'comment']) ?? '';
@@ -379,6 +391,8 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
       _readStr(map, ['visitedAt', 'createdAt', 'created_on']) ?? '',
     )?.toLocal();
     return VenueReview(
+      id: _readInt(map, ['id', 'checkInId']),
+      myReaction: _readStr(map, ['myReaction', 'reaction']),
       nickname:
           _readStr(author, ['nickname', 'nickName', 'username', 'name']) ??
           _readStr(map, ['nickname', 'userName']) ??
@@ -388,7 +402,7 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
       date: _formatDate(createdAt),
       createdAt: createdAt,
       content: content,
-      imageAssets: _readUrlList(map['mediaUrls'] ?? map['media']),
+      imageAssets: _readCheckInImages(map),
       avatarAsset: _readStr(author, ['avatarUrl', 'avatar', 'avatarAsset']),
     );
   }

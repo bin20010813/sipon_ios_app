@@ -1321,7 +1321,7 @@ List<_Moment> _momentsFromCheckIn(Map<String, dynamic> map) {
   final time = _parseTime(map, ['visitedAt', 'createdAt']);
   final city = _pickString(map, ['city']);
   final content = (_pickString(map, ['content']) ?? '').trim();
-  final imageUrl = _pickFirstUrl(map, ['mediaUrls', 'media', 'gallery']);
+  final imageUrl = _pickCheckInImageUrl(map);
   final venue = _venueFromEntryMap(map, name: name);
 
   return [
@@ -1473,6 +1473,14 @@ String? _pickFirstUrl(Map<String, dynamic> map, List<String> keys) {
     }
   }
   return null;
+}
+
+/// 打卡配图：`mediaIds` 存的是上传 ID，要换成上传内容相对路径才能展示；
+/// 没有 `mediaIds` 时回退旧的 `mediaUrls` / `media` / `gallery` 字段。
+String? _pickCheckInImageUrl(Map<String, dynamic> map) {
+  final mediaId = _pickFirstUrl(map, ['mediaIds']);
+  if (mediaId != null) return '/api/uploads/$mediaId/content';
+  return _pickFirstUrl(map, ['mediaUrls', 'media', 'gallery']);
 }
 
 /// 从打卡/想喝条目原始 JSON 解析跳转半屏地图所需的 [MapVenue]。

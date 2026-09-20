@@ -58,6 +58,33 @@ class SiponDataRepository {
     ).items.where((item) => !item.cluster).toList(growable: false);
   }
 
+  /// 拉取首页聚合数据（文档 19）：[city] 与经纬度二选一，坐标需成对提供。
+  Future<List<SiponBarMapItem>> fetchHomeRecommendedBars({
+    String? city,
+    double? longitude,
+    double? latitude,
+  }) async {
+    final json = await _apiClient.getJson(
+      '/api/home',
+      queryParameters: {
+        'city': city == null ? null : siponApiCityName(city),
+        'longitude': longitude,
+        'latitude': latitude,
+      },
+    );
+    final root = json is Map ? (json['data'] ?? json) : json;
+    final sections = root is Map ? root['sections'] : null;
+    if (sections is! List) return const [];
+
+    return [
+      for (final section in sections.whereType<Map>())
+        if (section['type']?.toString() == 'bars')
+          for (final item in (section['items'] as List? ?? const []))
+            if (item is Map)
+              SiponBarMapItem.fromJson(item.cast<String, dynamic>()),
+    ].where((item) => !item.cluster).toList(growable: false);
+  }
+
   Future<List<String>> fetchCities() async {
     final json = await _apiClient.getJson('/api/cities');
     final rawCities = switch (json) {

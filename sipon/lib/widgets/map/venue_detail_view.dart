@@ -213,6 +213,86 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
     }
   }
 
+  /// 点赞/点踩评价：先按结果更新本地列表，请求失败再回滚。
+  ///
+  /// [reaction] 取 `like` / `dislike`，null 表示取消表态；`review.id` 为空
+  /// 说明是本地示例数据，没有可写入的签到。
+  Future<void> _setReviewReaction(VenueReview review, String? reaction) async {
+    final text = SiponLanguageScope.textOf(context);
+    final checkInId = review.id;
+    if (checkInId == null) {
+      _showMockToast(text.t('暂不支持该评价互动'));
+      return;
+    }
+    final previousReviews = _reviews;
+    final likeDelta =
+        (reaction == 'like' ? 1 : 0) - (review.myReaction == 'like' ? 1 : 0);
+    final likeCount = review.likeCount + likeDelta;
+    setState(() {
+      _reviews = [
+        for (final item in _reviews)
+          if (item.id == checkInId)
+            review.copyWithReaction(
+              myReaction: reaction,
+              likeCount: likeCount < 0 ? 0 : likeCount,
+            )
+          else
+            item,
+      ];
+    });
+    try {
+      await _api.setCheckInReaction(checkInId, reaction);
+    } on Exception catch (error) {
+      if (!mounted) return;
+      setState(() => _reviews = previousReviews);
+      _showMockToast('${text.t('互动失败')}：$error');
+      return;
+    }
+    if (!mounted) return;
+    final isDislike = (reaction ?? review.myReaction) == 'dislike';
+    _showMockToast(
+      text.t(
+        reaction == null
+            ? (isDislike ? '已取消点踩' : '已取消点赞')
+            : (isDislike ? '点踩成功' : '点赞成功'),
+      ),
+    );
+  }
+
+  /// 举报评价：选完原因后 POST /api/reports，`reason` 上报稳定码、`details` 带上文案。
+  Future<void> _reportReview(VenueReview review) async {
+    final text = SiponLanguageScope.textOf(context);
+    final checkInId = review.id;
+    if (checkInId == null) {
+      _showMockToast(text.t('暂不支持该评价互动'));
+      return;
+    }
+    final reason = await showModalBottomSheet<_ReportReason>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (_) => const _ReportReasonSheet(),
+    );
+    if (reason == null) return;
+    try {
+      await _api.createReport({
+        'contentType': 'check_in',
+        'contentId': checkInId,
+        'reason': reason.code,
+        'details': reason.label,
+      });
+      if (!mounted) return;
+      _showMockToast(text.t('举报已提交，感谢反馈'));
+    } on Exception catch (error) {
+      if (!mounted) return;
+      _showMockToast('${text.t('举报提交失败')}：$error');
+    }
+  }
+
   void _showMockToast(String message) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     if (messenger == null) {
@@ -804,8 +884,8 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
               onSortChanged: (filter) => setState(() => _reviewFilter = filter),
               onAddReview: _openReviewComposer,
               onViewMore: _loadMoreReviews,
-              onReviewAction: (action) =>
-                  _showMockToast(SiponLanguageScope.textOf(context).t(action)),
+              onReviewReaction: _setReviewReaction,
+              onReviewReport: _reportReview,
               headingKey: _reviewsHeadingKey,
             ),
           ),
@@ -1800,7 +1880,8 @@ class _VenueReviewsSection extends StatelessWidget {
     required this.onSortChanged,
     required this.onAddReview,
     required this.onViewMore,
-    required this.onReviewAction,
+    required this.onReviewReaction,
+    required this.onReviewReport,
     this.headingKey,
   });
 
@@ -1826,7 +1907,13 @@ class _VenueReviewsSection extends StatelessWidget {
   final ValueChanged<_ReviewFilter> onSortChanged;
   final VoidCallback onAddReview;
   final VoidCallback onViewMore;
-  final ValueChanged<String> onReviewAction;
+
+  /// 评价点赞/点踩，[reaction] 为 null 表示取消表态。
+  final Future<void> Function(VenueReview review, String? reaction)
+  onReviewReaction;
+
+  /// 评价举报。
+  final Future<void> Function(VenueReview review) onReviewReport;
 
   /// 板块小标题的 key，供 tab 跳转时测量标题高度。
   final Key? headingKey;
@@ -2030,7 +2117,11 @@ class _VenueReviewsSection extends StatelessWidget {
                 margin: const EdgeInsets.symmetric(vertical: 12),
                 color: MapDesign.hairline,
               ),
-            _ReviewItem(review: visibleReviews[i], onAction: onReviewAction),
+            _ReviewItem(
+              review: visibleReviews[i],
+              onReaction: onReviewReaction,
+              onReport: onReviewReport,
+            ),
           ],
           if (hasMoreReviews) ...[
             const SizedBox(height: 6),
@@ -2069,10 +2160,19 @@ class _VenueReviewsSection extends StatelessWidget {
 /// 单条用户评价。
 class _ReviewItem extends StatefulWidget {
   /// 创建单条评价。
-  const _ReviewItem({required this.review, required this.onAction});
+  const _ReviewItem({
+    required this.review,
+    required this.onReaction,
+    required this.onReport,
+  });
 
   final VenueReview review;
-  final ValueChanged<String> onAction;
+
+  /// 点赞/点踩回调；[reaction] 为 `like`/`dislike`，null 表示取消表态。
+  final Future<void> Function(VenueReview review, String? reaction) onReaction;
+
+  /// 举报回调。
+  final Future<void> Function(VenueReview review) onReport;
 
   @override
   State<_ReviewItem> createState() => _ReviewItemState();
@@ -2081,8 +2181,15 @@ class _ReviewItem extends StatefulWidget {
 enum _ReviewReaction { none, like, dislike }
 
 class _ReviewItemState extends State<_ReviewItem> {
-  _ReviewReaction _reaction = _ReviewReaction.none;
-  late int _likeCount = widget.review.likeCount;
+  /// 互动请求进行中时屏蔽重复点击。
+  bool _submitting = false;
+
+  /// 反应状态由数据驱动，[myReaction] 为 null 表示未表态。
+  _ReviewReaction get _reaction => switch (widget.review.myReaction) {
+    'like' => _ReviewReaction.like,
+    'dislike' => _ReviewReaction.dislike,
+    _ => _ReviewReaction.none,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -2181,9 +2288,9 @@ class _ReviewItemState extends State<_ReviewItem> {
                     ? Icons.thumb_up_rounded
                     : Icons.thumb_up_outlined,
                 label: text.t('点赞'),
-                count: _likeCount,
+                count: review.likeCount,
                 selected: _reaction == _ReviewReaction.like,
-                onTap: () => _toggleReaction(_ReviewReaction.like, '点赞'),
+                onTap: () => _toggleReaction(_ReviewReaction.like),
               ),
               const SizedBox(width: 12),
               _ReviewActionButton(
@@ -2192,13 +2299,13 @@ class _ReviewItemState extends State<_ReviewItem> {
                     : Icons.thumb_down_outlined,
                 label: text.t('点踩'),
                 selected: _reaction == _ReviewReaction.dislike,
-                onTap: () => _toggleReaction(_ReviewReaction.dislike, '点踩'),
+                onTap: () => _toggleReaction(_ReviewReaction.dislike),
               ),
               const SizedBox(width: 12),
               _ReviewActionButton(
                 icon: Icons.flag_outlined,
                 label: text.t('举报'),
-                onTap: () => widget.onAction('举报功能暂未接入'),
+                onTap: () => widget.onReport(review),
               ),
             ],
           ),
@@ -2207,16 +2314,18 @@ class _ReviewItemState extends State<_ReviewItem> {
     );
   }
 
-  void _toggleReaction(_ReviewReaction reaction, String label) {
-    setState(() {
-      if (reaction == _ReviewReaction.like) {
-        _likeCount += _reaction == reaction ? -1 : 1;
-      } else if (_reaction == _ReviewReaction.like) {
-        _likeCount -= 1;
-      }
-      _reaction = _reaction == reaction ? _ReviewReaction.none : reaction;
-    });
-    widget.onAction(_reaction == reaction ? '$label成功' : '已取消$label');
+  /// 同一反应再次点击表示取消，交由父级落库后回传数据。
+  Future<void> _toggleReaction(_ReviewReaction reaction) async {
+    if (_submitting) return;
+    setState(() => _submitting = true);
+    try {
+      await widget.onReaction(
+        widget.review,
+        _reaction == reaction ? null : reaction.name,
+      );
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   /// 头像：网络图优先，加载失败或缺失时用默认占位。
@@ -2504,6 +2613,67 @@ class _RatingStars extends StatelessWidget {
         for (var i = 0; i < 5; i++)
           Icon(_starIcon(i), color: MapDesign.brand, size: starSize),
       ],
+    );
+  }
+}
+
+/// 举报原因：`code` 作为接口 `reason` 上报，`label` 用于展示与 `details`。
+class _ReportReason {
+  const _ReportReason(this.code, this.label);
+
+  final String code;
+  final String label;
+}
+
+const List<_ReportReason> _reportReasons = [
+  _ReportReason('spam', '垃圾广告'),
+  _ReportReason('abuse', '辱骂攻击'),
+  _ReportReason('false_info', '虚假信息'),
+  _ReportReason('porn', '色情低俗'),
+  _ReportReason('other', '其他'),
+];
+
+/// 举报原因选择面板：点选后把原因回传给调用方提交。
+class _ReportReasonSheet extends StatelessWidget {
+  const _ReportReasonSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    final text = SiponLanguageScope.textOf(context);
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2, bottom: 4),
+            child: Text(
+              text.t('举报该评价'),
+              style: const TextStyle(
+                color: MapDesign.ink,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          for (final reason in _reportReasons)
+            ListTile(
+              onTap: () => Navigator.of(context).pop(reason),
+              title: Center(
+                child: Text(
+                  text.t(reason.label),
+                  style: const TextStyle(
+                    color: MapDesign.ink,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(height: 8),
+        ],
+      ),
     );
   }
 }

@@ -878,6 +878,14 @@ String? _pickFirstUrl(Map<String, dynamic> map, List<String> keys) {
   return null;
 }
 
+/// 打卡配图：`mediaIds` 存的是上传 ID，要换成上传内容相对路径才能展示；
+/// 没有 `mediaIds` 时回退旧的 `mediaUrls` / `media` / `gallery` 字段。
+String? _pickCheckInImageUrl(Map<String, dynamic> map) {
+  final mediaId = _pickFirstUrl(map, ['mediaIds']);
+  if (mediaId != null) return '/api/uploads/$mediaId/content';
+  return _pickFirstUrl(map, ['mediaUrls', 'media', 'gallery']);
+}
+
 /// 从喝过/想喝条目的原始 JSON 里解析跳转半屏地图所需的 [MapVenue]。
 /// 喝过条目（CheckIn）的酒吧字段可能平铺在顶层，也可能嵌在 bar/barInfo 等对象里；
 /// 坐标缺失时以 0 占位，跳转前由 [_openVenueHalfMap] 统一校验。
@@ -978,7 +986,7 @@ Future<_ProfileListPage> _loadCheckInEntries(
           name: name,
           description: _pickString(map, ['content']) ?? '',
           meta: meta,
-          imageUrl: _pickFirstUrl(map, ['mediaUrls', 'media', 'gallery']),
+          imageUrl: _pickCheckInImageUrl(map),
           venue: _venueFromEntryMap(map, name: name),
         );
       }(),

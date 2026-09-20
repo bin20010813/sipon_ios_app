@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../services/cocktail_recommendation_store.dart';
 import '../services/map/map_models.dart';
+import '../services/sipon_api_config.dart';
 import '../services/sipon_api_models.dart';
 import '../services/sipon_api_service.dart';
 import '../services/sipon_city_controller.dart';
@@ -69,6 +70,7 @@ class _HomePageState extends State<HomePage> {
   late Future<_HomeBarsData> _homeBarsFuture;
   SiponCityController? _cityController;
   String? _loadedCity;
+  SiponLocationPoint? _loadedAnchor;
   // 搜索展开状态用 ValueNotifier 局部刷新顶栏/遮罩，避免 setState 重建整个
   // 首页列表；实例可能由壳层注入（用于联动底栏），见 initState。
   late final ValueNotifier<bool> _searchExpanded;
@@ -108,10 +110,14 @@ class _HomePageState extends State<HomePage> {
 
   void _refreshHomeBarsForCity() {
     final city = _cityController?.city;
-    if (!mounted || city == null || city == _loadedCity) {
+    final anchor = _cityController?.queryAnchor;
+    if (!mounted ||
+        city == null ||
+        (city == _loadedCity && anchor == _loadedAnchor)) {
       return;
     }
     _loadedCity = city;
+    _loadedAnchor = anchor;
     _homeBarsFuture = _loadHomeBars(city);
     setState(() {});
   }
@@ -124,8 +130,14 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<_HomeBarsData> _loadHomeBars(String city) async {
+    // 文档 19：/api/home 的 city 与经纬度二选一；有定位/城市锚点时优先按坐标查。
+    final anchor = _cityController?.queryAnchor;
     try {
-      final bars = await SiponDataRepository.instance.fetchHomeBars(city: city);
+      final bars = await SiponDataRepository.instance.fetchHomeRecommendedBars(
+        city: anchor == null ? city : null,
+        longitude: anchor?.longitude,
+        latitude: anchor?.latitude,
+      );
       if (bars.isEmpty) {
         return _HomeBarsData(
           bars: city == SiponCityController.defaultCity
@@ -1531,8 +1543,9 @@ class _HomeVenueImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final url = imageUrl;
     if (url != null && url.isNotEmpty) {
+      // 后端图片字段是 `/api/bars/{id}/images/{variant}` 相对路径，需拼上 API base。
       return Image.network(
-        url,
+        SiponApiConfig.instance.resolveUri(url).toString(),
         width: width,
         height: height,
         fit: BoxFit.cover,
@@ -2242,7 +2255,8 @@ class _HomeBar {
       latitude: item.latitude,
       name: item.name,
       imageAsset: _homeImageAssetForIndex(index),
-      imageUrl: item.imageUrl,
+      // 首页大卡片按文档用 640px 中图档，缺省自动回退原图。
+      imageUrl: item.resolvedMediumImageUrl,
       rating: item.rating,
       address: item.address,
       distance: item.distance,

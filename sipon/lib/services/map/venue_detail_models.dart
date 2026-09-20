@@ -126,7 +126,15 @@ class VenueReview {
     this.createdAt,
     this.likeCount = 0,
     this.avatarAsset,
+    this.id,
+    this.myReaction,
   });
+
+  /// 后端签到 ID；为 null 表示本地示例数据，不支持互动。
+  final int? id;
+
+  /// 当前登录用户的反应：`like` / `dislike`，null 表示未表态。
+  final String? myReaction;
 
   /// 用户昵称。
   final String nickname;
@@ -151,4 +159,21 @@ class VenueReview {
 
   /// 可选头像本地资源路径。
   final String? avatarAsset;
+
+  /// 返回互动结果替换后的新评价；[myReaction] 为 null 表示已取消表态。
+  VenueReview copyWithReaction({
+    required String? myReaction,
+    required int likeCount,
+  }) => VenueReview(
+    id: id,
+    myReaction: myReaction,
+    nickname: nickname,
+    rating: rating,
+    date: date,
+    createdAt: createdAt,
+    content: content,
+    imageAssets: imageAssets,
+    likeCount: likeCount,
+    avatarAsset: avatarAsset,
+  );
 }

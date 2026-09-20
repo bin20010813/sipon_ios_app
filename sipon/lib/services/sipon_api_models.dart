@@ -83,6 +83,8 @@ class SiponBarMapItem {
     required this.distance,
     required this.tags,
     required this.imageUrl,
+    this.thumbnailUrl,
+    this.mediumImageUrl,
   });
 
   final String id;
@@ -97,6 +99,20 @@ class SiponBarMapItem {
   final String distance;
   final List<String> tags;
   final String? imageUrl;
+
+  /// 三档图（文档 4.9）：`imageUrl` 原图、`thumbnailUrl` 长边 320px、
+  /// `mediumImageUrl` 长边 640px；均为 `/api/bars/{id}/images/{variant}`
+  /// 相对路径，展示前需经 [SiponApiConfig.resolveUri] 解析。
+  final String? thumbnailUrl;
+  final String? mediumImageUrl;
+
+  /// 列表/小卡用缩略图档，逐级回退。
+  String? get resolvedThumbnailUrl =>
+      thumbnailUrl ?? mediumImageUrl ?? imageUrl;
+
+  /// 大卡片用中图档，逐级回退。
+  String? get resolvedMediumImageUrl =>
+      mediumImageUrl ?? thumbnailUrl ?? imageUrl;
 
   bool get hasCoordinates => longitude != null && latitude != null;
 
@@ -170,6 +186,12 @@ class SiponBarMapItem {
       imageUrl:
           _readString(json, ['imageUrl', 'image', 'cover', 'coverUrl']) ??
           _readString(properties, ['imageUrl', 'image', 'cover', 'coverUrl']),
+      thumbnailUrl:
+          _readString(json, ['thumbnailUrl']) ??
+          _readString(properties, ['thumbnailUrl']),
+      mediumImageUrl:
+          _readString(json, ['mediumImageUrl']) ??
+          _readString(properties, ['mediumImageUrl']),
     );
   }
 }
