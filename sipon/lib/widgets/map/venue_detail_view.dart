@@ -34,6 +34,7 @@ class VenueDetailContent extends StatefulWidget {
     required this.bottomOverlayInset,
     required this.onClose,
     this.onAddressTap,
+    this.onMapClose,
     this.repository,
   });
 
@@ -57,6 +58,9 @@ class VenueDetailContent extends StatefulWidget {
 
   /// 独立详情页可接管地址点击；地图面板未传时仍打开外部导航。
   final ValueChanged<MapVenue>? onAddressTap;
+
+  /// 半屏地图关闭回调；传入时在封面左上角显示独立的地图关闭按钮。
+  final VoidCallback? onMapClose;
 
   /// 详情数据源；为 null 时使用 Mock，保持既有演示行为。
   final VenueDetailRepository? repository;
@@ -690,6 +694,16 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
             onTap: widget.onClose,
           ),
         ),
+        if (widget.onMapClose != null)
+          Positioned(
+            top: widget.topInset + 6,
+            left: 12,
+            child: _CircleIconButton(
+              icon: Icons.keyboard_arrow_down_rounded,
+              tooltip: SiponLanguageScope.textOf(context).t('收起地图'),
+              onTap: widget.onMapClose!,
+            ),
+          ),
         if (showPageBadge)
           Positioned(
             right: 14,
@@ -1304,10 +1318,7 @@ class _OpenStatusRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          _ContributePillButton(
-            label: text.t('补充信息'),
-            onTap: onContribute,
-          ),
+          _ContributePillButton(label: text.t('补充信息'), onTap: onContribute),
         ],
       ),
     );
@@ -1327,9 +1338,7 @@ class _ContributePillButton extends StatelessWidget {
     // edit_note 传达「帮忙修订/补全信息」，比加号更贴共建语义。
     return Material(
       color: Colors.white,
-      shape: const StadiumBorder(
-        side: BorderSide(color: Color(0x2E9A3D78)),
-      ),
+      shape: const StadiumBorder(side: BorderSide(color: Color(0x2E9A3D78))),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
