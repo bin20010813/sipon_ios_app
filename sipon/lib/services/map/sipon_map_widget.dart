@@ -79,13 +79,9 @@ class _SiponMapWidgetState extends State<SiponMapWidget> {
       // 拖动就被 cancel（表现即「地图不能缩放」，见
       // docs/mapkit-gesture-conflict-fix-plan-2026-09-19.md）。
       hitTestBehavior: PlatformViewHitTestBehavior.opaque,
-      // 构建机上的 Flutter 已移除 UiKitView 的 gestureBlockingPolicy 参数：
-      // 旧版默认 eager 依赖的 blocking recognizer 整套机制一并删除，含 iOS 26
-      // 上卡在 failed 状态不再复位的缺陷（flutter/flutter#191267、#175099）。
-      // 现在触摸归属只由 hitTestBehavior + 下面的 gestureRecognizers 决定。
-      // Eager 识别器在竞技场里立即认领落在地图上的每一次触摸，原生
-      // MKMapView 从 touchesBegan 起实时拿到事件流。代价是地图区域内的
-      // Flutter 手势全部让位（点空白收面板走原生 onBlankTapped，不受影响）。
+      // Dart 竞技场中的 Eager 与 iOS 注册工厂的阻塞策略是两个层次。
+      // 这里认领地图范围内的触摸；原生侧使用 waitUntilTouchesEnded，
+      // 在 Flutter 拒绝手势时仍让 MapKit 收到完整触摸序列。
       gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
         Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
       },

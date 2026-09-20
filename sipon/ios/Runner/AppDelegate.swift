@@ -38,7 +38,13 @@ import UIKit
   private func registerSiponMapView(with registry: FlutterPluginRegistry) {
     guard let registrar = registry.registrar(forPlugin: "SiponMapFactory") else { return }
     let factory = SiponMapFactory(messenger: registrar.messenger())
-    registrar.register(factory, withId: SiponMapProtocol.viewType)
+    // 当前 SDK 支持 eager / waitUntilTouchesEnded。让原生识别器收到完整
+    // 触摸序列，避免 Flutter 拒绝手势时在 began 后立刻中断 MapKit。
+    registrar.register(
+      factory,
+      withId: SiponMapProtocol.viewType,
+      gestureRecognizersBlockingPolicy: FlutterPlatformViewGestureRecognizersBlockingPolicyWaitUntilTouchesEnded
+    )
   }
 }
 
