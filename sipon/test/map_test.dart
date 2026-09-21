@@ -168,6 +168,33 @@ void main() {
   });
 
   group('MapDataController', () {
+    test('乱序结果按中心距离排序，缓存平移也更新排序并保留选中', () async {
+      final repository = _StubRepository([
+        _venue('far', longitude: 121.49, latitude: 31.2227),
+        _venue('near', longitude: 121.4712, latitude: 31.2227),
+      ]);
+      final controller = MapDataController(repository: repository, city: '上海');
+      addTearDown(controller.dispose);
+
+      await controller.syncViewport(_shanghaiViewport);
+      expect(controller.visibleVenues.map((v) => v.id), ['near', 'far']);
+      expect(controller.selectedVenue?.id, 'near');
+      expect(controller.selectedPoint?.venueId, 'near');
+
+      await controller.syncViewport(_shifted(0.02));
+      expect(repository.callCount, 1);
+      expect(controller.visibleVenues.map((v) => v.id), ['far', 'near']);
+      expect(controller.selectedVenue?.id, 'near');
+
+      repository.venues = [
+        _venue('distant', longitude: 121.50),
+        _venue('closest', longitude: 121.5312, latitude: 31.2227),
+      ];
+      await controller.syncViewport(_shifted(0.06));
+      expect(controller.selectedVenue?.id, 'closest');
+      expect(controller.selectedPoint?.venueId, 'closest');
+    });
+
     test('分类 pill 真的过滤点位，再点一次取消', () async {
       final controller = MapDataController(
         repository: _StubRepository([
@@ -232,7 +259,10 @@ void main() {
       final remote = _venue('远端精酿', longitude: 116.4, latitude: 39.9);
       controller.adoptSearchedVenue(remote);
       expect(controller.selectedVenue?.id, '远端精酿');
-      expect(controller.circlePoints.map((point) => point.id), contains('point-远端精酿'));
+      expect(
+        controller.circlePoints.map((point) => point.id),
+        contains('point-远端精酿'),
+      );
 
       // 与页面点击候选后的行为一致：搜索词对齐成酒吧名，选中不被冲掉。
       controller.setSearchQuery('远端精酿');

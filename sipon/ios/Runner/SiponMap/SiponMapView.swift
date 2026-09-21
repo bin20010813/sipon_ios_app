@@ -1020,9 +1020,15 @@ final class VenueIconAnnotationView: MKAnnotationView {
   }
 
   private let iconView = UIImageView(frame: .zero)
+  private let selectionHalo = UIView(frame: .zero)
 
   override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
     super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+    selectionHalo.isUserInteractionEnabled = false
+    selectionHalo.backgroundColor = UIColor(red: 0.60, green: 0.24, blue: 0.47, alpha: 0.24)
+    selectionHalo.layer.borderColor = UIColor.white.cgColor
+    selectionHalo.layer.borderWidth = 2
+    addSubview(selectionHalo)
     addSubview(iconView)
     iconView.contentMode = .scaleAspectFit
     isUserInteractionEnabled = true
@@ -1037,10 +1043,21 @@ final class VenueIconAnnotationView: MKAnnotationView {
   func apply(icon: UIImage?, selected: Bool) {
     let size = selected ? Metrics.selectedSize : Metrics.normalSize
     iconView.image = icon
+    selectionHalo.isHidden = !selected
+    layer.zPosition = selected ? 1000 : 0
+    if #available(iOS 14.0, *) {
+      zPriority = selected ? .max : .defaultUnselected
+    }
 
     UIView.performWithoutAnimation {
       bounds = CGRect(origin: .zero, size: size)
       iconView.frame = bounds
+      selectionHalo.frame = bounds.insetBy(dx: -8, dy: -5)
+      selectionHalo.layer.cornerRadius = selectionHalo.bounds.width / 2
+      layer.shadowColor = UIColor(red: 0.60, green: 0.24, blue: 0.47, alpha: 1).cgColor
+      layer.shadowOpacity = selected ? 0.6 : 0
+      layer.shadowRadius = 6
+      layer.shadowOffset = .zero
       // 锚点 = 图标底边中点（对应旧 iconAnchor BOTTOM）：
       // 视图中心上移半个高度 ⇒ centerOffset.y = -height/2。
       centerOffset = CGPoint(x: 0, y: -size.height / 2)

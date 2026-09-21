@@ -55,6 +55,7 @@ class MapDataController extends ChangeNotifier {
 
   /// 已取数的视野。下一次相机停下时拿它做「值不值得重拉」的比较。
   MapViewport? _loadedViewport;
+  MapViewport? _currentViewport;
 
   /// 目标版本号：最新一次有效视野意图的版本。
   int _targetGeneration = 0;
@@ -82,7 +83,7 @@ class MapDataController extends ChangeNotifier {
     final filter = _categoryFilter;
     final query = _searchQuery;
 
-    return _venues
+    final venues = _venues
         .where((venue) {
           if (filter != null && venue.kind != filter) {
             return false;
@@ -99,6 +100,23 @@ class MapDataController extends ChangeNotifier {
           return searchable.contains(query);
         })
         .toList(growable: false);
+    final center = _currentViewport?.center;
+    if (center != null &&
+        center.longitude.isFinite &&
+        center.latitude.isFinite) {
+      final distances = {
+        for (final venue in venues)
+          venue.id: mapDistanceInMeters(
+            center,
+            MapLatLng(longitude: venue.longitude, latitude: venue.latitude),
+          ),
+      };
+      venues.sort((a, b) {
+        final order = distances[a.id]!.compareTo(distances[b.id]!);
+        return order != 0 ? order : a.id.compareTo(b.id);
+      });
+    }
+    return venues;
   }
 
   /// 要画文字标签的那一批（按当前缩放抽样）。
@@ -144,6 +162,7 @@ class MapDataController extends ChangeNotifier {
   /// 结果失效。
   Future<void> syncViewport(MapViewport viewport, {bool force = false}) async {
     _zoom = viewport.zoom;
+    _currentViewport = viewport;
 
     if (_disposed) {
       return;
@@ -260,7 +279,7 @@ class MapDataController extends ChangeNotifier {
   }
 
   /// 新数据到达或筛选变化后对齐选中态：原来选的还在就留着，否则退回第一个
-  /// （数据源按距视野中心排序，第一个就是最近的），空列表则清空选中。
+  /// （visibleVenues 按距当前视野中心排序），空列表则清空选中。
   void _reconcileSelection() {
     final candidates = visibleVenues;
     if (candidates.isEmpty) {
@@ -386,6 +405,7 @@ class MapDataController extends ChangeNotifier {
     _pendingRequest = null;
     _loadedViewport = null;
     // 旧城市的搜索请求与结果一并作废。
+    _currentViewport = null;
     _searchDebounce?.cancel();
     _searchGeneration++;
     _venues = const [];

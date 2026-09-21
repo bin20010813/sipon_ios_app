@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sipon/main.dart';
@@ -5,6 +7,12 @@ import 'package:sipon/pages/language_transform.dart';
 import 'package:sipon/pages/profile_page.dart';
 import 'package:sipon/services/sipon_api_config.dart';
 import 'package:sipon/services/sipon_api_models.dart';
+import 'package:sipon/services/sipon_api_service.dart';
+import 'package:sipon/services/map/api_venue_detail_repository.dart';
+import 'package:sipon/services/map/map_models.dart';
+import 'package:sipon/services/map/venue_detail_models.dart';
+import 'package:sipon/widgets/map/venue_common.dart';
+import 'package:sipon/widgets/map/venue_detail_view.dart';
 
 void main() {
   testWidgets('Sipon app can be constructed', (WidgetTester tester) async {
@@ -94,6 +102,34 @@ void main() {
     expect(query['zoom'], 15);
   });
 
+  test('bar cards use the first sorted image thumbnail', () {
+    final bar = SiponBarMapItem.fromJson({
+      'id': 42,
+      'name': 'Test Bar',
+      'lng': 121.4,
+      'lat': 31.2,
+      'images': [
+        {
+          'sortOrder': 2,
+          'imageUrl': '/original/2',
+          'thumbnailUrl': '/thumb/2',
+          'mediumImageUrl': '/medium/2',
+        },
+        {
+          'sortOrder': 0,
+          'imageUrl': '/original/0',
+          'thumbnailUrl': '/thumb/0',
+          'mediumImageUrl': '/medium/0',
+        },
+      ],
+    });
+
+    expect(bar.hasImage, isTrue);
+    expect(bar.resolvedThumbnailUrl, '/thumb/0');
+    expect(bar.resolvedMediumImageUrl, '/medium/0');
+    expect(bar.imageUrl, '/original/0');
+  });
+
   test('api config keeps admin token out of normal headers', () {
     const config = SiponApiConfig(
       accessToken: 'access-token',
@@ -156,4 +192,146 @@ void main() {
       'https://api.example.test/api/cocktails/cape_codder.png',
     );
   });
+
+  test('venue detail sorts images and keeps medium/original pairs', () async {
+    final detail = await SiponApiVenueDetailRepository(api: _BarImagesApi())
+        .fetchDetail(
+          const MapVenue(
+            id: '42',
+            name: 'Test Bar',
+            longitude: 121.4,
+            latitude: 31.2,
+            kind: MapVenueKind.pub,
+            rating: 4.8,
+            address: 'Test address',
+            distance: '1km',
+            tags: [],
+            imageAsset: 'assets/images/bar-placeholder.png',
+          ),
+        );
+
+    expect(detail.gallery.map((image) => image.mediumImageUrl), [
+      '/api/bars/42/images/medium/0',
+      '/api/bars/42/images/medium/1',
+      '/api/bars/42/images/medium/2',
+    ]);
+    expect(detail.gallery.map((image) => image.imageUrl), [
+      '/api/bars/42/images/original/0',
+      '/api/bars/42/images/original/1',
+      '/api/bars/42/images/original/2',
+    ]);
+  });
+
+  testWidgets('venue detail scrolls from the image while data is loading', (
+    tester,
+  ) async {
+    final languageController = SiponLanguageController();
+    addTearDown(languageController.dispose);
+    late ScrollController scrollController;
+
+    await tester.pumpWidget(
+      SiponLanguageScope(
+        controller: languageController,
+        child: MaterialApp(
+          home: Scaffold(
+            body: DraggableScrollableSheet(
+              initialChildSize: 1,
+              minChildSize: 0.999,
+              maxChildSize: 1,
+              builder: (context, controller) {
+                scrollController = controller;
+                return VenueDetailContent(
+                  venue: const MapVenue(
+                    id: '42',
+                    name: 'Test Bar',
+                    longitude: 121.4,
+                    latitude: 31.2,
+                    kind: MapVenueKind.pub,
+                    rating: 4.8,
+                    address: 'Test address',
+                    distance: '1km',
+                    tags: [],
+                    imageAsset: 'assest/首页/图片素材/酒吧1.png',
+                  ),
+                  scrollController: controller,
+                  opacity: 1,
+                  topInset: 0,
+                  bottomOverlayInset: 0,
+                  onClose: () {},
+                  repository: _PendingVenueDetailRepository(),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(scrollController.position.maxScrollExtent, greaterThan(0));
+    await tester.drag(find.byType(VenueImage).first, const Offset(0, -300));
+    await tester.pump();
+
+    expect(scrollController.offset, greaterThan(0));
+  });
+}
+
+class _BarImagesApi extends SiponApiService {
+  @override
+  Future<dynamic> getBarById(int id) async => {
+    'id': id,
+    'name': 'Test Bar',
+    'images': [
+      {
+        'sortOrder': 2,
+        'imageUrl': '/api/bars/42/images/original/2',
+        'thumbnailUrl': '/api/bars/42/images/thumb/2',
+        'mediumImageUrl': '/api/bars/42/images/medium/2',
+      },
+      {
+        'sortOrder': 0,
+        'imageUrl': '/api/bars/42/images/original/0',
+        'thumbnailUrl': '/api/bars/42/images/thumb/0',
+        'mediumImageUrl': '/api/bars/42/images/medium/0',
+      },
+      {
+        'sortOrder': 1,
+        'imageUrl': '/api/bars/42/images/original/1',
+        'thumbnailUrl': '/api/bars/42/images/thumb/1',
+        'mediumImageUrl': '/api/bars/42/images/medium/1',
+      },
+    ],
+  };
+
+  @override
+  Future<List<dynamic>> getBarReviews(
+    int id, {
+    SiponPage page = const SiponPage(),
+  }) async => const [];
+
+  @override
+  Future<List<dynamic>> getBarHours(int id) async => const [];
+
+  @override
+  Future<List<dynamic>> getBarDrinks(
+    int id, {
+    SiponPage page = const SiponPage(),
+  }) async => const [];
+
+  @override
+  Future<List<dynamic>> getBarMedia(int id) async => const [];
+}
+
+class _PendingVenueDetailRepository implements VenueDetailRepository {
+  final Completer<VenueDetail> _detail = Completer<VenueDetail>();
+
+  @override
+  Future<VenueDetail> fetchDetail(MapVenue venue) => _detail.future;
+
+  @override
+  Future<VenueReviewPage> fetchReviews(
+    MapVenue venue, {
+    int offset = 0,
+    int limit = 10,
+  }) async => const VenueReviewPage(reviews: [], totalCount: 0, hasMore: false);
 }

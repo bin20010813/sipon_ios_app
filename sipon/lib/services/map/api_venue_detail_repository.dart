@@ -87,6 +87,7 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
       for (final item in reviewJson.whereType<Map>())
         _parseReview(item.cast<String, dynamic>()),
     ].whereType<VenueReview>().toList(growable: false);
+    final gallery = _parseGallery(bar, mediaJson, mergedVenue);
 
     return VenueDetail(
       venue: mergedVenue,
@@ -98,7 +99,7 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
       features: _parseFeatures(bar, mergedVenue),
       signatureDrinks: _parseDrinks(bar, drinksJson),
       reviews: reviews,
-      gallery: _parseGallery(bar, mediaJson, mergedVenue),
+      gallery: gallery,
       openNow: _isOpenAt(now, businessHours),
       todayKey: todayKey,
       todayHoursLabel: businessHours[todayKey] ?? '营业时间待补充',
@@ -151,7 +152,13 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
   MapVenue _mergeVenue(MapVenue venue, Map<String, dynamic> bar) {
     final barTags = _readStrList(bar, ['tags', 'labels']);
     final imageUrl =
-        _readStr(bar, ['mediumImageUrl', 'imageUrl', 'image', 'cover', 'coverUrl']) ??
+        _readStr(bar, [
+          'mediumImageUrl',
+          'imageUrl',
+          'image',
+          'cover',
+          'coverUrl',
+        ]) ??
         _firstGalleryUrl(bar['gallery']);
     return MapVenue(
       id: venue.id,
@@ -326,23 +333,92 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
     );
   }
 
-  /// 图集：优先详情内嵌 gallery，其次 /media 接口；都没有时用本地封面兜底。
-  List<String> _parseGallery(
+  /// 图集：优先读取详情的 images 数组，并按 sortOrder 升序排列。
+  /// 轮播使用 mediumImageUrl，点击放大后使用同一项的 imageUrl。
+  /// 旧的 gallery 和 /media 响应仍作为兼容兜底。
+  List<VenueGalleryImage> _parseGallery(
     Map<String, dynamic> bar,
     List<dynamic> media,
     MapVenue venue,
   ) {
-    final cover = venue.imageUrl?.trim();
-    final urls = <String>[
-      // 保留列表页已展示的封面作为第一张，详情首屏不需要重新发起图片请求。
-      if (cover != null && cover.isNotEmpty) cover,
-      ..._readUrlList(bar['gallery']),
-      ..._readUrlList(media),
-    ];
-    if (urls.isEmpty) {
-      return [venue.imageAsset];
+    final images = _readGalleryImages(bar['images']);
+    if (images.isNotEmpty) {
+      return images;
     }
-    return urls.toSet().toList(growable: false);
+
+    final cover = venue.imageUrl?.trim();
+    final legacyImages = <VenueGalleryImage>[
+      if (cover != null && cover.isNotEmpty)
+        VenueGalleryImage(mediumImageUrl: cover, imageUrl: cover),
+      ..._readGalleryImages(bar['gallery']),
+      ..._readGalleryImages(media),
+    ];
+    if (legacyImages.isEmpty) {
+      return [
+        VenueGalleryImage(
+          mediumImageUrl: venue.imageAsset,
+          imageUrl: venue.imageAsset,
+        ),
+      ];
+    }
+    final seen = <String>{};
+    return legacyImages
+        .where(
+          (image) => seen.add('${image.mediumImageUrl}\n${image.imageUrl}'),
+        )
+        .toList(growable: false);
+  }
+
+  List<VenueGalleryImage> _readGalleryImages(dynamic raw) {
+    if (raw is! List) {
+      return const [];
+    }
+    final candidates = <_GalleryCandidate>[];
+    for (var index = 0; index < raw.length; index++) {
+      final item = raw[index];
+      if (item is String) {
+        final url = item.trim();
+        if (url.isNotEmpty) {
+          candidates.add(
+            _GalleryCandidate(
+              image: VenueGalleryImage(mediumImageUrl: url, imageUrl: url),
+              sortOrder: null,
+              sourceIndex: index,
+            ),
+          );
+        }
+        continue;
+      }
+      if (item is! Map) {
+        continue;
+      }
+      final map = item.cast<String, dynamic>();
+      final original = _readStr(map, ['imageUrl', 'url', 'path', 'src']);
+      final medium =
+          _readStr(map, ['mediumImageUrl']) ??
+          _readStr(map, ['thumbnailUrl']) ??
+          original;
+      final fullSize = original ?? medium;
+      if (medium == null || fullSize == null) {
+        continue;
+      }
+      candidates.add(
+        _GalleryCandidate(
+          image: VenueGalleryImage(mediumImageUrl: medium, imageUrl: fullSize),
+          sortOrder: _readInt(map, ['sortOrder', 'order']),
+          sourceIndex: index,
+        ),
+      );
+    }
+    candidates.sort((a, b) {
+      final byOrder = (a.sortOrder ?? 0x7fffffff).compareTo(
+        b.sortOrder ?? 0x7fffffff,
+      );
+      return byOrder != 0 ? byOrder : a.sourceIndex.compareTo(b.sourceIndex);
+    });
+    return candidates
+        .map((candidate) => candidate.image)
+        .toList(growable: false);
   }
 
   String? _firstGalleryUrl(dynamic raw) {
@@ -379,9 +455,9 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
   /// 签到配图：`mediaIds` 是上传 ID，需换成上传内容相对路径才能展示；
   /// 没有 `mediaIds` 时回退旧的 `mediaUrls` / `media` 字段。
   List<String> _readCheckInImages(Map<String, dynamic> map) {
-    final fromIds = _readUrlList(map['mediaIds'])
-        .map((mediaId) => '/api/uploads/$mediaId/content')
-        .toList(growable: false);
+    final fromIds = _readUrlList(
+      map['mediaIds'],
+    ).map((mediaId) => '/api/uploads/$mediaId/content').toList(growable: false);
     if (fromIds.isNotEmpty) {
       return fromIds;
     }
@@ -542,6 +618,18 @@ int? _readInt(Map<String, dynamic> map, List<String> keys) {
     }
   }
   return null;
+}
+
+class _GalleryCandidate {
+  const _GalleryCandidate({
+    required this.image,
+    required this.sortOrder,
+    required this.sourceIndex,
+  });
+
+  final VenueGalleryImage image;
+  final int? sortOrder;
+  final int sourceIndex;
 }
 
 List<String>? _readStrList(Map<String, dynamic> map, List<String> keys) {

@@ -706,31 +706,43 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
     // 详情数据尚未返回时先展示首页传入的封面；它与首页使用相同 URL，
     // Flutter 可直接复用正在进行或已经完成的图片缓存请求。
     final images =
-        _detail?.gallery ?? [widget.venue.imageUrl ?? widget.venue.imageAsset];
+        _detail?.gallery ??
+        [
+          VenueGalleryImage(
+            mediumImageUrl: widget.venue.imageUrl ?? widget.venue.imageAsset,
+            imageUrl: widget.venue.imageUrl ?? widget.venue.imageAsset,
+          ),
+        ];
     final showPageBadge = images.length > 1;
+    Widget buildImage(int index) {
+      final path = images[index].mediumImageUrl;
+      final remote = _isRemoteImage(path);
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _openGalleryPreview(context, images, index),
+        child: VenueImage(
+          imageUrl: remote ? path : null,
+          assetPath: remote ? widget.venue.imageAsset : path,
+          width: double.infinity,
+          height: double.infinity,
+        ),
+      );
+    }
 
     return Stack(
       children: [
         AspectRatio(
           aspectRatio: 16 / 9,
-          child: PageView.builder(
-            itemCount: images.length,
-            onPageChanged: (index) => setState(() => _galleryPage = index),
-            itemBuilder: (context, index) {
-              final path = images[index];
-              final remote = _isRemoteImage(path);
-              return GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => _openGalleryPreview(context, images, index),
-                child: VenueImage(
-                  imageUrl: remote ? path : null,
-                  assetPath: remote ? widget.venue.imageAsset : path,
-                  width: double.infinity,
-                  height: double.infinity,
+          // 详情尚在加载时只有一张列表封面。即使禁用滚动，单页 PageView
+          // 仍会创建横向手势识别器并抢走垂直拖动，所以单图直接渲染图片。
+          child: images.length == 1
+              ? buildImage(0)
+              : PageView.builder(
+                  itemCount: images.length,
+                  onPageChanged: (index) =>
+                      setState(() => _galleryPage = index),
+                  itemBuilder: (context, index) => buildImage(index),
                 ),
-              );
-            },
-          ),
         ),
         Positioned(
           top: 0,
@@ -901,7 +913,11 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
     );
   }
 
-  void _openGalleryPreview(BuildContext context, List<String> images, int index) {
+  void _openGalleryPreview(
+    BuildContext context,
+    List<VenueGalleryImage> images,
+    int index,
+  ) {
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         fullscreenDialog: true,
@@ -923,7 +939,7 @@ class _VenueGalleryPreview extends StatefulWidget {
     required this.fallbackAssetPath,
   });
 
-  final List<String> images;
+  final List<VenueGalleryImage> images;
   final int initialIndex;
   final String fallbackAssetPath;
 
@@ -956,7 +972,7 @@ class _VenueGalleryPreviewState extends State<_VenueGalleryPreview> {
               itemCount: images.length,
               onPageChanged: (value) => setState(() => _index = value),
               itemBuilder: (context, index) {
-                final path = images[index];
+                final path = images[index].imageUrl;
                 final remote = _isRemoteImage(path);
                 final image = remote
                     ? SiponNetworkImage(
@@ -979,9 +995,7 @@ class _VenueGalleryPreviewState extends State<_VenueGalleryPreview> {
                 onPressed: () => Navigator.of(context).pop(),
                 icon: const Icon(Icons.close_rounded),
                 color: Colors.white,
-                style: IconButton.styleFrom(
-                  backgroundColor: Colors.black54,
-                ),
+                style: IconButton.styleFrom(backgroundColor: Colors.black54),
               ),
             ),
             if (images.length > 1)
@@ -1422,8 +1436,9 @@ class _VenueInfoCard extends StatelessWidget {
           _InfoTile(
             icon: Icons.location_on_outlined,
             title: text.t(data.venue.address),
-            subtitle:
-                '${text.t(data.venue.distance)} · ${text.t(addressActionLabel)}',
+            subtitle: text.t(data.venue.distance),
+            trailingLabel: text.t(addressActionLabel),
+            titleMaxLines: null,
             onTap: onOpenMap,
           ),
           const Divider(
@@ -1566,12 +1581,16 @@ class _InfoTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.trailingLabel,
+    this.titleMaxLines = 2,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final String? trailingLabel;
+  final int? titleMaxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -1597,8 +1616,10 @@ class _InfoTile extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                    maxLines: titleMaxLines,
+                    overflow: titleMaxLines == null
+                        ? TextOverflow.visible
+                        : TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: MapDesign.ink,
                       fontSize: 13.5,
@@ -1620,10 +1641,28 @@ class _InfoTile extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: MapDesign.muted,
-              size: 20,
+            const SizedBox(width: 8),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (trailingLabel case final label?) ...[
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: MapDesign.brand,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                ],
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: MapDesign.muted,
+                  size: 20,
+                ),
+              ],
             ),
           ],
         ),

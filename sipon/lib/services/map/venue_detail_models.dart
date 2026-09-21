@@ -50,8 +50,8 @@ class VenueDetail {
   /// 用户评价列表。
   final List<VenueReview> reviews;
 
-  /// 详情页轮播图地址或本地资源路径。
-  final List<String> gallery;
+  /// 详情页轮播图片；中图用于轮播，原图用于点击后的全屏预览。
+  final List<VenueGalleryImage> gallery;
 
   /// 服务端判定好的「当前是否营业中」。
   final bool openNow;
@@ -64,6 +64,20 @@ class VenueDetail {
 
   /// 评价总数（列表可能只返回前几条）。
   final int reviewCount;
+}
+
+/// 地点详情中的一张图片，保留轮播图与原图的一一对应关系。
+class VenueGalleryImage {
+  const VenueGalleryImage({
+    required this.mediumImageUrl,
+    required this.imageUrl,
+  });
+
+  /// 详情轮播使用的中等尺寸图片地址，或 mock 数据的本地资源路径。
+  final String mediumImageUrl;
+
+  /// 用户点击放大后使用的原图地址，或 mock 数据的本地资源路径。
+  final String imageUrl;
 }
 
 /// 单款招牌酒。

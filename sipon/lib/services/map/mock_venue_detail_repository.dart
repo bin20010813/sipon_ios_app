@@ -76,10 +76,22 @@ class MockVenueDetailRepository implements VenueDetailRepository {
       // 首屏只带第一页评价，后续由「更多评论」分页补足。
       reviews: allReviews.take(10).toList(growable: false),
       gallery: [
-        venue.imageAsset,
-        MapAssets.coverForIndex(seed),
-        MapAssets.coverForIndex(seed + 1),
-        MapAssets.coverForIndex(seed + 2),
+        VenueGalleryImage(
+          mediumImageUrl: venue.imageAsset,
+          imageUrl: venue.imageAsset,
+        ),
+        VenueGalleryImage(
+          mediumImageUrl: MapAssets.coverForIndex(seed),
+          imageUrl: MapAssets.coverForIndex(seed),
+        ),
+        VenueGalleryImage(
+          mediumImageUrl: MapAssets.coverForIndex(seed + 1),
+          imageUrl: MapAssets.coverForIndex(seed + 1),
+        ),
+        VenueGalleryImage(
+          mediumImageUrl: MapAssets.coverForIndex(seed + 2),
+          imageUrl: MapAssets.coverForIndex(seed + 2),
+        ),
       ],
       openNow: _isOpenAt(now, businessHours, dayKeys),
       todayKey: todayKey,

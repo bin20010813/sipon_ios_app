@@ -173,6 +173,8 @@ class SiponBarMapItem {
         _readBool(json, ['hasImage']) ??
         _readBool(properties, ['hasImage']) ??
         false;
+    final coverImage =
+        _firstBarImage(json['images']) ?? _firstBarImage(properties['images']);
     final subtypeTags = subtype == null ? null : _splitTags(subtype);
     final tags = parsedTags ?? subtypeTags ?? const <String>[];
     final fallbackKind = _kindFromTags(tags);
@@ -221,17 +223,72 @@ class SiponBarMapItem {
           ),
       tags: tags.isEmpty ? [_displayKind(kind)] : tags,
       imageUrl:
+          coverImage?.imageUrl ??
           _readString(json, ['imageUrl', 'image', 'cover', 'coverUrl']) ??
           _readString(properties, ['imageUrl', 'image', 'cover', 'coverUrl']),
-      hasImage: hasImage,
+      hasImage: hasImage || coverImage != null,
       thumbnailUrl:
+          coverImage?.thumbnailUrl ??
           _readString(json, ['thumbnailUrl']) ??
           _readString(properties, ['thumbnailUrl']),
       mediumImageUrl:
+          coverImage?.mediumImageUrl ??
           _readString(json, ['mediumImageUrl']) ??
           _readString(properties, ['mediumImageUrl']),
     );
   }
+}
+
+class _SiponBarImage {
+  const _SiponBarImage({
+    required this.sortOrder,
+    required this.sourceIndex,
+    required this.imageUrl,
+    required this.thumbnailUrl,
+    required this.mediumImageUrl,
+  });
+
+  final int? sortOrder;
+  final int sourceIndex;
+  final String? imageUrl;
+  final String? thumbnailUrl;
+  final String? mediumImageUrl;
+}
+
+_SiponBarImage? _firstBarImage(dynamic raw) {
+  if (raw is! List) {
+    return null;
+  }
+  final images = <_SiponBarImage>[];
+  for (var index = 0; index < raw.length; index++) {
+    final item = raw[index];
+    if (item is! Map) {
+      continue;
+    }
+    final map = item.cast<String, dynamic>();
+    final imageUrl = _readString(map, ['imageUrl']);
+    final thumbnailUrl = _readString(map, ['thumbnailUrl']);
+    final mediumImageUrl = _readString(map, ['mediumImageUrl']);
+    if (imageUrl == null && thumbnailUrl == null && mediumImageUrl == null) {
+      continue;
+    }
+    images.add(
+      _SiponBarImage(
+        sortOrder: _readInt(map, ['sortOrder', 'order']),
+        sourceIndex: index,
+        imageUrl: imageUrl,
+        thumbnailUrl: thumbnailUrl,
+        mediumImageUrl: mediumImageUrl,
+      ),
+    );
+  }
+  images.sort((a, b) {
+    final byOrder = (a.sortOrder ?? 0x7fffffff).compareTo(
+      b.sortOrder ?? 0x7fffffff,
+    );
+    return byOrder != 0 ? byOrder : a.sourceIndex.compareTo(b.sourceIndex);
+  });
+  return images.isEmpty ? null : images.first;
 }
 
 class _Coordinates {

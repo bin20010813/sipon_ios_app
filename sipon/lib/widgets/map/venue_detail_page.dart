@@ -34,6 +34,10 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
   /// 与地图 Tab 的 half 档语义对齐。数值快照，不引用地图 Tab 的文件。
   static const double _halfExtent = 0.55;
   static const double _mapFraction = 0.45;
+  // minChildSize 与 maxChildSize 都为 1 时，DraggableScrollableSheet 会在
+  // 详情数据加载阶段吞掉内层列表的垂直拖动。保留肉眼不可见的调度范围，
+  // 让拖动可以正常转交给详情滚动视图。
+  static const double _fullscreenMinExtent = 0.999;
   static const Duration _motionDuration = Duration(milliseconds: 420);
   static const Curve _motionCurve = Curves.easeOutCubic;
 
@@ -210,7 +214,7 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
               child: DraggableScrollableSheet(
                 controller: _sheetController,
                 initialChildSize: 1.0,
-                minChildSize: _mapMounted ? _halfExtent : 1.0,
+                minChildSize: _mapMounted ? _halfExtent : _fullscreenMinExtent,
                 maxChildSize: 1.0,
                 // 松手后吸附到半屏/全屏两档：无 snap 时面板会停在任意
                 // 中间位置（比如 0.92），观感很尴尬。min/max 自动是吸附点。

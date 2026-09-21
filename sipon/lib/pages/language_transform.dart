@@ -144,7 +144,7 @@ class SiponAppText {
   String get plusWriteReview => t('写评论');
   String get plusCheckInBar => t('打卡酒吧');
   String get plusPlanRoute => t('规划路线');
-  String get plusAddVenue => t('添加酒馆');
+  String get plusAddVenue => t('添加酒吧');
   String get monthlySpend => t('本月支出');
   String get monthlyDeltaPrefix => t('较上月  ');
   String get monthlyBudget => t('本月预算');
@@ -293,7 +293,7 @@ const Map<String, String> _englishText = {
   '写评论': 'Write a Review',
   '打卡酒吧': 'Check in at a Bar',
   '规划路线': 'Plan a Route',
-  '添加酒馆': 'Add a Bar',
+  '添加酒吧': 'Add a Bar',
   '本月支出': 'Monthly Spend',
   '较上月  ': 'vs last month  ',
   '本月预算': 'Monthly Budget',
