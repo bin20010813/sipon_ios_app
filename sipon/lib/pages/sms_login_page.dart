@@ -213,9 +213,12 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
       );
       if (!mounted) return;
       widget.onLoginSucceeded();
-    } on SignInWithAppleException catch (error) {
+    } on SignInWithAppleAuthorizationException catch (error) {
       // 用户主动取消属于正常流程，不提示错误。
       if (error.code == AuthorizationErrorCode.canceled) return;
+      if (mounted) _showMessage(text.t('Apple 登录失败，请重试'));
+    } on SignInWithAppleException {
+      // 其它已知插件异常（不支持、凭据错误等），统一提示。
       if (mounted) _showMessage(text.t('Apple 登录失败，请重试'));
     } catch (error) {
       if (mounted) _showMessage(_errorMessage(error));
