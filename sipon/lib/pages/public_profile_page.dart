@@ -1470,12 +1470,39 @@ Map<String, dynamic>? _pickMapOf(Map<String, dynamic> map, List<String> keys) {
   return null;
 }
 
+/// 读取坐标数值：优先平铺 longitude/lng/lon、latitude/lat；
+/// 兼容嵌套 coordinate/center/location 对象，以及 GeoJSON 的
+/// coordinates: [lng, lat]（含 geometry.coordinates）。与地图层的
+/// _readCoordinates 解析口径保持一致，避免条目因坐标形态不同而
+/// 解析成 0，导致点击后无法跳转到对应位置。
 double? _pickCoordinate(Map<String, dynamic>? map, {required bool longitude}) {
   if (map == null) return null;
   final keys = longitude
       ? const ['longitude', 'lng', 'lon']
       : const ['latitude', 'lat'];
-  return _pickNum(map, keys)?.toDouble();
+  final direct = _pickNum(map, keys)?.toDouble();
+  if (direct != null) return direct;
+
+  // 嵌套坐标对象：coordinate / center / location。
+  for (final key in const ['coordinate', 'center', 'location']) {
+    final nested = map[key];
+    if (nested is Map) {
+      final value = _pickNum(nested.cast<String, dynamic>(), keys)?.toDouble();
+      if (value != null) return value;
+    }
+  }
+
+  // GeoJSON：coordinates: [lng, lat] 或 geometry: {coordinates: [...]}。
+  final geometry = _pickMapOf(map, ['geometry']);
+  for (final holder in [map, ?geometry]) {
+    final raw = holder['coordinates'];
+    if (raw is List && raw.length >= 2) {
+      final value =
+          _pickNum({'v': raw[longitude ? 0 : 1]}, const ['v'])?.toDouble();
+      if (value != null) return value;
+    }
+  }
+  return null;
 }
 
 String? _pickFirstUrl(Map<String, dynamic> map, List<String> keys) {
@@ -1510,8 +1537,12 @@ MapVenue _venueFromEntryMap(Map<String, dynamic> map, {required String name}) {
   final nested = _pickMapOf(map, ['bar', 'barInfo', 'venue', 'place']);
   final bar = nested ?? const <String, dynamic>{};
   return MapVenue(
+    // 与「我的」页同一修复：顶层 `id` 是心愿记录 id，不是酒吧 id，
+    // 优先 barId / 嵌套 bar 对象里的 id，避免 /api/bars/{id} 传错参数。
     id:
-        (_pickNum(map, ['barId', 'id']) ?? _pickNum(bar, ['barId', 'id']))
+        (_pickNum(map, ['barId']) ??
+                _pickNum(bar, ['barId', 'id']) ??
+                _pickNum(map, ['id']))
             ?.toString() ??
         name,
     name: name,

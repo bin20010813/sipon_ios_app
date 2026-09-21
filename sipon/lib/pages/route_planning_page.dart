@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/map/map_display_options.dart';
 import '../services/map/map_models.dart';
 import '../services/map/map_scene_controller.dart';
@@ -36,6 +37,9 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
   final List<_BarPlace?> _stops = [];
   bool _showRemoveActions = false;
   bool _saving = false;
+
+  /// 站点编辑区的滚动控制器；供 Scrollbar 滑块联动。
+  final ScrollController _routeListController = ScrollController();
   late final MapSceneController _scene;
 
   @override
@@ -88,6 +92,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
     _cityController?.removeListener(_handleCityChanged);
     _routeRevision++;
     _scene.detach();
+    _routeListController.dispose();
     super.dispose();
   }
 
@@ -97,7 +102,10 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
     final anchor = await _cityController?.resolveQueryAnchor();
     if (!mounted || version != _requestVersion || anchor == null) return;
     if (_scene.isAttached && _cityController?.queryAnchor == null) {
-      await _scene.focusOn(longitude: anchor.longitude, latitude: anchor.latitude);
+      await _scene.focusOn(
+        longitude: anchor.longitude,
+        latitude: anchor.latitude,
+      );
     }
     try {
       final list = await _api.getNearbyBars(
@@ -174,11 +182,10 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
 
   List<_BarPlace?> get _routeItems => [_start, ..._stops, _end];
 
+  /// [newIndex] 已由 ReorderableListView.onReorderItem 修正为移除旧项之后
+  /// 的插入下标，这里不再手动减一。
   void _reorderRoute(int oldIndex, int newIndex) {
     _invalidatePlanning();
-    if (newIndex > oldIndex) {
-      newIndex -= 1;
-    }
     final items = _routeItems;
     final item = items.removeAt(oldIndex);
     items.insert(newIndex, item);
@@ -262,10 +269,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
     final revision = ++_routeRevision;
     final points = [
       for (final place in places)
-        MapLatLng(
-          longitude: place.longitude,
-          latitude: place.latitude,
-        ),
+        MapLatLng(longitude: place.longitude, latitude: place.latitude),
     ];
 
     setState(() {
@@ -278,9 +282,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
       if (!mounted || revision != _routeRevision) return;
 
       setState(() => _planned = ok);
-      _showMessage(
-        ok ? '路线已规划，可以保存为我的路线了' : '路径规划失败，请检查站点或稍后重试',
-      );
+      _showMessage(ok ? '路线已规划，可以保存为我的路线了' : '路径规划失败，请检查站点或稍后重试');
       if (ok) {
         // 折线绘制后再重画一次点位，保证编号 marker 落在折线上层。
         unawaited(_renderMap());
@@ -427,141 +429,186 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
                 builder: (context, constraints) {
                   // A route row is 48px tall. Show at most five rows; the
                   // station area scrolls internally once more are added.
-                  final visibleItemCount =
-                      _routeItems.length > 5 ? 5 : _routeItems.length;
-                  final naturalEditorHeight =
-                      82.0 + visibleItemCount * 48.0;
-                  final maxEditorHeight =
-                      (constraints.maxHeight - 180.0).clamp(0.0, double.infinity);
+                  final visibleItemCount = _routeItems.length > 5
+                      ? 5
+                      : _routeItems.length;
+                  final naturalEditorHeight = 82.0 + visibleItemCount * 48.0;
+                  final maxEditorHeight = (constraints.maxHeight - 180.0).clamp(
+                    0.0,
+                    double.infinity,
+                  );
                   final editorHeight = naturalEditorHeight
                       .clamp(0.0, maxEditorHeight)
                       .toDouble();
 
                   return Column(
-                children: [
-                  SizedBox(
-                    height: editorHeight,
-                    child: ListView(
-                      // The editable station list has its own viewport. Do
-                      // not paint its extra content over the preview header
-                      // when more waypoints are added.
-                      clipBehavior: Clip.hardEdge,
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                      children: [
-                        const Text(
-                          '按顺序安排今晚的酒吧行程',
-                          style: TextStyle(color: _muted, fontSize: 13),
-                        ),
-                        const SizedBox(height: 10),
-                        ReorderableListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          clipBehavior: Clip.hardEdge,
-                          itemCount: _routeItems.length,
-                          onReorder: _reorderRoute,
-                          itemBuilder: (context, index) {
-                            final isStart = index == 0;
-                            final isEnd = index == _routeItems.length - 1;
-                            final stopIndex = index - 1;
-                            return _RoutePlaceTile(
-                              key: ValueKey(
-                                'route-$index-${_routeItems[index]?.name ?? 'empty'}',
-                              ),
-                              dotColor: isStart
-                                  ? const Color(0xFFD95151)
-                                  : isEnd
-                                  ? const Color(0xFF39A568)
-                                  : const Color(0xFFB8AEB4),
-                              bar: _routeItems[index],
-                              placeholder: isStart || isEnd
-                                  ? '请输入起终点'
-                                  : '请输入途径酒吧',
-                              bars: _nearbyBars,
-                              used: _usedPlaces,
-                              onSelected: (bar) => _select(
-                                isStart
-                                    ? _RouteStopType.start
-                                    : isEnd
-                                    ? _RouteStopType.end
-                                    : _RouteStopType.stop,
-                                bar,
-                                stopIndex: isStart || isEnd ? null : stopIndex,
-                              ),
-                              onRemove: _showRemoveActions
-                                  ? () => _removeRouteItem(index)
-                                  : null,
-                              dragIndex: index,
-                            );
-                          },
-                        ),
-                        Row(
+                    children: [
+                      SizedBox(
+                        height: editorHeight,
+                        child: Column(
                           children: [
                             Expanded(
-                              child: TextButton.icon(
-                                onPressed: _stops.length >= _maxStops
-                                    ? null
-                                    : () => setState(() {
-                                        _showRemoveActions = true;
-                                        _stops.add(null);
-                                      }),
-                                icon: const Icon(Icons.add_rounded, size: 18),
-                                label: const Text('添加途径酒吧'),
-                                style: TextButton.styleFrom(
-                                  foregroundColor: _brand,
-                                  alignment: Alignment.centerLeft,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 4,
+                              // 细滑块：站点超出可见行数后才需要滚动，滑块始终
+                              // 可见，引导用户下拉查看已添加的地点。
+                              child: Scrollbar(
+                                controller: _routeListController,
+                                thumbVisibility: true,
+                                thickness: 2.5,
+                                radius: const Radius.circular(3),
+                                child: ListView(
+                                  controller: _routeListController,
+                                  // The editable station list has its own
+                                  // viewport. Do not paint its extra content
+                                  // over the preview header when more
+                                  // waypoints are added.
+                                  clipBehavior: Clip.hardEdge,
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    4,
+                                    16,
+                                    12,
                                   ),
+                                  children: [
+                                    const Text(
+                                      '按顺序安排今晚的酒吧行程',
+                                      style: TextStyle(
+                                        color: _muted,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    ReorderableListView.builder(
+                                      shrinkWrap: true,
+                                      physics:
+                                          const NeverScrollableScrollPhysics(),
+                                      clipBehavior: Clip.hardEdge,
+                                      itemCount: _routeItems.length,
+                                      // 长按拖动手柄后给出震动反馈，提示拖拽已开始。
+                                      onReorderStart: (_) =>
+                                          HapticFeedback.mediumImpact(),
+                                      onReorderItem: _reorderRoute,
+                                      itemBuilder: (context, index) {
+                                        final isStart = index == 0;
+                                        final isEnd =
+                                            index == _routeItems.length - 1;
+                                        final stopIndex = index - 1;
+                                        return _RoutePlaceTile(
+                                          key: ValueKey(
+                                            'route-$index-${_routeItems[index]?.name ?? 'empty'}',
+                                          ),
+                                          dotColor: isStart
+                                              ? const Color(0xFFD95151)
+                                              : isEnd
+                                              ? const Color(0xFF39A568)
+                                              : const Color(0xFFB8AEB4),
+                                          bar: _routeItems[index],
+                                          placeholder: isStart || isEnd
+                                              ? '请输入起终点'
+                                              : '请输入途径酒吧',
+                                          bars: _nearbyBars,
+                                          used: _usedPlaces,
+                                          onSelected: (bar) => _select(
+                                            isStart
+                                                ? _RouteStopType.start
+                                                : isEnd
+                                                ? _RouteStopType.end
+                                                : _RouteStopType.stop,
+                                            bar,
+                                            stopIndex: isStart || isEnd
+                                                ? null
+                                                : stopIndex,
+                                          ),
+                                          onRemove: _showRemoveActions
+                                              ? () => _removeRouteItem(index)
+                                              : null,
+                                          dragIndex: index,
+                                        );
+                                      },
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
-                            FilledButton.icon(
-                              onPressed: _planning ? null : _planRoute,
-                              icon: const Icon(Icons.send_rounded, size: 18),
-                              label: Text(_planning ? '规划中…' : '出发'),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: _brand,
-                                minimumSize: const Size(0, 40),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
+                            // 「添加途径酒吧 + 出发」固定在编辑区底部，不随列表滚动。
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: TextButton.icon(
+                                      onPressed: _stops.length >= _maxStops
+                                          ? null
+                                          : () => setState(() {
+                                              _showRemoveActions = true;
+                                              _stops.add(null);
+                                            }),
+                                      icon: const Icon(
+                                        Icons.add_rounded,
+                                        size: 18,
+                                      ),
+                                      label: const Text('添加途径酒吧'),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: _brand,
+                                        alignment: Alignment.centerLeft,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 4,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  FilledButton.icon(
+                                    onPressed: _planning ? null : _planRoute,
+                                    icon: const Icon(
+                                      Icons.send_rounded,
+                                      size: 18,
+                                    ),
+                                    label: Text(_planning ? '规划中…' : '出发'),
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: _brand,
+                                      minimumSize: const Size(0, 40),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: const Text(
-                        '路线预览',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: _ink,
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: const Text(
+                            '路线预览',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: _ink,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: SiponMapWidget(
-                          initialStyleId: MapBaseStyle.standard.id,
-                          onHostReady: _handleMapCreated,
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: SiponMapWidget(
+                              initialStyleId: MapBaseStyle.standard.id,
+                              onHostReady: _handleMapCreated,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                ],
+                    ],
                   );
                 },
               ),
@@ -928,13 +975,23 @@ class _InlineBarSearchFieldState extends State<_InlineBarSearchField> {
                           height: 32,
                         ),
                       ),
+                    // 真机触摸下，立即拖动手势会在手势竞技场里输给外层可
+                    // 滚动的 ListView（模拟器鼠标默认不参与滚动手势竞争，
+                    // 所以表现正常），因此必须用长按触发拖拽。
+                    // 注意：这里不能给 IconButton 设置 tooltip——Tooltip 的
+                    // LongPressGestureRecognizer 与 DelayedMultiDrag 同为
+                    // 500ms 且层级更深，会先赢得竞技场并弹出提示文字，导致
+                    // 真机长按只显示提示、永远拖不动。
                     if (widget.dragIndex != null)
-                      ReorderableDragStartListener(
+                      ReorderableDelayedDragStartListener(
                         index: widget.dragIndex!,
                         child: const IconButton(
                           onPressed: null,
-                          icon: Icon(Icons.drag_handle_rounded, size: 18),
-                          tooltip: '调整顺序',
+                          icon: Icon(
+                            Icons.drag_handle_rounded,
+                            size: 18,
+                            semanticLabel: '长按拖动调整顺序',
+                          ),
                           padding: EdgeInsets.zero,
                           constraints: BoxConstraints.tightFor(
                             width: 30,
