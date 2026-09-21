@@ -703,7 +703,10 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
 
   /// 沉浸式封面轮播：关闭按钮与页码悬浮在图上，不再单独占一行。
   Widget _buildHero(BuildContext context) {
-    final images = _detail?.gallery ?? [widget.venue.imageAsset];
+    // 详情数据尚未返回时先展示首页传入的封面；它与首页使用相同 URL，
+    // Flutter 可直接复用正在进行或已经完成的图片缓存请求。
+    final images =
+        _detail?.gallery ?? [widget.venue.imageUrl ?? widget.venue.imageAsset];
     final showPageBadge = images.length > 1;
 
     return Stack(
@@ -716,11 +719,15 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
             itemBuilder: (context, index) {
               final path = images[index];
               final remote = _isRemoteImage(path);
-              return VenueImage(
-                imageUrl: remote ? path : null,
-                assetPath: remote ? widget.venue.imageAsset : path,
-                width: double.infinity,
-                height: double.infinity,
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => _openGalleryPreview(context, images, index),
+                child: VenueImage(
+                  imageUrl: remote ? path : null,
+                  assetPath: remote ? widget.venue.imageAsset : path,
+                  width: double.infinity,
+                  height: double.infinity,
+                ),
               );
             },
           ),
@@ -890,6 +897,110 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _openGalleryPreview(BuildContext context, List<String> images, int index) {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (_) => _VenueGalleryPreview(
+          images: images,
+          initialIndex: index,
+          fallbackAssetPath: widget.venue.imageAsset,
+        ),
+      ),
+    );
+  }
+}
+
+/// 地点图集的全屏预览：单击封面进入，支持横向切图与双指缩放。
+class _VenueGalleryPreview extends StatefulWidget {
+  const _VenueGalleryPreview({
+    required this.images,
+    required this.initialIndex,
+    required this.fallbackAssetPath,
+  });
+
+  final List<String> images;
+  final int initialIndex;
+  final String fallbackAssetPath;
+
+  @override
+  State<_VenueGalleryPreview> createState() => _VenueGalleryPreviewState();
+}
+
+class _VenueGalleryPreviewState extends State<_VenueGalleryPreview> {
+  late final PageController _controller = PageController(
+    initialPage: widget.initialIndex,
+  );
+  late int _index = widget.initialIndex;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final images = widget.images;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            PageView.builder(
+              controller: _controller,
+              itemCount: images.length,
+              onPageChanged: (value) => setState(() => _index = value),
+              itemBuilder: (context, index) {
+                final path = images[index];
+                final remote = _isRemoteImage(path);
+                final image = remote
+                    ? Image.network(
+                        SiponApiConfig.instance.resolveUri(path).toString(),
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) => Image.asset(
+                          widget.fallbackAssetPath,
+                          fit: BoxFit.contain,
+                        ),
+                      )
+                    : Image.asset(path, fit: BoxFit.contain);
+                return InteractiveViewer(
+                  minScale: 1,
+                  maxScale: 4,
+                  child: Center(child: image),
+                );
+              },
+            ),
+            Positioned(
+              top: 10,
+              right: 12,
+              child: IconButton.filled(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close_rounded),
+                color: Colors.white,
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.black54,
+                ),
+              ),
+            ),
+            if (images.length > 1)
+              Positioned(
+                bottom: 18,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: _GalleryPageBadge(
+                    current: _index + 1,
+                    total: images.length,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

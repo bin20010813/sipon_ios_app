@@ -130,16 +130,11 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<_HomeBarsData> _loadHomeBars(String city) async {
-    // 与打卡页一致按经纬度查附近酒吧；无坐标锚点时回退按城市查。
-    final anchor = _cityController?.queryAnchor;
+    // 首页按所选城市加载完整酒吧列表。
     try {
-      final bars = anchor == null
-          ? await SiponDataRepository.instance.fetchHomeBars(city: city)
-          : await SiponDataRepository.instance.fetchNearbyBars(
-              longitude: anchor.longitude,
-              latitude: anchor.latitude,
-              radiusMeters: 5000,
-            );
+      // 首页按城市加载，避免 nearby 接口将结果限制在定位点周围的半径内。
+      // fetchHomeBars 会请求 hasImage=true，并再次校验响应的 hasImage 字段。
+      final bars = await SiponDataRepository.instance.fetchHomeBars(city: city);
       if (bars.isEmpty) {
         return _HomeBarsData(
           bars: city == SiponCityController.defaultCity
@@ -757,8 +752,8 @@ class _HomeDataSections extends StatelessWidget {
         //   padding: EdgeInsets.only(right: 23),
         //   child: _BartenderStories(),
         // ),
-        if (data.bars.isNotEmpty) const SizedBox(height: 26),
-        if (data.bars.isNotEmpty) _TopBarsSection(bars: data.bars),
+        if (data.bars.length > 1) const SizedBox(height: 26),
+        if (data.bars.length > 1) _TopBarsSection(bars: data.bars),
       ],
     );
   }
@@ -1828,42 +1823,23 @@ class _TopBarsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
-    final primaryBars = bars.take(5).toList();
-    final secondaryBars = bars.skip(5).take(3).toList();
+    // 首条已在上方作为精选酒吧展示；更多推荐只展示其余条目，避免重复。
+    final recommendationBars = bars.skip(1).take(5).toList();
+    if (recommendationBars.isEmpty) return const SizedBox.shrink();
 
     return LayoutBuilder(
-      builder: (context, constraints) => SizedBox(
-        height: 481,
-        child: ListView(
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          // 底部留白防止卡片阴影被 ListView 裁切。
-          padding: const EdgeInsets.only(bottom: 16),
-          children: [
-            _RankingCard(
-              // 与上方 _FeaturedBarCard 等卡片右边缘对齐（各留 23 边距）。
-              width: constraints.maxWidth - 23,
-              title: text.t('更多酒吧推荐'),
-              items: primaryBars.map((bar) => bar.toRankingItem(text)).toList(),
-              onItemTap: [
-                for (final bar in primaryBars)
-                  () => _pushVenueDetail(context, bar),
-              ],
-            ),
-            if (secondaryBars.isNotEmpty) const SizedBox(width: 16),
-            // if (secondaryBars.isNotEmpty)
-            //   _RankingCard(
-            //     title: text.t('更多酒吧'),
-            //     compact: true,
-            //     items: secondaryBars
-            //         .map((bar) => bar.toRankingItem(text))
-            //         .toList(),
-            //     onItemTap: [
-            //       for (final bar in secondaryBars)
-            //         () => _pushVenueDetail(context, bar),
-            //     ],
-            //   ),
-            const SizedBox(width: 23),
+      builder: (context, constraints) => Padding(
+        // 右侧与上方精选卡片对齐，底部留白避免阴影被父滚动容器裁切。
+        padding: const EdgeInsets.only(right: 23, bottom: 16),
+        child: _RankingCard(
+          width: constraints.maxWidth - 23,
+          title: text.t('更多酒吧推荐'),
+          items: recommendationBars
+              .map((bar) => bar.toRankingItem(text))
+              .toList(),
+          onItemTap: [
+            for (final bar in recommendationBars)
+              () => _pushVenueDetail(context, bar),
           ],
         ),
       ),
@@ -1922,15 +1898,10 @@ class _RankingCard extends StatelessWidget {
               const SizedBox(height: 16),
               const Divider(height: 1, color: HomePage.line),
               const SizedBox(height: 12),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    for (var i = 0; i < items.length; i++)
-                      _RankingTile(item: items[i], onTap: onItemTap?[i]),
-                  ],
-                ),
-              ),
+              for (var i = 0; i < items.length; i++) ...[
+                _RankingTile(item: items[i], onTap: onItemTap?[i]),
+                if (i < items.length - 1) const SizedBox(height: 16),
+              ],
             ],
           ),
         ),
@@ -2258,8 +2229,9 @@ class _HomeBar {
       latitude: item.latitude,
       name: item.name,
       imageAsset: _homeImageAssetForIndex(index),
-      // 首页大卡片按文档用 640px 中图档，缺省自动回退原图。
-      imageUrl: item.resolvedMediumImageUrl,
+      // 首页列表和小卡使用 320px 缩略图，避免为列表一次下载 640px 中图。
+      // 此 URL 会随 MapVenue 传到详情页，确保点击后能复用同一图片缓存。
+      imageUrl: item.resolvedThumbnailUrl,
       rating: item.rating,
       address: item.address,
       distance: item.distance,

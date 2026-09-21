@@ -50,6 +50,9 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
 
   /// 评价每页条数：详情首屏与「更多评论」翻页共用。
   static const int _reviewPageSize = 10;
+  static const Duration _supplementaryRequestTimeout = Duration(
+    milliseconds: 800,
+  );
 
   @override
   Future<VenueDetail> fetchDetail(MapVenue venue) async {
@@ -58,9 +61,10 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
       return _fallback.fetchDetail(venue);
     }
 
-    // 详情主数据必须成功；兜底板块各自容错，失败按空列表处理。
-    final bar = _asMap(await _api.getBarById(barId));
-    final results = await Future.wait([
+    // 所有请求同时发出。评价、营业时间、酒款和媒体都是补充模块，不能因为
+    // 其中一路缓慢或无响应而让详情首屏一直停在加载态。
+    final results = await Future.wait<dynamic>([
+      _api.getBarById(barId),
       _guarded(
         () =>
             _api.getBarReviews(barId, page: SiponPage(limit: _reviewPageSize)),
@@ -69,10 +73,11 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
       _guarded(() => _api.getBarDrinks(barId)),
       _guarded(() => _api.getBarMedia(barId)),
     ]);
-    final reviewJson = results[0] ?? const <dynamic>[];
-    final hoursJson = results[1] ?? const <dynamic>[];
-    final drinksJson = results[2] ?? const <dynamic>[];
-    final mediaJson = results[3] ?? const <dynamic>[];
+    final bar = _asMap(results[0]);
+    final reviewJson = results[1] ?? const <dynamic>[];
+    final hoursJson = results[2] ?? const <dynamic>[];
+    final drinksJson = results[3] ?? const <dynamic>[];
+    final mediaJson = results[4] ?? const <dynamic>[];
 
     final mergedVenue = _mergeVenue(venue, bar);
     final businessHours = _parseBusinessHours(bar, hoursJson);
@@ -104,7 +109,7 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
   /// 兜底板块容错：失败返回 null，不阻断详情整体加载。
   Future<T?> _guarded<T>(Future<T> Function() call) async {
     try {
-      return await call();
+      return await call().timeout(_supplementaryRequestTimeout);
     } on Exception {
       return null;
     }
@@ -327,14 +332,17 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
     List<dynamic> media,
     MapVenue venue,
   ) {
+    final cover = venue.imageUrl?.trim();
     final urls = <String>[
+      // 保留列表页已展示的封面作为第一张，详情首屏不需要重新发起图片请求。
+      if (cover != null && cover.isNotEmpty) cover,
       ..._readUrlList(bar['gallery']),
       ..._readUrlList(media),
     ];
     if (urls.isEmpty) {
       return [venue.imageAsset];
     }
-    return urls;
+    return urls.toSet().toList(growable: false);
   }
 
   String? _firstGalleryUrl(dynamic raw) {

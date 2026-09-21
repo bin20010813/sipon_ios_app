@@ -511,7 +511,7 @@ String siponApiCityName(String city) {
 
   final entry = siponFindCity(query);
   if (entry != null &&
-      (entry.name.endsWith('州') ||
+      (entry.name.endsWith('自治州') ||
           entry.name.endsWith('盟') ||
           entry.name.endsWith('地区') ||
           entry.name == '香港' ||
@@ -527,7 +527,7 @@ String siponApiCityName(String city) {
 
 bool _hasAdministrativeSuffix(String city) =>
     city.endsWith('市') ||
-    city.endsWith('州') ||
+    city.endsWith('自治州') ||
     city.endsWith('盟') ||
     city.endsWith('地区') ||
     city.endsWith('特别行政区') ||

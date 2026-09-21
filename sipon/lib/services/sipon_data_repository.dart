@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'sipon_api_client.dart';
 import 'sipon_api_models.dart';
 import 'sipon_region_data.dart';
@@ -54,12 +56,21 @@ class SiponDataRepository {
         'offset': offset,
       },
     );
-    final items = SiponBarMapResponse.fromJson(json).items
+    final parsedItems = SiponBarMapResponse.fromJson(json).items;
+    final items = parsedItems
         .where((item) => !item.cluster)
         // 服务端即使收到 hasImage=true，仍可能返回带占位图片路径但
         // `hasImage=false` 的酒吧。首页推荐只接受已确认拥有照片的条目。
         .where((item) => item.hasImage)
         .toList(growable: false);
+    if (kDebugMode) {
+      final rawCount = json is List ? json.length : null;
+      debugPrint(
+        'Home bars: city=${siponApiCityName(city ?? '')}, '
+        'response=${json.runtimeType}, raw=${rawCount ?? 'non-list'}, '
+        'parsed=${parsedItems.length}, displayable=${items.length}',
+      );
+    }
     return SiponBarMapItem.sortForHomeRecommendation(items);
   }
 
