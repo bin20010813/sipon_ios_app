@@ -1374,15 +1374,13 @@ _Moment? _momentFromWishlist(Map<String, dynamic> map) {
 _Moment? _momentFromRoute(Map<String, dynamic> map) {
   final title = _pickString(map, ['title', 'name']);
   if (title == null) return null;
-  final start = _shortDate(map, ['localStartDate', 'startDate']);
-  final end = _shortDate(map, ['localEndDate', 'endDate']);
   final stops = parseRouteStops(map);
-  final rangeText = start.isEmpty ? '' : '$start 至 $end';
   return _Moment(
     kind: _MomentKind.route,
     title: title,
     time: _parseTime(map, ['createdAt', 'updatedAt']),
-    subtitle: rangeText.isEmpty ? null : rangeText,
+    // 路线卡展示站点数量；不向用户暴露保存时的起止日期。
+    subtitle: null,
     routeId: _pickNum(map, ['id'])?.toInt(),
     stops: stops,
     isPrivate: _pickString(map, ['visibility'])?.toLowerCase() != 'public',

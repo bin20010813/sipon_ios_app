@@ -21,7 +21,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
   static const _brand = Color(0xFF9A3D78);
   static const _ink = Color(0xFF252229);
   static const _muted = Color(0xFF8F8790);
-  static const _maxStops = 10;
+  static const _maxStops = 8;
 
   final SiponApiService _api = SiponApiService();
 
@@ -406,6 +406,10 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      // Keep the map preview and the persistent save action fixed while a
+      // route-place field is being edited. The input list can still scroll,
+      // but the keyboard must not resize the whole page.
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: const Text(
           '规划路线',
@@ -419,11 +423,29 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
         child: Column(
           children: [
             Expanded(
-              child: Column(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // A route row is 48px tall. Show at most five rows; the
+                  // station area scrolls internally once more are added.
+                  final visibleItemCount =
+                      _routeItems.length > 5 ? 5 : _routeItems.length;
+                  final naturalEditorHeight =
+                      82.0 + visibleItemCount * 48.0;
+                  final maxEditorHeight =
+                      (constraints.maxHeight - 180.0).clamp(0.0, double.infinity);
+                  final editorHeight = naturalEditorHeight
+                      .clamp(0.0, maxEditorHeight)
+                      .toDouble();
+
+                  return Column(
                 children: [
-                  Expanded(
+                  SizedBox(
+                    height: editorHeight,
                     child: ListView(
-                      clipBehavior: Clip.none,
+                      // The editable station list has its own viewport. Do
+                      // not paint its extra content over the preview header
+                      // when more waypoints are added.
+                      clipBehavior: Clip.hardEdge,
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
                       children: [
                         const Text(
@@ -434,7 +456,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
                         ReorderableListView.builder(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
-                          clipBehavior: Clip.none,
+                          clipBehavior: Clip.hardEdge,
                           itemCount: _routeItems.length,
                           onReorder: _reorderRoute,
                           itemBuilder: (context, index) {
@@ -540,6 +562,8 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
                     ),
                   ),
                 ],
+                  );
+                },
               ),
             ),
             Container(

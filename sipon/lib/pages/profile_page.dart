@@ -1045,15 +1045,12 @@ Future<_ProfileListPage> _loadRouteEntries(
         final map = item.cast<String, dynamic>();
         final title = _pickString(map, ['title', 'name']);
         if (title == null) return null;
-        final start = _shortDate(
-          _pickString(map, ['localStartDate', 'startDate']),
-        );
-        final end = _shortDate(_pickString(map, ['localEndDate', 'endDate']));
         final stops = parseRouteStops(map);
         return _ProfileListEntry(
           id: _pickNum(map, ['id'])?.toInt(),
           name: title,
-          description: start.isEmpty ? '' : '$start 至 $end',
+          // 日期仍由服务端保存，但酒鬼路线只表达路线本身，不展示起止日期。
+          description: '',
           meta: '${stops.length} 个地点',
           isPrivate:
               _pickString(map, ['visibility'])?.toLowerCase() != 'public',
@@ -1807,16 +1804,18 @@ class _MockRouteCard extends StatelessWidget {
                         letterSpacing: 0,
                       ),
                     ),
-                    const SizedBox(height: 7),
-                    Text(
-                      item.description,
-                      style: const TextStyle(
-                        color: Color(0xFF79747C),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0,
+                    if (item.description.isNotEmpty) ...[
+                      const SizedBox(height: 7),
+                      Text(
+                        item.description,
+                        style: const TextStyle(
+                          color: Color(0xFF79747C),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0,
+                        ),
                       ),
-                    ),
+                    ],
                     const SizedBox(height: 4),
                     Text(
                       item.meta,

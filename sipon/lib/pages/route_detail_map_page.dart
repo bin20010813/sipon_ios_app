@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/map/map_display_options.dart';
 import '../services/map/map_models.dart';
 import '../services/map/map_scene_controller.dart';
+import '../services/map/map_viewport.dart';
 import '../services/map/sipon_map_host.dart';
 import '../services/map/sipon_map_widget.dart';
 import '../services/sipon_api_service.dart';
@@ -128,7 +129,7 @@ List<RouteStop> parseRouteStops(Map<String, dynamic> map) {
   return stops;
 }
 
-/// 路线详情地图页：把站点按顺序渲染到地图上，底部面板逐站列出。
+/// 路线详情地图页：把站点按顺序渲染到地图上、规划并绘制路线，底部面板逐站列出。
 /// 数据来自 GET /api/routes/{id}；缺坐标的站点会按 id 再拉 /api/bars/{id} 补齐。
 class RouteDetailMapPage extends StatefulWidget {
   static const Color brand = Color(0xFF9A3D78);
@@ -272,7 +273,8 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
     return '上海';
   }
 
-  /// 把站点以「分类图标 + 顺序编号 marker + 圆点」渲染到地图。
+  /// 把站点以「分类图标 + 顺序编号 marker + 圆点」渲染到地图，并按
+  /// 站点顺序请求原生路线规划。原生在路线绘制完成后会自动取景到整条路线。
   Future<void> _renderStops() async {
     if (!_scene.isAttached || _stops.isEmpty) return;
     final points = <MapPoint>[];
@@ -306,6 +308,25 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
     }
     if (points.isEmpty) return;
     await _scene.render(MapSceneFrame(circlePoints: points, markers: markers));
+
+    // 详情页此前只下发 marker，因此即使站点已有坐标也不会有路线折线，
+    // 地图仍停留在城市初始视野。这里复用规划页的 MapKit 路线能力；
+    // finishRoute 会根据实际折线的边界自动缩放，涵盖每一段绕行后的范围。
+    if (points.length >= 2) {
+      await _scene.planRoute(
+        points: [
+          for (final point in points)
+            MapLatLng(longitude: point.longitude, latitude: point.latitude),
+        ],
+      );
+    } else {
+      // 只有一个有效站点时无法规划路线，仍将它置于可见区域中央。
+      final point = points.single;
+      await _scene.focusOn(
+        longitude: point.longitude,
+        latitude: point.latitude,
+      );
+    }
   }
 
   @override
