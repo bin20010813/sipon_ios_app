@@ -1,7 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../services/sipon_agreement_links.dart';
 import '../services/sipon_api_client.dart';
@@ -40,6 +43,7 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
   /// 当前认证视图（登录/注册/重置密码）。
   _AuthPage _page = _AuthPage.login;
   bool _submitting = false;
+  bool _appleSubmitting = false;
   bool _sendingCode = false;
   bool _obscurePassword = true;
   bool _agreed = false;
@@ -171,6 +175,65 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
   bool _isValidEmail(String email) {
     final at = email.indexOf('@');
     return at > 0 && email.indexOf('.', at) > at + 1;
+  }
+
+  /// 仅 Apple 平台支持 Sign in with Apple。
+  bool get _supportsAppleSignIn =>
+      defaultTargetPlatform == TargetPlatform.iOS ||
+      defaultTargetPlatform == TargetPlatform.macOS;
+
+  /// 调起 Apple 授权并换取登录态。
+  Future<void> _loginWithApple() async {
+    final text = SiponLanguageScope.textOf(context);
+
+    if (!_agreed) {
+      final agreed = await _confirmAgreement();
+      if (!mounted || !agreed) return;
+      setState(() => _agreed = true);
+    }
+
+    FocusScope.of(context).unfocus();
+    setState(() => _appleSubmitting = true);
+    try {
+      final credential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+      );
+      final identityToken = credential.identityToken;
+      if (identityToken == null || identityToken.isEmpty) {
+        if (mounted) _showMessage(text.t('Apple 登录失败，请重试'));
+        return;
+      }
+      await _authService.loginWithApple(
+        identityToken: identityToken,
+        authorizationCode: credential.authorizationCode,
+        displayName: _joinName(credential.givenName, credential.familyName),
+      );
+      if (!mounted) return;
+      widget.onLoginSucceeded();
+    } on SignInWithAppleAuthorizationException catch (error) {
+      // 用户主动取消属于正常流程，不提示错误。
+      if (error.code == AuthorizationErrorCode.canceled) return;
+      if (mounted) _showMessage(text.t('Apple 登录失败，请重试'));
+    } on SignInWithAppleException {
+      // 其它已知插件异常（不支持、凭据错误等），统一提示。
+      if (mounted) _showMessage(text.t('Apple 登录失败，请重试'));
+    } catch (error) {
+      if (mounted) _showMessage(_errorMessage(error));
+    } finally {
+      if (mounted) setState(() => _appleSubmitting = false);
+    }
+  }
+
+  /// 拼装 Apple 授权返回的姓名；为空则返回 null。
+  String? _joinName(String? given, String? family) {
+    final givenName = given?.trim();
+    final familyName = family?.trim();
+    if (givenName == null || givenName.isEmpty) return null;
+    if (familyName == null || familyName.isEmpty) return givenName;
+    return '$givenName $familyName';
   }
 
   /// 提交当前界面动作：登录（密码/验证码）或注册。
@@ -528,6 +591,57 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
                                 ),
                         ),
                       ),
+                      if (_page == _AuthPage.login &&
+                          _supportsAppleSignIn) ...[
+                        const SizedBox(height: 18),
+                        Row(
+                          children: [
+                            const Expanded(child: Divider()),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              child: Text(
+                                text.t('或'),
+                                style: const TextStyle(
+                                  color: Color(0xFFAAA3AA),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            const Expanded(child: Divider()),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: OutlinedButton.icon(
+                            onPressed: _submitting || _appleSubmitting
+                                ? null
+                                : _loginWithApple,
+                            icon: const Icon(Icons.apple, size: 24),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF292B32),
+                              side: const BorderSide(
+                                color: Color(0xFFE9E3E7),
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            label: Text(
+                              _appleSubmitting
+                                  ? text.t('登录中…')
+                                  : text.t('使用 Apple 登录'),
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 8),
                       Center(
                         child: TextButton(

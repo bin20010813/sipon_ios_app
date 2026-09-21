@@ -19,6 +19,7 @@ class ChannelMapHost implements SiponMapHost {
   }
 
   final MethodChannel _channel;
+  String get diagnosticName => _channel.name;
   final SiponEventSink _sink = SiponEventSink();
 
   Future<dynamic> _handleNativeCall(MethodCall call) async {
@@ -53,11 +54,15 @@ class SiponMapWidget extends StatefulWidget {
     super.key,
     required this.initialStyleId,
     required this.onHostReady,
+    this.compassTopInset,
   });
 
   /// 初始底图档位（`MapBaseStyle.id`）。Kit 版等 attach 后由 setup 下发；
   /// 回退分支在平台视图创建时就用对应 URI 初始化。
   final String initialStyleId;
+
+  /// 原生指北针距地图顶部的距离；null 表示不显示（用于小地图）。
+  final double? compassTopInset;
 
   /// 平台视图就绪时回调一次，附上引擎宿主。页面在回调里执行 attach。
   final void Function(SiponMapHost host) onHostReady;
@@ -68,11 +73,28 @@ class SiponMapWidget extends StatefulWidget {
 
 class _SiponMapWidgetState extends State<SiponMapWidget> {
   ChannelMapHost? _kitHost;
+  int? _viewId;
+  final Map<int, Offset> _pointerStarts = {};
+
+  void _logPointer(PointerEvent event, String phase) {
+    if (!kDebugMode) return;
+    if (phase == 'DOWN') _pointerStarts[event.pointer] = event.position;
+    final start = _pointerStarts[event.pointer];
+    final travel = start == null ? 0.0 : (event.position - start).distance;
+    debugPrint(
+      '[SiponMapMotion] t=${DateTime.now().toIso8601String()} '
+      'view=$_viewId MAP_POINTER_$phase pointer=${event.pointer} '
+      'position=${event.localPosition} displacementPx=${travel.toStringAsFixed(1)}',
+    );
+    if (phase != 'DOWN') _pointerStarts.remove(event.pointer);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return UiKitView(
+    final map = UiKitView(
       viewType: kSiponMapViewType,
+      creationParams: {'compassTopInset': widget.compassTopInset},
+      creationParamsCodec: const StandardMessageCodec(),
       // opaque：空白像素区域也算命中平台视图。它只管「命中」，不管手势归属；
       // 手势竞争由下面的 Eager 识别器解决——没有它，平台视图在竞技场里从不
       // 主动认领手势，外层的滚动 / BottomSheet 拖拽一胜出，原生地图的捏合、
@@ -86,12 +108,21 @@ class _SiponMapWidgetState extends State<SiponMapWidget> {
         Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
       },
       onPlatformViewCreated: (viewId) {
+        _viewId = viewId;
         // 处理器必须在创建回调里立刻挂上，否则原生首发事件会丢；
         // 真正的 onMapReady 由 setup 命令触发，见原生侧实现。
         final host = ChannelMapHost(MethodChannel(siponMapChannelName(viewId)));
         _kitHost = host;
         widget.onHostReady(host);
       },
+    );
+    // Listener 只观察原始事件，不加入手势竞技场或改变地图手势策略。
+    if (!kDebugMode) return map;
+    return Listener(
+      onPointerDown: (event) => _logPointer(event, 'DOWN'),
+      onPointerUp: (event) => _logPointer(event, 'UP'),
+      onPointerCancel: (event) => _logPointer(event, 'CANCEL'),
+      child: map,
     );
   }
 

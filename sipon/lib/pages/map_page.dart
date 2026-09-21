@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../services/map/map_data_controller.dart';
@@ -60,6 +61,18 @@ class _MapPageState extends State<MapPage> {
   late final MapDataController _data;
   late final MapSceneController _scene;
   late final VenueSheetController _sheet;
+  DateTime? _lastExtentLogAt;
+  VenueSheetStage? _lastLoggedStage;
+  String _mapDiagnosticName = 'pending';
+
+  void _logMapMotion(String event, String details) {
+    if (!kDebugMode) return;
+    debugPrint(
+      '[SiponMapMotion] t=${DateTime.now().toIso8601String()} '
+      'page=$hashCode map=$_mapDiagnosticName $event stage=${_sheet.stage.name} '
+      'extent=${_sheet.currentExtent.toStringAsFixed(3)} $details',
+    );
+  }
 
   SiponCityController? _cityController;
 
@@ -67,6 +80,7 @@ class _MapPageState extends State<MapPage> {
   void initState() {
     super.initState();
     _sheet = VenueSheetController(initialStage: widget.initialSheetStage);
+    _lastLoggedStage = _sheet.stage;
     _sheet.extent.addListener(_handleSheetExtent);
     _data = MapDataController(
       repository: SiponApiMapVenueRepository(),
@@ -115,8 +129,13 @@ class _MapPageState extends State<MapPage> {
   // ------------------------------------------------------------ 地图生命周期
 
   Future<void> _handleMapCreated(SiponMapHost host) async {
+    if (host is ChannelMapHost) _mapDiagnosticName = host.diagnosticName;
+    _logMapMotion('MAP_CREATED', '');
     await _scene.attach(host, city: _data.city, style: _data.style);
-    await _applyStage(focusSelection: widget.initialVenue != null);
+    await _applyStage(
+      focusSelection: widget.initialVenue != null,
+      reason: 'mapReady',
+    );
 
     // 原「styleLoaded 回调」的职责（重下发帧 + 按当前视野补一次取数）已并入
     // 控制器；页面只需要在 attach 完成后把首帧交给它，并补齐首次取数。
@@ -134,6 +153,10 @@ class _MapPageState extends State<MapPage> {
   /// [MapViewport.differsMateriallyFrom] 说了算，所以自己的 `flyTo` 不会引起重拉，
   /// 也就不再需要原来的 `_skipNextIdleReload` 标志位。
   void _handleViewportSettled(MapViewport viewport) {
+    _logMapMotion(
+      'VIEWPORT_SETTLED',
+      'center=${viewport.bounds.center} zoom=${viewport.zoom.toStringAsFixed(3)}',
+    );
     unawaited(_data.syncViewport(viewport));
   }
 
@@ -152,10 +175,21 @@ class _MapPageState extends State<MapPage> {
   /// 每帧变化——extent 继续只驱动卡片与按钮动画。
   void _handleSheetStage() {
     if (!mounted || !_scene.isAttached) return;
-    unawaited(_applyStage());
+    _logMapMotion('SHEET_STAGE', 'from=${_lastLoggedStage?.name ?? "initial"}');
+    _lastLoggedStage = _sheet.stage;
+    unawaited(_applyStage(reason: 'sheetStage'));
   }
 
   void _handleSheetExtent() {
+    // 连续拖拽最多每 250ms 一条，避免逐帧打印干扰手势时序。
+    if (kDebugMode) {
+      final now = DateTime.now();
+      if (_lastExtentLogAt == null ||
+          now.difference(_lastExtentLogAt!).inMilliseconds >= 250) {
+        _lastExtentLogAt = now;
+        _logMapMotion('SHEET_EXTENT', 'settledStage=${_sheet.stage.name}');
+      }
+    }
     widget.onSheetProgressChanged?.call(
       _sheet.progressFor(_sheet.currentExtent),
     );
@@ -191,9 +225,17 @@ class _MapPageState extends State<MapPage> {
   /// `_expandVenueDetails` / `_collapseVenueDetails` / `_settleVenueSheet` /
   /// `_showSelectedVenueOnMap` 四处各自调一遍 `_focusVenue`。
 
-  Future<void> _applyStage({bool focusSelection = true}) async {
+  Future<void> _applyStage({
+    bool focusSelection = true,
+    String reason = 'selection',
+  }) async {
     final venue = _data.selectedVenue;
 
+    _logMapMotion(
+      'APPLY_STAGE',
+      'reason=$reason padding=${_sheet.cameraBottomPadding.toStringAsFixed(1)} '
+          'focus=${focusSelection && venue != null} attached=${_scene.isAttached}',
+    );
     await _scene.applyStage(
       cameraBottomPadding: _sheet.cameraBottomPadding,
       ornamentBottomMargin: _sheet.ornamentBottomMargin(
@@ -328,6 +370,9 @@ class _MapPageState extends State<MapPage> {
               SiponMapWidget(
                 key: const ValueKey('sipon_map_widget'),
                 initialStyleId: _data.style.id,
+                compassTopInset:
+                    MediaQuery.paddingOf(context).top +
+                    (widget.showMapControls ? 130 : 12),
                 onHostReady: _handleMapCreated,
               ),
               if (widget.showMapControls) _buildTopControls(),

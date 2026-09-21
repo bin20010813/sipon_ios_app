@@ -15,19 +15,36 @@ final class SiponMapView: NSObject, FlutterPlatformView {
   private let engine: SiponMapEngine
   private let channel: FlutterMethodChannel
 
-  init(frame: CGRect, viewId: Int64, messenger: FlutterBinaryMessenger) {
+  init(frame: CGRect, viewId: Int64, messenger: FlutterBinaryMessenger, compassTopInset: Double?) {
     channel = FlutterMethodChannel(
       name: SiponMapProtocol.channelName(viewId: viewId),
       binaryMessenger: messenger
     )
     engine = SiponMapEngine(
       mapView: mapView,
+      diagnosticID: viewId,
       sendEvent: { [weak channel] name, arguments in
         // Dart 侧宿主在注册监听前到达的事件由缓存补发机制兜住。
         channel?.invokeMethod(name, arguments: arguments)
       }
     )
     super.init()
+
+    if let topInset = compassTopInset, topInset.isFinite {
+      // 系统控件自动同步 heading，并在点击时将地图朝向恢复正北。
+      // 使用独立控件以避开 Flutter 的搜索栏；隐藏 MKMapView 默认指北针。
+      mapView.showsCompass = false
+      let compass = MKCompassButton(mapView: mapView)
+      compass.compassVisibility = .visible
+      compass.translatesAutoresizingMaskIntoConstraints = false
+      mapView.addSubview(compass)
+      NSLayoutConstraint.activate([
+        compass.topAnchor.constraint(equalTo: mapView.topAnchor, constant: CGFloat(max(0, topInset))),
+        compass.trailingAnchor.constraint(equalTo: mapView.trailingAnchor, constant: -18),
+        compass.widthAnchor.constraint(equalToConstant: 44),
+        compass.heightAnchor.constraint(equalToConstant: 44),
+      ])
+    }
 
     // 处理器在创建时就挂上：setup 命令到达前不能有空窗。
     channel.setMethodCallHandler { [weak self] call, result in
@@ -61,6 +78,43 @@ final class SiponMapEngine: NSObject {
 
   /// 收到 setup 并完成初始配置之后才接受后续指令。
   private var configured = false
+  private let diagnosticID: Int64
+  #if DEBUG
+  private var diagnosticCommand = "none"
+  private var diagnosticCommandSequence = 0
+  private var diagnosticRegionStart: CLLocationCoordinate2D?
+  private var diagnosticDistanceStart: CLLocationDistance?
+  #endif
+
+  fileprivate func traceMotion(_ message: @autoclosure () -> String) {
+    #if DEBUG
+    NSLog("[SiponMapMotion] view=%lld %@", diagnosticID, message())
+    #endif
+  }
+
+  fileprivate func traceRegion(_ phase: String, animated: Bool) {
+    #if DEBUG
+    let center = mapView.centerCoordinate
+    let distance = mapView.camera.centerCoordinateDistance
+    if phase == "REGION_BEGIN" {
+      diagnosticRegionStart = center
+      diagnosticDistanceStart = distance
+    }
+    let shift: String
+    if let start = diagnosticRegionStart {
+      let meters = CLLocation(latitude: center.latitude, longitude: center.longitude)
+        .distance(from: CLLocation(latitude: start.latitude, longitude: start.longitude))
+      shift = String(format: "%.2f", meters)
+    } else {
+      shift = "unknown"
+    }
+    traceMotion("\(phase) animated=\(animated) center=\(center.latitude),\(center.longitude) centerShiftM=\(shift) distance=\(distance) distanceDelta=\(distance - (diagnosticDistanceStart ?? distance)) lastCommand=\(diagnosticCommand)#\(diagnosticCommandSequence)")
+    if phase == "REGION_END" {
+      diagnosticRegionStart = nil
+      diagnosticDistanceStart = nil
+    }
+    #endif
+  }
   /// 平台视图被拆掉后（detach/dispose）拒绝一切渲染类指令。
   private var alive = true
 
@@ -92,8 +146,9 @@ final class SiponMapEngine: NSObject {
   /// delegate 集中在 proxy 上；手势识别器共享同一个 target。
   private lazy var proxy = EngineDelegateProxy(engine: self)
 
-  init(mapView: MKMapView, sendEvent: @escaping (String, Any?) -> Void) {
+  init(mapView: MKMapView, diagnosticID: Int64, sendEvent: @escaping (String, Any?) -> Void) {
     self.mapView = mapView
+    self.diagnosticID = diagnosticID
     self.sendEvent = sendEvent
     super.init()
     mapView.delegate = proxy
@@ -112,6 +167,15 @@ final class SiponMapEngine: NSObject {
   // ------------------------------------------------------------------ 指令入口
 
   func handle(method: String, arguments: Any?) -> Any? {
+    #if DEBUG
+    if [SiponMapProtocol.Command.setup, SiponMapProtocol.Command.applyStage,
+        SiponMapProtocol.Command.focusOn, SiponMapProtocol.Command.flyToCity,
+        SiponMapProtocol.Command.setStyle].contains(method) {
+      diagnosticCommandSequence += 1
+      diagnosticCommand = method
+      traceMotion("CAMERA_COMMAND #\(diagnosticCommandSequence) method=\(method) args=\(String(describing: arguments))")
+    }
+    #endif
     switch method {
     case SiponMapProtocol.Command.setup:
       handleSetup(SiponMapProtocol.dict(arguments) ?? [:])
@@ -508,6 +572,7 @@ final class SiponMapEngine: NSObject {
       pitch: max(0, min(move.pitch, 60)),
       heading: move.bearing.truncatingRemainder(dividingBy: 360)
     )
+    traceMotion("SET_CAMERA animated=\(animated) padding=\(move.bottomPadding) target=\(center.latitude),\(center.longitude) zoom=\(move.zoom)")
     mapView.setCamera(camera, animated: animated)
 
     appliedBottomPadding = move.bottomPadding
@@ -518,6 +583,7 @@ final class SiponMapEngine: NSObject {
   private func applyStage(bottomPadding newPadding: Double) {
     let delta = newPadding - appliedBottomPadding
     appliedBottomPadding = newPadding
+    traceMotion("PADDING new=\(newPadding) delta=\(delta) willMove=\(abs(delta) > 0.5)")
     guard abs(delta) > 0.5 else { return }
 
     let current = mapView.region.center
@@ -885,7 +951,12 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
 
   // MARK: 相机停稳 → 上报（去抖在 Dart，惯性滚动连发无妨）
 
+  func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
+    engine.traceRegion("REGION_BEGIN", animated: animated)
+  }
+
   func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+    engine.traceRegion("REGION_END", animated: animated)
     guard engine.shouldProcessEvents else { return }
     engine.emitViewportSettled(region: mapView.region)
   }
@@ -906,7 +977,7 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
     gestureRecognizer === blankTapRecognizer || otherGestureRecognizer === blankTapRecognizer
   }
 
-  /// 放过落在任何可见 annotation view 上的触摸，让它走系统 didSelect（§3a）。
+  /// 标记交给系统 didSelect；指北针等控件处理自己的点击，不触发空白收起。
   ///
   /// 不依赖 MKMapView 第一层子视图就是 MKAnnotationView：先沿 touch.view 的
   /// 父视图链向上找，再用公开的 view(for:) + 坐标转换做补充命中判断。
@@ -918,7 +989,7 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
 
     var candidate: UIView? = touch.view
     while let view = candidate {
-      if view is MKAnnotationView {
+      if view is MKAnnotationView || view is MKCompassButton || view is UIControl {
         return false
       }
       if view === mapView {
@@ -1184,5 +1255,3 @@ final class MarkerAnnotationView: MKAnnotationView {
     }
   }
 }
-
-

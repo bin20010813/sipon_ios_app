@@ -17,7 +17,14 @@ final class SiponMapFactory: NSObject, FlutterPlatformViewFactory {
     viewIdentifier viewId: Int64,
     arguments: Any?
   ) -> FlutterPlatformView {
-    SiponMapView(frame: frame, viewId: viewId, messenger: messenger)
+    let params = arguments as? [String: Any]
+    let compassTopInset = (params?["compassTopInset"] as? NSNumber)?.doubleValue
+    return SiponMapView(
+      frame: frame,
+      viewId: viewId,
+      messenger: messenger,
+      compassTopInset: compassTopInset
+    )
   }
 
   /// 老版本 Flutter 需要 implements ->NSObjectProtocol 的 createArgsCodec；
