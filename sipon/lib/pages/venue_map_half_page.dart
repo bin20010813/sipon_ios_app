@@ -36,24 +36,6 @@ class VenueMapHalfPage extends StatelessWidget {
             onVenueClose: () => Navigator.of(context).pop(),
           ),
         ),
-        SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.only(left: 12, top: 8),
-            child: Material(
-              color: Colors.white,
-              elevation: 4,
-              shape: const CircleBorder(),
-              child: IconButton(
-                tooltip: '返回',
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  size: 19,
-                ),
-              ),
-            ),
-          ),
-        ),
       ],
     );
   }
