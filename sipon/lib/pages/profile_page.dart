@@ -1,9 +1,11 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../services/drink_budget_store.dart';
 import '../services/map/map_models.dart';
+import '../services/profile_bar_images.dart';
 import '../services/sipon_api_service.dart';
 import '../services/sipon_auth_service.dart';
 import '../services/user_profile_data.dart';
@@ -635,8 +637,8 @@ class _QuickEntryCardState extends State<_QuickEntryCard> {
   }
 
   /// 打开列表弹窗，关闭后重新拉取计数，保证入口数字与弹窗内容一致。
-  Future<void> _openList(BuildContext context, _ProfileListType type) async {
-    await _showProfileList(context, type);
+  Future<void> _openList(BuildContext context, ProfileListType type) async {
+    await showProfileList(context, type);
     if (mounted) {
       _loadCounts();
     }
@@ -664,7 +666,7 @@ class _QuickEntryCardState extends State<_QuickEntryCard> {
               child: _QuickEntryItem(
                 assetPath: ProfilePage._drunkAsset,
                 label: _drankCount == null ? '喝过' : '喝过$_drankCount家',
-                onTap: () => _openList(context, _ProfileListType.drank),
+                onTap: () => _openList(context, ProfileListType.drank),
               ),
             ),
             const _VerticalDivider(),
@@ -672,7 +674,7 @@ class _QuickEntryCardState extends State<_QuickEntryCard> {
               child: _QuickEntryItem(
                 assetPath: ProfilePage._wishAsset,
                 label: _wishCount == null ? '想喝' : '$_wishCount家想喝',
-                onTap: () => _openList(context, _ProfileListType.wish),
+                onTap: () => _openList(context, ProfileListType.wish),
               ),
             ),
             const _VerticalDivider(),
@@ -680,7 +682,7 @@ class _QuickEntryCardState extends State<_QuickEntryCard> {
               child: _QuickEntryItem(
                 assetPath: ProfilePage._routeAsset,
                 label: _routeCount == null ? '路线' : '$_routeCount条路线',
-                onTap: () => _openList(context, _ProfileListType.route),
+                onTap: () => _openList(context, ProfileListType.route),
               ),
             ),
           ],
@@ -729,7 +731,7 @@ class _QuickEntryItem extends StatelessWidget {
   }
 }
 
-enum _ProfileListType { drank, wish, route }
+enum ProfileListType { drank, wish, route }
 
 /// 我的页列表条目：名称、描述、meta 与可选网络封面图。
 class _ProfileListEntry {
@@ -740,16 +742,20 @@ class _ProfileListEntry {
     this.id,
     this.imageUrl,
     this.venue,
+    this.isCheckIn = false,
+    this.city,
+    this.visitedDate,
     this.isPrivate = false,
     this.viewCount,
     this.stops = const [],
+    this.routeThumbnails = const [],
   });
 
   final String name;
   final String description;
   final String meta;
 
-  /// 后端资源 id；路线详情跳转用。
+  /// 后端资源 id：打卡 ID、想喝酒吧 ID 或路线 ID。
   final int? id;
 
   /// 后端返回的封面图（相对或绝对地址）；为空或加载失败时用 [fallbackImagePath]。
@@ -757,6 +763,11 @@ class _ProfileListEntry {
 
   /// 解析出的地点信息；喝过/想喝条目用于跳转半屏地图，礼券等无地点列表为 null。
   final MapVenue? venue;
+
+  /// 打卡卡会使用评论标题与地点、时间两行信息布局。
+  final bool isCheckIn;
+  final String? city;
+  final String? visitedDate;
 
   /// 封面加载失败时的本地兜底素材。
   String get fallbackImagePath => 'assest/首页/图片素材/酒吧1.png';
@@ -767,26 +778,31 @@ class _ProfileListEntry {
 
   /// 路线站点简况（按顺序）；仅路线卡片使用。
   final List<RouteStop> stops;
+  final List<String> routeThumbnails;
 }
 
 /// 打开喝过/想喝/酒鬼路线列表弹窗，数据源为真实后端接口，列表按页加载。
 /// 返回的 Future 在弹窗关闭后完成，便于调用方刷新计数。
-Future<void> _showProfileList(BuildContext context, _ProfileListType type) {
-  final api = SiponApiService();
+Future<void> showProfileList(
+  BuildContext context,
+  ProfileListType type, {
+  SiponApiService? apiService,
+}) {
+  final api = apiService ?? SiponApiService();
   final (title, loader, emptyText) = switch (type) {
-    _ProfileListType.drank => (
+    ProfileListType.drank => (
       '喝过的酒吧',
       (int offset, int limit) =>
           _loadCheckInEntries(api, offset: offset, limit: limit),
       '还没有喝过记录，去打卡第一家酒吧吧',
     ),
-    _ProfileListType.wish => (
+    ProfileListType.wish => (
       '想喝的酒吧',
       (int offset, int limit) =>
           _loadWishlistEntries(api, offset: offset, limit: limit),
       '还没有想喝的酒吧，去地图上收藏一家吧',
     ),
-    _ProfileListType.route => (
+    ProfileListType.route => (
       '我的酒鬼路线',
       (int offset, int limit) =>
           _loadRouteEntries(api, offset: offset, limit: limit),
@@ -802,7 +818,12 @@ Future<void> _showProfileList(BuildContext context, _ProfileListType type) {
       title: title,
       loader: loader,
       emptyText: emptyText,
-      routeStyle: type == _ProfileListType.route,
+      routeStyle: type == ProfileListType.route,
+      deleteEntry: switch (type) {
+        ProfileListType.drank => api.deleteCheckIn,
+        ProfileListType.wish => api.removeWishlistBar,
+        ProfileListType.route => api.deleteDrinkingRoute,
+      },
     ),
   );
 }
@@ -928,6 +949,7 @@ MapVenue _venueFromEntryMap(Map<String, dynamic> map, {required String name}) {
     ],
     imageAsset: 'assest/首页/图片素材/酒吧1.png',
     imageUrl:
+        (map['profileThumbnailUrl'] as String?) ??
         _pickString(map, ['imageUrl', 'image', 'cover', 'coverUrl']) ??
         _pickString(bar, ['imageUrl', 'image', 'cover', 'coverUrl']),
   );
@@ -967,8 +989,12 @@ Future<_ProfileListPage> _loadCheckInEntries(
   required int offset,
   required int limit,
 }) async {
-  final list = await api.getMyCheckIns(
-    page: SiponPage(limit: limit, offset: offset),
+  final list = await loadProfileBarImages(
+    api,
+    await api.getMyCheckIns(
+      page: SiponPage(limit: limit, offset: offset),
+    ),
+    checkIns: true,
   );
   final entries = [
     for (final item in list.whereType<Map>())
@@ -976,17 +1002,29 @@ Future<_ProfileListPage> _loadCheckInEntries(
         final map = item.cast<String, dynamic>();
         final name = _pickString(map, ['barName', 'name', 'barTitle']);
         if (name == null) return null;
-        final city = _pickString(map, ['city']) ?? '';
+        final city =
+            _pickString(map, ['city']) ??
+            _pickString(
+              _pickMapOf(map, ['bar', 'barInfo', 'venue', 'place']) ?? const {},
+              ['city'],
+            ) ??
+            '';
         final date = _shortDate(_pickString(map, ['visitedAt', 'createdAt']));
         final meta = [
           if (city.isNotEmpty) city,
           if (date.isNotEmpty) date,
         ].join(' · ');
         return _ProfileListEntry(
+          id: _pickNum(map, ['id'])?.toInt(),
           name: name,
           description: _pickString(map, ['content']) ?? '',
           meta: meta,
-          imageUrl: _pickCheckInImageUrl(map),
+          isCheckIn: true,
+          city: city.isEmpty ? null : city,
+          visitedDate: date.isEmpty ? null : date,
+          imageUrl:
+              map['profileThumbnailUrl'] as String? ??
+              _pickCheckInImageUrl(map),
           venue: _venueFromEntryMap(map, name: name),
         );
       }(),
@@ -1001,8 +1039,12 @@ Future<_ProfileListPage> _loadWishlistEntries(
   required int offset,
   required int limit,
 }) async {
-  final list = await api.getWishlistBars(
-    page: SiponPage(limit: limit, offset: offset),
+  final list = await loadProfileBarImages(
+    api,
+    await api.getWishlistBars(
+      page: SiponPage(limit: limit, offset: offset),
+    ),
+    checkIns: false,
   );
   final entries = [
     for (final item in list.whereType<Map>())
@@ -1016,10 +1058,20 @@ Future<_ProfileListPage> _loadWishlistEntries(
           if (rating != null) '${rating.toStringAsFixed(1)} 分',
         ].join(' · ');
         return _ProfileListEntry(
+          id:
+              (_pickNum(map, ['barId']) ??
+                      _pickNum(
+                        _pickMapOf(map, ['bar', 'barInfo', 'venue', 'place']) ??
+                            const {},
+                        ['id', 'barId'],
+                      ) ??
+                      _pickNum(map, ['id']))
+                  ?.toInt(),
           name: name,
           description: _pickString(map, ['address', 'description']) ?? '',
           meta: meta,
           imageUrl:
+              (map['profileThumbnailUrl'] as String?) ??
               _pickString(map, ['imageUrl', 'image', 'cover', 'coverUrl']) ??
               _pickFirstUrl(map, ['gallery']),
           venue: _venueFromEntryMap(map, name: name),
@@ -1039,8 +1091,37 @@ Future<_ProfileListPage> _loadRouteEntries(
   final list = await api.getMyDrinkingRoutes(
     page: SiponPage(limit: limit, offset: offset),
   );
+  final routes = await Future.wait(
+    list.whereType<Map>().map((item) async {
+      final map = item.cast<String, dynamic>();
+      if (parseRouteStops(map).isNotEmpty) return map;
+      final id = _pickNum(map, ['id'])?.toInt();
+      if (id == null) return map;
+      try {
+        final detail = await api.getDrinkingRoute(id);
+        if (detail is Map) return {...map, ...detail.cast<String, dynamic>()};
+      } on Exception {
+        // A missing preview must not hide the route or prevent deletion.
+      }
+      return map;
+    }),
+  );
+  final barIds = routes
+      .expand((map) => parseRouteStops(map).take(3))
+      .map((stop) => stop.id)
+      .whereType<int>()
+      .where((id) => id > 0)
+      .toSet();
+  final images = await loadProfileBarImages(api, [
+    for (final id in barIds) {'id': id},
+  ], checkIns: false);
+  final thumbnails = <int, String>{
+    for (final image in images.whereType<Map>())
+      if (image['profileThumbnailUrl'] is String)
+        image['id'] as int: image['profileThumbnailUrl'] as String,
+  };
   final entries = [
-    for (final item in list.whereType<Map>())
+    for (final item in routes)
       () {
         final map = item.cast<String, dynamic>();
         final title = _pickString(map, ['title', 'name']);
@@ -1056,6 +1137,10 @@ Future<_ProfileListPage> _loadRouteEntries(
               _pickString(map, ['visibility'])?.toLowerCase() != 'public',
           viewCount: _pickNum(map, ['viewCount', 'views'])?.toInt(),
           stops: stops,
+          routeThumbnails: [
+            for (final stop in stops.take(3))
+              if (thumbnails[stop.id] != null) thumbnails[stop.id]!,
+          ],
         );
       }(),
   ].whereType<_ProfileListEntry>().toList(growable: false);
@@ -1376,12 +1461,14 @@ class _ProfileListSheet extends StatefulWidget {
     required this.loader,
     required this.emptyText,
     this.routeStyle = false,
+    this.deleteEntry,
   });
 
   final String title;
   final Future<_ProfileListPage> Function(int offset, int limit) loader;
   final String emptyText;
   final bool routeStyle;
+  final Future<void> Function(int id)? deleteEntry;
 
   @override
   State<_ProfileListSheet> createState() => _ProfileListSheetState();
@@ -1395,6 +1482,138 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
   List<_ProfileListEntry> _items = const [];
 
   bool _loading = true;
+  bool _selecting = false;
+  bool _deleting = false;
+  final Set<int> _selected = {};
+
+  void _toggleSelection(_ProfileListEntry item) {
+    final id = item.id;
+    if (_deleting || _loadingMore || id == null || id <= 0) return;
+    setState(() {
+      _selecting = true;
+      if (!_selected.add(id)) _selected.remove(id);
+    });
+  }
+
+  Future<void> _deleteSelected() async {
+    final deleteEntry = widget.deleteEntry;
+    if (_deleting || _selected.isEmpty || deleteEntry == null) return;
+    final ids = Set<int>.of(_selected);
+    final confirmed = await showGeneralDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '取消删除',
+      barrierColor: const Color(0x660F0910),
+      transitionDuration: const Duration(milliseconds: 240),
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final curve = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        );
+        return FadeTransition(
+          opacity: curve,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.94, end: 1).animate(curve),
+            child: child,
+          ),
+        );
+      },
+      pageBuilder: (context, animation, secondaryAnimation) =>
+          _DeleteRecordsDialog(
+            count: ids.length,
+            name: ids.length == 1
+                ? _items.firstWhere((item) => item.id == ids.first).name
+                : null,
+          ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _deleting = true);
+    final deleted = <int>{};
+    for (final id in ids) {
+      try {
+        await deleteEntry(id);
+        deleted.add(id);
+      } on Exception {
+        // Keep failed entries selected so they can be retried.
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _items = _items.where((item) => !deleted.contains(item.id)).toList();
+      _selected.removeAll(deleted);
+      _deleting = false;
+      _selecting = _selected.isNotEmpty;
+    });
+    final failed = ids.length - deleted.length;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          failed == 0
+              ? '已删除 ${deleted.length} 条记录'
+              : '已删除 ${deleted.length} 条，$failed 条删除失败，请重试',
+        ),
+      ),
+    );
+    if (_items.isEmpty && _hasMore) await _load();
+  }
+
+  Widget _selectionActions() {
+    final selectable = _items
+        .map((item) => item.id)
+        .whereType<int>()
+        .where((id) => id > 0)
+        .toSet();
+    final allSelected =
+        selectable.isNotEmpty && _selected.containsAll(selectable);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: ProfilePage._brand),
+            onPressed: _deleting
+                ? null
+                : () => setState(() {
+                    if (allSelected) {
+                      _selected.clear();
+                    } else {
+                      _selected.addAll(selectable);
+                    }
+                  }),
+            child: Text(allSelected ? '取消全选' : '全选已加载'),
+          ),
+          const Spacer(),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF85818B),
+            ),
+            onPressed: _deleting
+                ? null
+                : () => setState(() {
+                    _selecting = false;
+                    _selected.clear();
+                  }),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: ProfilePage._brand,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: _deleting || _selected.isEmpty ? null : _deleteSelected,
+            child: Text(_deleting ? '删除中…' : '删除 (${_selected.length})'),
+          ),
+        ],
+      ),
+    );
+  }
 
   /// 正在翻页加载下一批。
   bool _loadingMore = false;
@@ -1457,7 +1676,7 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
 
   /// 触底翻页，追加下一页条目。
   Future<void> _loadMore() async {
-    if (_loading || _loadingMore || !_hasMore) {
+    if (_loading || _loadingMore || _selecting || _deleting || !_hasMore) {
       return;
     }
 
@@ -1488,48 +1707,64 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
       620.0,
       MediaQuery.of(context).size.height * 0.8,
     );
-    return Container(
-      height: sheetHeight,
-      decoration: const BoxDecoration(
-        color: Color(0xFFF5F6F8),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 38,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFD1D3D8),
-                  borderRadius: BorderRadius.circular(4),
+    return PopScope(
+      canPop: !_deleting,
+      child: Container(
+        height: sheetHeight,
+        decoration: const BoxDecoration(
+          color: Color(0xFFF5F6F8),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 38,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD1D3D8),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.title,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF292B32),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.title,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF292B32),
+                        ),
                       ),
                     ),
+                    IconButton(
+                      onPressed: _deleting
+                          ? null
+                          : () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                if (_selecting) _selectionActions(),
+                if (!_selecting &&
+                    widget.deleteEntry != null &&
+                    _items.isNotEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      '长按记录可多选删除',
+                      style: TextStyle(color: Color(0xFF858991), fontSize: 12),
+                    ),
                   ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-                ],
-              ),
-              Flexible(child: _buildBody()),
-            ],
+                Flexible(child: _buildBody()),
+              ],
+            ),
           ),
         ),
       ),
@@ -1593,7 +1828,8 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
     return ListView.separated(
       controller: _scrollController,
       shrinkWrap: true,
-      itemCount: _items.length + (_hasMore || _loadingMore ? 1 : 0),
+      itemCount:
+          _items.length + (!_selecting && (_hasMore || _loadingMore) ? 1 : 0),
       separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         if (index >= _items.length) {
@@ -1604,10 +1840,33 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
         }
         final item = _items[index];
         return widget.routeStyle
-            ? _MockRouteCard(item: item, index: index)
+            ? _MockRouteCard(
+                item: item,
+                index: index,
+                selecting: _selecting,
+                selected: _selected.contains(item.id),
+                onLongPress: _loadingMore || _deleting
+                    ? null
+                    : () => _toggleSelection(item),
+                onTap: _deleting
+                    ? null
+                    : _selecting
+                    ? () => _toggleSelection(item)
+                    : () => _showRouteDetail(context, item),
+              )
             : _MockListCard(
                 item: item,
-                onOpenMap: item.venue == null
+                selecting: _selecting,
+                selected: _selected.contains(item.id),
+                onLongPress:
+                    widget.deleteEntry == null || _loadingMore || _deleting
+                    ? null
+                    : () => _toggleSelection(item),
+                onOpenMap: _deleting
+                    ? null
+                    : _selecting
+                    ? () => _toggleSelection(item)
+                    : item.venue == null
                     ? null
                     : () => _openVenueHalfMap(context, item.venue!),
               );
@@ -1672,238 +1931,576 @@ Widget _entryImage(
   );
 }
 
-class _MockListCard extends StatelessWidget {
-  const _MockListCard({required this.item, this.onOpenMap});
-  final _ProfileListEntry item;
-
-  /// 点击条目打开半屏地图；无地点的列表（如礼券）为 null，整卡不响应。
-  final VoidCallback? onOpenMap;
+class _DeleteRecordsDialog extends StatelessWidget {
+  const _DeleteRecordsDialog({required this.count, this.name});
+  final int count;
+  final String? name;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onOpenMap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: _entryImage(item, width: 88, height: 88),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    return Dialog(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 340),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF9EDF4),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: ProfilePage._brand,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                '删除 $count 条记录？',
+                style: const TextStyle(
+                  fontSize: 21,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF29232D),
+                ),
+              ),
+              const SizedBox(height: 10),
+              if (name != null) ...[
+                Text(
+                  name!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF625668),
+                  ),
+                ),
+                const SizedBox(height: 6),
+              ],
+              const Text(
+                '删除后无法恢复，请确认后再操作。',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.6,
+                  color: Color(0xFF938995),
+                ),
+              ),
+              const SizedBox(height: 26),
+              Row(
                 children: [
-                  Text(
-                    item.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
+                  Expanded(
+                    child: TextButton(
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(0, 48),
+                        backgroundColor: const Color(0xFFF4F2F5),
+                        foregroundColor: const Color(0xFF625668),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                      ),
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('取消'),
                     ),
                   ),
-                  const SizedBox(height: 5),
-                  Text(
-                    item.description,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF858991),
-                      height: 1.3,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    item.meta,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF9A3D78),
-                      fontWeight: FontWeight.w600,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(0, 48),
+                        backgroundColor: ProfilePage._brand,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                      ),
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('删除'),
                     ),
                   ),
                 ],
               ),
-            ),
-            IconButton(
-              // 箭头与整卡同行为；无地点列表保持原先"可点无操作"，避免变灰。
-              onPressed: onOpenMap ?? () {},
-              icon: const Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 16,
-                color: Color(0xFF9A3D78),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _MockRouteCard extends StatelessWidget {
-  const _MockRouteCard({required this.item, required this.index});
+class _MockListCard extends StatefulWidget {
+  const _MockListCard({
+    required this.item,
+    this.onOpenMap,
+    this.onLongPress,
+    this.selecting = false,
+    this.selected = false,
+  });
+  final VoidCallback? onLongPress;
+  final bool selecting;
+  final bool selected;
+  final _ProfileListEntry item;
+
+  /// 点击条目打开半屏地图；无地点的列表（如礼券）为 null，整卡不响应。
+  final VoidCallback? onOpenMap;
+
+  @override
+  State<_MockListCard> createState() => _MockListCardState();
+}
+
+class _MockListCardState extends State<_MockListCard> {
+  bool _pressed = false;
+  _ProfileListEntry get item => widget.item;
+  bool get selecting => widget.selecting;
+  bool get selected => widget.selected;
+  VoidCallback? get onOpenMap => widget.onOpenMap;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    final duration = Duration(milliseconds: reduceMotion ? 0 : 180);
+    return AnimatedScale(
+      scale: _pressed ? 0.965 : 1,
+      duration: duration,
+      curve: Curves.easeOutCubic,
+      child: InkWell(
+        onTap: onOpenMap,
+        onHighlightChanged: (pressed) => setState(() => _pressed = pressed),
+        onLongPress: widget.onLongPress == null
+            ? null
+            : () {
+                HapticFeedback.mediumImpact();
+                setState(() => _pressed = false);
+                widget.onLongPress!();
+              },
+        borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: duration,
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFFFFF5FB) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected
+                  ? ProfilePage._brand.withValues(alpha: 0.55)
+                  : Colors.transparent,
+              width: 1.5,
+            ),
+            boxShadow: [
+              if (selected || _pressed)
+                BoxShadow(
+                  color: ProfilePage._brand.withValues(alpha: 0.10),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+            ],
+          ),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: _entryImage(item, width: 88, height: 88),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: item.isCheckIn
+                    ? _CheckInListDetails(item: item)
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            item.description,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF858991),
+                              height: 1.3,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            item.meta,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF9A3D78),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+              if (selecting)
+                Semantics(
+                  checked: selected,
+                  label: '选择 ${item.name}',
+                  child: SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: Center(
+                      child: AnimatedContainer(
+                        duration: duration,
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: selected ? ProfilePage._brand : Colors.white,
+                          border: Border.all(
+                            color: selected
+                                ? ProfilePage._brand
+                                : const Color(0xFFD9D1DC),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: AnimatedSwitcher(
+                          duration: duration,
+                          child: selected
+                              ? const Icon(
+                                  Icons.check_rounded,
+                                  key: ValueKey(true),
+                                  size: 17,
+                                  color: Colors.white,
+                                )
+                              : const SizedBox.shrink(key: ValueKey(false)),
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              else
+                IconButton(
+                  // 箭头与整卡同行为；无地点列表保持原先"可点无操作"，避免变灰。
+                  onPressed: onOpenMap ?? () {},
+                  icon: const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 16,
+                    color: Color(0xFF9A3D78),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CheckInListDetails extends StatelessWidget {
+  const _CheckInListDetails({required this.item});
+
+  final _ProfileListEntry item;
+
+  @override
+  Widget build(BuildContext context) {
+    final review = item.description.trim();
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          review.isEmpty ? item.name : review,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 15,
+            height: 1.3,
+            fontWeight: FontWeight.w800,
+            color: ProfilePage._ink,
+          ),
+        ),
+        const SizedBox(height: 8),
+        _CheckInMetaLine(
+          icon: Icons.location_on_outlined,
+          text: [
+            if (item.city?.isNotEmpty == true) item.city!,
+            item.name,
+          ].join(' · '),
+        ),
+        const SizedBox(height: 4),
+        _CheckInMetaLine(
+          icon: Icons.access_time_rounded,
+          text: item.visitedDate ?? '日期待补充',
+        ),
+      ],
+    );
+  }
+}
+
+class _CheckInMetaLine extends StatelessWidget {
+  const _CheckInMetaLine({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: const Color(0xFF9A3D78)),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xFF79747C),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MockRouteCard extends StatefulWidget {
+  const _MockRouteCard({
+    required this.item,
+    required this.index,
+    required this.onTap,
+    this.onLongPress,
+    this.selecting = false,
+    this.selected = false,
+  });
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+  final bool selecting;
+  final bool selected;
 
   final _ProfileListEntry item;
   final int index;
 
-  static const _routeImages = [
-    'assest/首页/图片素材/酒吧 Janes and Hooch.png',
-    'assest/首页/图片素材/Speak Low（彼楼）.png',
-    'assest/首页/图片素材/Play House 电音夜店.png',
-    'assest/首页/图片素材/Matt Hasting.png',
-  ];
+  @override
+  State<_MockRouteCard> createState() => _MockRouteCardState();
+}
+
+class _MockRouteCardState extends State<_MockRouteCard> {
+  bool _pressed = false;
+  _ProfileListEntry get item => widget.item;
+  int get index => widget.index;
 
   @override
   Widget build(BuildContext context) {
     final isPrivate = item.isPrivate;
-    final backgroundColor = index.isEven
-        ? const Color(0xFFFFE6B8)
-        : const Color(0xFFDDE5FF);
-    // 路线暂时没有各站点封面，沿用本地素材做装饰性叠图。
-    final routeImages = [
-      item.fallbackImagePath,
-      _routeImages[(index * 2) % _routeImages.length],
-      _routeImages[(index * 2 + 1) % _routeImages.length],
+    const routeColors = [
+      Color(0xFFFFE6B8), // 杏桃
+      Color(0xFFDDE5FF), // 雾蓝
+      Color(0xFFE3F2E4), // 鼠尾草绿
+      Color(0xFFF8DFE8), // 玫瑰粉
+      Color(0xFFE9E0F7), // 薰衣草紫
+      Color(0xFFFFE7D6), // 蜜桃橘
+      Color(0xFFDDF0F0), // 薄荷青
     ];
-
-    return InkWell(
-      onTap: () => _showRouteDetail(context, item),
-      borderRadius: BorderRadius.circular(20),
-      child: SizedBox(
-        height: 144,
-        child: Material(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(20),
-          clipBehavior: Clip.antiAlias,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 112, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: ProfilePage._ink,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w900,
-                        height: 1.25,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                    if (item.description.isNotEmpty) ...[
-                      const SizedBox(height: 7),
+    final backgroundColor = routeColors[index % routeColors.length];
+    final routeImages = item.routeThumbnails;
+    final duration = Duration(
+      milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 180,
+    );
+    return AnimatedScale(
+      scale: _pressed ? 0.965 : 1,
+      duration: duration,
+      curve: Curves.easeOutCubic,
+      child: InkWell(
+        onTap: widget.onTap,
+        onHighlightChanged: (value) => setState(() => _pressed = value),
+        onLongPress: widget.onLongPress == null
+            ? null
+            : () {
+                HapticFeedback.mediumImpact();
+                setState(() => _pressed = false);
+                widget.onLongPress!();
+              },
+        borderRadius: BorderRadius.circular(20),
+        child: SizedBox(
+          height: 144,
+          child: Material(
+            color: widget.selected ? const Color(0xFFF9E8F4) : backgroundColor,
+            borderRadius: BorderRadius.circular(20),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 112, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        item.description,
+                        item.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: ProfilePage._ink,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                          height: 1.25,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                      if (item.description.isNotEmpty) ...[
+                        const SizedBox(height: 7),
+                        Text(
+                          item.description,
+                          style: const TextStyle(
+                            color: Color(0xFF79747C),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 4),
+                      Text(
+                        item.meta,
                         style: const TextStyle(
                           color: Color(0xFF79747C),
                           fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                           letterSpacing: 0,
                         ),
                       ),
                     ],
-                    const SizedBox(height: 4),
-                    Text(
-                      item.meta,
-                      style: const TextStyle(
-                        color: Color(0xFF79747C),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-              Positioned(
-                top: 13,
-                right: 14,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isPrivate
-                          ? Icons.lock_outline_rounded
-                          : Icons.public_rounded,
-                      size: 15,
-                      color: const Color(0xFF7B7580),
-                    ),
-                    const SizedBox(width: 10),
-                    const Icon(
-                      Icons.visibility_outlined,
-                      size: 16,
-                      color: Color(0xFF7B7580),
-                    ),
-                    const SizedBox(width: 3),
-                    Text(
-                      '${item.viewCount ?? 0}',
-                      style: const TextStyle(
-                        color: Color(0xFF7B7580),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                  ],
+                Positioned(
+                  top: 13,
+                  right: 14,
+                  child: widget.selecting
+                      ? AnimatedContainer(
+                          duration: duration,
+                          width: 26,
+                          height: 26,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: widget.selected
+                                ? ProfilePage._brand
+                                : Colors.white,
+                            border: Border.all(
+                              color: widget.selected
+                                  ? ProfilePage._brand
+                                  : const Color(0xFFD9D1DC),
+                            ),
+                          ),
+                          child: widget.selected
+                              ? const Icon(
+                                  Icons.check_rounded,
+                                  size: 18,
+                                  color: Colors.white,
+                                )
+                              : null,
+                        )
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isPrivate
+                                  ? Icons.lock_outline_rounded
+                                  : Icons.public_rounded,
+                              size: 15,
+                              color: const Color(0xFF7B7580),
+                            ),
+                            const SizedBox(width: 10),
+                            const Icon(
+                              Icons.visibility_outlined,
+                              size: 16,
+                              color: Color(0xFF7B7580),
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              '${item.viewCount ?? 0}',
+                              style: const TextStyle(
+                                color: Color(0xFF7B7580),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                          ],
+                        ),
                 ),
-              ),
-              Positioned(
-                right: 12,
-                bottom: 6,
-                child: SizedBox(
-                  width: 112,
-                  height: 76,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      for (
-                        var imageIndex = 0;
-                        imageIndex < routeImages.length;
-                        imageIndex++
-                      )
-                        Positioned(
-                          right: imageIndex * 16.0,
-                          bottom: imageIndex * 5.0,
-                          child: Transform.rotate(
-                            angle: (imageIndex - 1) * 0.10,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Container(
-                                width: 76,
-                                height: 58,
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.9),
-                                    width: 2,
+                Positioned(
+                  right: 12,
+                  bottom: 6,
+                  child: SizedBox(
+                    width: 112,
+                    height: 76,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        if (routeImages.isEmpty)
+                          const Center(
+                            child: Icon(
+                              Icons.route_rounded,
+                              size: 44,
+                              color: Color(0xFFAC9EAD),
+                            ),
+                          ),
+                        for (
+                          var imageIndex = 0;
+                          imageIndex < routeImages.length;
+                          imageIndex++
+                        )
+                          Positioned(
+                            right: imageIndex * 16.0,
+                            bottom: imageIndex * 5.0,
+                            child: Transform.rotate(
+                              angle: (imageIndex - 1) * 0.10,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  width: 76,
+                                  height: 58,
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.9,
+                                      ),
+                                      width: 2,
+                                    ),
                                   ),
-                                ),
-                                child: Image.asset(
-                                  routeImages[imageIndex],
-                                  fit: BoxFit.cover,
+                                  child: SiponNetworkImage(
+                                    url: routeImages[imageIndex],
+                                    fit: BoxFit.cover,
+                                    fallbackWidget: const ColoredBox(
+                                      color: Color(0xFFF1ECF1),
+                                      child: Icon(
+                                        Icons.local_bar_outlined,
+                                        color: Color(0xFFAC9EAD),
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

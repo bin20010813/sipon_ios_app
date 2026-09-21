@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../services/drink_budget_store.dart';
 import '../services/map/map_models.dart';
+import '../services/profile_bar_images.dart';
 import '../services/sipon_api_config.dart';
 import '../services/sipon_api_service.dart';
 import '../services/user_profile_data.dart';
@@ -89,8 +90,20 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
     setState(() => _momentsLoading = true);
     const page = SiponPage(limit: 50);
     final results = await Future.wait([
-      _safe(() => _api.getMyCheckIns(page: page)),
-      _safe(() => _api.getWishlistBars(page: page)),
+      _safe(
+        () async => loadProfileBarImages(
+          _api,
+          await _api.getMyCheckIns(page: page),
+          checkIns: true,
+        ),
+      ),
+      _safe(
+        () async => loadProfileBarImages(
+          _api,
+          await _api.getWishlistBars(page: page),
+          checkIns: false,
+        ),
+      ),
       _safe(() => _api.getMyDrinkingRoutes(page: page)),
     ]);
 
@@ -111,8 +124,10 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
     final moments = <_Moment>[
       for (final item in checkIns)
         ..._momentsFromCheckIn(item.cast<String, dynamic>()),
-      for (final item in wishes) ?_momentFromWishlist(item.cast<String, dynamic>()),
-      for (final item in routes) ?_momentFromRoute(item.cast<String, dynamic>()),
+      for (final item in wishes)
+        ?_momentFromWishlist(item.cast<String, dynamic>()),
+      for (final item in routes)
+        ?_momentFromRoute(item.cast<String, dynamic>()),
       for (final record in records) _momentFromDrinkRecord(record),
     ];
     moments.sort((a, b) {
@@ -489,10 +504,7 @@ class _StatTile extends StatelessWidget {
       const SizedBox(height: 4),
       Text(
         stat.label,
-        style: const TextStyle(
-          color: PublicProfilePage._muted,
-          fontSize: 12,
-        ),
+        style: const TextStyle(color: PublicProfilePage._muted, fontSize: 12),
       ),
     ],
   );
@@ -673,7 +685,9 @@ class _MomentTimeline extends StatelessWidget {
       lastDayKey = dayKey;
       rows.add(
         Padding(
-          padding: EdgeInsets.only(bottom: index == moments.length - 1 ? 0 : 14),
+          padding: EdgeInsets.only(
+            bottom: index == moments.length - 1 ? 0 : 14,
+          ),
           child: _TimelineRow(
             moment: moment,
             dateText: showDate ? _dayLabel(moment.time) : null,
@@ -685,7 +699,10 @@ class _MomentTimeline extends StatelessWidget {
         ),
       );
     }
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: rows);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: rows,
+    );
   }
 
   static String _dayKey(DateTime? time) {
@@ -1326,7 +1343,8 @@ List<_Moment> _momentsFromCheckIn(Map<String, dynamic> map) {
   final time = _parseTime(map, ['visitedAt', 'createdAt']);
   final city = _pickString(map, ['city']);
   final content = (_pickString(map, ['content']) ?? '').trim();
-  final imageUrl = _pickCheckInImageUrl(map);
+  final imageUrl =
+      map['profileThumbnailUrl'] as String? ?? _pickCheckInImageUrl(map);
   final venue = _venueFromEntryMap(map, name: name);
 
   return [
@@ -1365,6 +1383,7 @@ _Moment? _momentFromWishlist(Map<String, dynamic> map) {
     time: _parseTime(map, ['createdAt', 'addedAt', 'updatedAt']),
     subtitle: meta.isEmpty ? null : meta,
     imageUrl:
+        (map['profileThumbnailUrl'] as String?) ??
         _pickString(map, ['imageUrl', 'image', 'cover', 'coverUrl']) ??
         _pickFirstUrl(map, ['gallery']),
     venue: _venueFromEntryMap(map, name: name),
@@ -1519,6 +1538,7 @@ MapVenue _venueFromEntryMap(Map<String, dynamic> map, {required String name}) {
     tags: const [],
     imageAsset: PublicProfilePage._fallbackCover,
     imageUrl:
+        (map['profileThumbnailUrl'] as String?) ??
         _pickString(map, ['imageUrl', 'image', 'cover', 'coverUrl']) ??
         _pickString(bar, ['imageUrl', 'image', 'cover', 'coverUrl']),
   );

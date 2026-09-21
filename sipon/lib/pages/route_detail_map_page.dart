@@ -94,8 +94,9 @@ List<RouteStop> parseRouteStops(Map<String, dynamic> map) {
       final nested = _pickMapOf(stopMap, ['bar', 'barInfo', 'venue', 'place']);
       const empty = <String, dynamic>{};
       final id =
-          (_pickNum(stopMap, ['id', 'barId']) ??
-                  _pickNum(nested ?? empty, ['id', 'barId']))
+          (_pickNum(stopMap, ['barId']) ??
+                  _pickNum(nested ?? empty, ['id', 'barId']) ??
+                  _pickNum(stopMap, ['id']))
               ?.toInt();
       final name =
           _pickString(stopMap, ['name', 'barName', 'title', 'barTitle']) ??
@@ -398,7 +399,9 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
                                   label: const Text('重试'),
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: RouteDetailMapPage.brand,
-                                    side: const BorderSide(color: RouteDetailMapPage.brand),
+                                    side: const BorderSide(
+                                      color: RouteDetailMapPage.brand,
+                                    ),
                                   ),
                                 ),
                               ],

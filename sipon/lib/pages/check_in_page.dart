@@ -104,7 +104,10 @@ class _CheckInPageState extends State<CheckInPage> {
       return;
     }
     if (_scene.isAttached && _cityController?.queryAnchor == null) {
-      await _scene.focusOn(longitude: anchor.longitude, latitude: anchor.latitude);
+      await _scene.focusOn(
+        longitude: anchor.longitude,
+        latitude: anchor.latitude,
+      );
     }
     try {
       final list = await _api.getNearbyBars(
@@ -399,7 +402,11 @@ class _NearbyBarTile extends StatelessWidget {
             : FilledButton(
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => _CheckInCommentPage(bar: bar),
+                    builder: (_) => CheckInCommentPage(
+                      barId: bar.barId,
+                      venueName: bar.name,
+                      venueAddress: bar.address,
+                    ),
                   ),
                 ),
                 style: FilledButton.styleFrom(
@@ -417,15 +424,26 @@ class _NearbyBarTile extends StatelessWidget {
   );
 }
 
-class _CheckInCommentPage extends StatefulWidget {
-  const _CheckInCommentPage({required this.bar});
-  final _NearbyBar bar;
+/// 打卡与地点评价共用的发布页。
+class CheckInCommentPage extends StatefulWidget {
+  const CheckInCommentPage({
+    super.key,
+    required this.barId,
+    required this.venueName,
+    required this.venueAddress,
+    this.returnToVenue = false,
+  });
+
+  final int? barId;
+  final String venueName;
+  final String venueAddress;
+  final bool returnToVenue;
 
   @override
-  State<_CheckInCommentPage> createState() => _CheckInCommentPageState();
+  State<CheckInCommentPage> createState() => _CheckInCommentPageState();
 }
 
-class _CheckInCommentPageState extends State<_CheckInCommentPage> {
+class _CheckInCommentPageState extends State<CheckInCommentPage> {
   static const int _maxUploadBytes = 10 * 1024 * 1024;
 
   final _controller = TextEditingController();
@@ -498,7 +516,7 @@ class _CheckInCommentPageState extends State<_CheckInCommentPage> {
       _showMessage('请先给这家酒吧评分');
       return;
     }
-    final barId = widget.bar.barId;
+    final barId = widget.barId;
     if (barId == null) {
       _showMessage('该酒吧暂不支持打卡');
       return;
@@ -520,7 +538,11 @@ class _CheckInCommentPageState extends State<_CheckInCommentPage> {
       });
       if (!mounted) return;
       _showMessage('打卡成功');
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      if (widget.returnToVenue) {
+        Navigator.of(context).pop(true);
+      } else {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
     } on Exception catch (error) {
       if (!mounted) return;
       _showMessage('打卡失败：$error');
@@ -544,13 +566,13 @@ class _CheckInCommentPageState extends State<_CheckInCommentPage> {
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: const Color(0xFFFBF8F9),
     appBar: AppBar(
-      title: const Text('记录打卡', style: TextStyle(fontWeight: FontWeight.w800)),
+      title: const Text('微醺这一刻', style: TextStyle(fontWeight: FontWeight.w800)),
       backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
     ),
     body: ReviewComposer(
-      venueName: widget.bar.name,
-      venueAddress: widget.bar.address,
+      venueName: widget.venueName,
+      venueAddress: widget.venueAddress,
       submitLabel: '完成打卡',
       onSubmit: _submitDraft,
     ),

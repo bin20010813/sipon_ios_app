@@ -83,10 +83,7 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
     final businessHours = _parseBusinessHours(bar, hoursJson);
     final now = DateTime.now();
     final todayKey = _dayKeys[now.weekday - 1];
-    final reviews = [
-      for (final item in reviewJson.whereType<Map>())
-        _parseReview(item.cast<String, dynamic>()),
-    ].whereType<VenueReview>().toList(growable: false);
+    final reviews = await _parseReviews(reviewJson);
     final gallery = _parseGallery(bar, mediaJson, mergedVenue);
 
     return VenueDetail(
@@ -133,10 +130,7 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
         page: SiponPage(limit: limit, offset: offset),
       ),
     );
-    final reviews = [
-      for (final item in (reviewJson ?? const <dynamic>[]).whereType<Map>())
-        _parseReview(item.cast<String, dynamic>()),
-    ].whereType<VenueReview>().toList(growable: false);
+    final reviews = await _parseReviews(reviewJson ?? const <dynamic>[]);
 
     // 总数优先取 Bar 汇总字段；拿不到时用「已拉取条数」兜底（拉满一页视为还有）。
     final bar = _asMap(await _guarded(() => _api.getBarById(barId)));
@@ -464,9 +458,67 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
     return _readUrlList(map['mediaUrls'] ?? map['media']);
   }
 
-  /// 评价列表元素是 CheckIn 结构：author 里取昵称/头像，配图取 mediaIds。
+  static const _reviewNameKeys = [
+    'displayName',
+    'nickname',
+    'nickName',
+    'username',
+    'userName',
+    'name',
+  ];
+  static const _reviewAvatarKeys = [
+    'avatarUrl',
+    'avatar',
+    'avatarImageUrl',
+    'avatarAsset',
+  ];
+
+  Map<String, dynamic> _reviewAuthor(Map<String, dynamic> map) => {
+    ..._asMap(map['user']),
+    ..._asMap(map['author']),
+  };
+
+  /// 只返回作者 ID 时补查公开资料；同一批次按用户去重，失败保留评价。
+  Future<List<VenueReview>> _parseReviews(List<dynamic> items) async {
+    final profiles = <int, Future<dynamic>>{};
+    final reviews = await Future.wait(
+      items.whereType<Map>().map((item) async {
+        final map = item.cast<String, dynamic>();
+        final author = _reviewAuthor(map);
+        final userId =
+            _readInt(author, ['id', 'userId']) ??
+            _readInt(map, ['userId', 'authorId']);
+        final name =
+            _readStr(author, _reviewNameKeys) ?? _readStr(map, _reviewNameKeys);
+        final avatar =
+            _readStr(author, _reviewAvatarKeys) ??
+            _readStr(map, _reviewAvatarKeys);
+        if (userId != null && (name == null || avatar == null)) {
+          final raw = _asMap(
+            await profiles.putIfAbsent(
+              userId,
+              () => _guarded(() => _api.getUserProfile(userId)),
+            ),
+          );
+          final profile = {...raw, ..._asMap(raw['user'])};
+          return _parseReview({
+            ...map,
+            'author': {
+              ...author,
+              'displayName': name ?? _readStr(profile, _reviewNameKeys),
+              'avatarUrl': avatar ?? _readStr(profile, _reviewAvatarKeys),
+            },
+          });
+        }
+        return _parseReview(map);
+      }),
+    );
+    return reviews.whereType<VenueReview>().toList(growable: false);
+  }
+
+  /// 评价列表元素是 CheckIn 结构，兼容内嵌作者与平铺资料。
   VenueReview? _parseReview(Map<String, dynamic> map) {
-    final author = _asMap(map['author']);
+    final author = _reviewAuthor(map);
     final content = _readStr(map, ['content', 'text', 'comment']) ?? '';
     if (content.isEmpty && map['rating'] == null) {
       return null;
@@ -478,8 +530,8 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
       id: _readInt(map, ['id', 'checkInId']),
       myReaction: _readStr(map, ['myReaction', 'reaction']),
       nickname:
-          _readStr(author, ['nickname', 'nickName', 'username', 'name']) ??
-          _readStr(map, ['nickname', 'userName']) ??
+          _readStr(author, _reviewNameKeys) ??
+          _readStr(map, _reviewNameKeys) ??
           '匿名用户',
       rating: _readDouble(map, ['rating', 'score', 'star']) ?? 5,
       likeCount: _readInt(map, ['likeCount', 'likes', 'thumbsUp']) ?? 0,
@@ -487,7 +539,9 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
       createdAt: createdAt,
       content: content,
       imageAssets: _readCheckInImages(map),
-      avatarAsset: _readStr(author, ['avatarUrl', 'avatar', 'avatarAsset']),
+      avatarAsset:
+          _readStr(author, _reviewAvatarKeys) ??
+          _readStr(map, _reviewAvatarKeys),
     );
   }
 

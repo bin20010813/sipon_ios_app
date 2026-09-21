@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' hide Visibility;
 
+import '../../pages/check_in_page.dart';
 import '../../pages/language_transform.dart';
 import '../../pages/venue_contribution_page.dart';
 import '../../services/external_map_launcher.dart';
@@ -11,7 +12,6 @@ import '../../services/sipon_api_service.dart';
 import '../bottom_clamping_bouncing_scroll_physics.dart';
 import '../sipon_network_image.dart';
 import 'map_theme.dart';
-import '../review_composer.dart';
 import 'venue_common.dart';
 
 /// 判断详情数据里的图片路径是否是网络地址（相对路径也算，交给 VenueImage 拼接）。
@@ -548,33 +548,20 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
     _showMockToast(SiponLanguageScope.textOf(context).t('感谢共建！信息已提交审核'));
   }
 
-  void _openReviewComposer() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => Scaffold(
-          backgroundColor: const Color(0xFFFBF8F9),
-          appBar: AppBar(
-            title: const Text(
-              '写评论',
-              style: TextStyle(fontWeight: FontWeight.w800),
-            ),
-            backgroundColor: Colors.transparent,
-            surfaceTintColor: Colors.transparent,
-          ),
-          body: ReviewComposer(
-            venueName: widget.venue.name,
-            venueAddress: widget.venue.address,
-            onSubmit: (draft) async {
-              if (!mounted) return;
-              _showMockToast(
-                SiponLanguageScope.textOf(context).t('评论发布功能开发中（演示）'),
-              );
-              Navigator.of(context).pop();
-            },
-          ),
+  Future<void> _openReviewComposer() async {
+    final venue = widget.venue;
+    final submitted = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => CheckInCommentPage(
+          barId: int.tryParse(venue.id),
+          venueName: venue.name,
+          venueAddress: venue.address,
+          returnToVenue: true,
         ),
       ),
     );
+    if (!mounted || submitted != true || widget.venue.id != venue.id) return;
+    await _loadDetail();
   }
 
   @override
@@ -898,7 +885,7 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
               hasMoreReviews: _reviewsHasMore,
               reviewsLoading: _reviewsLoading,
               loaded: detail != null,
-              onContribute: _openContribution,
+              onContribute: _openReviewComposer,
               sort: _reviewFilter,
               onSortChanged: (filter) => setState(() => _reviewFilter = filter),
               onAddReview: _openReviewComposer,
