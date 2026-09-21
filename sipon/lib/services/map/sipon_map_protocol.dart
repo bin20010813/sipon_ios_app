@@ -89,8 +89,8 @@ Map<String, Object?> encodeApplyStage({required double bottomPadding}) => {
   'bottomPadding': bottomPadding,
 };
 
-/// marker 图标资产表：kind.id → Flutter 资产 key。原生启动时一次性装载，
-/// 比每帧传 bytes 省。
+/// marker 图标资产表：kind.id → Flutter 资产 key。
+/// 控制器用 AssetBundle 加载，注册时发送 Uint8List，原生缓存解码结果。
 Map<String, Object?> encodeMarkerAssets() => {
   'assets': {for (final kind in MapVenueKind.values) kind.id: kind.iconAsset},
 };

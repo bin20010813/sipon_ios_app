@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import 'map_display_options.dart';
 import 'map_scene_controller.dart';
@@ -22,7 +23,10 @@ class MapkitSceneController extends MapSceneController {
     required super.onViewportSettled,
     required super.onVenueTapped,
     required super.onBlankTapped,
-  });
+    AssetBundle? assetBundle,
+  }) : _assetBundle = assetBundle ?? rootBundle;
+
+  final AssetBundle _assetBundle;
 
   SiponMapHost? _host;
 
@@ -61,8 +65,28 @@ class MapkitSceneController extends MapSceneController {
     // 但没有任何调用点，等于「靠原生默认值恰好是开着的」。补齐这条，缩放/拖拽
     // 不再依赖平台默认行为（协议 §3.1 setGestures）。
     await host.invoke(SiponMapCommands.setGestures, encodeGestures());
-    // marker 图标表一次装完，比每帧传 bytes 省（§3e）。
-    await host.invoke(SiponMapCommands.registerAssets, encodeMarkerAssets());
+    // 打包产物的中文与空格使用 URI 编码，原生直接按未编码的 key 查找会失败。
+    // AssetBundle 负责解析真实资源路径；每次 attach 只传一次图片字节。
+    final keys = encodeMarkerAssets()['assets']! as Map<String, Object?>;
+    final images = <String, Uint8List>{};
+    for (final entry in keys.entries) {
+      try {
+        final data = await _assetBundle.load(entry.value! as String);
+        images[entry.key] = Uint8List.sublistView(data);
+      } catch (error, stack) {
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: error,
+            stack: stack,
+            library: 'SiponMap',
+            context: ErrorDescription('加载地图图标 ${entry.key}: ${entry.value}'),
+          ),
+        );
+      }
+    }
+    // 读取期间页面可能已关闭，不能给已销毁或新绑定的地图注册资源。
+    if (!identical(_host, host) || !identical(_readyCompleter, ready)) return;
+    await host.invoke(SiponMapCommands.registerAssets, {'assets': images});
 
     // 正常情况 onMapReady 在上面两条 invoke 返回前后就会到；超时兜底放行，
     // 避免原生异常时页面永远停在「等待地图」。

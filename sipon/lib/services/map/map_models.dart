@@ -209,11 +209,12 @@ const List<MapCategory> mapCategoryFilters = [
 class MapAssets {
   const MapAssets._();
 
-  static const String pub = 'assest/地图/清吧 默认@3x.png';
-  static const String livehouse = 'assest/地图/Livehouse 默认@3x.png';
-  static const String craft = 'assest/地图/精酿 默认@3x.png';
-  static const String bistro = 'assest/地图/Bistro 默认@3x.png';
-  static const String party = 'assest/地图/派对 默认@3x.png';
+  // 分类图标与首页共用彩色资源，地图普通标记与选中标记统一使用。
+  static const String pub = 'assest/首页/清吧@3x.png';
+  static const String livehouse = 'assest/首页/Livehouse@3x.png';
+  static const String craft = 'assest/首页/精酿@3x.png';
+  static const String bistro = 'assest/首页/Bistro@3x.png';
+  static const String party = 'assest/首页/派对@3x.png';
   static const String filter = 'assest/地图/筛选 默认@3x.png';
 
   static const String barImage = 'assest/首页/图片素材/庙前冰室.png';

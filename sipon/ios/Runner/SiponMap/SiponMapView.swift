@@ -418,38 +418,14 @@ final class SiponMapEngine: NSObject {
   }
 
   private func registerMarkerAssets(_ args: [String: Any]) {
-    guard let assets = args["assets"] as? [String: String] else {
-      NSLog("[SiponMap] assets 参数解析失败")
+    guard let assets = args["assets"] as? [String: FlutterStandardTypedData] else {
+      NSLog("[SiponMap] assets 参数解析失败：需要分类对应的图片字节")
       return
     }
 
-    NSLog("[SiponMap] 收到图标数量：%ld", assets.count)
-
-    for (category, assetKey) in assets {
-      if markerIcons[category] != nil {
-        continue
-      }
-
-      let bundleKey = FlutterDartProject.lookupKey(forAsset: assetKey)
-
-      guard let path = Bundle.main.path(
-        forResource: bundleKey,
-        ofType: nil
-      ) else {
-        NSLog(
-          "[SiponMap] 找不到图片：category=%@ key=%@",
-          category,
-          bundleKey
-        )
-        continue
-      }
-
-      guard let image = UIImage(contentsOfFile: path) else {
-        NSLog(
-          "[SiponMap] 图片解码失败：category=%@ path=%@",
-          category,
-          path
-        )
+    for (category, bytes) in assets {
+      guard let image = UIImage(data: bytes.data, scale: 3) else {
+        NSLog("[SiponMap] 图片解码失败：category=%@ bytes=%ld", category, bytes.data.count)
         continue
       }
 
@@ -760,6 +736,8 @@ final class SiponMapEngine: NSObject {
 
   private func resetPools() {
     alive = false
+    mapView.removeGestureRecognizer(proxy.blankTapRecognizer)
+    mapView.delegate = nil
     cancelRoutePlanning()
     mapView.removeAnnotations(Array(circlesById.values))
     mapView.removeAnnotations(Array(markersByVenueId.values))
@@ -826,6 +804,8 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
     let recognizer = UITapGestureRecognizer(target: self, action: #selector(handleBlankTap(_:)))
     recognizer.delegate = self
     recognizer.cancelsTouchesInView = false
+    recognizer.delaysTouchesBegan = false
+    recognizer.delaysTouchesEnded = false
     return recognizer
   }()
 
@@ -915,6 +895,15 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
   @objc func handleBlankTap(_ recognizer: UITapGestureRecognizer) {
     guard recognizer.state == .ended, engine.shouldProcessEvents else { return }
     engine.emitBlankTapped()
+  }
+
+  // 空白点击只观察触摸，不与 MapKit 的平移、缩放、选中手势互斥。
+  // cancelsTouchesInView 只影响视图接收事件，不能替代识别器之间的同时识别策略。
+  func gestureRecognizer(
+    _ gestureRecognizer: UIGestureRecognizer,
+    shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+  ) -> Bool {
+    gestureRecognizer === blankTapRecognizer || otherGestureRecognizer === blankTapRecognizer
   }
 
   /// 放过落在任何可见 annotation view 上的触摸，让它走系统 didSelect（§3a）。
