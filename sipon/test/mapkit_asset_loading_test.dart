@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sipon/services/map/checkin_pin_icon.dart';
 import 'package:sipon/services/map/map_models.dart';
 import 'package:sipon/services/map/mapkit_scene_controller.dart';
 import 'package:sipon/services/map/sipon_map_host.dart';
@@ -47,7 +48,7 @@ MapkitSceneController _controller({AssetBundle? bundle}) =>
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('五类真实图标通过资源系统加载，通道传输后仍可解码', () async {
+  test('五类真实图标与打卡图钉注册到原生，通道传输后仍可解码', () async {
     final host = _Host();
     final controller = _controller();
     addTearDown(controller.detach);
@@ -60,7 +61,10 @@ void main() {
       ),
     );
     final assets = (decoded.arguments as Map)['assets'] as Map;
-    expect(assets.keys.toSet(), MapVenueKind.values.map((e) => e.id).toSet());
+    expect(
+      assets.keys.toSet(),
+      {...MapVenueKind.values.map((e) => e.id), checkInPinCategory},
+    );
     for (final data in assets.values) {
       expect(data, isA<Uint8List>());
       final imageCodec = await ui.instantiateImageCodec(data as Uint8List);
@@ -70,6 +74,15 @@ void main() {
       frame.image.dispose();
       imageCodec.dispose();
     }
+    // 打卡图钉按 3x 出图，原生以 scale=3 解码回 22×28pt。
+    final pinCodec = await ui.instantiateImageCodec(
+      assets[checkInPinCategory]! as Uint8List,
+    );
+    final pinFrame = await pinCodec.getNextFrame();
+    expect(pinFrame.image.width, 66);
+    expect(pinFrame.image.height, 84);
+    pinFrame.image.dispose();
+    pinCodec.dispose();
   });
 
   test('资源加载期间销毁地图不再向旧通道注册', () async {

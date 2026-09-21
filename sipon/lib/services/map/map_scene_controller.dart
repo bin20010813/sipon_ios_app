@@ -36,7 +36,7 @@ class MapSceneFrame {
     point.id,
     _coordinateToken(point.longitude),
     _coordinateToken(point.latitude),
-    point.kind.id,
+    point.iconCategory ?? point.kind.id,
     point.venueId,
   ];
 
@@ -54,7 +54,7 @@ class MapSceneFrame {
           marker.label,
           _coordinateToken(marker.longitude),
           _coordinateToken(marker.latitude),
-          marker.kind.id,
+          marker.iconCategory ?? marker.kind.id,
           marker.sequence,
         ],
     ],

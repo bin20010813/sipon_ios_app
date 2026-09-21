@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'checkin_pin_icon.dart';
 import 'map_display_options.dart';
 import 'map_scene_controller.dart';
 import 'map_viewport.dart';
@@ -83,6 +84,20 @@ class MapkitSceneController extends MapSceneController {
           ),
         );
       }
+    }
+    // 打卡页的红色图钉没有 PNG 资产，attach 时用 Canvas 按 SVG 设计稿现画，
+    // 注册进同一个原生图标缓存，原生按 category 查找即可命中。
+    try {
+      images[checkInPinCategory] = await buildCheckInPinImage();
+    } catch (error, stack) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+          library: 'SiponMap',
+          context: ErrorDescription('绘制打卡图钉图标'),
+        ),
+      );
     }
     // 读取期间页面可能已关闭，不能给已销毁或新绑定的地图注册资源。
     if (!identical(_host, host) || !identical(_readyCompleter, ready)) return;

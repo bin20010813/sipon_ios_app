@@ -132,6 +132,7 @@ class MapPoint {
     required this.kind,
     required this.weight,
     this.venueId,
+    this.iconCategory,
   });
 
   final String id;
@@ -143,6 +144,10 @@ class MapPoint {
 
   /// 点击圆点后要选中哪家酒吧。
   final String? venueId;
+
+  /// 覆盖原生图标缓存查找用的 category；为 null 时按 [kind] 取分类图标。
+  /// 打卡页用它把附近酒吧统一换成红色图钉（见 checkin_pin_icon.dart）。
+  final String? iconCategory;
 
   Map<String, dynamic> toFeature() {
     return {
@@ -172,6 +177,7 @@ class MapMarkerSpec {
     required this.latitude,
     required this.kind,
     this.sequence,
+    this.iconCategory,
   });
 
   final String venueId;
@@ -183,9 +189,18 @@ class MapMarkerSpec {
   /// 路线页可选的顺序编号；普通 POI 为 null，仍显示酒吧名称。
   final int? sequence;
 
+  /// 覆盖原生图标缓存查找用的 category；为 null 时按 [kind] 取分类图标。
+  final String? iconCategory;
+
   /// 参与 marker 重建判定的全部字段。任一变化才值得 `deleteAll` + 重建。
-  String get signaturePart =>
-      [venueId, label, longitude, latitude, kind.id, sequence ?? ''].join('|');
+  String get signaturePart => [
+    venueId,
+    label,
+    longitude,
+    latitude,
+    iconCategory ?? kind.id,
+    sequence ?? '',
+  ].join('|');
 }
 
 /// 顶部分类筛选 pill。

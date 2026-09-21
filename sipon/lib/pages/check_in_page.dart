@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../services/map/checkin_pin_icon.dart';
 import '../services/map/map_display_options.dart';
 import '../services/map/map_models.dart';
 import '../services/map/map_scene_controller.dart';
@@ -155,6 +156,8 @@ class _CheckInPageState extends State<CheckInPage> {
               latitude: bar.latitude,
               kind: bar.kind,
               weight: 1,
+              // 打卡页不区分酒吧分类，统一用红色图钉浮标。
+              iconCategory: checkInPinCategory,
             ),
         ],
         markers: [
@@ -165,6 +168,7 @@ class _CheckInPageState extends State<CheckInPage> {
               longitude: bar.longitude,
               latitude: bar.latitude,
               kind: bar.kind,
+              iconCategory: checkInPinCategory,
             ),
         ],
       ),

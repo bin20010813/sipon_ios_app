@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../pages/language_transform.dart';
+import '../services/map/checkin_pin_icon.dart';
 import '../services/map/map_display_options.dart';
 import '../services/map/map_models.dart';
 import '../services/map/map_scene_controller.dart';
@@ -520,6 +521,9 @@ class _Header extends StatelessWidget {
 class _LocationPicker extends StatelessWidget {
   const _LocationPicker({required this.mapReady, required this.onHostReady});
 
+  /// 中心图钉尺寸，宽高比与 CheckInPinPainter 设计稿（22×28）一致。
+  static const _pinSize = Size(30, 38);
+
   final bool mapReady;
   final void Function(SiponMapHost host) onHostReady;
 
@@ -536,15 +540,16 @@ class _LocationPicker extends StatelessWidget {
               initialStyleId: MapBaseStyle.standard.id,
               onHostReady: onHostReady,
             ),
+            // 中心定位浮标：红色图钉，底部向上抬一个浮标高度，
+            // 让针尖正好落在地图中心点。
             IgnorePointer(
               child: Center(
                 child: Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Icon(
-                    Icons.location_on_rounded,
-                    color: MapDesign.brand,
-                    size: 42,
-                    shadows: const [Shadow(color: Colors.white, blurRadius: 3)],
+                  padding: EdgeInsets.only(bottom: _pinSize.height),
+                  child: SizedBox(
+                    width: _pinSize.width,
+                    height: _pinSize.height,
+                    child: const CustomPaint(painter: CheckInPinPainter()),
                   ),
                 ),
               ),

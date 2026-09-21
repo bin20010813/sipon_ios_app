@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 28">
+  <!-- 打卡页地图浮标设计稿：红色小球 + 下面一根圆头针，底部中点 (11, 28) 对齐坐标。
+       说明：原生 MapKit annotation 不能直接消费 SVG，运行时由
+       lib/services/map/checkin_pin_icon.dart 用 Canvas 按同一图形离屏绘制成
+       PNG 注册给原生，本文件仅作设计源，未打进 pubspec assets。 -->
+  <!-- 落点阴影 -->
+  <ellipse cx="11" cy="26.4" rx="4.5" ry="1.5" fill="#000000" opacity="0.18"/>
+  <!-- 针：上端藏进球底，圆头收尾 -->
+  <line x1="11" y1="14.5" x2="11" y2="25.6" stroke="#E8453C" stroke-width="2.6" stroke-linecap="round"/>
+  <!-- 球：红底白边，地图上任何底色都看得清 -->
+  <circle cx="11" cy="8.5" r="7" fill="#E8453C" stroke="#FFFFFF" stroke-width="1.8"/>
+  <!-- 左上高光，让球有体积感 -->
+  <circle cx="8.6" cy="6.1" r="2.1" fill="#FFFFFF" opacity="0.55"/>
+</svg>

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sipon/services/map/checkin_pin_icon.dart';
 import 'package:sipon/services/map/map_display_options.dart';
 import 'package:sipon/services/map/map_models.dart';
 import 'package:sipon/services/map/map_scene_controller.dart';
@@ -122,6 +123,51 @@ void main() {
           containsPair('category', 'party'),
         ),
       );
+    });
+
+    test('iconCategory 覆盖 category 下发，缺省回退到类型 id', () {
+      final payload = encodeRenderFrame(
+        MapSceneFrame(
+          circlePoints: [
+            MapPoint(
+              id: 'check-in-v1',
+              name: '庙前冰室',
+              longitude: 121.4712,
+              latitude: 31.2227,
+              kind: MapVenueKind.pub,
+              weight: 1,
+              iconCategory: checkInPinCategory,
+            ),
+          ],
+          markers: [
+            MapMarkerSpec(
+              venueId: 'v1',
+              label: '庙前冰室',
+              longitude: 121.4712,
+              latitude: 31.2227,
+              kind: MapVenueKind.pub,
+              iconCategory: checkInPinCategory,
+            ),
+            MapMarkerSpec(
+              venueId: 'v2',
+              label: '彼楼',
+              longitude: 121.4718,
+              latitude: 31.2232,
+              kind: MapVenueKind.craft,
+            ),
+          ],
+        ),
+        zoom: 15,
+      );
+
+      expect(
+        (payload['circles']! as List).single,
+        containsPair('category', checkInPinCategory),
+      );
+      expect(payload['markers']! as List, [
+        containsPair('category', checkInPinCategory),
+        containsPair('category', 'craft'),
+      ]);
     });
 
     test('没有选中点时 selected 为 null；圆点的 venueId 缺省时不下发该键', () {
@@ -309,6 +355,38 @@ void main() {
 
       expect(base.signature, isNot(moved.signature));
       expect(base.signature, isNot(recat.signature));
+    });
+
+    test('只改 iconCategory，signature 必须变化', () {
+      MapSceneFrame withPin({String? iconCategory}) => MapSceneFrame(
+        circlePoints: [
+          MapPoint(
+            id: 'p1',
+            name: '庙前冰室',
+            longitude: 121.47,
+            latitude: 31.22,
+            kind: MapVenueKind.pub,
+            weight: 1,
+            iconCategory: iconCategory,
+          ),
+        ],
+        markers: [
+          MapMarkerSpec(
+            venueId: 'v1',
+            label: '庙前冰室',
+            longitude: 121.47,
+            latitude: 31.22,
+            kind: MapVenueKind.pub,
+            iconCategory: iconCategory,
+          ),
+        ],
+      );
+
+      expect(withPin().signature, isNot(withPin(iconCategory: 'x').signature));
+      expect(
+        withPin(iconCategory: checkInPinCategory).signature,
+        withPin(iconCategory: checkInPinCategory).signature,
+      );
     });
 
     test('数据完全一致时 signature 保持一致', () {

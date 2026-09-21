@@ -26,6 +26,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   // 与公开主页一致的默认头像占位图。
   static const String _avatarAsset = 'assest/首页/图片素材/Bharat Balami.png';
   static const int _maxAvatarBytes = 10 * 1024 * 1024;
+  static const Color _brand = Color(0xFF9A3D78);
+  static const Color _ink = Color(0xFF292B32);
+  static const Color _line = Color(0xFFF1EBEF);
   late final TextEditingController _nameController;
   late final TextEditingController _bioController;
   late final TextEditingController _cityController;
@@ -204,7 +207,8 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   String _avatarUrlFromUpload(dynamic response, String mediaId) {
     String? url;
     if (response is Map) {
-      final raw = response['url'] ??
+      final raw =
+          response['url'] ??
           (response['data'] is Map ? response['data']['url'] : null);
       url = raw?.toString().trim();
     }
@@ -246,12 +250,19 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         child: Stack(
           children: [
             Container(
-              width: 96,
-              height: 96,
+              width: 108,
+              height: 108,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Colors.white,
-                border: Border.all(color: const Color(0xFFF0E9ED), width: 2),
+                border: Border.all(color: Colors.white, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: _brand.withValues(alpha: 0.16),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
               ),
               child: ClipOval(child: _buildAvatarImage()),
             ),
@@ -275,15 +286,26 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 ),
               ),
             Positioned(
-              right: 0,
-              bottom: 0,
+              right: 2,
+              bottom: 2,
               child: Container(
-                width: 30,
-                height: 30,
+                width: 32,
+                height: 32,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFF9A3D78),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFFB4528F), _brand],
+                  ),
                   border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _brand.withValues(alpha: 0.28),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
                 child: const Icon(
                   Icons.photo_camera_rounded,
@@ -382,67 +404,161 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('编辑资料'),
-        centerTitle: true,
-      ),
-      body: SafeArea(
-        // bottom:false 让滚动视口延伸到屏幕底，可滚过小白条区域；
-        // 底部空间由 ListView 的 padding 预留。
-        bottom: false,
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            // 底部预留系统安全区（Home Indicator）。
-            padding: EdgeInsets.fromLTRB(
-              20,
-              20,
-              20,
-              20 + MediaQuery.paddingOf(context).bottom,
-            ),
-            children: [
-              const _EditHint('头像、昵称、简介和所在城市会展示在你的公开主页；邮箱和账号 ID 不会在这里修改。'),
-              const SizedBox(height: 24),
-              _buildAvatarEditor(),
-              const SizedBox(height: 6),
-              Text(
-                _uploadingAvatar ? '头像上传中…' : '点击更换头像',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 12, color: Color(0xFF6D5E67)),
-              ),
-              const SizedBox(height: 24),
-              _ProfileField(
-                controller: _nameController,
-                label: '昵称',
-                hint: '输入展示昵称',
-                maxLength: 40,
-                validator: (value) =>
-                    value == null || value.trim().isEmpty ? '请输入昵称' : null,
-              ),
-              _ProfileField(
-                controller: _bioController,
-                label: '个人简介',
-                hint: '介绍一下自己',
-                maxLength: 160,
-                maxLines: 4,
-              ),
-              _ProfileField(
-                controller: _cityController,
-                label: '所在城市',
-                hint: '例如：上海',
-                maxLength: 40,
-              ),
-              const SizedBox(height: 18),
-              FilledButton(
-                onPressed: _saving || _uploadingAvatar ? null : _save,
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(50),
-                  backgroundColor: const Color(0xFF9A3D78),
-                ),
-                child: Text(_saving ? '保存中…' : '保存资料'),
-              ),
-            ],
+        title: const Text(
+          '编辑资料',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: _ink,
           ),
+        ),
+        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        iconTheme: const IconThemeData(color: _ink),
+      ),
+      body: DecoratedBox(
+        // 与全站页面一致的浅粉渐变背景。
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFFFF2F3), Color(0xFFFCFCFC), Colors.white],
+            stops: [0, 0.45, 1],
+          ),
+        ),
+        child: SafeArea(
+          // bottom:false 让滚动视口延伸到屏幕底，可滚过小白条区域；
+          // 底部空间由 ListView 的 padding 预留。
+          bottom: false,
+          child: Form(
+            key: _formKey,
+            child: ListView(
+              // 底部预留系统安全区（Home Indicator）。
+              padding: EdgeInsets.fromLTRB(
+                20,
+                8,
+                20,
+                24 + MediaQuery.paddingOf(context).bottom,
+              ),
+              children: [
+                const SizedBox(height: 8),
+                _buildAvatarEditor(),
+                const SizedBox(height: 10),
+                Text(
+                  _uploadingAvatar ? '头像上传中…' : '点击更换头像',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _brand,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const _EditHint('头像、昵称、简介和所在城市会展示在你的公开主页；邮箱和账号 ID 不会在这里修改。'),
+                const SizedBox(height: 16),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _brand.withValues(alpha: 0.06),
+                        blurRadius: 16,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _ProfileField(
+                        controller: _nameController,
+                        label: '昵称',
+                        hint: '输入展示昵称',
+                        maxLength: 40,
+                        validator: (value) =>
+                            value == null || value.trim().isEmpty
+                            ? '请输入昵称'
+                            : null,
+                      ),
+                      const Divider(height: 1, color: _line),
+                      _ProfileField(
+                        controller: _bioController,
+                        label: '个人简介',
+                        hint: '介绍一下自己',
+                        maxLength: 160,
+                        maxLines: 4,
+                      ),
+                      const Divider(height: 1, color: _line),
+                      _ProfileField(
+                        controller: _cityController,
+                        label: '所在城市',
+                        hint: '例如：上海',
+                        maxLength: 40,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 28),
+                _buildSaveButton(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSaveButton() {
+    final enabled = !_saving && !_uploadingAvatar;
+    return Opacity(
+      opacity: enabled ? 1 : 0.7,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [Color(0xFFB4528F), _brand],
+          ),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: _brand.withValues(alpha: 0.32),
+              blurRadius: 14,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: FilledButton(
+          onPressed: enabled ? _save : null,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(52),
+            backgroundColor: Colors.transparent,
+            disabledBackgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+          child: _saving
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation(Colors.white),
+                  ),
+                )
+              : const Text(
+                  '保存资料',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
         ),
       ),
     );
@@ -455,12 +571,36 @@ class _EditHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(14),
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     decoration: BoxDecoration(
       color: const Color(0xFFFFF2F7),
       borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: const Color(0xFFF6DFEA)),
     ),
-    child: Text(text, style: const TextStyle(color: Color(0xFF6D5E67))),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 1),
+          child: Icon(
+            Icons.info_outline_rounded,
+            size: 15,
+            color: Color(0xFF9A3D78),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 12,
+              height: 1.5,
+              color: Color(0xFF6D5E67),
+            ),
+          ),
+        ),
+      ],
+    ),
   );
 }
 
@@ -483,18 +623,69 @@ class _ProfileField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 18),
-    child: TextFormField(
-      controller: controller,
-      validator: validator,
-      maxLength: maxLength,
-      maxLines: maxLines,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        alignLabelWithHint: maxLines > 1,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      ),
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: Row(
+      // 基线对齐：标签与输入区第一行文字（含占位提示）始终在同一水平线上。
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        SizedBox(
+          width: 72,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF292B32),
+            ),
+          ),
+        ),
+        Expanded(
+          child: TextFormField(
+            controller: controller,
+            validator: validator,
+            maxLength: maxLength,
+            maxLines: maxLines,
+            textAlign: TextAlign.start,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF292B32),
+            ),
+            // 仅在聚焦时显示字数统计，保持列表整洁。
+            buildCounter:
+                (
+                  context, {
+                  required currentLength,
+                  required isFocused,
+                  maxLength,
+                }) {
+                  if (!isFocused || maxLength == null) {
+                    return const SizedBox.shrink();
+                  }
+                  return Text(
+                    '$currentLength/$maxLength',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF8E8790),
+                    ),
+                  );
+                },
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w400,
+                color: Color(0xFFC4BCC3),
+              ),
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              counterText: '',
+            ),
+          ),
+        ),
+      ],
     ),
   );
 }
