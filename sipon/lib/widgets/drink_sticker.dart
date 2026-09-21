@@ -2,12 +2,14 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import '../services/drink_budget_store.dart';
 import '../services/sticker_physics.dart';
+import 'sipon_network_image.dart';
 
 Color drinkStickerColorForType(String type) {
   return switch (type) {
@@ -266,7 +268,10 @@ class _StickerPathImage extends StatelessWidget {
     final uri = Uri.tryParse(path);
     final imageProvider =
         uri != null && (uri.scheme == 'https' || uri.scheme == 'http')
-        ? NetworkImage(path)
+        ? CachedNetworkImageProvider(
+            path,
+            headers: siponImageAuthHeaders(path),
+          )
         : FileImage(File(path)) as ImageProvider;
     return Image(
       image: imageProvider,

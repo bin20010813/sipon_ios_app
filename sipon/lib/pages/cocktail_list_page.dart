@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/sipon_api_client.dart';
 import '../services/sipon_api_models.dart';
 import '../services/sipon_api_service.dart';
+import '../widgets/sipon_network_image.dart';
 import 'cocktail_detail_page.dart';
 import 'ingredient_list_page.dart';
 import 'language_transform.dart';
@@ -468,16 +469,14 @@ class _CocktailThumb extends StatelessWidget {
       final dpr = MediaQuery.devicePixelRatioOf(context);
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        child: Image.network(
-          url,
+        child: SiponNetworkImage(
+          url: url,
+          fallbackAsset: fallbackAsset,
           width: 96,
           height: 96,
-          fit: BoxFit.cover,
-          filterQuality: FilterQuality.low,
           // 按显示尺寸解码，避免小坑位全尺寸解码原图。
           cacheWidth: (96 * dpr).round(),
           cacheHeight: (96 * dpr).round(),
-          errorBuilder: (_, _, _) => _fallback(),
         ),
       );
     }

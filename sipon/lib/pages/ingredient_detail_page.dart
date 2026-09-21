@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/sipon_api_client.dart';
 import '../services/sipon_api_models.dart';
 import '../services/sipon_api_service.dart';
+import '../widgets/sipon_network_image.dart';
 import 'cocktail_detail_page.dart';
 import 'language_transform.dart';
 
@@ -336,14 +337,7 @@ class _IngredientHero extends StatelessWidget {
     if (url != null && url.isNotEmpty) {
       return SizedBox(
         height: height,
-        child: Image.network(
-          url,
-          fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => SizedBox(
-            height: height,
-            child: Image.asset(fallbackAsset, fit: BoxFit.cover),
-          ),
-        ),
+        child: SiponNetworkImage(url: url, fallbackAsset: fallbackAsset),
       );
     }
     return SizedBox(

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart' hide Visibility;
 
-import '../../services/sipon_api_config.dart';
+import '../sipon_network_image.dart';
 import 'map_theme.dart';
 
 /// 酒吧封面。有网图先用网图，失败或没有就退回本地资产。
@@ -22,12 +22,11 @@ class VenueImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final url = imageUrl;
     if (url != null && url.isNotEmpty) {
-      return Image.network(
-        SiponApiConfig.instance.resolveUri(url).toString(),
+      return SiponNetworkImage(
+        url: url,
+        fallbackAsset: assetPath,
         width: width,
         height: height,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => _assetImage(),
       );
     }
 

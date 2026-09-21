@@ -5,10 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../services/sipon_api_config.dart';
 import '../services/sipon_api_client.dart';
 import '../services/sipon_api_service.dart';
 import '../services/user_profile_data.dart';
+import '../widgets/sipon_network_image.dart';
 
 class ProfileEditPage extends StatefulWidget {
   const ProfileEditPage({super.key, required this.profile});
@@ -305,12 +305,10 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     }
     final url = _avatarController.text.trim();
     if (url.isNotEmpty) {
-      return Image.network(
-        SiponApiConfig.instance.resolveUri(url).toString(),
-        fit: BoxFit.cover,
-        headers: SiponApiClient.imageRequestHeaders,
-        errorBuilder: (_, _, _) =>
-            Image.asset(_avatarAsset, fit: BoxFit.cover),
+      return SiponNetworkImage(
+        url: url,
+        fallbackAsset: _avatarAsset,
+        auth: true,
       );
     }
     return Image.asset(_avatarAsset, fit: BoxFit.cover);

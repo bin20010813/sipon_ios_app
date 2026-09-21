@@ -4,13 +4,12 @@ import 'package:flutter/material.dart';
 
 import '../services/drink_budget_store.dart';
 import '../services/map/map_models.dart';
-import '../services/sipon_api_config.dart';
-import '../services/sipon_api_client.dart';
 import '../services/sipon_api_service.dart';
 import '../services/sipon_auth_service.dart';
 import '../services/user_profile_data.dart';
 import '../widgets/bottom_clamping_bouncing_scroll_physics.dart';
 import '../widgets/drink_sticker.dart';
+import '../widgets/sipon_network_image.dart';
 import 'drink_sticker_calendar_page.dart';
 import 'language_transform.dart';
 import 'profile_edit_page.dart';
@@ -578,18 +577,13 @@ class _ProfileAvatar extends StatelessWidget {
         alignment: Alignment.topCenter,
       );
     }
-    return Image.network(
-      SiponApiConfig.instance.resolveUri(rawUrl).toString(),
-      fit: BoxFit.cover,
-      headers: SiponApiClient.imageRequestHeaders,
-      errorBuilder: (_, error, stackTrace) {
-        debugPrint('Profile avatar image failed: $rawUrl ($error)');
-        return Image.asset(
-          ProfilePage._avatarAsset,
-          fit: BoxFit.cover,
-          alignment: Alignment.topCenter,
-        );
-      },
+    return SiponNetworkImage(
+      url: rawUrl,
+      fallbackAsset: ProfilePage._avatarAsset,
+      alignment: Alignment.topCenter,
+      auth: true,
+      onError: (error) =>
+          debugPrint('Profile avatar image failed: $rawUrl ($error)'),
     );
   }
 }
@@ -1666,17 +1660,11 @@ Widget _entryImage(
 }) {
   final url = item.imageUrl;
   if (url != null && url.isNotEmpty) {
-    return Image.network(
-      SiponApiConfig.instance.resolveUri(url).toString(),
+    return SiponNetworkImage(
+      url: url,
+      fallbackAsset: item.fallbackImagePath,
       width: width,
       height: height,
-      fit: BoxFit.cover,
-      errorBuilder: (_, _, _) => Image.asset(
-        item.fallbackImagePath,
-        width: width,
-        height: height,
-        fit: BoxFit.cover,
-      ),
     );
   }
   return Image.asset(

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/sipon_api_client.dart';
 import '../services/sipon_api_models.dart';
 import '../services/sipon_api_service.dart';
+import '../widgets/sipon_network_image.dart';
 import 'ingredient_detail_page.dart';
 import 'language_transform.dart';
 
@@ -486,12 +487,11 @@ class _IngredientThumb extends StatelessWidget {
     if (url != null && url.isNotEmpty) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        child: Image.network(
-          url,
+        child: SiponNetworkImage(
+          url: url,
+          fallbackAsset: fallbackAsset,
           width: 72,
           height: 72,
-          fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => _fallback(),
         ),
       );
     }

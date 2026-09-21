@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../services/sipon_api_client.dart';
@@ -11,10 +12,10 @@ const double kCocktailDetailCoverHeight = 347.0;
 
 /// 详情封面的图片 Provider：按封面显示尺寸（260×347 × dpr）解码。
 /// 首页/列表预取与详情页展示必须共用同一 Provider（同一缓存键），
-/// 预取后点进详情才能直接命中内存缓存。
+/// 预取后点进详情才能直接命中内存缓存；磁盘缓存由 CachedNetworkImageProvider 提供。
 ImageProvider cocktailDetailCoverImageProvider(String url, double dpr) =>
     ResizeImage(
-      NetworkImage(url),
+      CachedNetworkImageProvider(url),
       width: (kCocktailDetailCoverWidth * dpr).round(),
       height: (kCocktailDetailCoverHeight * dpr).round(),
     );

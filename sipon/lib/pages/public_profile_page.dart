@@ -1,11 +1,12 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../services/drink_budget_store.dart';
 import '../services/map/map_models.dart';
 import '../services/sipon_api_config.dart';
-import '../services/sipon_api_client.dart';
 import '../services/sipon_api_service.dart';
 import '../services/user_profile_data.dart';
+import '../widgets/sipon_network_image.dart';
 import 'drink_sticker_calendar_page.dart';
 import 'route_detail_map_page.dart';
 import 'venue_map_half_page.dart';
@@ -512,9 +513,9 @@ class _UserAvatar extends StatelessWidget {
       backgroundColor: const Color(0xFFFFE4F1),
       backgroundImage: imageUrl == null
           ? null
-          : NetworkImage(
+          : CachedNetworkImageProvider(
               imageUrl,
-              headers: SiponApiClient.imageRequestHeaders,
+              headers: siponImageAuthHeaders(imageUrl),
             ),
       onBackgroundImageError: imageUrl == null ? null : (_, _) {},
       child: imageUrl == null
@@ -1263,11 +1264,9 @@ class _MomentImage extends StatelessWidget {
     if (value == null || value.isEmpty) {
       return Image.asset(PublicProfilePage._fallbackCover, fit: BoxFit.cover);
     }
-    return Image.network(
-      SiponApiConfig.instance.resolveUri(value).toString(),
-      fit: BoxFit.cover,
-      errorBuilder: (_, _, _) =>
-          Image.asset(PublicProfilePage._fallbackCover, fit: BoxFit.cover),
+    return SiponNetworkImage(
+      url: value,
+      fallbackAsset: PublicProfilePage._fallbackCover,
     );
   }
 }

@@ -7,9 +7,9 @@ import '../../services/map/api_venue_detail_repository.dart';
 import '../../services/map/map_models.dart';
 import '../../services/map/mock_venue_detail_repository.dart';
 import '../../services/map/venue_detail_models.dart';
-import '../../services/sipon_api_config.dart';
 import '../../services/sipon_api_service.dart';
 import '../bottom_clamping_bouncing_scroll_physics.dart';
+import '../sipon_network_image.dart';
 import 'map_theme.dart';
 import '../review_composer.dart';
 import 'venue_common.dart';
@@ -959,13 +959,10 @@ class _VenueGalleryPreviewState extends State<_VenueGalleryPreview> {
                 final path = images[index];
                 final remote = _isRemoteImage(path);
                 final image = remote
-                    ? Image.network(
-                        SiponApiConfig.instance.resolveUri(path).toString(),
+                    ? SiponNetworkImage(
+                        url: path,
+                        fallbackAsset: widget.fallbackAssetPath,
                         fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) => Image.asset(
-                          widget.fallbackAssetPath,
-                          fit: BoxFit.contain,
-                        ),
                       )
                     : Image.asset(path, fit: BoxFit.contain);
                 return InteractiveViewer(
@@ -2446,12 +2443,11 @@ class _ReviewItemState extends State<_ReviewItem> {
       return _defaultAvatar();
     }
     if (_isRemoteImage(avatar)) {
-      return Image.network(
-        SiponApiConfig.instance.resolveUri(avatar).toString(),
+      return SiponNetworkImage(
+        url: avatar,
         width: 36,
         height: 36,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => _defaultAvatar(),
+        fallbackWidget: _defaultAvatar(),
       );
     }
     return Image.asset(

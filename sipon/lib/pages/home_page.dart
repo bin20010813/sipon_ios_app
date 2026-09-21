@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 
 import '../services/cocktail_recommendation_store.dart';
 import '../services/map/map_models.dart';
-import '../services/sipon_api_config.dart';
 import '../services/sipon_api_models.dart';
 import '../services/sipon_api_service.dart';
 import '../services/sipon_city_controller.dart';
@@ -13,6 +12,7 @@ import '../services/sipon_data_repository.dart';
 import '../widgets/bottom_clamping_bouncing_scroll_physics.dart';
 import '../widgets/map/venue_detail_page.dart';
 import '../widgets/sipon_city_picker.dart';
+import '../widgets/sipon_network_image.dart';
 import 'cocktail_detail_page.dart';
 import 'cocktail_list_page.dart';
 import 'ingredient_list_page.dart';
@@ -1541,13 +1541,13 @@ class _HomeVenueImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final url = imageUrl;
     if (url != null && url.isNotEmpty) {
-      // 后端图片字段是 `/api/bars/{id}/images/{variant}` 相对路径，需拼上 API base。
-      return Image.network(
-        SiponApiConfig.instance.resolveUri(url).toString(),
+      // 后端图片字段是 `/api/bars/{id}/images/{variant}` 相对路径，
+      // SiponNetworkImage 内部会拼上 API base 并走磁盘缓存。
+      return SiponNetworkImage(
+        url: url,
+        fallbackAsset: assetPath,
         width: width,
         height: height,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => _assetImage(),
       );
     }
 
@@ -2129,14 +2129,11 @@ class _CocktailCard extends StatelessWidget {
               AspectRatio(
                 aspectRatio: 0.82,
                 child: (url != null && url.isNotEmpty)
-                    ? Image.network(
-                        url,
-                        fit: BoxFit.cover,
+                    ? SiponNetworkImage(
+                        url: url,
+                        fallbackAsset: item.imagePath,
                         cacheWidth: imageWidth,
                         cacheHeight: imageHeight,
-                        filterQuality: FilterQuality.low,
-                        errorBuilder: (_, _, _) =>
-                            Image.asset(item.imagePath, fit: BoxFit.cover),
                       )
                     : Image.asset(item.imagePath, fit: BoxFit.cover),
               ),
