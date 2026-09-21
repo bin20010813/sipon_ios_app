@@ -71,13 +71,39 @@ Map<String, dynamic>? _pickMapOf(Map<String, dynamic> map, List<String> keys) {
   return null;
 }
 
-/// 读取坐标数值：longitude/lng/lon 或 latitude/lat。
+/// 读取坐标数值：优先平铺 longitude/lng/lon、latitude/lat；
+/// 兼容嵌套 coordinate/center/location 对象，以及 GeoJSON 的
+/// coordinates: [lng, lat]（含 geometry.coordinates）。与地图层的
+/// _readCoordinates 解析口径保持一致，避免站点因坐标形态不同而
+/// 解析失败，导致路线地图无法定位到站点位置。
 double? _pickCoordinate(Map<String, dynamic>? map, {required bool longitude}) {
   if (map == null) return null;
   final keys = longitude
       ? const ['longitude', 'lng', 'lon']
       : const ['latitude', 'lat'];
-  return _pickNum(map, keys)?.toDouble();
+  final direct = _pickNum(map, keys)?.toDouble();
+  if (direct != null) return direct;
+
+  // 嵌套坐标对象：coordinate / center / location。
+  for (final key in const ['coordinate', 'center', 'location']) {
+    final nested = map[key];
+    if (nested is Map) {
+      final value = _pickNum(nested.cast<String, dynamic>(), keys)?.toDouble();
+      if (value != null) return value;
+    }
+  }
+
+  // GeoJSON：coordinates: [lng, lat] 或 geometry: {coordinates: [...]}。
+  final geometry = _pickMapOf(map, ['geometry']);
+  for (final holder in [map, ?geometry]) {
+    final raw = holder['coordinates'];
+    if (raw is List && raw.length >= 2) {
+      final value =
+          _pickNum({'v': raw[longitude ? 0 : 1]}, const ['v'])?.toDouble();
+      if (value != null) return value;
+    }
+  }
+  return null;
 }
 
 /// 解析路线站点列表：优先接口契约里的 stops（酒吧对象数组），

@@ -325,6 +325,7 @@ class _SiponShellState extends State<_SiponShell> {
     if (index == _currentIndex) {
       // 重复点击当前 tab：视为手动刷新。
       if (index == 2) {
+        _profilePageKey.currentState?.refreshProfile();
         _profilePageKey.currentState?.refreshCounts();
       }
       return;
@@ -332,6 +333,7 @@ class _SiponShellState extends State<_SiponShell> {
 
     setState(() => _currentIndex = index);
     if (index == 2) {
+      _profilePageKey.currentState?.refreshProfile();
       _profilePageKey.currentState?.refreshCounts();
     }
   }

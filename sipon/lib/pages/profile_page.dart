@@ -157,6 +157,9 @@ class ProfilePageState extends State<ProfilePage> {
     _quickEntryKey.currentState?._loadCounts();
   }
 
+  /// 切回「我的」页时重新拉取资料，避免后端变更用户 ID 后继续展示旧实例。
+  Future<void> refreshProfile() => _loadProfile();
+
   /// 拉取礼券数量；失败时不显示徽标。
   Future<void> _loadBenefits() async {
     int? couponCount;
@@ -870,13 +873,39 @@ Map<String, dynamic>? _pickMapOf(Map<String, dynamic> map, List<String> keys) {
   return null;
 }
 
-/// 读取坐标数值：longitude/lng/lon 或 latitude/lat。
+/// 读取坐标数值：优先平铺 longitude/lng/lon、latitude/lat；
+/// 兼容嵌套 coordinate/center/location 对象，以及 GeoJSON 的
+/// coordinates: [lng, lat]（含 geometry.coordinates）。与地图层的
+/// _readCoordinates 解析口径保持一致，避免想喝/喝过条目因坐标形态
+/// 不同而解析成 0，导致点击后无法跳转到对应位置。
 double? _pickCoordinate(Map<String, dynamic>? map, {required bool longitude}) {
   if (map == null) return null;
   final keys = longitude
       ? const ['longitude', 'lng', 'lon']
       : const ['latitude', 'lat'];
-  return _pickNum(map, keys)?.toDouble();
+  final direct = _pickNum(map, keys)?.toDouble();
+  if (direct != null) return direct;
+
+  // 嵌套坐标对象：coordinate / center / location。
+  for (final key in const ['coordinate', 'center', 'location']) {
+    final nested = map[key];
+    if (nested is Map) {
+      final value = _pickNum(nested.cast<String, dynamic>(), keys)?.toDouble();
+      if (value != null) return value;
+    }
+  }
+
+  // GeoJSON：coordinates: [lng, lat] 或 geometry: {coordinates: [...]}。
+  final geometry = _pickMapOf(map, ['geometry']);
+  for (final holder in [map, ?geometry]) {
+    final raw = holder['coordinates'];
+    if (raw is List && raw.length >= 2) {
+      final value =
+          _pickNum({'v': raw[longitude ? 0 : 1]}, const ['v'])?.toDouble();
+      if (value != null) return value;
+    }
+  }
+  return null;
 }
 
 /// 从图集/媒体列表里提取第一个 URL：元素可能是字符串或带 url 字段的对象。
@@ -917,8 +946,13 @@ MapVenue _venueFromEntryMap(Map<String, dynamic> map, {required String name}) {
   final bar = nested ?? empty;
   final rawTags = _pickList(map, ['tags']) ?? _pickList(bar, ['tags']);
   return MapVenue(
+    // 注意顺序：顶层 `id` 在心愿单接口里是「心愿记录 id」而不是酒吧 id，
+    // 直接用它调 /api/bars/{id} 会 422（通信传入参数不正确）并显示成别的酒吧。
+    // 必须先取顶层 barId，再取嵌套 bar 对象里的 id，最后才兜底顶层 id。
     id:
-        (_pickNum(map, ['barId', 'id']) ?? _pickNum(bar, ['barId', 'id']))
+        (_pickNum(map, ['barId']) ??
+                _pickNum(bar, ['barId', 'id']) ??
+                _pickNum(map, ['id']))
             ?.toString() ??
         name,
     name: name,
