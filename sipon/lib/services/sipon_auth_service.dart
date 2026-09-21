@@ -157,6 +157,21 @@ class SiponAuthService {
       'displayName': displayName!.trim(),
   });
 
+  // ------------------------------------------------------------ Apple 登录
+
+  /// Apple 登录（POST /api/auth/apple/login）。
+  Future<void> loginWithApple({
+    required String identityToken,
+    String? authorizationCode,
+    String? displayName,
+  }) => _authenticate('/api/auth/apple/login', {
+    'identityToken': identityToken,
+    if (authorizationCode?.trim().isNotEmpty == true)
+      'authorizationCode': authorizationCode!.trim(),
+    if (displayName?.trim().isNotEmpty == true)
+      'displayName': displayName!.trim(),
+  });
+
   Future<dynamic> healthCheck() => _apiClient.getJson('/api/health');
 
   Future<void> logout() async {
