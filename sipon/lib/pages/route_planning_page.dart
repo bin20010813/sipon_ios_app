@@ -190,9 +190,6 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
       newIndex -= 1;
     }
     _invalidatePlanning();
-    if (newIndex > oldIndex) {
-      newIndex -= 1;
-    }
     final items = _routeItems;
     final item = items.removeAt(oldIndex);
     items.insert(newIndex, item);
@@ -493,7 +490,6 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
                                       // 长按拖动手柄后给出震动反馈，提示拖拽已开始。
                                       onReorderStart: (_) =>
                                           HapticFeedback.mediumImpact(),
-                                      onReorder: _reorderRoute,
                                       onReorder: _reorderRoute,
                                       itemBuilder: (context, index) {
                                         final isStart = index == 0;
