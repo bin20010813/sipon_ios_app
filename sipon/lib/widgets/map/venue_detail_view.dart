@@ -100,7 +100,6 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
   String? _loadError;
 
   bool _favorite = false;
-  int _galleryPage = 0;
   int _detailTabIndex = 0;
   _ReviewFilter _reviewFilter = _ReviewFilter.relevant;
   bool _scrollingToTab = false;
@@ -136,7 +135,6 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
       _detail = null;
       _loadError = null;
       _favorite = false;
-      _galleryPage = 0;
       _detailTabIndex = 0;
       _reviews = const [];
       _reviewTotal = 0;
@@ -581,15 +579,15 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
                 opacity: widget.opacity,
                 sliver: SliverMainAxisGroup(
                   slivers: [
-                    SliverToBoxAdapter(child: _buildHero(context)),
                     if (_loadError != null && _detail == null)
                       SliverToBoxAdapter(child: _buildLoadError(context))
                     else ...[
                       SliverToBoxAdapter(child: _buildOverview(context)),
+                      SliverToBoxAdapter(child: _buildHero(context)),
                       SliverToBoxAdapter(
                         child: Padding(
                           key: _tabsKey,
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                          padding: const EdgeInsets.fromLTRB(20, 28, 20, 16),
                           child: _VenueDetailTabs(
                             selectedIndex: _detailTabIndex,
                             onSelected: _scrollToSection,
@@ -688,10 +686,8 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
     );
   }
 
-  /// 沉浸式封面轮播：关闭按钮与页码悬浮在图上，不再单独占一行。
+  /// 横向滚动的照片宫格：每组三张，左侧为 3:4 大图，右侧两张为 4:3 小图。
   Widget _buildHero(BuildContext context) {
-    // 详情数据尚未返回时先展示首页传入的封面；它与首页使用相同 URL，
-    // Flutter 可直接复用正在进行或已经完成的图片缓存请求。
     final images =
         _detail?.gallery ??
         [
@@ -700,106 +696,93 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
             imageUrl: widget.venue.imageUrl ?? widget.venue.imageAsset,
           ),
         ];
-    final showPageBadge = images.length > 1;
-    Widget buildImage(int index) {
+
+    Widget buildImage(
+      int index, {
+      required double width,
+      required double height,
+      required BorderRadius borderRadius,
+    }) {
       final path = images[index].mediumImageUrl;
       final remote = _isRemoteImage(path);
       return GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => _openGalleryPreview(context, images, index),
-        child: VenueImage(
-          imageUrl: remote ? path : null,
-          assetPath: remote ? widget.venue.imageAsset : path,
-          width: double.infinity,
-          height: double.infinity,
+        child: ClipRRect(
+          borderRadius: borderRadius,
+          child: VenueImage(
+            imageUrl: remote ? path : null,
+            assetPath: remote ? widget.venue.imageAsset : path,
+            width: width,
+            height: height,
+          ),
         ),
       );
     }
 
-    return Stack(
-      children: [
-        AspectRatio(
-          aspectRatio: 16 / 9,
-          // 详情尚在加载时只有一张列表封面。即使禁用滚动，单页 PageView
-          // 仍会创建横向手势识别器并抢走垂直拖动，所以单图直接渲染图片。
-          child: images.length == 1
-              ? buildImage(0)
-              : PageView.builder(
-                  itemCount: images.length,
-                  onPageChanged: (index) =>
-                      setState(() => _galleryPage = index),
-                  itemBuilder: (context, index) => buildImage(index),
-                ),
-        ),
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          child: IgnorePointer(
-            child: Container(
-              height: 88,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.42),
-                    Colors.transparent,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gap = 8.0;
+        final contentWidth = constraints.maxWidth - _pagePadding * 2;
+        // 左图宽度为 L 时，整组宽 = L + gap + 4/3 * (4/3 * L - gap) / 2。
+        // 反推 L，让左大图与右侧两张小图恰好铺满内容区，同时保持指定比例。
+        final largeWidth = images.length > 1
+            ? (contentWidth - gap / 3) * 9 / 17
+            : contentWidth.clamp(136.0, 168.0).toDouble();
+        final largeHeight = largeWidth * 4 / 3;
+        final smallHeight = (largeHeight - gap) / 2;
+        final smallWidth = smallHeight * 4 / 3;
+        final groupCount = (images.length / 3).ceil();
+
+        return SizedBox(
+          height: largeHeight,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: _pagePadding),
+            itemCount: groupCount,
+            separatorBuilder: (_, _) => const SizedBox(width: gap),
+            itemBuilder: (context, group) {
+              final firstIndex = group * 3;
+              final remainingImages = images.length - firstIndex - 1;
+              final sideImages = remainingImages < 0
+                  ? 0
+                  : remainingImages > 2
+                  ? 2
+                  : remainingImages;
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  buildImage(
+                    firstIndex,
+                    width: largeWidth,
+                    height: largeHeight,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  if (sideImages > 0) ...[
+                    const SizedBox(width: gap),
+                    SizedBox(
+                      width: smallWidth,
+                      child: Column(
+                        children: [
+                          for (var offset = 1; offset <= sideImages; offset++) ...[
+                            if (offset > 1) const SizedBox(height: gap),
+                            buildImage(
+                              firstIndex + offset,
+                              width: smallWidth,
+                              height: smallHeight,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   ],
-                ),
-              ),
-            ),
+                ],
+              );
+            },
           ),
-        ),
-        Positioned(
-          bottom: 0,
-          left: 0,
-          right: 0,
-          child: IgnorePointer(
-            child: Container(
-              height: 56,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.38),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-        Positioned(
-          top: widget.topInset + 6,
-          right: 12,
-          child: _CircleIconButton(
-            icon: Icons.close_rounded,
-            tooltip: SiponLanguageScope.textOf(context).t('收起地点详情'),
-            onTap: widget.onClose,
-          ),
-        ),
-        if (widget.onMapClose != null)
-          Positioned(
-            top: widget.topInset + 6,
-            left: 12,
-            child: _CircleIconButton(
-              icon: Icons.keyboard_arrow_down_rounded,
-              tooltip: SiponLanguageScope.textOf(context).t('收起地图'),
-              onTap: widget.onMapClose!,
-            ),
-          ),
-        if (showPageBadge)
-          Positioned(
-            right: 14,
-            bottom: 12,
-            child: _GalleryPageBadge(
-              current: _galleryPage + 1,
-              total: images.length,
-            ),
-          ),
-      ],
+        );
+      },
     );
   }
 
@@ -809,7 +792,12 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
     final detail = _detail;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(_pagePadding, 18, _pagePadding, 18),
+      padding: EdgeInsets.fromLTRB(
+        _pagePadding,
+        widget.topInset + 12,
+        _pagePadding,
+        18,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -819,6 +807,7 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
             favorite: _favorite,
             onToggleFavorite: _toggleFavorite,
             onNavigate: _openNavigation,
+            onClose: widget.onClose,
           ),
           const SizedBox(height: 18),
           _VenueInfoCard(
@@ -1004,10 +993,9 @@ class _VenueGalleryPreviewState extends State<_VenueGalleryPreview> {
   }
 }
 
-/// 悬浮在封面上的圆形毛玻璃感按钮。
-class _CircleIconButton extends StatelessWidget {
-  /// 创建圆形按钮。
-  const _CircleIconButton({
+/// 顶部信息区的圆形图标按钮。
+class _HeaderIconButton extends StatelessWidget {
+  const _HeaderIconButton({
     required this.icon,
     required this.tooltip,
     required this.onTap,
@@ -1022,7 +1010,9 @@ class _CircleIconButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: Colors.black.withValues(alpha: 0.32),
+        color: const Color(0xFFF7F3F6),
+        elevation: 3,
+        shadowColor: const Color(0x26000000),
         shape: const CircleBorder(),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -1030,7 +1020,7 @@ class _CircleIconButton extends StatelessWidget {
           child: SizedBox(
             width: 36,
             height: 36,
-            child: Icon(icon, color: Colors.white, size: 20),
+            child: Icon(icon, color: MapDesign.ink, size: 20),
           ),
         ),
       ),
@@ -1148,6 +1138,7 @@ class _VenueTitleBlock extends StatelessWidget {
     required this.favorite,
     required this.onToggleFavorite,
     required this.onNavigate,
+    required this.onClose,
   });
 
   final MapVenue venue;
@@ -1155,6 +1146,7 @@ class _VenueTitleBlock extends StatelessWidget {
   final bool favorite;
   final VoidCallback onToggleFavorite;
   final VoidCallback onNavigate;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -1164,15 +1156,30 @@ class _VenueTitleBlock extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          text.t(venue.name),
-          style: const TextStyle(
-            color: MapDesign.ink,
-            fontSize: 24,
-            height: 1.2,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0,
-          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                text.t(venue.name),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: MapDesign.ink,
+                  fontSize: 24,
+                  height: 1.2,
+                  fontWeight: FontWeight.w400,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            _HeaderIconButton(
+              icon: Icons.close_rounded,
+              tooltip: text.t('收起地点详情'),
+              onTap: onClose,
+            ),
+          ],
         ),
         const SizedBox(height: 10),
         Row(
@@ -1611,7 +1618,7 @@ class _InfoTile extends StatelessWidget {
                       color: MapDesign.ink,
                       fontSize: 13.5,
                       height: 1.35,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w400,
                       letterSpacing: 0,
                     ),
                   ),
