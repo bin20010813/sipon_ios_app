@@ -404,7 +404,7 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
 
     final target = Offset(
       x.abs() < .04 ? 0 : x * 1100,
-      y.abs() < .08 ? 550 : y * 1100,
+      y.abs() < .08 ? 825 : y * 1100,
     );
 
     _filtered = Offset.lerp(_filtered, target, .18)!;
