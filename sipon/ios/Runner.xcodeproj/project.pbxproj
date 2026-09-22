@@ -16,13 +16,13 @@
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
-		B3DE956A5783C9A6306D4F5B /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0F31BC8566899C5B12F22694 /* Pods_RunnerTests.framework */; };
 		AA510001000000000000000A /* SiponMapFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA520001000000000000000A /* SiponMapFactory.swift */; };
 		AA510002000000000000000A /* SiponMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA520002000000000000000A /* SiponMapView.swift */; };
 		AA510003000000000000000A /* SiponMapChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA520003000000000000000A /* SiponMapChannel.swift */; };
 		AA510004000000000000000A /* SiponMapGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA520004000000000000000A /* SiponMapGeometry.swift */; };
 		AA510005000000000000000A /* SiponMapGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA520005000000000000000A /* SiponMapGeometryTests.swift */; };
 		AA510006000000000000000A /* SiponStickerChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA520006000000000000000A /* SiponStickerChannel.swift */; };
+		B3DE956A5783C9A6306D4F5B /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0F31BC8566899C5B12F22694 /* Pods_RunnerTests.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -72,7 +72,6 @@
 		97C146FD1CF9000F007C117D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		CDC176914725CAC646EC5382 /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 		AA520001000000000000000A /* SiponMapFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiponMapFactory.swift; sourceTree = "<group>"; };
 		AA520002000000000000000A /* SiponMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiponMapView.swift; sourceTree = "<group>"; };
 		AA520003000000000000000A /* SiponMapChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiponMapChannel.swift; sourceTree = "<group>"; };
@@ -80,6 +79,7 @@
 		AA520005000000000000000A /* SiponMapGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiponMapGeometryTests.swift; sourceTree = "<group>"; };
 		AA520006000000000000000A /* SiponStickerChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiponStickerChannel.swift; sourceTree = "<group>"; };
 		AA520007000000000000000A /* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
+		CDC176914725CAC646EC5382 /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -171,6 +171,17 @@
 			path = Runner;
 			sourceTree = "<group>";
 		};
+		AA530001000000000000000A /* SiponMap */ = {
+			isa = PBXGroup;
+			children = (
+				AA520001000000000000000A /* SiponMapFactory.swift */,
+				AA520002000000000000000A /* SiponMapView.swift */,
+				AA520003000000000000000A /* SiponMapChannel.swift */,
+				AA520004000000000000000A /* SiponMapGeometry.swift */,
+			);
+			path = SiponMap;
+			sourceTree = "<group>";
+		};
 		C5632078DA64C71B85F4EC60 /* Pods */ = {
 			isa = PBXGroup;
 			children = (
@@ -182,17 +193,6 @@
 				7686E903CB03C4B71B209BA8 /* Pods-RunnerTests.profile.xcconfig */,
 			);
 			path = Pods;
-			sourceTree = "<group>";
-		};
-		AA530001000000000000000A /* SiponMap */ = {
-			isa = PBXGroup;
-			children = (
-				AA520001000000000000000A /* SiponMapFactory.swift */,
-				AA520002000000000000000A /* SiponMapView.swift */,
-				AA520003000000000000000A /* SiponMapChannel.swift */,
-				AA520004000000000000000A /* SiponMapGeometry.swift */,
-			);
-			path = SiponMap;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -514,20 +514,21 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = X276A6B86B;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
-				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = cn.hangzhoutanji.sipon;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -709,20 +710,21 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
-				DEVELOPMENT_TEAM = X276A6B86B;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = X276A6B86B;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
-				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = cn.hangzhoutanji.sipon;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -738,20 +740,21 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = X276A6B86B;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
-				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = cn.hangzhoutanji.sipon;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
