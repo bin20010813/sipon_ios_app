@@ -1,9 +1,40 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:sipon/services/map/map_viewport.dart';
+import 'package:sipon/services/sipon_api_client.dart';
 import 'package:sipon/services/sipon_region_data.dart';
+import 'package:sipon/services/sipon_region_repository.dart';
 
 void main() {
   group('省市内置数据', () {
+    test('接口城市全称不会在热门城市重复展示', () async {
+      final apiClient = SiponApiClient(
+        httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('/api/cities')) {
+            return http.Response(
+              jsonEncode(['广州市', '深圳市', '佛山市']),
+              200,
+            );
+          }
+          return http.Response('[]', 200);
+        }),
+      );
+      final repository = SiponRegionRepository(apiClient: apiClient);
+
+      final groups = await repository.loadGroups();
+      final hotCities = groups.firstWhere(
+        (group) => group.province == '热门城市',
+      );
+      final guangzhou = hotCities.cities
+          .where((city) => city.city == '广州')
+          .toList();
+
+      expect(guangzhou, hasLength(1));
+    });
+
     test('覆盖 34 个省级分组且每组有城市', () {
       expect(siponProvinces.length, 34);
       for (final province in siponProvinces) {

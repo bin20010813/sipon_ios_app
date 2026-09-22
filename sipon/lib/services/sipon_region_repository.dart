@@ -129,22 +129,26 @@ class SiponRegionRepository {
     }
     for (final backendCity in backendCities) {
       final normalized = backendCity.trim();
-      if (normalized.isEmpty || knownNames.contains(normalized)) {
+      if (normalized.isEmpty) {
         continue;
       }
       final entry = siponFindCity(normalized);
       if (entry != null) {
-        knownNames.add(entry.name);
-        // 后端返回了内置表之外的写法（如带“市”后缀）：热门分组里补一行，
-        // 点击后存的仍是内置简称，保证调酒吧接口的 city 参数稳定。
+        // 接口使用“广州市”这类全称，本地使用“广州”这类简称。
+        // 必须按内置城市的规范名去重，避免同一城市重复进入热门列表。
+        if (!knownNames.add(entry.name)) {
+          continue;
+        }
         final provName = siponFindProvinceOfCity(entry.name) ?? '';
         final provEn = siponProvinceEnOfCity(entry.name) ?? provName;
         hotCities.add(toOption(entry, provName, provEn));
         continue;
       }
+      if (!knownNames.add(normalized)) {
+        continue;
+      }
       // 完全未知城市：无坐标，相机落点用省会兜底意义不大，直接用北京坐标
       // 占位并仍然可点，酒吧列表接口按 city 过滤不受坐标影响。
-      knownNames.add(normalized);
       hotCities.add(
         SiponCityOption(
           city: normalized,
