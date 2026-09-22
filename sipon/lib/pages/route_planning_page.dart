@@ -182,9 +182,11 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
 
   List<_BarPlace?> get _routeItems => [_start, ..._stops, _end];
 
-  /// [newIndex] 已由 ReorderableListView.onReorderItem 修正为移除旧项之后
-  /// 的插入下标，这里不再手动减一。
+  /// 向后拖动时，需将 onReorder 的目标下标修正为移除旧项后的插入下标。
   void _reorderRoute(int oldIndex, int newIndex) {
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
     _invalidatePlanning();
     final items = _routeItems;
     final item = items.removeAt(oldIndex);
@@ -486,7 +488,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
                                       // 长按拖动手柄后给出震动反馈，提示拖拽已开始。
                                       onReorderStart: (_) =>
                                           HapticFeedback.mediumImpact(),
-                                      onReorderItem: _reorderRoute,
+                                      onReorder: _reorderRoute,
                                       itemBuilder: (context, index) {
                                         final isStart = index == 0;
                                         final isEnd =
