@@ -71,7 +71,7 @@ class SiponCityButton extends StatelessWidget {
                   style: TextStyle(
                     color: foregroundColor,
                     fontSize: compact ? 12 : 14,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w400,
                     letterSpacing: 0,
                   ),
                 ),
@@ -372,7 +372,7 @@ class _ProvinceTile extends StatelessWidget {
                   ? const Color(0xFF9A3D78)
                   : const Color(0xFF342C34),
               fontSize: 13,
-              fontWeight: selected ? FontWeight.w900 : FontWeight.w600,
+              fontWeight: FontWeight.w400,
               letterSpacing: 0,
             ),
           ),
@@ -410,7 +410,7 @@ class _CurrentCityTag extends StatelessWidget {
             style: const TextStyle(
               color: Color(0xFF9A3D78),
               fontSize: 12,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w400,
               letterSpacing: 0,
             ),
           ),
@@ -626,7 +626,7 @@ class _CityChoiceChip extends StatelessWidget {
             style: TextStyle(
               color: selected ? Colors.white : const Color(0xFF342C34),
               fontSize: 13,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w400,
               letterSpacing: 0,
             ),
           ),

@@ -25,9 +25,13 @@ class VenueMiniMap extends StatefulWidget {
     super.key,
     required this.venue,
     this.onBlankTapped,
+    this.centered = false,
   });
 
   final MapVenue venue;
+
+  /// Center the point inside this map instead of reserving a detail sheet.
+  final bool centered;
 
   /// 点地图空白处（无 marker 命中）时回调，详情页用来收回地图。
   final VoidCallback? onBlankTapped;
@@ -101,8 +105,8 @@ class _VenueMiniMapState extends State<VenueMiniMap> {
     // half 档取景：相机下边距让出下半屏，把聚焦点压回上半屏视觉重心，
     // 与 VenueMapHalfPage 呈现的视角一致。
     await _scene.applyStage(
-      cameraBottomPadding: height * _cameraBottomFraction,
-      ornamentBottomMargin: height * _sheetFraction + 8,
+      cameraBottomPadding: widget.centered ? 0 : height * _cameraBottomFraction,
+      ornamentBottomMargin: widget.centered ? 8 : height * _sheetFraction + 8,
       focus: MapLatLng(longitude: venue.longitude, latitude: venue.latitude),
     );
   }

@@ -268,10 +268,7 @@ class _StickerPathImage extends StatelessWidget {
     final uri = Uri.tryParse(path);
     final imageProvider =
         uri != null && (uri.scheme == 'https' || uri.scheme == 'http')
-        ? CachedNetworkImageProvider(
-            path,
-            headers: siponImageAuthHeaders(path),
-          )
+        ? CachedNetworkImageProvider(path, headers: siponImageAuthHeaders(path))
         : FileImage(File(path)) as ImageProvider;
     return Image(
       image: imageProvider,
@@ -370,10 +367,7 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
     super.dispose();
   }
 
-  bool _idsChanged(
-    List<DrinkBudgetRecord> a,
-    List<DrinkBudgetRecord> b,
-  ) {
+  bool _idsChanged(List<DrinkBudgetRecord> a, List<DrinkBudgetRecord> b) {
     if (a.length != b.length) return true;
     for (var i = 0; i < a.length; i++) {
       if (a[i].id != b[i].id) return true;
@@ -432,7 +426,11 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
     final dt = (elapsed - last).inMicroseconds / 1e6;
     if (dt <= 0) return;
 
-    _physics.step(dt, _bounds);
+    // 两个原步长的子步实现两倍播放速度，并保持碰撞模拟的稳定性。
+    for (var step = 0; step < 2; step++) {
+      _physics.step(dt, _bounds);
+      if (_physics.sleeping) break;
+    }
 
     if (_physics.sleeping) {
       _ticker.stop();

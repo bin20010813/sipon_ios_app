@@ -315,6 +315,7 @@ const Map<String, String> _englishText = {
   '本月': 'This Month',
   '今年': 'This Year',
   '选择年份': 'Select Year',
+  '本年': 'This Year',
   '支出': 'Spend',
   '上个月': 'Previous month',
   '下个月': 'Next month',

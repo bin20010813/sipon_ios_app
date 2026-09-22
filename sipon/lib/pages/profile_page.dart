@@ -18,6 +18,7 @@ import 'profile_edit_page.dart';
 import 'route_detail_map_page.dart';
 import 'venue_map_half_page.dart';
 import 'public_profile_page.dart';
+import 'review_detail_page.dart';
 import 'settings_support_page.dart';
 
 String _formatCurrency(double value) {
@@ -746,6 +747,8 @@ class _ProfileListEntry {
     this.imageUrl,
     this.venue,
     this.isCheckIn = false,
+    this.reviewEntry,
+    this.reviewApi,
     this.city,
     this.visitedDate,
     this.isPrivate = false,
@@ -769,6 +772,8 @@ class _ProfileListEntry {
 
   /// 打卡卡会使用评论标题与地点、时间两行信息布局。
   final bool isCheckIn;
+  final Map<String, dynamic>? reviewEntry;
+  final SiponApiService? reviewApi;
   final String? city;
   final String? visitedDate;
 
@@ -900,8 +905,10 @@ double? _pickCoordinate(Map<String, dynamic>? map, {required bool longitude}) {
   for (final holder in [map, ?geometry]) {
     final raw = holder['coordinates'];
     if (raw is List && raw.length >= 2) {
-      final value =
-          _pickNum({'v': raw[longitude ? 0 : 1]}, const ['v'])?.toDouble();
+      final value = _pickNum(
+        {'v': raw[longitude ? 0 : 1]},
+        const ['v'],
+      )?.toDouble();
       if (value != null) return value;
     }
   }
@@ -1054,6 +1061,8 @@ Future<_ProfileListPage> _loadCheckInEntries(
           description: _pickString(map, ['content']) ?? '',
           meta: meta,
           isCheckIn: true,
+          reviewEntry: map,
+          reviewApi: api,
           city: city.isEmpty ? null : city,
           visitedDate: date.isEmpty ? null : date,
           imageUrl:
@@ -1902,7 +1911,21 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
                     ? () => _toggleSelection(item)
                     : item.venue == null
                     ? null
-                    : () => _openVenueHalfMap(context, item.venue!),
+                    : () {
+                        if (item.isCheckIn && item.reviewEntry != null) {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => ReviewDetailPage(
+                                entry: item.reviewEntry!,
+                                venue: item.venue!,
+                                apiService: item.reviewApi,
+                              ),
+                            ),
+                          );
+                        } else {
+                          _openVenueHalfMap(context, item.venue!);
+                        }
+                      },
               );
       },
     );
@@ -3143,15 +3166,19 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
           : '${date.month}/${date.year}';
     }
 
-    final weekStart = date.subtract(Duration(days: date.weekday - 1));
-    final weekEnd = weekStart.add(const Duration(days: 6));
-    if (text.isZh) {
-      if (weekStart.month == weekEnd.month) {
-        return '${weekStart.year}年${weekStart.month}月${weekStart.day}日至${weekEnd.day}日';
+    if (_period == _BillPeriod.week) {
+      final weekStart = date.subtract(Duration(days: date.weekday - 1));
+      final weekEnd = weekStart.add(const Duration(days: 6));
+      if (text.isZh) {
+        if (weekStart.month == weekEnd.month) {
+          return '${weekStart.year}年${weekStart.month}月${weekStart.day}日至${weekEnd.day}日';
+        }
+        return '${weekStart.year}年${weekStart.month}月${weekStart.day}日至${weekEnd.month}月${weekEnd.day}日';
       }
-      return '${weekStart.year}年${weekStart.month}月${weekStart.day}日至${weekEnd.month}月${weekEnd.day}日';
+      return '${weekStart.month}/${weekStart.day} - ${weekEnd.month}/${weekEnd.day}';
     }
-    return '${weekStart.month}/${weekStart.day} - ${weekEnd.month}/${weekEnd.day}';
+
+    return text.isZh ? '${date.year}年' : '${date.year}';
   }
 
   String _formatDate(DateTime date, SiponAppText text) {
@@ -3221,26 +3248,14 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
     return Map.fromEntries(sorted);
   }
 
-  List<_DayExpense> _dailyExpenses(List<DrinkBudgetRecord> records) {
-    final expenses = <DateTime, double>{};
-    for (final record in records) {
-      final day = DateTime(
-        record.date.year,
-        record.date.month,
-        record.date.day,
-      );
-      expenses.update(
-        day,
-        (value) => value + record.amount,
-        ifAbsent: () => record.amount,
-      );
-    }
-    final days = expenses.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
-    return days
-        .skip(math.max(0, days.length - 7))
-        .map((entry) => _DayExpense(entry.key, entry.value))
-        .toList();
+  int _activeDays(List<DrinkBudgetRecord> records) {
+    return records
+        .map(
+          (record) =>
+              DateTime(record.date.year, record.date.month, record.date.day),
+        )
+        .toSet()
+        .length;
   }
 
   @override
@@ -3365,7 +3380,7 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
                   budget: _store.monthlyBudget,
                   progress: budgetProgress,
                   recordCount: records.length,
-                  activeDays: _dailyExpenses(records).length,
+                  activeDays: _activeDays(records),
                 ),
                 const SizedBox(height: 24),
                 Text(
@@ -3703,13 +3718,15 @@ class _BillDatePickerDialogState extends State<_BillDatePickerDialog> {
   }
 }
 
-enum _BillPeriod { year, month, week }
+enum _BillPeriod { week, month, year }
 
 extension on _BillPeriod {
   String label(SiponAppText text) {
     switch (this) {
       case _BillPeriod.year:
-        return text.t('今年');
+        return text.t('本年');
+      case _BillPeriod.week:
+        return text.t('本周');
       case _BillPeriod.month:
         return text.t('本月');
       case _BillPeriod.week:
@@ -3744,9 +3761,9 @@ class _BillPeriodSelector extends StatelessWidget {
             Expanded(
               child: _BillPeriodOption(
                 label: switch (option) {
-                  _BillPeriod.year => text.t('年'),
-                  _BillPeriod.month => text.t('月'),
                   _BillPeriod.week => text.t('周'),
+                  _BillPeriod.month => text.t('月'),
+                  _BillPeriod.year => text.t('年'),
                 },
                 selected: period == option,
                 onTap: () => onChanged(option),
