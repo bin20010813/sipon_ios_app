@@ -313,6 +313,7 @@ const Map<String, String> _englishText = {
   '当日': 'Today',
   '本周': 'This Week',
   '本月': 'This Month',
+  '本年': 'This Year',
   '支出': 'Spend',
   '上个月': 'Previous month',
   '下个月': 'Next month',
@@ -536,8 +537,7 @@ const Map<String, String> _englishText = {
   '营业时间': 'Opening Hours',
   '补充信息': 'Add info',
   '还没有介绍': 'No intro yet',
-  '写下这里的氛围与特色，帮大家种草':
-      'Describe the vibe and highlights to help others',
+  '写下这里的氛围与特色，帮大家种草': 'Describe the vibe and highlights to help others',
   '还没有动态': 'No updates yet',
   '分享这里的最新活动与消息': 'Share the latest news and events',
   '还没有菜单': 'No menu yet',

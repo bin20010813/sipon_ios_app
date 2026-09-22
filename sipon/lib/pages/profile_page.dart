@@ -3173,10 +3173,7 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
       return '${weekStart.month}/${weekStart.day} - ${weekEnd.month}/${weekEnd.day}';
     }
 
-    if (text.isZh) {
-      return '${date.year}年${date.month}月${date.day}日';
-    }
-    return '${date.month}/${date.day}/${date.year}';
+    return text.isZh ? '${date.year}年' : '${date.year}';
   }
 
   String _formatDate(DateTime date, SiponAppText text) {
@@ -3219,10 +3216,8 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
     final month = DrinkBudgetMonth(_selectedDate.year, _selectedDate.month);
     final records = _store.records.where((record) {
       switch (_period) {
-        case _BillPeriod.day:
-          return record.date.year == dayStart.year &&
-              record.date.month == dayStart.month &&
-              record.date.day == dayStart.day;
+        case _BillPeriod.year:
+          return record.date.year == _selectedDate.year;
         case _BillPeriod.week:
           return !record.date.isBefore(weekStart) &&
               record.date.isBefore(weekEnd);
@@ -3248,26 +3243,14 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
     return Map.fromEntries(sorted);
   }
 
-  List<_DayExpense> _dailyExpenses(List<DrinkBudgetRecord> records) {
-    final expenses = <DateTime, double>{};
-    for (final record in records) {
-      final day = DateTime(
-        record.date.year,
-        record.date.month,
-        record.date.day,
-      );
-      expenses.update(
-        day,
-        (value) => value + record.amount,
-        ifAbsent: () => record.amount,
-      );
-    }
-    final days = expenses.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
-    return days
-        .skip(math.max(0, days.length - 7))
-        .map((entry) => _DayExpense(entry.key, entry.value))
-        .toList();
+  int _activeDays(List<DrinkBudgetRecord> records) {
+    return records
+        .map(
+          (record) =>
+              DateTime(record.date.year, record.date.month, record.date.day),
+        )
+        .toSet()
+        .length;
   }
 
   @override
@@ -3276,7 +3259,6 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
     final records = _recordsForPeriod();
     final total = records.fold<double>(0, (sum, record) => sum + record.amount);
     final categoryExpenses = _categoryExpenses(records);
-    final dailyExpenses = _dailyExpenses(records);
     final budgetProgress = _store.monthlyBudget <= 0
         ? 0.0
         : (total / _store.monthlyBudget).clamp(0.0, 1.0);
@@ -3393,31 +3375,9 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
                   budget: _store.monthlyBudget,
                   progress: budgetProgress,
                   recordCount: records.length,
-                  activeDays: _dailyExpenses(records).length,
+                  activeDays: _activeDays(records),
                 ),
                 const SizedBox(height: 24),
-                Text(
-                  text.t('消费趋势'),
-                  style: const TextStyle(
-                    color: ProfilePage._ink,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  text.t('最近 7 个有消费记录的日期'),
-                  style: const TextStyle(
-                    color: ProfilePage._muted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _BillBarChart(data: dailyExpenses),
-                const SizedBox(height: 26),
                 Text(
                   text.t('消费构成'),
                   style: const TextStyle(
@@ -3468,9 +3428,7 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
                 padding: const EdgeInsets.symmetric(vertical: 42),
                 child: Center(
                   child: Text(
-                    _period == _BillPeriod.day
-                        ? text.t('当天还没有记账记录')
-                        : text.noRecords,
+                    text.noRecords,
                     style: const TextStyle(
                       color: ProfilePage._muted,
                       fontSize: 13,
@@ -3677,13 +3635,13 @@ class _BillDatePickerDialogState extends State<_BillDatePickerDialog> {
   }
 }
 
-enum _BillPeriod { day, week, month }
+enum _BillPeriod { week, month, year }
 
 extension on _BillPeriod {
   String label(SiponAppText text) {
     switch (this) {
-      case _BillPeriod.day:
-        return text.t('当日');
+      case _BillPeriod.year:
+        return text.t('本年');
       case _BillPeriod.week:
         return text.t('本周');
       case _BillPeriod.month:
@@ -3718,9 +3676,9 @@ class _BillPeriodSelector extends StatelessWidget {
             Expanded(
               child: _BillPeriodOption(
                 label: switch (option) {
-                  _BillPeriod.day => text.t('日'),
                   _BillPeriod.week => text.t('周'),
                   _BillPeriod.month => text.t('月'),
+                  _BillPeriod.year => text.t('年'),
                 },
                 selected: period == option,
                 onTap: () => onChanged(option),
@@ -3916,75 +3874,6 @@ class _BillMetric extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _DayExpense {
-  const _DayExpense(this.date, this.amount);
-
-  final DateTime date;
-  final double amount;
-}
-
-class _BillBarChart extends StatelessWidget {
-  const _BillBarChart({required this.data});
-
-  final List<_DayExpense> data;
-
-  @override
-  Widget build(BuildContext context) {
-    if (data.isEmpty) {
-      return const _BillChartEmpty();
-    }
-    final highest = data.fold<double>(
-      0,
-      (value, item) => math.max(value, item.amount),
-    );
-    return SizedBox(
-      height: 156,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          for (final item in data)
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.bottomCenter,
-                        child: Tooltip(
-                          message: _formatCurrency(item.amount),
-                          child: Container(
-                            width: 18,
-                            height: math.max(8, 100 * item.amount / highest),
-                            decoration: BoxDecoration(
-                              color: ProfilePage._brand,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '${item.date.day}',
-                      style: const TextStyle(
-                        color: ProfilePage._muted,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ),
     );
   }
 }
