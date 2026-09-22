@@ -319,7 +319,8 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
   }
 
   /// 把站点以「白色评分胶囊 + 顺序编号 + 圆点」渲染到地图，并按
-  /// 站点顺序请求原生路线规划。原生在路线绘制完成后会自动取景到整条路线。
+  /// 站点顺序请求原生多点连线。原生会先显示直连线，再尝试替换成道路路线，
+  /// 并自动取景到整条路线。
   Future<void> _renderStops() async {
     if (!_scene.isAttached || _stops.isEmpty) return;
     final points = <MapPoint>[];
@@ -358,7 +359,7 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
 
     // 详情页此前只下发 marker，因此即使站点已有坐标也不会有路线折线，
     // 地图仍停留在城市初始视野。这里复用规划页的 MapKit 路线能力；
-    // finishRoute 会根据实际折线的边界自动缩放，涵盖每一段绕行后的范围。
+    // 原生会先按站点顺序连线并取景；方向服务成功后再换成道路折线。
     if (points.length >= 2) {
       await _scene.planRoute(
         points: [

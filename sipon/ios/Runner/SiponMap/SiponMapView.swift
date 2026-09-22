@@ -246,8 +246,8 @@ final class SiponMapEngine: NSObject {
 
   // ------------------------------------------------------------------ 路径规划
 
-  /// flutter 端调用：按站点顺序逐段 MKDirections 规划，把各段折线拼成一条
-  /// 并绘制到地图上，完成后通过 [result] 回调 Bool（成功/失败）。
+  /// flutter 端调用：先按站点顺序直接画出一条多点折线，保证路线立即可见；
+  /// 再逐段使用 MKDirections 规划，并在全部成功后用道路折线替换预览线。
   func planRoute(arguments: Any?, result: @escaping FlutterResult) {
     guard alive, configured else {
       result(false)
@@ -277,6 +277,10 @@ final class SiponMapEngine: NSObject {
     let revision = routeRevision
     pendingRouteResult = result
 
+    // MKPolyline 会按传入顺序连接所有坐标。先显示这条确定可用的预览线，
+    // 避免离线、路网不可达或 Apple 路线服务失败时地图上完全没有连线。
+    drawRoutePolyline(coordinates, animated: true)
+
     planNextLeg(builder: RouteLegBuilder(coordinates: coordinates), revision: revision)
   }
 
@@ -303,12 +307,12 @@ final class SiponMapEngine: NSObject {
       guard self.alive, self.configured, revision == self.routeRevision else { return }
 
       if error != nil {
-        // 单段规划失败（离线/无路网/坐标异常）→ 整体视为失败。
-        self.completeRoutePlanning(false, revision: revision)
+        // 保留已画出的多点预览线；喝酒路线仍可按站点顺序保存和展示。
+        self.completeRoutePlanning(true, revision: revision)
         return
       }
       guard let leg = response?.routes.first?.polyline else {
-        self.completeRoutePlanning(false, revision: revision)
+        self.completeRoutePlanning(true, revision: revision)
         return
       }
       builder.advance(with: leg)
@@ -382,22 +386,34 @@ final class SiponMapEngine: NSObject {
       }
     }
     guard all.count >= 2 else {
-      completeRoutePlanning(false, revision: revision)
+      // 理论上不会发生；即使服务返回了空折线，仍保留最初的多点预览线。
+      completeRoutePlanning(true, revision: revision)
       return
     }
 
     // 只替换屏幕上的旧折线，不调用 cancelRoutePlanning()，否则会把刚完成的
     // 本次规划也作废。
+    drawRoutePolyline(all, animated: false)
+    completeRoutePlanning(true, revision: revision)
+  }
+
+  /// 用坐标数组创建并显示一条多段 MKPolyline。坐标的数组顺序就是连线顺序。
+  private func drawRoutePolyline(
+    _ coordinates: [CLLocationCoordinate2D],
+    animated: Bool
+  ) {
+    guard coordinates.count >= 2 else { return }
+
     clearRouteOverlay()
-    let polyline = MKPolyline(coordinates: &all, count: all.count)
+    var points = coordinates
+    let polyline = MKPolyline(coordinates: &points, count: points.count)
     routeOverlay = polyline
     mapView.addOverlay(polyline, level: .aboveRoads)
     mapView.setVisibleMapRect(
       polyline.boundingMapRect,
       edgePadding: UIEdgeInsets(top: 90, left: 60, bottom: 140, right: 60),
-      animated: true
+      animated: animated
     )
-    completeRoutePlanning(true, revision: revision)
   }
 
   /// 移除已绘制的路线折线。

@@ -272,6 +272,7 @@ class ProfilePageState extends State<ProfilePage> {
                             _ProfileListRow(
                               assetPath: ProfilePage._memberAsset,
                               title: text.membership,
+                              badge: text.membershipLimitedTime,
                               onTap: () => _showMembershipSheet(context),
                             ),
                             _ProfileListRow(
@@ -963,13 +964,15 @@ MapVenue _venueFromEntryMap(Map<String, dynamic> map, {required String name}) {
             ?.toString() ??
         name,
     name: name,
+    // 跳转目标是酒吧 POI：优先使用补齐后的 bar 详情坐标。打卡记录顶层即使
+    // 也存在 location，也可能表示打卡发生位置，不能覆盖酒吧的标准坐标。
     longitude:
-        _pickCoordinate(map, longitude: true) ??
         _pickCoordinate(nested, longitude: true) ??
+        _pickCoordinate(map, longitude: true) ??
         0,
     latitude:
-        _pickCoordinate(map, longitude: false) ??
         _pickCoordinate(nested, longitude: false) ??
+        _pickCoordinate(map, longitude: false) ??
         0,
     kind: MapVenueKind.fromRaw(
       _pickString(map, ['barSubtype', 'subtype', 'kind', 'type']) ??
@@ -1371,14 +1374,38 @@ class _MembershipSheetState extends State<_MembershipSheet> {
               const SizedBox(height: 14),
               Row(
                 children: [
-                  const Expanded(
-                    child: Text(
-                      'Sipon 会员',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF292B32),
-                      ),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        const Text(
+                          'Sipon 会员',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF292B32),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFEDF7),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            '限时',
+                            style: TextStyle(
+                              color: ProfilePage._brand,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   IconButton(

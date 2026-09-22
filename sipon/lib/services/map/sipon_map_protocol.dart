@@ -53,7 +53,7 @@ Map<String, Object?> encodeSetup({
 
 Map<String, Object?> encodeStyle(String styleId) => {'styleId': styleId};
 
-/// `drawRoute` 载荷：按站点顺序传入的经纬度数组，原生用方向服务逐段规划。
+/// `drawRoute` 载荷：按站点顺序传入经纬度数组，原生先直连再尝试道路规划。
 Map<String, Object?> encodeRoutePoints(List<MapLatLng> points) => {
   'points': [
     for (final point in points) {'lat': point.latitude, 'lng': point.longitude},

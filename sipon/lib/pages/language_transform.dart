@@ -159,6 +159,10 @@ class SiponAppText {
   String get confirm => t('确定');
   String get benefits => t('权益');
   String get membership => t('Sipon会员');
+
+  /// 限时会员标识。
+  String get membershipLimitedTime => t('限时');
+
   String get vouchers => t('我的礼券');
   String get vouchersBadge => t('3张可用');
   String get achievements => t('成就勋章');
@@ -336,6 +340,7 @@ const Map<String, String> _englishText = {
   '确定': 'Confirm',
   '权益': 'Benefits',
   'Sipon会员': 'Sipon Membership',
+  '限时': 'Limited time',
   '我的礼券': 'Vouchers',
   '3张可用': '3 available',
   '成就勋章': 'Achievements',

@@ -258,8 +258,8 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
     });
   }
 
-  /// 点击「出发」：按已选站点顺序调用原生路径规划（MKDirections）
-  /// 并在地图上绘制路线折线；规划成功后才允许保存为我的路线。
+  /// 点击「出发」：按已选站点顺序绘制原生多点折线，再尝试用 MKDirections
+  /// 的道路路线替换；折线显示成功后允许保存为我的路线。
   Future<void> _planRoute() async {
     if (_planning) return;
     if (!_scene.isAttached) {
@@ -493,7 +493,6 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
                                       // 长按拖动手柄后给出震动反馈，提示拖拽已开始。
                                       onReorderStart: (_) =>
                                           HapticFeedback.mediumImpact(),
-                                      onReorder: _reorderRoute,
                                       onReorder: _reorderRoute,
                                       itemBuilder: (context, index) {
                                         final isStart = index == 0;

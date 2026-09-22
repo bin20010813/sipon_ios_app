@@ -534,7 +534,7 @@ class _StickerComposer extends StatelessWidget {
         ? text.t('透明贴纸已生成')
         : hasPhoto
         ? text.t('已保留原图')
-        : text.t('先生成一枚贴纸');
+        : text.t('把现在喝的变成贴纸');
     final description = isGenerating
         ? text.t('正在识别饮品主体，通常只需要几秒。')
         : hasSticker

@@ -1572,13 +1572,15 @@ MapVenue _venueFromEntryMap(Map<String, dynamic> map, {required String name}) {
             ?.toString() ??
         name,
     name: name,
+    // 目标是酒吧 POI，优先采用补齐后的 bar 详情坐标；顶层 location 可能是
+    // 打卡位置，仅在详情没有坐标时兜底。
     longitude:
-        _pickCoordinate(map, longitude: true) ??
         _pickCoordinate(nested, longitude: true) ??
+        _pickCoordinate(map, longitude: true) ??
         0,
     latitude:
-        _pickCoordinate(map, longitude: false) ??
         _pickCoordinate(nested, longitude: false) ??
+        _pickCoordinate(map, longitude: false) ??
         0,
     kind: MapVenueKind.fromRaw(
       _pickString(map, ['barSubtype', 'subtype', 'kind', 'type']) ??
