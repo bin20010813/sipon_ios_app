@@ -186,6 +186,9 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
   /// ReorderableListView 的 [newIndex] 是移除旧项前的位置；向后拖动时先减一，
   /// 才是移除后的真实插入下标。站点列表与地图 marker/路线顺序共用此结果。
   void _reorderRoute(int oldIndex, int newIndex) {
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
     _invalidatePlanning();
     if (newIndex > oldIndex) {
       newIndex -= 1;
@@ -490,6 +493,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
                                       // 长按拖动手柄后给出震动反馈，提示拖拽已开始。
                                       onReorderStart: (_) =>
                                           HapticFeedback.mediumImpact(),
+                                      onReorder: _reorderRoute,
                                       onReorder: _reorderRoute,
                                       itemBuilder: (context, index) {
                                         final isStart = index == 0;
