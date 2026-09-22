@@ -438,7 +438,7 @@ class _FilterIconPill extends StatelessWidget {
               ),
               const SizedBox(width: 5),
               Text(
-                active ? parts.join(' · ') : text.t('POI筛选'),
+                active ? parts.join(' · ') : text.t('筛选'),
                 style: TextStyle(
                   color: active ? Colors.white : MapDesign.ink,
                   fontSize: 12,

@@ -283,7 +283,6 @@ class _DrinkStickerCalendarPageState extends State<DrinkStickerCalendarPage> {
                           final records =
                               grouped[day] ?? const <DrinkBudgetRecord>[];
                           return _CalendarDayCell(
-                            day: day,
                             records: records,
                             onTap: records.isEmpty
                                 ? null
@@ -404,12 +403,10 @@ class _SummaryMetric extends StatelessWidget {
 
 class _CalendarDayCell extends StatelessWidget {
   const _CalendarDayCell({
-    required this.day,
     required this.records,
     required this.onTap,
   });
 
-  final int day;
   final List<DrinkBudgetRecord> records;
   final VoidCallback? onTap;
 
@@ -435,21 +432,6 @@ class _CalendarDayCell extends StatelessWidget {
           ),
           child: Column(
             children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '$day',
-                  style: TextStyle(
-                    color: records.isEmpty
-                        ? _DrinkStickerCalendarPageState._muted
-                        : _DrinkStickerCalendarPageState._ink,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 2),
               Expanded(
                 child: records.isEmpty
                     ? const SizedBox.shrink()

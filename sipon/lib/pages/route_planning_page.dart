@@ -158,6 +158,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
               longitude: places[index].longitude,
               latitude: places[index].latitude,
               kind: places[index].kind,
+              rating: places[index].rating,
               sequence: index + 1,
             ),
         ],
@@ -182,10 +183,13 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
 
   List<_BarPlace?> get _routeItems => [_start, ..._stops, _end];
 
-  /// [newIndex] 已由 ReorderableListView.onReorderItem 修正为移除旧项之后
-  /// 的插入下标，这里不再手动减一。
+  /// ReorderableListView 的 [newIndex] 是移除旧项前的位置；向后拖动时先减一，
+  /// 才是移除后的真实插入下标。站点列表与地图 marker/路线顺序共用此结果。
   void _reorderRoute(int oldIndex, int newIndex) {
     _invalidatePlanning();
+    if (newIndex > oldIndex) {
+      newIndex -= 1;
+    }
     final items = _routeItems;
     final item = items.removeAt(oldIndex);
     items.insert(newIndex, item);
@@ -486,7 +490,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
                                       // 长按拖动手柄后给出震动反馈，提示拖拽已开始。
                                       onReorderStart: (_) =>
                                           HapticFeedback.mediumImpact(),
-                                      onReorderItem: _reorderRoute,
+                                      onReorder: _reorderRoute,
                                       itemBuilder: (context, index) {
                                         final isStart = index == 0;
                                         final isEnd =
@@ -670,6 +674,7 @@ class _BarPlace {
     this.latitude,
     this.kind, {
     this.barId,
+    this.rating,
   });
   final String name;
   final String address;
@@ -680,6 +685,7 @@ class _BarPlace {
 
   /// 后端酒吧 id；为 null 的是演示数据，不能用于保存路线。
   final int? barId;
+  final double? rating;
 
   /// 从 getNearbyBars 响应解析；缺关键字段（id/名称/坐标）时返回 null。
   static _BarPlace? tryParse(Map<String, dynamic> map) {
@@ -694,6 +700,11 @@ class _BarPlace {
       return null;
     }
     final meters = (map['distanceMeters'] as num?)?.toDouble();
+    final rawRating =
+        (map['averageRating'] as num?)?.toDouble() ??
+        (map['rating'] as num?)?.toDouble() ??
+        double.tryParse(map['averageRating']?.toString() ?? '') ??
+        double.tryParse(map['rating']?.toString() ?? '');
     return _BarPlace(
       name,
       map['address']?.toString() ?? '',
@@ -708,6 +719,9 @@ class _BarPlace {
         map['barSubtype']?.toString() ?? map['subtype']?.toString(),
       ),
       barId: id,
+      rating: rawRating != null && rawRating.isFinite && rawRating > 0
+          ? rawRating
+          : null,
     );
   }
 }

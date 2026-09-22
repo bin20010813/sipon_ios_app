@@ -72,7 +72,7 @@ class _MapPoiFilterSheetState extends State<MapPoiFilterSheet> {
             children: [
               Expanded(
                 child: Text(
-                  text.t('POI筛选'),
+                  text.t('筛选'),
                   style: const TextStyle(
                     color: MapDesign.ink,
                     fontSize: 20,

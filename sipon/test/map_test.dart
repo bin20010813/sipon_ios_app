@@ -362,6 +362,18 @@ void main() {
       await controller.syncViewport(_shifted(0, zoom: 5));
       expect(controller.circlePoints, hasLength(300));
       expect(controller.markerVenues, hasLength(mapMarkerLabelLimitForZoom(5)));
+
+      controller.selectVenue('venue-299');
+      expect(
+        controller.markerVenues,
+        hasLength(mapMarkerLabelLimitForZoom(5)),
+        reason: '选中 POI 替换抽样末项，不增加胶囊总数',
+      );
+      expect(
+        controller.markerVenues.map((venue) => venue.id),
+        contains('venue-299'),
+        reason: '选中 POI 必须保留胶囊，原地显示颜色高亮',
+      );
     });
 
     test('圆点带上 venueId，点击才能反查是哪家酒吧', () async {

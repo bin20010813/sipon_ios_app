@@ -138,9 +138,30 @@ class MapDataController extends ChangeNotifier {
     return venues;
   }
 
-  /// 要画文字标签的那一批（按当前缩放抽样）。
-  List<MapVenue> get markerVenues =>
-      sampleVenuesForMarkers(visibleVenues, zoom: _zoom);
+  /// 要画胶囊标签的那一批（按当前缩放抽样）。当前选中的 POI 必须保留在
+  /// 抽样结果里，才能原地显示胶囊高亮；若它原本未被抽中，则替换最后一项，
+  /// 不增加当前缩放档位的 marker 总数。
+  List<MapVenue> get markerVenues {
+    final visible = visibleVenues;
+    final sampled = sampleVenuesForMarkers(visible, zoom: _zoom);
+    final selectedId = _selectedVenueId;
+    if (selectedId == null || sampled.any((venue) => venue.id == selectedId)) {
+      return sampled;
+    }
+
+    MapVenue? selected;
+    for (final venue in visible) {
+      if (venue.id == selectedId) {
+        selected = venue;
+        break;
+      }
+    }
+    if (selected == null || sampled.isEmpty) {
+      return sampled;
+    }
+
+    return [...sampled.take(sampled.length - 1), selected];
+  }
 
   MapVenue? get selectedVenue {
     final id = _selectedVenueId;

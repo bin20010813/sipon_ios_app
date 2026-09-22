@@ -608,7 +608,7 @@ const Map<String, String> _englishText = {
   '鸡尾酒': 'Cocktail',
   '选择酒吧': 'Choose Bar',
   '地图工具': 'Map Tools',
-  'POI筛选': 'POI Filters',
+  '筛选': 'POI Filters',
   '可与酒吧类型同时筛选': 'Combine with bar type filters',
   '人均价格': 'Average spend',
   '最低评分': 'Minimum rating',

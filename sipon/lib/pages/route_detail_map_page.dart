@@ -18,6 +18,7 @@ class RouteStop {
     this.latitude,
     this.city,
     this.kind = MapVenueKind.pub,
+    this.rating,
   });
 
   final int? id;
@@ -27,6 +28,7 @@ class RouteStop {
   final double? latitude;
   final String? city;
   final MapVenueKind kind;
+  final double? rating;
 }
 
 /// 从 map 里按候选键读取非空字符串。
@@ -51,6 +53,18 @@ num? _pickNum(Map<String, dynamic> map, List<String> keys) {
     }
   }
   return null;
+}
+
+double? _pickRating(Map<String, dynamic>? map) {
+  if (map == null) return null;
+  final value = _pickNum(map, const [
+    'averageRating',
+    'average_rating',
+    'rating',
+    'score',
+    'star',
+  ])?.toDouble();
+  return value != null && value.isFinite && value > 0 ? value : null;
 }
 
 /// 从 map 里按候选键读取第一个非空列表（用于站点解析时优先真实数据）。
@@ -98,8 +112,10 @@ double? _pickCoordinate(Map<String, dynamic>? map, {required bool longitude}) {
   for (final holder in [map, ?geometry]) {
     final raw = holder['coordinates'];
     if (raw is List && raw.length >= 2) {
-      final value =
-          _pickNum({'v': raw[longitude ? 0 : 1]}, const ['v'])?.toDouble();
+      final value = _pickNum(
+        {'v': raw[longitude ? 0 : 1]},
+        const ['v'],
+      )?.toDouble();
       if (value != null) return value;
     }
   }
@@ -147,6 +163,7 @@ List<RouteStop> parseRouteStops(Map<String, dynamic> map) {
             _pickString(stopMap, ['barSubtype', 'subtype']) ??
                 _pickString(nested ?? empty, ['barSubtype', 'subtype']),
           ),
+          rating: _pickRating(stopMap) ?? _pickRating(nested),
         ),
       );
     } else if (stop is num) {
@@ -280,6 +297,7 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
       latitude: _pickCoordinate(bar, longitude: false) ?? stop.latitude,
       city: _pickString(bar, ['city']) ?? stop.city,
       kind: MapVenueKind.fromRaw(_pickString(bar, ['barSubtype', 'subtype'])),
+      rating: stop.rating ?? _pickRating(bar),
     );
   }
 
@@ -300,7 +318,7 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
     return '上海';
   }
 
-  /// 把站点以「分类图标 + 顺序编号 marker + 圆点」渲染到地图，并按
+  /// 把站点以「白色评分胶囊 + 顺序编号 + 圆点」渲染到地图，并按
   /// 站点顺序请求原生路线规划。原生在路线绘制完成后会自动取景到整条路线。
   Future<void> _renderStops() async {
     if (!_scene.isAttached || _stops.isEmpty) return;
@@ -311,6 +329,7 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
       final longitude = stop.longitude;
       final latitude = stop.latitude;
       if (longitude == null || latitude == null) continue;
+      final sequence = points.length + 1;
       points.add(
         MapPoint(
           id: 'route-stop-$index-${stop.id ?? index}',
@@ -329,7 +348,8 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
           longitude: longitude,
           latitude: latitude,
           kind: stop.kind,
-          sequence: index + 1,
+          rating: stop.rating,
+          sequence: sequence,
         ),
       );
     }

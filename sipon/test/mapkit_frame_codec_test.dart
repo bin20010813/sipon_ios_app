@@ -34,6 +34,7 @@ MapSceneFrame _frameWith({
   MapVenueKind kind = MapVenueKind.pub,
   String? venueId = 'v1',
   String label = '庙前冰室',
+  double? rating,
   int? sequence,
   MapPoint? selected,
 }) {
@@ -53,6 +54,7 @@ MapSceneFrame _frameWith({
         longitude: longitude,
         latitude: latitude,
         kind: kind,
+        rating: rating,
         sequence: sequence,
       ),
     ],
@@ -200,6 +202,17 @@ void main() {
 
       expect((payload['markers']! as List).single, isNot(contains('rating')));
     });
+
+    test('路线胶囊同时下发顺序编号与评分', () {
+      final payload = encodeRenderFrame(
+        _frameWith(sequence: 3, rating: 4.7),
+        zoom: 15,
+      );
+      final marker = (payload['markers']! as List).single as Map;
+
+      expect(marker['sequence'], 3);
+      expect(marker['rating'], 4.7);
+    });
   });
 
   group('parseViewportPayload', () {
@@ -297,6 +310,20 @@ void main() {
       expect(payload['lng'], 116.4074);
       expect(payload.containsKey('lon'), isFalse);
       expect(payload['lat'], 39.9042);
+    });
+
+    test('路线坐标严格保留酒吧站点顺序', () {
+      final payload = encodeRoutePoints(const [
+        MapLatLng(longitude: 121.1, latitude: 31.1),
+        MapLatLng(longitude: 121.3, latitude: 31.3),
+        MapLatLng(longitude: 121.2, latitude: 31.2),
+      ]);
+
+      expect(payload['points'], [
+        {'lat': 31.1, 'lng': 121.1},
+        {'lat': 31.3, 'lng': 121.3},
+        {'lat': 31.2, 'lng': 121.2},
+      ]);
     });
 
     test('面板拖动指令携带选中 POI 坐标作为相机锚点', () {
