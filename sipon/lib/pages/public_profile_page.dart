@@ -11,6 +11,7 @@ import '../widgets/sipon_network_image.dart';
 import 'drink_sticker_calendar_page.dart';
 import 'route_detail_map_page.dart';
 import 'venue_map_half_page.dart';
+import 'review_detail_page.dart';
 
 /// 用户公开主页：
 /// - 顶部不设「用户主页」标题，头像 + 资料卡即页头；
@@ -123,7 +124,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
 
     final moments = <_Moment>[
       for (final item in checkIns)
-        ..._momentsFromCheckIn(item.cast<String, dynamic>()),
+        ..._momentsFromCheckIn(item.cast<String, dynamic>(), author: _profile),
       for (final item in wishes)
         ?_momentFromWishlist(item.cast<String, dynamic>()),
       for (final item in routes)
@@ -838,6 +839,18 @@ class _MomentCard extends StatelessWidget {
           _MomentKind.route =>
             moment.routeId == null ? null : () => onOpenRoute(moment),
           _MomentKind.drink => onOpenDrinkCalendar,
+          _MomentKind.checkIn || _MomentKind.review =>
+            moment.venue == null || moment.reviewEntry == null
+                ? null
+                : () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => ReviewDetailPage(
+                        entry: moment.reviewEntry!,
+                        venue: moment.venue!,
+                        author: moment.author,
+                      ),
+                    ),
+                  ),
           _ => moment.venue == null ? null : () => onOpenVenue(moment.venue!),
         },
         child: switch (moment.kind) {
@@ -1302,6 +1315,8 @@ class _Moment {
     this.imageUrl,
     this.venue,
     this.routeId,
+    this.reviewEntry,
+    this.author,
     this.stops = const [],
     this.isPrivate = false,
     this.cups = 0,
@@ -1315,6 +1330,8 @@ class _Moment {
   final String? imageUrl;
   final MapVenue? venue;
   final int? routeId;
+  final Map<String, dynamic>? reviewEntry;
+  final UserProfileData? author;
   final List<RouteStop> stops;
   final bool isPrivate;
   final int cups;
@@ -1337,7 +1354,10 @@ DateTime? _parseTime(Map<String, dynamic> map, List<String> keys) {
 }
 
 /// 一条打卡可能产出两张卡：打卡卡本身 + 打卡时写的文字点评卡。
-List<_Moment> _momentsFromCheckIn(Map<String, dynamic> map) {
+List<_Moment> _momentsFromCheckIn(
+  Map<String, dynamic> map, {
+  UserProfileData? author,
+}) {
   final name = _pickString(map, ['barName', 'name', 'barTitle']);
   if (name == null) return const [];
   final time = _parseTime(map, ['visitedAt', 'createdAt']);
@@ -1351,6 +1371,8 @@ List<_Moment> _momentsFromCheckIn(Map<String, dynamic> map) {
     // 打卡卡副文只放城市，日期由卡片底部时间展示，避免重复。
     _Moment(
       kind: _MomentKind.checkIn,
+      reviewEntry: map,
+      author: author,
       title: name,
       time: time,
       subtitle: city,
@@ -1360,6 +1382,8 @@ List<_Moment> _momentsFromCheckIn(Map<String, dynamic> map) {
     if (content.isNotEmpty)
       _Moment(
         kind: _MomentKind.review,
+        reviewEntry: map,
+        author: author,
         title: name,
         time: time,
         subtitle: content,
@@ -1497,8 +1521,10 @@ double? _pickCoordinate(Map<String, dynamic>? map, {required bool longitude}) {
   for (final holder in [map, ?geometry]) {
     final raw = holder['coordinates'];
     if (raw is List && raw.length >= 2) {
-      final value =
-          _pickNum({'v': raw[longitude ? 0 : 1]}, const ['v'])?.toDouble();
+      final value = _pickNum(
+        {'v': raw[longitude ? 0 : 1]},
+        const ['v'],
+      )?.toDouble();
       if (value != null) return value;
     }
   }

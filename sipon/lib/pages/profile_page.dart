@@ -18,6 +18,7 @@ import 'profile_edit_page.dart';
 import 'route_detail_map_page.dart';
 import 'venue_map_half_page.dart';
 import 'public_profile_page.dart';
+import 'review_detail_page.dart';
 import 'settings_support_page.dart';
 
 String _formatCurrency(double value) {
@@ -746,6 +747,8 @@ class _ProfileListEntry {
     this.imageUrl,
     this.venue,
     this.isCheckIn = false,
+    this.reviewEntry,
+    this.reviewApi,
     this.city,
     this.visitedDate,
     this.isPrivate = false,
@@ -769,6 +772,8 @@ class _ProfileListEntry {
 
   /// 打卡卡会使用评论标题与地点、时间两行信息布局。
   final bool isCheckIn;
+  final Map<String, dynamic>? reviewEntry;
+  final SiponApiService? reviewApi;
   final String? city;
   final String? visitedDate;
 
@@ -900,8 +905,10 @@ double? _pickCoordinate(Map<String, dynamic>? map, {required bool longitude}) {
   for (final holder in [map, ?geometry]) {
     final raw = holder['coordinates'];
     if (raw is List && raw.length >= 2) {
-      final value =
-          _pickNum({'v': raw[longitude ? 0 : 1]}, const ['v'])?.toDouble();
+      final value = _pickNum(
+        {'v': raw[longitude ? 0 : 1]},
+        const ['v'],
+      )?.toDouble();
       if (value != null) return value;
     }
   }
@@ -1054,6 +1061,8 @@ Future<_ProfileListPage> _loadCheckInEntries(
           description: _pickString(map, ['content']) ?? '',
           meta: meta,
           isCheckIn: true,
+          reviewEntry: map,
+          reviewApi: api,
           city: city.isEmpty ? null : city,
           visitedDate: date.isEmpty ? null : date,
           imageUrl:
@@ -1902,7 +1911,21 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
                     ? () => _toggleSelection(item)
                     : item.venue == null
                     ? null
-                    : () => _openVenueHalfMap(context, item.venue!),
+                    : () {
+                        if (item.isCheckIn && item.reviewEntry != null) {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => ReviewDetailPage(
+                                entry: item.reviewEntry!,
+                                venue: item.venue!,
+                                apiService: item.reviewApi,
+                              ),
+                            ),
+                          );
+                        } else {
+                          _openVenueHalfMap(context, item.venue!);
+                        }
+                      },
               );
       },
     );
