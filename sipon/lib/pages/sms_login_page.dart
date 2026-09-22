@@ -1,7 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart'
-    show TargetPlatform, defaultTargetPlatform;
+    show TargetPlatform, debugPrint, debugPrintStack, defaultTargetPlatform;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
@@ -203,9 +204,14 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
       );
       final identityToken = credential.identityToken;
       if (identityToken == null || identityToken.isEmpty) {
+        debugPrint(
+          'Apple Sign-In returned no identity token. '
+          'authorizationCodePresent=${credential.authorizationCode.isNotEmpty}',
+        );
         if (mounted) _showMessage(text.t('Apple 登录失败，请重试'));
         return;
       }
+      _logAppleIdentityTokenMetadata(identityToken);
       await _authService.loginWithApple(
         identityToken: identityToken,
         authorizationCode: credential.authorizationCode,
@@ -216,14 +222,62 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
     } on SignInWithAppleAuthorizationException catch (error) {
       // 用户主动取消属于正常流程，不提示错误。
       if (error.code == AuthorizationErrorCode.canceled) return;
+      debugPrint(
+        'Apple Sign-In authorization failed: '
+        'code=${error.code.name}, message=${error.message}',
+      );
+      if (mounted) {
+        _showMessage(
+          '${text.t('Apple 登录失败，请重试')} (${error.code.name})',
+        );
+      }
+    } on SignInWithAppleException catch (error) {
+      debugPrint(
+        'Apple Sign-In plugin failed: '
+        'type=${error.runtimeType}, error=$error',
+      );
       if (mounted) _showMessage(text.t('Apple 登录失败，请重试'));
-    } on SignInWithAppleException {
-      // 其它已知插件异常（不支持、凭据错误等），统一提示。
-      if (mounted) _showMessage(text.t('Apple 登录失败，请重试'));
-    } catch (error) {
+    } on SiponApiException catch (error) {
+      debugPrint(
+        'Apple Sign-In API failed: status=${error.statusCode}, '
+        'code=${error.code}, requestId=${error.requestId}, '
+        'message=${error.message}',
+      );
+      if (mounted) _showMessage(_errorMessage(error));
+    } catch (error, stackTrace) {
+      debugPrint('Apple Sign-In failed unexpectedly: $error');
+      debugPrintStack(stackTrace: stackTrace);
       if (mounted) _showMessage(_errorMessage(error));
     } finally {
       if (mounted) setState(() => _appleSubmitting = false);
+    }
+  }
+
+  /// 只记录排查校验所需的 JWT 声明，不记录 token、subject 或邮箱。
+  void _logAppleIdentityTokenMetadata(String identityToken) {
+    try {
+      final segments = identityToken.split('.');
+      if (segments.length != 3) {
+        debugPrint(
+          'Apple Sign-In returned a malformed identity token: '
+          'segmentCount=${segments.length}',
+        );
+        return;
+      }
+      final payload = jsonDecode(
+        utf8.decode(base64Url.decode(base64Url.normalize(segments[1]))),
+      );
+      if (payload is! Map) {
+        debugPrint('Apple Sign-In identity token payload is not an object.');
+        return;
+      }
+      debugPrint(
+        'Apple Sign-In identity token received: '
+        'issuer=${payload['iss']}, audience=${payload['aud']}, '
+        'expiresAt=${payload['exp']}',
+      );
+    } on FormatException catch (error) {
+      debugPrint('Apple Sign-In identity token cannot be decoded: $error');
     }
   }
 

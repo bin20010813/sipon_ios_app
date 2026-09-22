@@ -18,7 +18,7 @@ double stickerSizeForAmount(double amount) {
 /// - 重力方向改变或外部扰动时调用 [wake] 重新唤醒。
 class StickerPhysics {
   StickerPhysics({
-    this.gravity = const Offset(0, 550),
+    this.gravity = const Offset(0, 825),
     this.damping = 0.86,
     this.wallRestitution = 0.34,
     this.floorRestitution = 0.26,

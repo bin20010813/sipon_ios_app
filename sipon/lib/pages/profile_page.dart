@@ -3146,6 +3146,7 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
       builder: (_) => _BillDatePickerDialog(
         initialDate: _selectedDate,
         records: _store.records,
+        period: _period,
       ),
     );
     if (selected != null && mounted) {
@@ -3155,6 +3156,10 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
 
   String _formatSelectedDate(SiponAppText text) {
     final date = _selectedDate;
+    if (_period == _BillPeriod.year) {
+      return text.isZh ? '${date.year}年' : '${date.year}';
+    }
+
     if (_period == _BillPeriod.month) {
       return text.isZh
           ? '${date.year}年${date.month}月'
@@ -3469,10 +3474,12 @@ class _BillDatePickerDialog extends StatefulWidget {
   const _BillDatePickerDialog({
     required this.initialDate,
     required this.records,
+    this.period = _BillPeriod.month,
   });
 
   final DateTime initialDate;
   final List<DrinkBudgetRecord> records;
+  final _BillPeriod period;
 
   @override
   State<_BillDatePickerDialog> createState() => _BillDatePickerDialogState();
@@ -3506,9 +3513,85 @@ class _BillDatePickerDialogState extends State<_BillDatePickerDialog> {
     setState(() => _month = next);
   }
 
+  Widget _buildYearPicker(SiponAppText text) {
+    final now = DateTime.now();
+    final years = [
+      for (var year = now.year; year >= now.year - 11; year--) year,
+    ];
+    return AlertDialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      contentPadding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
+      content: SizedBox(
+        width: 320,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              text.t('选择年份'),
+              style: const TextStyle(
+                color: ProfilePage._ink,
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0,
+              ),
+            ),
+            const SizedBox(height: 12),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: years.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                mainAxisExtent: 48,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+              ),
+              itemBuilder: (_, index) {
+                final year = years[index];
+                final selected = year == widget.initialDate.year;
+                return InkWell(
+                  onTap: () => Navigator.of(context).pop(DateTime(year)),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? ProfilePage._brand
+                          : const Color(0xFFF5F0F4),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '$year',
+                      style: TextStyle(
+                        color: selected ? Colors.white : ProfilePage._ink,
+                        fontSize: 14,
+                        fontWeight: selected
+                            ? FontWeight.w900
+                            : FontWeight.w600,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(text.cancel),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    if (widget.period == _BillPeriod.year) {
+      return _buildYearPicker(text);
+    }
     final firstWeekday = DateTime(_month.year, _month.month, 1).weekday;
     final days = DateUtils.getDaysInMonth(_month.year, _month.month);
     return AlertDialog(
@@ -3646,6 +3729,8 @@ extension on _BillPeriod {
         return text.t('本周');
       case _BillPeriod.month:
         return text.t('本月');
+      case _BillPeriod.week:
+        return text.t('本周');
     }
   }
 }
@@ -3876,6 +3961,13 @@ class _BillMetric extends StatelessWidget {
       ],
     );
   }
+}
+
+class _DayExpense {
+  const _DayExpense(this.date, this.amount);
+
+  final DateTime date;
+  final double amount;
 }
 
 class _BillCategoryChart extends StatelessWidget {
