@@ -190,9 +190,6 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
       newIndex -= 1;
     }
     _invalidatePlanning();
-    if (newIndex > oldIndex) {
-      newIndex -= 1;
-    }
     final items = _routeItems;
     final item = items.removeAt(oldIndex);
     items.insert(newIndex, item);
