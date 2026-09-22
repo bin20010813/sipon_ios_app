@@ -50,7 +50,7 @@ enum SiponMapGeometry {
   }
 
   /// MKMapCamera.fromDistance 的近似值：zoom 隐含的地面高度按视口高折算。
-  /// 透视俯仰会让真实可见范围略大于该值，属于可感知但可接受的近似（决策 D3 同级）。
+  /// 当前地图固定为 2D 俯视，因此可直接按视口高度近似换算。
   static func cameraDistance(lat: Double, zoom: Double, viewportHeight: CGFloat) -> Double {
     let mpp = metersPerPixel(lat: lat, zoom: zoom)
     let height = viewportHeight > 0 ? Double(viewportHeight) : 400
@@ -60,8 +60,8 @@ enum SiponMapGeometry {
   /// 相机距离 → zoom（[cameraDistance] 的逆运算），读视野时用它反算缩放。
   ///
   /// **不要用 `region.span` 反推 zoom。** `region` 是「透视 + 旋转之后」的外接
-  /// 矩形：相机带 pitch 24 / heading -12 时（进页与「聚焦城区」都是这个姿态），
-  /// 它的跨度比真实可见跨度大约 1.4 倍，反推出的 zoom 系统性偏低半档以上。
+  /// 矩形：地图旋转后它仍是可见区域的外接矩形，跨度会比真实横向跨度更大，
+  /// 因此依旧不能用它反推 zoom。
   /// 这样相机距离与命令下发口径保持一致。
   /// [cameraDistance] 本身不受俯仰与朝向影响，用它反算与命令下发口径自洽。
   ///
@@ -94,7 +94,9 @@ enum SiponMapGeometry {
     guard mpp.isFinite, mpp > 0 else {
       return CLLocationCoordinate2D(latitude: lat, longitude: lng)
     }
-    let deltaLat = bottomPx * mpp / 111_320.0
+    // 原始视口中心在 H/2，扣除底部 P 后的可见中心在 (H-P)/2，
+    // 因此目标点只需上移 P/2，而不是整份 P。
+    let deltaLat = bottomPx * 0.5 * mpp / 111_320.0
     return CLLocationCoordinate2D(latitude: lat - deltaLat, longitude: lng)
   }
 

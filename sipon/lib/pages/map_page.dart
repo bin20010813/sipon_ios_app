@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../services/map/map_data_controller.dart';
-import '../services/map/map_display_options.dart';
 import '../services/map/map_models.dart';
 import '../services/map/map_scene_controller.dart';
 import '../services/map/map_venue_repository.dart';
@@ -64,6 +63,7 @@ class _MapPageState extends State<MapPage> {
   DateTime? _lastExtentLogAt;
   VenueSheetStage? _lastLoggedStage;
   String _mapDiagnosticName = 'pending';
+  bool _sheetCameraUpdateScheduled = false;
 
   void _logMapMotion(String event, String details) {
     if (!kDebugMode) return;
@@ -193,6 +193,31 @@ class _MapPageState extends State<MapPage> {
     widget.onSheetProgressChanged?.call(
       _sheet.progressFor(_sheet.currentExtent),
     );
+    _scheduleSheetCameraFollow();
+  }
+
+  /// DraggableScrollableSheet 可能在一帧里连续发多次通知。这里合并到帧末，
+  /// 既让相机逐帧跟住面板，又避免平台通道堆积重复的中间值。
+  void _scheduleSheetCameraFollow() {
+    if (_sheetCameraUpdateScheduled || !mounted || !_scene.isAttached) return;
+    _sheetCameraUpdateScheduled = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _sheetCameraUpdateScheduled = false;
+      if (!mounted || !_scene.isAttached) return;
+
+      final venue = _data.selectedVenue;
+      if (venue == null) return;
+      unawaited(
+        _scene.followSelectionForSheet(
+          cameraBottomPadding: _sheet.cameraBottomPadding,
+          focus: MapLatLng(
+            longitude: venue.longitude,
+            latitude: venue.latitude,
+          ),
+        ),
+      );
+    });
   }
 
   /// 把当前数据整帧交给地图。[MapSceneController] 自己比指纹决定要不要真下发。
@@ -214,6 +239,7 @@ class _MapPageState extends State<MapPage> {
               longitude: venue.longitude,
               latitude: venue.latitude,
               kind: venue.kind,
+              rating: venue.hasRating ? venue.rating : null,
             ),
         ],
         selected: _data.selectedPoint,
@@ -287,26 +313,13 @@ class _MapPageState extends State<MapPage> {
     unawaited(_applyStage());
   }
 
-  // ------------------------------------------------------------------ 工具面板
+  // --------------------------------------------------------------- POI 筛选
 
-  Future<void> _handleStyleChanged(MapBaseStyle style) async {
-    if (style == _data.style) {
-      return;
-    }
-
-    _data.setStyle(style);
-    await _scene.setStyle(style);
-  }
-
-  /// 「回到总览」：拉回当前城市的默认缩放。原来这里写死的是上海中心。
-  Future<void> _handleResetCamera() =>
-      _scene.flyToCity(_data.city, zoom: MapSceneController.defaultZoom);
-
-  /// 「聚焦城区」与右下角定位按钮：城市级视野。
+  /// 右下角定位按钮：回到当前城市的城市级视野。
   Future<void> _handleFocusDowntown() =>
       _scene.flyToCity(_data.city, zoom: MapSceneController.cityZoom);
 
-  Future<void> _showMapTools() async {
+  Future<void> _showPoiFilters() async {
     await showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
@@ -315,22 +328,10 @@ class _MapPageState extends State<MapPage> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (context) {
-        // 弹窗内也监听数据：原来它拿的是打开那一刻的快照，切完样式看不出选中变化。
-        return ListenableBuilder(
-          listenable: _data,
-          builder: (context, _) => MapToolsSheet(
-            currentStyle: _data.style,
-            status: _data.status,
-            visibleCount: _data.visibleVenues.length,
-            markerCount: _data.markerVenues.length,
-            failureDetail: _data.failureDetail,
-            onStyleChanged: _handleStyleChanged,
-            onResetCamera: _handleResetCamera,
-            onFocusDowntown: _handleFocusDowntown,
-          ),
-        );
-      },
+      builder: (context) => MapPoiFilterSheet(
+        initialFilter: _data.poiFilter,
+        onApply: _data.applyPoiFilter,
+      ),
     );
   }
 
@@ -413,11 +414,12 @@ class _MapPageState extends State<MapPage> {
                     listenable: _data,
                     builder: (context, _) => MapSearchAndFilters(
                       selectedKind: _data.categoryFilter,
+                      poiFilter: _data.poiFilter,
                       status: _data.status,
                       searchQuery: _data.searchQuery,
                       suggestions: _data.visibleVenues,
                       onCategoryToggled: _data.toggleCategory,
-                      onFilterPressed: _showMapTools,
+                      onFilterPressed: _showPoiFilters,
                       onSearchChanged: _data.setSearchQuery,
                       onVenueSelected: _handleSearchVenueSelected,
                     ),

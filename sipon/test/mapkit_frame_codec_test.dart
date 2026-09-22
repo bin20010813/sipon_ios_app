@@ -3,6 +3,7 @@ import 'package:sipon/services/map/checkin_pin_icon.dart';
 import 'package:sipon/services/map/map_display_options.dart';
 import 'package:sipon/services/map/map_models.dart';
 import 'package:sipon/services/map/map_scene_controller.dart';
+import 'package:sipon/services/map/map_viewport.dart';
 import 'package:sipon/services/map/sipon_map_protocol.dart';
 
 /// 构造一个点位，避免每个用例都手写一长串 [MapPoint]。
@@ -80,6 +81,7 @@ void main() {
           longitude: 121.4718,
           latitude: 31.2232,
           kind: MapVenueKind.bistro,
+          rating: 4.9,
         ),
       ],
       selected: MapPoint(
@@ -113,6 +115,7 @@ void main() {
           containsPair('venueId', 'v1'),
           containsPair('label', 'Hope & Sesame'),
           containsPair('category', 'bistro'),
+          containsPair('rating', 4.9),
         ),
       );
       expect(
@@ -190,6 +193,12 @@ void main() {
 
       expect(payload['selected'], isNull);
       expect((payload['circles']! as List).single, isNot(contains('venueId')));
+    });
+
+    test('无评分 marker 不下发 rating，由原生胶囊显示占位符', () {
+      final payload = encodeRenderFrame(_frameWith(), zoom: 15);
+
+      expect((payload['markers']! as List).single, isNot(contains('rating')));
     });
   });
 
@@ -289,6 +298,29 @@ void main() {
       expect(payload.containsKey('lon'), isFalse);
       expect(payload['lat'], 39.9042);
     });
+
+    test('面板拖动指令携带选中 POI 坐标作为相机锚点', () {
+      final payload = encodeApplyStage(
+        bottomPadding: 320,
+        focus: const MapLatLng(longitude: 121.4712, latitude: 31.2227),
+      );
+
+      expect(payload['bottomPadding'], 320);
+      expect(payload['lng'], 121.4712);
+      expect(payload['lat'], 31.2227);
+    });
+
+    test('MapKit 默认相机与聚焦相机都使用正北朝上的 2D 模式', () {
+      expect(MapSceneController.defaultPitch, 0);
+      expect(MapSceneController.focusPitch, 0);
+      expect(MapSceneController.defaultBearing, 0);
+      expect(MapSceneController.focusBearing, 0);
+
+      final gestures = encodeGestures();
+      expect(gestures['pitchEnabled'], isFalse);
+      expect(gestures['zoomEnabled'], isTrue);
+      expect(gestures['panEnabled'], isTrue);
+    });
   });
 
   group('整帧指纹', () {
@@ -345,7 +377,9 @@ void main() {
     });
 
     test('选中点只改坐标或类别，signature 必须变化', () {
-      final base = _frameWith(selected: _point(id: 's1', name: 'x'));
+      final base = _frameWith(
+        selected: _point(id: 's1', name: 'x'),
+      );
       final moved = _frameWith(
         selected: _point(id: 's1', name: 'x', longitude: 121.48),
       );
@@ -398,10 +432,7 @@ void main() {
         _frameWith().signature,
         isNot(_frameWith(label: 'Hope & Sesame').signature),
       );
-      expect(
-        _frameWith().signature,
-        isNot(_frameWith(sequence: 2).signature),
-      );
+      expect(_frameWith().signature, isNot(_frameWith(sequence: 2).signature));
     });
   });
 }

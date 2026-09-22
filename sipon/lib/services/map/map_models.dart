@@ -71,6 +71,8 @@ class MapVenue {
     required this.latitude,
     required this.kind,
     required this.rating,
+    this.hasRating = true,
+    this.averagePrice,
     required this.address,
     required this.distance,
     required this.tags,
@@ -84,6 +86,11 @@ class MapVenue {
   final double latitude;
   final MapVenueKind kind;
   final double rating;
+  final bool hasRating;
+
+  /// 人均消费金额（人民币）。接口缺失时为 null；启用人均筛选后，未知价格
+  /// 不会被误判为满足筛选条件。
+  final double? averagePrice;
   final String address;
 
   /// 已经格式化好的距离文案（"约2.0km"），由数据源按视野中心算出。
@@ -102,6 +109,8 @@ class MapVenue {
       latitude: latitude,
       kind: kind,
       rating: rating,
+      hasRating: hasRating,
+      averagePrice: averagePrice,
       address: address,
       distance: distance ?? this.distance,
       tags: tags,
@@ -120,6 +129,31 @@ class MapVenue {
       weight: rating + weightBoost,
     );
   }
+}
+
+/// 地图 POI 的组合筛选条件。分类筛选仍由 [MapDataController] 单独维护，
+/// 最终与这里的人均上限、最低评分按 AND 关系共同生效。
+class MapPoiFilter {
+  const MapPoiFilter({this.maxAveragePrice, this.minimumRating});
+
+  static const MapPoiFilter none = MapPoiFilter();
+
+  final double? maxAveragePrice;
+  final double? minimumRating;
+
+  bool get isActive => maxAveragePrice != null || minimumRating != null;
+
+  int get activeConditionCount =>
+      (maxAveragePrice == null ? 0 : 1) + (minimumRating == null ? 0 : 1);
+
+  @override
+  bool operator ==(Object other) =>
+      other is MapPoiFilter &&
+      other.maxAveragePrice == maxAveragePrice &&
+      other.minimumRating == minimumRating;
+
+  @override
+  int get hashCode => Object.hash(maxAveragePrice, minimumRating);
 }
 
 /// 送进地图点位图层的一个点。
@@ -176,6 +210,7 @@ class MapMarkerSpec {
     required this.longitude,
     required this.latitude,
     required this.kind,
+    this.rating,
     this.sequence,
     this.iconCategory,
   });
@@ -185,6 +220,10 @@ class MapMarkerSpec {
   final double longitude;
   final double latitude;
   final MapVenueKind kind;
+
+  /// 普通 POI 胶囊里显示的评分。`null`、非有限值或小于等于 0 均表示暂无评分，
+  /// 原生端统一渲染为 `--`。路线站点不传评分，继续使用编号 marker。
+  final double? rating;
 
   /// 路线页可选的顺序编号；普通 POI 为 null，仍显示酒吧名称。
   final int? sequence;
@@ -199,6 +238,7 @@ class MapMarkerSpec {
     longitude,
     latitude,
     iconCategory ?? kind.id,
+    rating != null && rating!.isFinite ? rating : '',
     sequence ?? '',
   ].join('|');
 }

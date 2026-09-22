@@ -33,21 +33,17 @@ class MockMapVenueRepository implements MapVenueRepository {
 
     final bounds = viewport.fetchBounds;
     final origin = viewport.center;
-    final matches =
-        <({MapVenue venue, double meters})>[
-          for (final venue in _venuesForCity(city))
-            if (bounds.containsPoint(venue.longitude, venue.latitude))
-              (
-                venue: venue,
-                meters: mapDistanceInMeters(
-                  origin,
-                  MapLatLng(
-                    longitude: venue.longitude,
-                    latitude: venue.latitude,
-                  ),
-                ),
-              ),
-        ]..sort((a, b) => a.meters.compareTo(b.meters));
+    final matches = <({MapVenue venue, double meters})>[
+      for (final venue in _venuesForCity(city))
+        if (bounds.containsPoint(venue.longitude, venue.latitude))
+          (
+            venue: venue,
+            meters: mapDistanceInMeters(
+              origin,
+              MapLatLng(longitude: venue.longitude, latitude: venue.latitude),
+            ),
+          ),
+    ]..sort((a, b) => a.meters.compareTo(b.meters));
 
     return [
       for (final match in matches)
@@ -83,6 +79,7 @@ class MockMapVenueRepository implements MapVenueRepository {
           latitude: center.latitude + random.nextSigned() * 0.038,
           kind: kind,
           rating: 4.1 + random.nextInt(9) * 0.1,
+          averagePrice: 15 + random.nextInt(186).toDouble(),
           address: '$city市$district$block ${120 + random.nextInt(680)}',
           // 真实距离在 fetchVenues 里按视野中心覆盖，这里只是占位。
           distance: '距离待计算',
@@ -154,6 +151,7 @@ const List<MapVenue> _shanghaiFeaturedVenues = [
     latitude: 31.2232,
     kind: MapVenueKind.pub,
     rating: 4.9,
+    averagePrice: 128,
     address: '上海市黄浦区复兴中路 579',
     distance: '距离待计算',
     tags: ['鸡尾酒吧', '中式复古风'],
@@ -166,6 +164,7 @@ const List<MapVenue> _shanghaiFeaturedVenues = [
     latitude: 31.2251,
     kind: MapVenueKind.bistro,
     rating: 4.9,
+    averagePrice: 188,
     address: '上海市黄浦区复兴中路 579',
     distance: '距离待计算',
     tags: ['经典吧台', 'Speakeasy'],
@@ -178,6 +177,7 @@ const List<MapVenue> _shanghaiFeaturedVenues = [
     latitude: 31.2203,
     kind: MapVenueKind.party,
     rating: 4.5,
+    averagePrice: 98,
     address: '上海市黄浦区巨鹿路 158',
     distance: '距离待计算',
     tags: ['派对', '经典调酒'],
@@ -190,6 +190,7 @@ const List<MapVenue> _shanghaiFeaturedVenues = [
     latitude: 31.2208,
     kind: MapVenueKind.craft,
     rating: 4.8,
+    averagePrice: 19,
     address: '上海市黄浦区淮海中路 333',
     distance: '距离待计算',
     tags: ['精酿', '现场音乐'],

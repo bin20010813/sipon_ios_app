@@ -258,6 +258,14 @@ class MapkitSceneController extends MapSceneController {
   }
 
   @override
+  Future<void> performSheetFollow(MapLatLng focus) async {
+    await _invokeIfReady(
+      SiponMapCommands.applyStage,
+      encodeApplyStage(bottomPadding: cameraBottomPadding, focus: focus),
+    );
+  }
+
+  @override
   Future<void> focusOn({required double longitude, required double latitude}) {
     return _invokeIfReady(
       SiponMapCommands.focusOn,

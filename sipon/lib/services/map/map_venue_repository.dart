@@ -90,6 +90,8 @@ class SiponApiMapVenueRepository
       latitude: location.latitude,
       kind: MapVenueKind.fromRaw(item.kind),
       rating: item.rating,
+      hasRating: item.hasRating,
+      averagePrice: item.averagePrice,
       address: item.address,
       // 接口给了现成文案就用它，否则按当前视野中心补算一个。
       distance: item.distance == '距离待计算'

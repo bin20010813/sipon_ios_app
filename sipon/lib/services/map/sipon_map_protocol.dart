@@ -61,10 +61,11 @@ Map<String, Object?> encodeRoutePoints(List<MapLatLng> points) => {
 };
 
 Map<String, Object?> encodeGestures() => <String, Object?>{
-  // 与原 GesturesSettings(rotate/pinch/scroll 全开) 一致。
+  // 保留旋转/缩放/平移，只关闭会把地图重新倾斜成 3D 的俯仰手势。
   'rotateEnabled': true,
   'zoomEnabled': true,
   'panEnabled': true,
+  'pitchEnabled': false,
 };
 
 /// 相机指令共用参数。[bottomPadding] 让目标点出现在「去掉底部面板后的区域」
@@ -85,8 +86,12 @@ Map<String, Object?> encodeCameraMove({
   'bottomPadding': bottomPadding,
 };
 
-Map<String, Object?> encodeApplyStage({required double bottomPadding}) => {
+Map<String, Object?> encodeApplyStage({
+  required double bottomPadding,
+  MapLatLng? focus,
+}) => {
   'bottomPadding': bottomPadding,
+  if (focus != null) ...{'lng': focus.longitude, 'lat': focus.latitude},
 };
 
 /// marker 图标资产表：kind.id → Flutter 资产 key。
@@ -123,6 +128,8 @@ Map<String, Object?> encodeRenderFrame(
           'lat': marker.latitude,
           'lng': marker.longitude,
           'category': marker.iconCategory ?? marker.kind.id,
+          if (marker.rating != null && marker.rating!.isFinite)
+            'rating': marker.rating,
           if (marker.sequence != null) 'sequence': marker.sequence,
         },
     ],

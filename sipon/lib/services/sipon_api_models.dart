@@ -79,6 +79,8 @@ class SiponBarMapItem {
     required this.count,
     required this.kind,
     required this.rating,
+    required this.hasRating,
+    required this.averagePrice,
     required this.address,
     required this.distance,
     required this.tags,
@@ -96,6 +98,8 @@ class SiponBarMapItem {
   final int count;
   final String kind;
   final double rating;
+  final bool hasRating;
+  final double? averagePrice;
   final String address;
   final String distance;
   final List<String> tags;
@@ -187,6 +191,46 @@ class SiponBarMapItem {
         _readString(json, ['id', 'barId', 'clusterId']) ??
         _readString(properties, ['id', 'barId', 'clusterId']) ??
         '$kind-${coordinates?.longitude ?? 0}-${coordinates?.latitude ?? 0}';
+    final parsedRating =
+        _readDouble(json, ['averageRating', 'rating', 'score', 'star']) ??
+        _readDouble(properties, ['averageRating', 'rating', 'score', 'star']);
+    final hasRating =
+        parsedRating != null && parsedRating.isFinite && parsedRating > 0;
+    final averagePrice =
+        _readPrice(json, [
+          'averagePrice',
+          'average_price',
+          'avgPrice',
+          'avg_price',
+          'perCapitaPrice',
+          'per_capita_price',
+          'perCapita',
+          'per_capita',
+          'averageSpend',
+          'average_spend',
+          'avgSpend',
+          'avg_spend',
+          'costPerPerson',
+          'cost_per_person',
+          'price',
+        ]) ??
+        _readPrice(properties, [
+          'averagePrice',
+          'average_price',
+          'avgPrice',
+          'avg_price',
+          'perCapitaPrice',
+          'per_capita_price',
+          'perCapita',
+          'per_capita',
+          'averageSpend',
+          'average_spend',
+          'avgSpend',
+          'avg_spend',
+          'costPerPerson',
+          'cost_per_person',
+          'price',
+        ]);
 
     return SiponBarMapItem(
       id: id,
@@ -196,15 +240,11 @@ class SiponBarMapItem {
       cluster: cluster,
       count: count,
       kind: kind,
-      rating:
-          _readDouble(json, ['averageRating', 'rating', 'score', 'star']) ??
-          _readDouble(properties, [
-            'averageRating',
-            'rating',
-            'score',
-            'star',
-          ]) ??
-          4.8,
+      rating: hasRating ? parsedRating : 4.8,
+      hasRating: hasRating,
+      averagePrice: averagePrice != null && averagePrice > 0
+          ? averagePrice
+          : null,
       address:
           _readString(json, ['address', 'addr', 'locationText', 'city']) ??
           _readString(properties, [
@@ -337,6 +377,26 @@ double? _readDouble(Map<String, dynamic> map, List<String> keys) {
     }
     if (value is String) {
       final parsed = double.tryParse(value.trim());
+      if (parsed != null) {
+        return parsed;
+      }
+    }
+  }
+
+  return null;
+}
+
+/// 人均字段有时是数字，有时是 `¥88/人` 之类的展示文本；这里提取首个
+/// 正数金额，避免把价格档位 `¥¥` 当成真实人均。
+double? _readPrice(Map<String, dynamic> map, List<String> keys) {
+  for (final key in keys) {
+    final value = map[key];
+    if (value is num) {
+      return value.toDouble();
+    }
+    if (value is String) {
+      final match = RegExp(r'\d+(?:\.\d+)?').firstMatch(value);
+      final parsed = match == null ? null : double.tryParse(match.group(0)!);
       if (parsed != null) {
         return parsed;
       }

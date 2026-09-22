@@ -74,8 +74,8 @@ enum SiponMapProtocol {
       longitude = SiponMapProtocol.double(dict, "lng", fallback: 121.4712)
       latitude = SiponMapProtocol.double(dict, "lat", fallback: 31.2227)
       zoom = SiponMapProtocol.double(dict, "zoom", fallback: 15.05)
-      pitch = SiponMapProtocol.double(dict, "pitch", fallback: 24)
-      bearing = SiponMapProtocol.double(dict, "bearing", fallback: -12)
+      pitch = SiponMapProtocol.double(dict, "pitch", fallback: 0)
+      bearing = SiponMapProtocol.double(dict, "bearing", fallback: 0)
       bottomPadding = SiponMapProtocol.double(dict, "bottomPadding", fallback: 0)
     }
   }
@@ -101,12 +101,13 @@ enum SiponMapProtocol {
     }
   }
 
-  /// renderFrame 里的一枚文字标签 marker。
+  /// renderFrame 里的一枚 POI 胶囊或路线编号 marker。
   struct MarkerSpec {
     let venueId: String
     let label: String
     let coordinate: CLLocationCoordinate2D
     let category: String
+    let rating: Double?
     let sequence: Int?
 
     static func parse(_ raw: [String: Any]) -> MarkerSpec? {
@@ -120,6 +121,9 @@ enum SiponMapProtocol {
           longitude: SiponMapProtocol.double(raw, "lng", fallback: .nan)
         ),
         category: SiponMapProtocol.string(raw, "category") ?? "pub",
+        rating: raw["rating"] == nil
+          ? nil
+          : SiponMapProtocol.double(raw, "rating", fallback: .nan),
         sequence: SiponMapProtocol.int(raw, "sequence")
       )
     }

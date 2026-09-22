@@ -44,9 +44,7 @@ class MapSceneFrame {
   /// 字段对应实际传给原生的渲染数据；不把未用于地图显示的接口对象放进来，
   /// 以免无关字段变化就触发地图刷新。
   String get signature => jsonEncode([
-    [
-      for (final point in circlePoints) _pointToken(point),
-    ],
+    [for (final point in circlePoints) _pointToken(point)],
     [
       for (final marker in markers)
         [
@@ -55,6 +53,7 @@ class MapSceneFrame {
           _coordinateToken(marker.longitude),
           _coordinateToken(marker.latitude),
           marker.iconCategory ?? marker.kind.id,
+          marker.rating == null ? null : _coordinateToken(marker.rating!),
           marker.sequence,
         ],
     ],
@@ -107,10 +106,12 @@ abstract class MapSceneController {
   static const double defaultZoom = 15.05;
   static const double cityZoom = 11.8;
   static const double focusZoom = 15.4;
-  static const double defaultPitch = 24;
-  static const double defaultBearing = -12;
-  static const double focusPitch = 30;
-  static const double focusBearing = -18;
+
+  /// MapKit 统一使用正北朝上的 2D 相机；原生层也会禁用俯仰手势兜底。
+  static const double defaultPitch = 0;
+  static const double defaultBearing = 0;
+  static const double focusPitch = 0;
+  static const double focusBearing = 0;
 
   /// 命中测试的容差（逻辑像素）。圆点半径只有 4~11pt，手指比它大得多；
   /// MapKit 版把命中区做到 max(视觉直径, 22pt)，与这个旧值同量级。
@@ -179,6 +180,18 @@ abstract class MapSceneController {
     await easeForPaddingOnly();
   }
 
+  /// 面板拖动时让选中点持续位于扣除底部遮挡后的地图中心。
+  ///
+  /// 与 [focusOn] 不同，这个入口只更新相机中心与 padding，不重置用户当前的
+  /// 缩放、俯仰和朝向。页面会把高频 extent 通知合并成每帧最多一次调用。
+  Future<void> followSelectionForSheet({
+    required double cameraBottomPadding,
+    required MapLatLng focus,
+  }) async {
+    this.cameraBottomPadding = cameraBottomPadding;
+    await performSheetFollow(focus);
+  }
+
   /// 把某个坐标居中（附带聚焦缩放/俯仰/朝向）。
   Future<void> focusOn({required double longitude, required double latitude});
 
@@ -225,6 +238,10 @@ abstract class MapSceneController {
   /// padding 变了但没有要聚焦的目标时的平移（各引擎自行取景）。
   @protected
   Future<void> easeForPaddingOnly();
+
+  /// 保持现有相机姿态，仅按当前 padding 把 [focus] 放到可见地图中心。
+  @protected
+  Future<void> performSheetFollow(MapLatLng focus);
 
   /// 样式重新加载后引擎侧全被清空，缓存的指纹也得作废，
   /// 否则下一帧会以为「没变化」而什么都不画。随后原样重放上一帧。

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sipon/services/sipon_api_models.dart';
 import 'package:sipon/services/map/map_data_controller.dart';
 import 'package:sipon/services/map/map_display_options.dart';
 import 'package:sipon/services/map/map_models.dart';
@@ -39,6 +40,9 @@ MapVenue _venue(
   MapVenueKind kind = MapVenueKind.pub,
   double longitude = 121.47,
   double latitude = 31.22,
+  double rating = 4.5,
+  bool hasRating = true,
+  double? averagePrice,
 }) {
   return MapVenue(
     id: id,
@@ -46,7 +50,9 @@ MapVenue _venue(
     longitude: longitude,
     latitude: latitude,
     kind: kind,
-    rating: 4.5,
+    rating: rating,
+    hasRating: hasRating,
+    averagePrice: averagePrice,
     address: '上海市黄浦区测试路 1',
     distance: '约1.0km',
     tags: const ['测试'],
@@ -55,6 +61,29 @@ MapVenue _venue(
 }
 
 void main() {
+  test('接口缺少评分时保留暂无评分语义', () {
+    final venue = SiponBarMapItem.fromJson({
+      'id': 'no-rating',
+      'name': '暂无评分酒吧',
+      'lng': 121.47,
+      'lat': 31.22,
+    });
+
+    expect(venue.hasRating, isFalse);
+  });
+
+  test('接口兼容文本格式的人均价格', () {
+    final venue = SiponBarMapItem.fromJson({
+      'id': 'priced',
+      'name': '有人均酒吧',
+      'lng': 121.47,
+      'lat': 31.22,
+      'perCapita': '¥88/人',
+    });
+
+    expect(venue.averagePrice, 88);
+  });
+
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('MapViewport', () {
@@ -214,6 +243,58 @@ void main() {
       expect(controller.circlePoints, hasLength(2));
 
       controller.toggleCategory(MapVenueKind.craft);
+      expect(controller.visibleVenues, hasLength(3));
+    });
+
+    test('类型、人均上限和最低评分按 AND 关系组合筛选', () async {
+      final controller = MapDataController(
+        repository: _StubRepository([
+          _venue(
+            'cheap-craft',
+            kind: MapVenueKind.craft,
+            averagePrice: 18,
+            rating: 4.2,
+          ),
+          _venue(
+            'expensive-craft',
+            kind: MapVenueKind.craft,
+            averagePrice: 68,
+            rating: 4.9,
+          ),
+          _venue(
+            'great-bistro',
+            kind: MapVenueKind.bistro,
+            averagePrice: 88,
+            rating: 4.7,
+          ),
+          _venue(
+            'no-rating-bistro',
+            kind: MapVenueKind.bistro,
+            averagePrice: 60,
+            hasRating: false,
+          ),
+          _venue('no-price-bistro', kind: MapVenueKind.bistro, rating: 4.9),
+        ]),
+        city: '上海',
+      );
+      addTearDown(controller.dispose);
+      await controller.syncViewport(_shanghaiViewport);
+
+      controller.toggleCategory(MapVenueKind.craft);
+      controller.applyPoiFilter(const MapPoiFilter(maxAveragePrice: 20));
+      expect(controller.visibleVenues.map((venue) => venue.id), [
+        'cheap-craft',
+      ]);
+
+      controller.toggleCategory(MapVenueKind.bistro);
+      controller.applyPoiFilter(
+        const MapPoiFilter(maxAveragePrice: 100, minimumRating: 4.5),
+      );
+      expect(controller.visibleVenues.map((venue) => venue.id), [
+        'great-bistro',
+      ]);
+
+      controller.clearPoiFilter();
       expect(controller.visibleVenues, hasLength(3));
     });
 
@@ -446,6 +527,36 @@ void main() {
       expect(controller.cameraBottomPadding, 0);
       expect(controller.ornamentBottomMargin(184), 184);
     });
+
+    test('拖到半屏过程中相机 padding 连续增长并在半屏后封顶', () {
+      final controller = VenueSheetController();
+      addTearDown(controller.dispose);
+      controller.updateMetrics(
+        availableHeight: 800,
+        collapsedExtent: collapsedExtent,
+      );
+
+      final halfway = (collapsedExtent + VenueSheetController.halfExtent) / 2;
+      final halfPadding =
+          800 *
+          (VenueSheetController.halfExtent -
+              VenueSheetController.cameraPaddingShrink);
+      expect(controller.cameraBottomPaddingForExtent(collapsedExtent), 0);
+      expect(
+        controller.cameraBottomPaddingForExtent(halfway),
+        closeTo(halfPadding / 2, 0.001),
+      );
+      expect(
+        controller.cameraBottomPaddingForExtent(
+          VenueSheetController.halfExtent,
+        ),
+        closeTo(halfPadding, 0.001),
+      );
+      expect(
+        controller.cameraBottomPaddingForExtent(VenueSheetController.maxExtent),
+        closeTo(halfPadding, 0.001),
+      );
+    });
   });
 
   group('marker 抽样与指纹', () {
@@ -484,6 +595,14 @@ void main() {
         latitude: 31.2232,
         kind: MapVenueKind.pub,
       );
+      const rated = MapMarkerSpec(
+        venueId: 'hope-sesame',
+        label: 'Hope & Sesame',
+        longitude: 121.4718,
+        latitude: 31.2232,
+        kind: MapVenueKind.pub,
+        rating: 4.9,
+      );
 
       expect(
         markerAnnotationSignature(const [zh]),
@@ -493,6 +612,11 @@ void main() {
       expect(
         markerAnnotationSignature(const [zh]),
         isNot(markerAnnotationSignature(const [en])),
+      );
+      expect(
+        markerAnnotationSignature(const [en]),
+        isNot(markerAnnotationSignature(const [rated])),
+        reason: '评分变化时胶囊文字也必须刷新',
       );
     });
   });

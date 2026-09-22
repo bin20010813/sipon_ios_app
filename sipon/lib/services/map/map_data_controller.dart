@@ -46,6 +46,7 @@ class MapDataController extends ChangeNotifier {
   String _city;
   List<MapVenue> _venues;
   MapVenueKind? _categoryFilter;
+  MapPoiFilter _poiFilter = MapPoiFilter.none;
   String _searchQuery = '';
   String? _selectedVenueId;
   MapDataStatus _status = MapDataStatus.idle;
@@ -74,6 +75,7 @@ class MapDataController extends ChangeNotifier {
   MapDataStatus get status => _status;
   String? get failureDetail => _failureDetail;
   MapVenueKind? get categoryFilter => _categoryFilter;
+  MapPoiFilter get poiFilter => _poiFilter;
   String get searchQuery => _searchQuery;
   MapBaseStyle get style => _style;
   double get zoom => _zoom;
@@ -81,11 +83,28 @@ class MapDataController extends ChangeNotifier {
   /// 当前分类筛选下要显示的酒吧。
   List<MapVenue> get visibleVenues {
     final filter = _categoryFilter;
+    final poiFilter = _poiFilter;
     final query = _searchQuery;
 
     final venues = _venues
         .where((venue) {
           if (filter != null && venue.kind != filter) {
+            return false;
+          }
+          final maxAveragePrice = poiFilter.maxAveragePrice;
+          if (maxAveragePrice != null) {
+            final averagePrice = venue.averagePrice;
+            if (averagePrice == null ||
+                !averagePrice.isFinite ||
+                averagePrice > maxAveragePrice) {
+              return false;
+            }
+          }
+          final minimumRating = poiFilter.minimumRating;
+          if (minimumRating != null &&
+              (!venue.hasRating ||
+                  !venue.rating.isFinite ||
+                  venue.rating < minimumRating)) {
             return false;
           }
           if (query.isEmpty) {
@@ -311,6 +330,19 @@ class MapDataController extends ChangeNotifier {
     _reconcileSelection();
     _notify();
   }
+
+  /// 应用人均与评分条件。它们与当前酒吧分类、搜索词共同按 AND 关系生效。
+  void applyPoiFilter(MapPoiFilter filter) {
+    if (_poiFilter == filter) {
+      return;
+    }
+
+    _poiFilter = filter;
+    _reconcileSelection();
+    _notify();
+  }
+
+  void clearPoiFilter() => applyPoiFilter(MapPoiFilter.none);
 
   void setSearchQuery(String query) {
     final normalized = query.trim().toLowerCase();

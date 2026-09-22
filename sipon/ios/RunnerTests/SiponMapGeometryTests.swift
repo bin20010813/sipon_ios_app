@@ -66,6 +66,22 @@ final class SiponMapGeometryTests: XCTestCase {
     XCTAssertEqual(driftLarge / driftSmall, 2, accuracy: 1e-6)
   }
 
+  func testPaddingMovesTargetToVisibleAreaCenter() {
+    let latitude = 30.0
+    let zoom = 15.0
+    let bottomPadding = 200.0
+    let shifted = SiponMapGeometry.center(
+      lat: latitude,
+      lng: 120,
+      shiftingUpBy: bottomPadding,
+      zoom: zoom
+    )
+    let metersPerPixel = SiponMapGeometry.metersPerPixel(lat: latitude, zoom: zoom)
+    let expectedLatitudeShift = bottomPadding * 0.5 * metersPerPixel / 111_320.0
+
+    XCTAssertEqual(latitude - shifted.latitude, expectedLatitudeShift, accuracy: 1e-9)
+  }
+
   func testCircleRadiusStops() {
     // §5.3 速查表：圆点 9→4pt、13→7pt、16→11pt。
     XCTAssertEqual(SiponMapGeometry.circleRadius(zoom: 9), 4, accuracy: 1e-9)

@@ -11,6 +11,7 @@ class MapSearchAndFilters extends StatelessWidget {
   const MapSearchAndFilters({
     super.key,
     required this.selectedKind,
+    required this.poiFilter,
     required this.status,
     required this.onCategoryToggled,
     required this.onFilterPressed,
@@ -23,6 +24,7 @@ class MapSearchAndFilters extends StatelessWidget {
   /// 当前分类筛选。null 表示不筛选（顶部没有「全部」pill，
   /// 取消筛选的方式是再点一次已选中的那个）。
   final MapVenueKind? selectedKind;
+  final MapPoiFilter poiFilter;
   final MapDataStatus status;
   final ValueChanged<MapVenueKind> onCategoryToggled;
   final VoidCallback onFilterPressed;
@@ -80,7 +82,10 @@ class MapSearchAndFilters extends StatelessWidget {
                         onTap: () => onCategoryToggled(category.kind),
                       ),
                     ),
-                  _FilterIconPill(onPressed: onFilterPressed),
+                  _FilterIconPill(
+                    filter: poiFilter,
+                    onPressed: onFilterPressed,
+                  ),
                 ],
               ),
             ),
@@ -397,28 +402,51 @@ class MapCategoryPill extends StatelessWidget {
 }
 
 class _FilterIconPill extends StatelessWidget {
-  const _FilterIconPill({required this.onPressed});
+  const _FilterIconPill({required this.filter, required this.onPressed});
 
+  final MapPoiFilter filter;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
+    final text = SiponLanguageScope.textOf(context);
+    final active = filter.isActive;
+    final maxPrice = filter.maxAveragePrice;
+    final minimumRating = filter.minimumRating;
+    final parts = <String>[
+      if (maxPrice != null) '≤¥${maxPrice.toStringAsFixed(0)}',
+      if (minimumRating != null) '≥${minimumRating.toStringAsFixed(1)}',
+    ];
+
     return Material(
-      color: Colors.white.withValues(alpha: 0.96),
+      color: active ? MapDesign.brand : Colors.white.withValues(alpha: 0.96),
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(18),
-        child: SizedBox(
-          width: 42,
+        child: Container(
           height: 36,
-          child: Center(
-            child: Image.asset(
-              MapAssets.filter,
-              width: 20,
-              height: 20,
-              color: MapDesign.ink,
-            ),
+          padding: const EdgeInsets.symmetric(horizontal: 11),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset(
+                MapAssets.filter,
+                width: 18,
+                height: 18,
+                color: active ? Colors.white : MapDesign.ink,
+              ),
+              const SizedBox(width: 5),
+              Text(
+                active ? parts.join(' · ') : text.t('POI筛选'),
+                style: TextStyle(
+                  color: active ? Colors.white : MapDesign.ink,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
           ),
         ),
       ),

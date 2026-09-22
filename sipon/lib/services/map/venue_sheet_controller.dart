@@ -7,9 +7,8 @@ import 'map_models.dart';
 
 /// 面板的三个吸附档位。
 ///
-/// 面板的连续 extent 有无穷多个中间值，但**需要触发副作用的只有这三个落点**。
-/// 把两者分开是这次重构的关键：extent 逐帧变化只用来绘制，stage 变化才去
-/// 动相机和地图装饰物（都是异步平台调用，不能逐帧打）。
+/// 面板的连续 extent 有无穷多个中间值，档位用于决定吸附后的界面状态；相机
+/// padding 则跟随 extent 连续变化，保证拖动面板时选中 POI 始终留在可见地图中心。
 enum VenueSheetStage {
   /// 悬浮卡片。
   collapsed,
@@ -74,7 +73,7 @@ class VenueSheetController extends ChangeNotifier {
 
   final DraggableScrollableController sheet = DraggableScrollableController();
 
-  /// 面板当前 extent。**只驱动绘制**：面板形变、悬浮按钮跟随。
+  /// 面板当前 extent。驱动面板形变、悬浮按钮以及地图可见区域跟随。
   /// 初值 0 表示还没收到过通知，此时按收起态渲染。
   final ValueNotifier<double> extent;
 
@@ -102,14 +101,18 @@ class VenueSheetController extends ChangeNotifier {
   ///
   /// 聚焦地点会放在「扣除 bottom padding 后的可视区」中心：中心高度 =
   /// (屏高 - padding) / 2。按整份 [halfExtent] 让位时中心落在约 22.5%
-  /// 屏高处，叠加 pitch 后视觉上贴顶；收窄一档把中心压回上半屏的视觉重心。
+  /// 屏高处会过于贴顶；收窄一档把中心压回上半屏的视觉重心。
   /// 想再往下移就增大这个值（每加 0.1 中心下移 5% 屏高）。
   static const double cameraPaddingShrink = 0.12;
 
-  /// 相机 padding 的下边距（像素）。收起态不让出空间，展开态让出下半屏。
-  double get cameraBottomPadding => _stage == VenueSheetStage.collapsed
-      ? 0
-      : _availableHeight * (halfExtent - cameraPaddingShrink);
+  /// 当前相机 padding 的下边距（像素）。拖动过程中按实际 extent 连续插值，
+  /// 到半屏后保持不再增大，因为此时继续上拖只是在用详情覆盖地图。
+  double get cameraBottomPadding => cameraBottomPaddingForExtent(currentExtent);
+
+  double cameraBottomPaddingForExtent(double value) =>
+      _availableHeight *
+      (halfExtent - cameraPaddingShrink) *
+      progressFor(value);
 
   /// 地图 logo / 版权信息的下边距（像素）。
   ///
@@ -152,8 +155,8 @@ class VenueSheetController extends ChangeNotifier {
     _scrollController = controller;
   }
 
-  /// 接 `DraggableScrollableNotification`。逐帧只更新 [extent]，
-  /// 副作用统一延后到落定。
+  /// 接 `DraggableScrollableNotification`。逐帧更新 [extent]，档位切换仍延后到
+  /// 落定；地图页会把 extent 合并为每帧至多一次的相机跟随指令。
   bool handleNotification(DraggableScrollableNotification notification) {
     extent.value = notification.extent;
     _settleTimer?.cancel();

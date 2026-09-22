@@ -1,141 +1,152 @@
-import 'package:flutter/material.dart' hide Visibility;
+import 'package:flutter/material.dart';
 
 import '../../pages/language_transform.dart';
-import '../../services/map/map_display_options.dart';
+import '../../services/map/map_models.dart';
 import 'map_theme.dart';
 
-/// 「筛选」按钮弹出的地图工具面板：底图样式、当前数据概览、相机快捷键。
-class MapToolsSheet extends StatelessWidget {
-  const MapToolsSheet({
+/// 地图工具栏打开的 POI 组合筛选面板。
+///
+/// 分类仍由地图顶部的分类 pill 控制；这里的人均上限与最低评分会与分类按
+/// AND 关系同时生效。
+class MapPoiFilterSheet extends StatefulWidget {
+  const MapPoiFilterSheet({
     super.key,
-    required this.currentStyle,
-    required this.status,
-    required this.visibleCount,
-    required this.markerCount,
-    required this.failureDetail,
-    required this.onStyleChanged,
-    required this.onResetCamera,
-    required this.onFocusDowntown,
+    required this.initialFilter,
+    required this.onApply,
   });
 
-  final MapBaseStyle currentStyle;
+  final MapPoiFilter initialFilter;
+  final ValueChanged<MapPoiFilter> onApply;
 
-  final MapDataStatus status;
+  @override
+  State<MapPoiFilterSheet> createState() => _MapPoiFilterSheetState();
+}
 
-  /// 当前筛选下的点位总数。
-  final int visibleCount;
+class _MapPoiFilterSheetState extends State<MapPoiFilterSheet> {
+  static const List<double> _priceOptions = [20, 50, 100, 200];
+  static const List<double> _ratingOptions = [4, 4.5, 4.8];
 
-  /// 其中画了文字标签的数量（按缩放抽样后的结果）。
-  final int markerCount;
+  double? _maxAveragePrice;
+  double? _minimumRating;
 
-  /// 取数失败时的原始错误。只在这个诊断面板里露出，不进主界面。
-  final String? failureDetail;
+  @override
+  void initState() {
+    super.initState();
+    _maxAveragePrice = widget.initialFilter.maxAveragePrice;
+    _minimumRating = widget.initialFilter.minimumRating;
+  }
 
-  final ValueChanged<MapBaseStyle> onStyleChanged;
-  final VoidCallback onResetCamera;
-  final VoidCallback onFocusDowntown;
+  void _reset() {
+    setState(() {
+      _maxAveragePrice = null;
+      _minimumRating = null;
+    });
+  }
+
+  void _apply() {
+    widget.onApply(
+      MapPoiFilter(
+        maxAveragePrice: _maxAveragePrice,
+        minimumRating: _minimumRating,
+      ),
+    );
+    Navigator.of(context).pop();
+  }
 
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
-    final detail = failureDetail;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        0,
+        20,
+        20 + MediaQuery.paddingOf(context).bottom,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            text.t('地图工具'),
-            style: const TextStyle(
-              color: MapDesign.ink,
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0,
-            ),
-          ),
-          const SizedBox(height: 18),
-          _ToolSection(
-            title: text.t('地图样式'),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final style in MapBaseStyle.values)
-                  _StyleOption(
-                    label: text.t(style.label),
-                    selected: style == currentStyle,
-                    onTap: () => onStyleChanged(style),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _LayerStatusChip(
-                label: text.t('点位'),
-                value: '$visibleCount',
-                active: visibleCount > 0,
-                color: MapDesign.brand,
-              ),
-              _LayerStatusChip(
-                label: text.t('标签'),
-                value: '$markerCount',
-                active: markerCount > 0,
-                color: const Color(0xFF10B981),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            text.t(status.label),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: status == MapDataStatus.failed
-                  ? MapDesign.alert
-                  : MapDesign.muted,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0,
-            ),
-          ),
-          if (detail != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              detail,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: MapDesign.muted,
-                fontSize: 11,
-                letterSpacing: 0,
-              ),
-            ),
-          ],
-          const SizedBox(height: 20),
           Row(
             children: [
               Expanded(
-                child: _ToolActionButton(
-                  label: text.t('回到总览'),
-                  icon: Icons.my_location_outlined,
-                  onTap: onResetCamera,
+                child: Text(
+                  text.t('POI筛选'),
+                  style: const TextStyle(
+                    color: MapDesign.ink,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0,
+                  ),
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _ToolActionButton(
-                  label: text.t('聚焦城区'),
-                  icon: Icons.center_focus_strong_outlined,
-                  onTap: onFocusDowntown,
-                ),
-              ),
+              TextButton(onPressed: _reset, child: Text(text.t('重置'))),
             ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            text.t('可与酒吧类型同时筛选'),
+            style: const TextStyle(
+              color: MapDesign.muted,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 22),
+          _FilterSection(
+            title: text.t('人均价格'),
+            children: [
+              _FilterChoice(
+                label: text.t('不限'),
+                selected: _maxAveragePrice == null,
+                onTap: () => setState(() => _maxAveragePrice = null),
+              ),
+              for (final value in _priceOptions)
+                _FilterChoice(
+                  label: '¥${value.toStringAsFixed(0)} ${text.t('以下')}',
+                  selected: _maxAveragePrice == value,
+                  onTap: () => setState(() => _maxAveragePrice = value),
+                ),
+            ],
+          ),
+          const SizedBox(height: 22),
+          _FilterSection(
+            title: text.t('最低评分'),
+            children: [
+              _FilterChoice(
+                label: text.t('不限'),
+                selected: _minimumRating == null,
+                onTap: () => setState(() => _minimumRating = null),
+              ),
+              for (final value in _ratingOptions)
+                _FilterChoice(
+                  label: '${value.toStringAsFixed(1)} ${text.t('以上')}',
+                  selected: _minimumRating == value,
+                  onTap: () => setState(() => _minimumRating = value),
+                ),
+            ],
+          ),
+          const SizedBox(height: 28),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: FilledButton(
+              onPressed: _apply,
+              style: FilledButton.styleFrom(
+                backgroundColor: MapDesign.brand,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
+              ),
+              child: Text(text.t('应用筛选')),
+            ),
           ),
         ],
       ),
@@ -143,11 +154,11 @@ class MapToolsSheet extends StatelessWidget {
   }
 }
 
-class _ToolSection extends StatelessWidget {
-  const _ToolSection({required this.title, required this.child});
+class _FilterSection extends StatelessWidget {
+  const _FilterSection({required this.title, required this.children});
 
   final String title;
-  final Widget child;
+  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
@@ -164,14 +175,14 @@ class _ToolSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        child,
+        Wrap(spacing: 8, runSpacing: 8, children: children),
       ],
     );
   }
 }
 
-class _StyleOption extends StatelessWidget {
-  const _StyleOption({
+class _FilterChoice extends StatelessWidget {
+  const _FilterChoice({
     required this.label,
     required this.selected,
     required this.onTap,
@@ -187,101 +198,20 @@ class _StyleOption extends StatelessWidget {
       label: Text(label),
       selected: selected,
       onSelected: (_) => onTap(),
+      showCheckmark: false,
       selectedColor: MapDesign.brand,
+      backgroundColor: const Color(0xFFF7F3F6),
       labelStyle: TextStyle(
         color: selected ? Colors.white : MapDesign.ink,
-        fontSize: 12,
+        fontSize: 13,
         fontWeight: FontWeight.w800,
         letterSpacing: 0,
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       side: BorderSide(
-        color: selected ? MapDesign.brand : const Color(0xFFECE6EA),
+        color: selected ? MapDesign.brand : const Color(0xFFE8DFE5),
       ),
-    );
-  }
-}
-
-class _ToolActionButton extends StatelessWidget {
-  const _ToolActionButton({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return FilledButton.tonalIcon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 18),
-      label: Text(label),
-      style: FilledButton.styleFrom(
-        backgroundColor: MapDesign.brandSurface,
-        foregroundColor: MapDesign.brand,
-        textStyle: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0,
-        ),
-      ),
-    );
-  }
-}
-
-class _LayerStatusChip extends StatelessWidget {
-  const _LayerStatusChip({
-    required this.label,
-    required this.value,
-    required this.active,
-    required this.color,
-  });
-
-  final String label;
-  final String value;
-  final bool active;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: active ? color.withValues(alpha: 0.11) : const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: active
-              ? color.withValues(alpha: 0.26)
-              : const Color(0xFFE2E8F0),
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: active ? color : const Color(0xFF94A3B8),
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-              letterSpacing: 0,
-            ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            value,
-            style: TextStyle(
-              color: active ? const Color(0xFF0F172A) : const Color(0xFF64748B),
-              fontWeight: FontWeight.w900,
-              fontSize: 12,
-              letterSpacing: 0,
-            ),
-          ),
-        ],
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
     );
   }
 }

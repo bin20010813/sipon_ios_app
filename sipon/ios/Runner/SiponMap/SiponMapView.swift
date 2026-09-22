@@ -202,6 +202,7 @@ final class SiponMapEngine: NSObject {
         mapView.isRotateEnabled = SiponMapProtocol.double(args, "rotateEnabled", fallback: 1) != 0
         mapView.isZoomEnabled = SiponMapProtocol.double(args, "zoomEnabled", fallback: 1) != 0
         mapView.isScrollEnabled = SiponMapProtocol.double(args, "panEnabled", fallback: 1) != 0
+        mapView.isPitchEnabled = SiponMapProtocol.double(args, "pitchEnabled", fallback: 0) != 0
       }
       return nil
     case SiponMapProtocol.Command.readViewport:
@@ -213,7 +214,13 @@ final class SiponMapEngine: NSObject {
       return nil
     case SiponMapProtocol.Command.applyStage:
       if let args = SiponMapProtocol.dict(arguments) {
-        applyStage(bottomPadding: SiponMapProtocol.double(args, "bottomPadding", fallback: appliedBottomPadding))
+        let latitude = SiponMapProtocol.double(args, "lat", fallback: .nan)
+        let longitude = SiponMapProtocol.double(args, "lng", fallback: .nan)
+        let focus = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        applyStage(
+          bottomPadding: SiponMapProtocol.double(args, "bottomPadding", fallback: appliedBottomPadding),
+          focus: CLLocationCoordinate2DIsValid(focus) ? focus : nil
+        )
       }
       return nil
     case SiponMapProtocol.Command.renderFrame:
@@ -416,8 +423,8 @@ final class SiponMapEngine: NSObject {
         "lng": center.longitude,
         "lat": center.latitude,
         "zoom": SiponMapGeometry.initialCityZoom,
-        "pitch": 24,
-        "bearing": -12,
+        "pitch": 0,
+        "bearing": 0,
         "bottomPadding": 0,
       ]),
       animated: false
@@ -437,7 +444,7 @@ final class SiponMapEngine: NSObject {
     mapView.showsScale = false
     mapView.showsUserLocation = false
     mapView.isRotateEnabled = true
-    mapView.isPitchEnabled = true
+    mapView.isPitchEnabled = false
     mapView.isScrollEnabled = true
     mapView.isZoomEnabled = true
 
@@ -461,16 +468,19 @@ final class SiponMapEngine: NSObject {
       switch styleId {
       case "satellite":
         let configuration = MKHybridMapConfiguration()
+        configuration.elevationStyle = .flat
         configuration.pointOfInterestFilter = .includingAll
         mapView.preferredConfiguration = configuration
       case "muted":
         let configuration = MKStandardMapConfiguration()
+        configuration.elevationStyle = .flat
         configuration.emphasisStyle = .muted
         configuration.pointOfInterestFilter = .includingAll
         mapView.preferredConfiguration = configuration
         mapView.overrideUserInterfaceStyle = .dark
       default:
         let configuration = MKStandardMapConfiguration()
+        configuration.elevationStyle = .flat
         configuration.pointOfInterestFilter = .includingAll
         mapView.preferredConfiguration = configuration
       }
@@ -559,7 +569,8 @@ final class SiponMapEngine: NSObject {
     )
 
     // MKMapCamera 一把出：中心点(含 padding 折算)、缩放(距离折算)、
-    // heading(顺时针度)、pitch(保守钳制 60，MapKit 有效上限约 77)。
+    // heading(顺时针度)。产品统一使用俯视 2D，原生强制 pitch = 0，避免旧版
+    // Dart 指令或热重载状态把地图重新切回 3D。
     // 动画时长不可控，忽略 durationMs（决策 D3）。
     let distance = SiponMapGeometry.cameraDistance(
       lat: center.latitude,
@@ -569,7 +580,7 @@ final class SiponMapEngine: NSObject {
     let camera = MKMapCamera(
       lookingAtCenter: center,
       fromDistance: distance,
-      pitch: max(0, min(move.pitch, 60)),
+      pitch: 0,
       heading: move.bearing.truncatingRemainder(dividingBy: 360)
     )
     traceMotion("SET_CAMERA animated=\(animated) padding=\(move.bottomPadding) target=\(center.latitude),\(center.longitude) zoom=\(move.zoom)")
@@ -578,12 +589,35 @@ final class SiponMapEngine: NSObject {
     appliedBottomPadding = move.bottomPadding
   }
 
-  /// 面板落定但无聚焦目标：内容不藏到面板后面的等效操作是按 padding 增量
-  /// 把真实中心继续南移一截，跨度不变（每次显式带值，不留粘滞状态）。
-  private func applyStage(bottomPadding newPadding: Double) {
+  /// 面板拖动时若带有选中点，就保留当前缩放/朝向并把该点放在可见地图
+  /// 中心；不带选中点时则沿用 padding 增量平移，供普通档位变化使用。
+  private func applyStage(
+    bottomPadding newPadding: Double,
+    focus: CLLocationCoordinate2D? = nil
+  ) {
     let delta = newPadding - appliedBottomPadding
     appliedBottomPadding = newPadding
-    traceMotion("PADDING new=\(newPadding) delta=\(delta) willMove=\(abs(delta) > 0.5)")
+    traceMotion("PADDING new=\(newPadding) delta=\(delta) anchored=\(focus != nil) willMove=\(abs(delta) > 0.5)")
+
+    if let focus {
+      let shifted = SiponMapGeometry.center(
+        lat: focus.latitude,
+        lng: focus.longitude,
+        shiftingUpBy: newPadding,
+        zoom: currentZoomEstimate()
+      )
+      let currentCamera = mapView.camera
+      let camera = MKMapCamera(
+        lookingAtCenter: shifted,
+        fromDistance: currentCamera.centerCoordinateDistance,
+        pitch: 0,
+        heading: currentCamera.heading
+      )
+      // 该调用与面板本身同帧发生；禁用 MapKit 自带动画可避免相机落后于手指。
+      mapView.setCamera(camera, animated: false)
+      return
+    }
+
     guard abs(delta) > 0.5 else { return }
 
     let current = mapView.region.center
@@ -682,7 +716,7 @@ final class SiponMapEngine: NSObject {
     }
   }
 
-  // MARK: marker diff（venueId 为键；label 变化原地刷）
+  // MARK: marker diff（venueId 为键；评分/label 变化原地刷）
 
   private func diffMarkers(_ incoming: [SiponMapProtocol.MarkerSpec]) {
     var nextByVenueId: [String: SiponMapProtocol.MarkerSpec] = [:]
@@ -705,12 +739,14 @@ final class SiponMapEngine: NSObject {
         // 文字标签翻译导致的文案变化原地刷新即可，不必重建 annotation。
         existing.label = spec.label
         existing.category = spec.category
+        existing.rating = spec.rating
         existing.sequence = spec.sequence
         if moved { existing.coordinate = spec.coordinate }
         // 坐标的 KVO 更新不能替代自定义 UIImageView/UILabel 的内容更新，
         // 即使视图一直留在屏幕内也应显示新的图标、文字与编号。
         if let view = mapView.view(for: existing) as? MarkerAnnotationView {
           view.setLabel(spec.label)
+          view.setRating(spec.rating)
           view.setSequence(spec.sequence)
           view.setIcon(markerIcons[spec.category])
         }
@@ -718,6 +754,7 @@ final class SiponMapEngine: NSObject {
         let annotation = MarkerAnnotation(venueId: venueId, coordinate: spec.coordinate)
         annotation.label = spec.label
         annotation.category = spec.category
+        annotation.rating = spec.rating
         annotation.sequence = spec.sequence
         markersByVenueId[venueId] = annotation
         toAdd.append(annotation)
@@ -897,6 +934,7 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
       view.annotation = marker
       view.setIcon(engine.icon(for: marker.category))
       view.setLabel(marker.label)
+      view.setRating(marker.rating)
       view.setSequence(marker.sequence)
       view.isHidden = engine.markersHiddenSnapshot
       return view
@@ -1044,6 +1082,7 @@ final class MarkerAnnotation: NSObject, MKAnnotation, VenueSelecting {
   @objc dynamic var coordinate: CLLocationCoordinate2D
   @objc dynamic var label: String = ""
   @objc dynamic var category: String = "pub"
+  var rating: Double?
   var sequence: Int?
 
   init(venueId: String, coordinate: CLLocationCoordinate2D) {
@@ -1125,29 +1164,76 @@ final class VenueIconAnnotationView: MKAnnotationView {
   }
 }
 
-/// 文字标签 marker：资产图标在上、白描边文案在下，锚点对准图标底尖。
-/// MapKit 没有文字碰撞 API（决策 D4），靠 Dart 抽样限流 + defaultLow 兜底。
+/// 地图 marker：普通 POI 是「分类图标 + 评分」白色胶囊；路线站点仍使用
+/// 「分类图标 + 顺序编号 + 名称」。MapKit 没有文字碰撞 API（决策 D4），
+/// 靠 Dart 抽样限流 + defaultLow 兜底。
 final class MarkerAnnotationView: MKAnnotationView {
 
   private enum Metrics {
-    static let iconSize = CGSize(width: 22, height: 28)
+    static let capsuleSize = CGSize(width: 104, height: 44)
+    static let capsuleTotalHeight: CGFloat = 50
+    static let capsuleCornerRadius: CGFloat = 22
+    static let capsuleIconCircle: CGFloat = 36
+    static let capsuleIconSize: CGFloat = 22
+    static let capsuleIconInset: CGFloat = 4
+    static let capsuleTailSize: CGFloat = 10
+    static let routeIconSize = CGSize(width: 22, height: 28)
     static let sequenceHeight: CGFloat = 21
     static let sequenceMinimumWidth: CGFloat = 21
     static let sequenceHorizontalPadding: CGFloat = 8
-    static let gap: CGFloat = 2
+    static let routeGap: CGFloat = 2
     static let maxLabelWidth: CGFloat = 170
   }
 
+  private let capsule = UIView(frame: .zero)
+  private let capsuleTail = UIView(frame: .zero)
+  private let iconCircle = UIView(frame: .zero)
   private let iconView = UIImageView(frame: .zero)
+  private let ratingLabel = UILabel(frame: .zero)
   private let sequenceBadge = UILabel(frame: .zero)
   private let label = UILabel(frame: .zero)
+  private var sourceIcon: UIImage?
+  private var currentLabel = ""
+  private var currentRatingText = "--"
+  private var isRouteMarker = false
 
   override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
     super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+    addSubview(capsuleTail)
+    addSubview(capsule)
+    addSubview(iconCircle)
     addSubview(iconView)
+    addSubview(ratingLabel)
     addSubview(sequenceBadge)
     addSubview(label)
+
+    capsule.backgroundColor = .white
+    capsule.isUserInteractionEnabled = false
+    capsule.layer.cornerRadius = Metrics.capsuleCornerRadius
+    capsuleTail.backgroundColor = .white
+    capsuleTail.isUserInteractionEnabled = false
+    capsuleTail.transform = CGAffineTransform(rotationAngle: .pi / 4)
+    iconCircle.backgroundColor = UIColor(
+      red: 0x9A / 255,
+      green: 0x3D / 255,
+      blue: 0x78 / 255,
+      alpha: 1
+    )
+    iconCircle.isUserInteractionEnabled = false
+    iconCircle.layer.cornerRadius = Metrics.capsuleIconCircle / 2
     iconView.contentMode = .scaleAspectFit
+    iconView.tintColor = .white
+    ratingLabel.text = "--"
+    ratingLabel.textColor = UIColor(
+      red: 0x10 / 255,
+      green: 0x10 / 255,
+      blue: 0x10 / 255,
+      alpha: 1
+    )
+    ratingLabel.font = UIFont.systemFont(ofSize: 16, weight: .semibold)
+    ratingLabel.textAlignment = .center
+    ratingLabel.adjustsFontSizeToFitWidth = true
+    ratingLabel.minimumScaleFactor = 0.85
     sequenceBadge.backgroundColor = UIColor.white
     sequenceBadge.textColor = UIColor(red: 0x9A / 255, green: 0x3D / 255, blue: 0x78 / 255, alpha: 1)
     sequenceBadge.font = UIFont.systemFont(ofSize: 12, weight: .black)
@@ -1158,17 +1244,26 @@ final class MarkerAnnotationView: MKAnnotationView {
     label.numberOfLines = 1
     label.lineBreakMode = .byTruncatingTail
     isUserInteractionEnabled = true
+    isAccessibilityElement = true
+    accessibilityTraits = .button
+
+    layer.shadowColor = UIColor.black.cgColor
+    layer.shadowOpacity = 0.12
+    layer.shadowRadius = 9
+    layer.shadowOffset = CGSize(width: 0, height: 3)
   }
 
   @available(*, unavailable)
   required init?(coder: NSCoder) { nil }
 
   func setIcon(_ image: UIImage?) {
-    iconView.image = image
+    sourceIcon = image
+    updateIconRenderingMode()
     setNeedsLayout()
   }
 
   func setLabel(_ text: String) {
+    currentLabel = text
     // 白描边模拟旧版 textHalo（负 strokeWidth = 同时填充和描边）。
     label.attributedText = NSAttributedString(
       string: text,
@@ -1179,11 +1274,24 @@ final class MarkerAnnotationView: MKAnnotationView {
         .strokeWidth: -3.0,
       ]
     )
+    updateAccessibilityLabel()
+    setNeedsLayout()
+  }
+
+  func setRating(_ value: Double?) {
+    if let value = value, value.isFinite, value > 0 {
+      currentRatingText = String(format: "%.1f", value)
+    } else {
+      currentRatingText = "--"
+    }
+    ratingLabel.text = currentRatingText
+    updateAccessibilityLabel()
     setNeedsLayout()
   }
 
   func setSequence(_ value: Int?) {
     if let value = value, value > 0 {
+      isRouteMarker = true
       sequenceBadge.text = "\(value)"
       sequenceBadge.isHidden = false
       // 路线 marker 与高优先级圆点在同一坐标。设为必显并跳过碰撞
@@ -1191,16 +1299,112 @@ final class MarkerAnnotationView: MKAnnotationView {
       displayPriority = .required
       collisionMode = .rectangle
     } else {
+      isRouteMarker = false
       sequenceBadge.text = nil
       sequenceBadge.isHidden = true
       displayPriority = .defaultLow
       collisionMode = .rectangle
     }
+    updateIconRenderingMode()
+    updateAccessibilityLabel()
     setNeedsLayout()
+  }
+
+  private func updateIconRenderingMode() {
+    iconView.image = sourceIcon?.withRenderingMode(isRouteMarker ? .alwaysOriginal : .alwaysTemplate)
+  }
+
+  private func updateAccessibilityLabel() {
+    if isRouteMarker {
+      accessibilityLabel = currentLabel
+    } else if currentLabel.isEmpty {
+      accessibilityLabel = "评分 \(currentRatingText)"
+    } else {
+      accessibilityLabel = "\(currentLabel)，评分 \(currentRatingText)"
+    }
   }
 
   override func layoutSubviews() {
     super.layoutSubviews()
+
+    if !isRouteMarker {
+      layoutCapsule()
+      return
+    }
+
+    layoutRouteMarker()
+  }
+
+  private func layoutCapsule() {
+    capsule.isHidden = false
+    capsuleTail.isHidden = false
+    iconCircle.isHidden = false
+    ratingLabel.isHidden = false
+    label.isHidden = true
+    layer.shadowOpacity = 0.12
+    layer.shadowRadius = 9
+    layer.shadowOffset = CGSize(width: 0, height: 3)
+
+    let totalSize = CGSize(
+      width: Metrics.capsuleSize.width,
+      height: Metrics.capsuleTotalHeight
+    )
+    if bounds.size != totalSize {
+      bounds = CGRect(origin: .zero, size: totalSize)
+    }
+
+    UIView.performWithoutAnimation {
+      capsule.frame = CGRect(origin: .zero, size: Metrics.capsuleSize)
+      capsuleTail.bounds = CGRect(
+        x: 0,
+        y: 0,
+        width: Metrics.capsuleTailSize,
+        height: Metrics.capsuleTailSize
+      )
+      capsuleTail.center = CGPoint(
+        x: Metrics.capsuleSize.width / 2,
+        y: Metrics.capsuleSize.height - 1
+      )
+      iconCircle.frame = CGRect(
+        x: Metrics.capsuleIconInset,
+        y: Metrics.capsuleIconInset,
+        width: Metrics.capsuleIconCircle,
+        height: Metrics.capsuleIconCircle
+      )
+      iconView.frame = CGRect(
+        x: iconCircle.frame.midX - Metrics.capsuleIconSize / 2,
+        y: iconCircle.frame.midY - Metrics.capsuleIconSize / 2,
+        width: Metrics.capsuleIconSize,
+        height: Metrics.capsuleIconSize
+      )
+      ratingLabel.frame = CGRect(
+        x: iconCircle.frame.maxX + 4,
+        y: 0,
+        width: Metrics.capsuleSize.width - iconCircle.frame.maxX - 8,
+        height: Metrics.capsuleSize.height
+      )
+
+      let shadowPath = UIBezierPath(
+        roundedRect: capsule.frame,
+        cornerRadius: Metrics.capsuleCornerRadius
+      )
+      shadowPath.move(to: CGPoint(x: bounds.midX - 6, y: Metrics.capsuleSize.height - 1))
+      shadowPath.addLine(to: CGPoint(x: bounds.midX, y: Metrics.capsuleTotalHeight))
+      shadowPath.addLine(to: CGPoint(x: bounds.midX + 6, y: Metrics.capsuleSize.height - 1))
+      shadowPath.close()
+      layer.shadowPath = shadowPath.cgPath
+
+      // 胶囊尾尖落在 POI 坐标上。
+      centerOffset = CGPoint(x: 0, y: -Metrics.capsuleTotalHeight / 2)
+    }
+  }
+
+  private func layoutRouteMarker() {
+    capsule.isHidden = true
+    capsuleTail.isHidden = true
+    iconCircle.isHidden = true
+    ratingLabel.isHidden = true
+    label.isHidden = false
 
     let attributedText = label.attributedText
     var textSize = CGSize.zero
@@ -1214,8 +1418,8 @@ final class MarkerAnnotationView: MKAnnotationView {
       height: ceil(textSize.height)
     )
 
-    let totalHeight = Metrics.iconSize.height + Metrics.gap + labelSize.height
-    let totalWidth = max(Metrics.iconSize.width, min(labelSize.width, Metrics.maxLabelWidth))
+    let totalHeight = Metrics.routeIconSize.height + Metrics.routeGap + labelSize.height
+    let totalWidth = max(Metrics.routeIconSize.width, min(labelSize.width, Metrics.maxLabelWidth))
 
     if bounds.size != CGSize(width: totalWidth, height: totalHeight) {
       bounds = CGRect(origin: .zero, size: CGSize(width: totalWidth, height: totalHeight))
@@ -1230,10 +1434,10 @@ final class MarkerAnnotationView: MKAnnotationView {
       )
       sequenceBadge.layer.cornerRadius = Metrics.sequenceHeight / 2
       iconView.frame = CGRect(
-        x: (totalWidth - Metrics.iconSize.width) / 2,
+        x: (totalWidth - Metrics.routeIconSize.width) / 2,
         y: 0,
-        width: Metrics.iconSize.width,
-        height: Metrics.iconSize.height
+        width: Metrics.routeIconSize.width,
+        height: Metrics.routeIconSize.height
       )
       sequenceBadge.frame = CGRect(
         x: iconView.frame.maxX - sequenceWidth + 5,
@@ -1243,14 +1447,17 @@ final class MarkerAnnotationView: MKAnnotationView {
       )
       label.frame = CGRect(
         x: 0,
-        y: Metrics.iconSize.height + Metrics.gap,
+        y: Metrics.routeIconSize.height + Metrics.routeGap,
         width: totalWidth,
         height: labelSize.height
       )
 
+      layer.shadowPath = nil
+      layer.shadowOpacity = 0
+
       // 锚点 = 图标底尖（对应旧 iconAnchor BOTTOM + label 在下方）：
       // 第 anchorRow 行压住坐标点 ⇒ offset.y = midY - anchorRow。
-      let anchorRow = Metrics.iconSize.height
+      let anchorRow = Metrics.routeIconSize.height
       centerOffset = CGPoint(x: 0, y: bounds.midY - anchorRow)
     }
   }
