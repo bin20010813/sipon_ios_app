@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../pages/language_transform.dart';
+import '../../pages/venue_fullscreen_map_page.dart';
 import '../../services/map/api_venue_detail_repository.dart';
 import '../../services/map/map_models.dart';
 import 'venue_detail_view.dart';
@@ -21,9 +23,12 @@ import 'venue_mini_map.dart';
 /// - 收回地图 = sheet 回到 1.0 后卸载地图层；系统返回逐级触发。
 /// 地图 Tab 的链路（MapPage / VenueSheetController / VenueMapHalfPage）零改动。
 class VenueDetailPage extends StatefulWidget {
-  const VenueDetailPage({super.key, required this.venue});
+  const VenueDetailPage({super.key, required this.venue, this.onMapRequested});
 
   final MapVenue venue;
+
+  /// 首页提供此回调时，地址入口切换到地图 Tab 并定位该 POI。
+  final ValueChanged<MapVenue>? onMapRequested;
 
   @override
   State<VenueDetailPage> createState() => _VenueDetailPageState();
@@ -72,7 +77,7 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
         topInset: topInset,
         bottomOverlayInset: 0,
         onClose: () => Navigator.of(context).pop(),
-        onAddressTap: (_) => unawaited(_expandMap()),
+        onAddressTap: (venue) => unawaited(_openMap(venue)),
         onMapClose: _mapMounted ? () => unawaited(_collapseMap()) : null,
         repository: _repository,
       );
@@ -90,10 +95,10 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
     return progress.clamp(0.0, 1.0).toDouble();
   }
 
-  /// 地址点击进入「地图半屏」：地图挂载，详情面板下沉到半屏。
-  Future<void> _expandMap() async {
-    final longitude = widget.venue.longitude;
-    final latitude = widget.venue.latitude;
+  /// 地址点击使用详情接口返回的地点坐标，避免首页概要信息缺坐标时定位失败。
+  Future<void> _openMap(MapVenue venue) async {
+    final longitude = venue.longitude;
+    final latitude = venue.latitude;
     if (!longitude.isFinite ||
         !latitude.isFinite ||
         longitude.abs() > 180 ||
@@ -102,6 +107,10 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('该地点暂无可用位置')));
+      return;
+    }
+    if (widget.onMapRequested != null) {
+      widget.onMapRequested!(venue);
       return;
     }
     if (_mapMounted || _mapAnimating) return;
@@ -154,12 +163,16 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
     unawaited(_collapseMap());
   }
 
-  /// 半屏态点地图空白处收回地图（全屏态地图被详情盖住，点不到）。
-  void _handleMapBlankTapped() {
+  /// Tapping the exposed map opens a full-screen map for pan and pinch zoom.
+  void _openFullscreenMap() {
     if (_mapMounted &&
         !_mapAnimating &&
         _sheetController.size <= _halfExtent + 0.01) {
-      unawaited(_collapseMap());
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => VenueFullscreenMapPage(venue: widget.venue),
+        ),
+      );
     }
   }
 
@@ -175,10 +188,7 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
     final statusBarTop = MediaQuery.paddingOf(context).top;
 
     final mapLayer = _mapMounted
-        ? VenueMiniMap(
-            venue: widget.venue,
-            onBlankTapped: _handleMapBlankTapped,
-          )
+        ? VenueMiniMap(venue: widget.venue, onMapTapped: _openFullscreenMap)
         : null;
 
     return PopScope(
@@ -206,7 +216,47 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
                 child: DecoratedBox(
                   // attach 完成前的兜底底色，接近标准底图的浅色。
                   decoration: const BoxDecoration(color: Color(0xFFF3F0F2)),
-                  child: mapLayer,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(child: mapLayer),
+                      Positioned(
+                        top: statusBarTop + 12,
+                        right: 16,
+                        child: Material(
+                          color: Colors.white,
+                          elevation: 2,
+                          borderRadius: BorderRadius.circular(20),
+                          child: InkWell(
+                            key: const ValueKey('expand-venue-map'),
+                            borderRadius: BorderRadius.circular(20),
+                            onTap: _openFullscreenMap,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.open_in_full_rounded,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    SiponLanguageScope.languageOf(context) ==
+                                            SiponLanguage.zh
+                                        ? '放大地图'
+                                        : 'Expand map',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             Positioned.fill(

@@ -29,6 +29,7 @@ class SiponCityController extends ChangeNotifier {
   bool get initialized => _initialized;
   bool get manualSelection => _manualSelection;
   bool get locationAttempted => _locationAttempted;
+  SiponLocationPoint? get detectedPosition => _detectedPosition;
 
   /// 手选城市以城市中心为查询锚点；自动定位时优先使用真实 WGS-84 坐标。
   SiponLocationPoint? get queryAnchor {
@@ -159,7 +160,10 @@ class SiponCityController extends ChangeNotifier {
 
       final city = _nearestKnownCity(position.latitude, position.longitude);
       if (city == null) {
-        return const SiponLocateResult(status: SiponLocateStatus.failed);
+        return SiponLocateResult(
+          status: SiponLocateStatus.failed,
+          position: SiponLocationPoint(position.longitude, position.latitude),
+        );
       }
       return SiponLocateResult(
         status: SiponLocateStatus.success,

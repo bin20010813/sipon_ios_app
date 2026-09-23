@@ -197,6 +197,35 @@ void main() {
   });
 
   group('MapDataController', () {
+    test('首页跳转的 POI 在视野请求返回后仍选中并显示', () async {
+      final repository = _QueuedRepository();
+      final controller = MapDataController(repository: repository, city: '上海');
+      addTearDown(controller.dispose);
+
+      final loading = controller.syncViewport(_shanghaiViewport);
+      controller.toggleCategory(MapVenueKind.craft);
+      controller.applyPoiFilter(const MapPoiFilter(minimumRating: 5));
+      controller.setSearchQuery('other');
+      final target = _venue('home-bar', longitude: 121.48);
+      controller.focusVenueFromPage(target);
+      expect(controller.selectedVenue?.id, target.id);
+      expect(controller.categoryFilter, isNull);
+      expect(controller.poiFilter, MapPoiFilter.none);
+      expect(controller.searchQuery, isEmpty);
+      expect(
+        controller.markerVenues.map((venue) => venue.id),
+        contains(target.id),
+      );
+
+      repository.pending.single.complete([_venue('nearby')]);
+      await loading;
+      expect(controller.selectedVenue?.id, target.id);
+      expect(
+        controller.markerVenues.map((venue) => venue.id),
+        contains(target.id),
+      );
+    });
+
     test('乱序结果按中心距离排序，缓存平移也更新排序并保留选中', () async {
       final repository = _StubRepository([
         _venue('far', longitude: 121.49, latitude: 31.2227),
@@ -285,6 +314,11 @@ void main() {
       expect(controller.visibleVenues.map((venue) => venue.id), [
         'cheap-craft',
       ]);
+      expect(controller.circlePoints.map((point) => point.venueId), [
+        'cheap-craft',
+      ]);
+      expect(controller.markerVenues.map((venue) => venue.id), ['cheap-craft']);
+      expect(controller.selectedPoint?.venueId, 'cheap-craft');
 
       controller.toggleCategory(MapVenueKind.bistro);
       controller.applyPoiFilter(
@@ -293,6 +327,15 @@ void main() {
       expect(controller.visibleVenues.map((venue) => venue.id), [
         'great-bistro',
       ]);
+      expect(controller.circlePoints.map((point) => point.venueId), [
+        'great-bistro',
+      ]);
+
+      controller.applyPoiFilter(const MapPoiFilter(maxAveragePrice: 20));
+      expect(controller.visibleVenues, isEmpty);
+      expect(controller.circlePoints, isEmpty);
+      expect(controller.markerVenues, isEmpty);
+      expect(controller.selectedPoint, isNull);
 
       controller.clearPoiFilter();
       expect(controller.visibleVenues, hasLength(3));

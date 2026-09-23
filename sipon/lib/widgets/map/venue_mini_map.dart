@@ -24,7 +24,7 @@ class VenueMiniMap extends StatefulWidget {
   const VenueMiniMap({
     super.key,
     required this.venue,
-    this.onBlankTapped,
+    this.onMapTapped,
     this.centered = false,
   });
 
@@ -33,8 +33,8 @@ class VenueMiniMap extends StatefulWidget {
   /// Center the point inside this map instead of reserving a detail sheet.
   final bool centered;
 
-  /// 点地图空白处（无 marker 命中）时回调，详情页用来收回地图。
-  final VoidCallback? onBlankTapped;
+  /// Tap on the map or its venue marker.
+  final VoidCallback? onMapTapped;
 
   @override
   State<VenueMiniMap> createState() => _VenueMiniMapState();
@@ -48,11 +48,9 @@ class _VenueMiniMapState extends State<VenueMiniMap> {
 
   late final MapSceneController _scene = MapSceneController.create(
     onViewportSettled: (_) {},
-    onVenueTapped: (_) {},
-    onBlankTapped: _handleBlankTapped,
+    onVenueTapped: (_) => widget.onMapTapped?.call(),
+    onBlankTapped: () => widget.onMapTapped?.call(),
   );
-
-  void _handleBlankTapped() => widget.onBlankTapped?.call();
 
   @override
   void dispose() {
@@ -118,7 +116,7 @@ class _VenueMiniMapState extends State<VenueMiniMap> {
     // 在 Android 调试时依然可用，地图本体等真机 iOS 验证。
     if (defaultTargetPlatform != TargetPlatform.iOS) {
       return GestureDetector(
-        onTap: _handleBlankTapped,
+        onTap: widget.onMapTapped,
         child: const ColoredBox(
           color: Color(0xFFF3F0F2),
           child: Center(

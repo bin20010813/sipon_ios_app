@@ -148,6 +148,7 @@ abstract class MapSceneController {
     SiponMapHost host, {
     required String city,
     MapBaseStyle style = MapBaseStyle.standard,
+    MapLatLng? initialCenter,
   });
 
   void detach();

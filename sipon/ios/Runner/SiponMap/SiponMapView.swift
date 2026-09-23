@@ -126,7 +126,7 @@ final class SiponMapEngine: NSObject {
   private var circlesById: [String: CirclePointAnnotation] = [:]
   private var markersByVenueId: [String: MarkerAnnotation] = [:]
   private var selectionAnnotation: SelectionAnnotation?
-  /// 选中态直接落在对应胶囊上，不再用一枚放大的独立 PNG 覆盖原 marker。
+  /// 选中态直接切换对应 marker 的视图，不再额外覆盖一枚 annotation。
   private var selectedVenueId: String?
   /// 路径规划出的路线折线（单独成池，不受 renderFrame 的 id diff 影响）。
   private var routeOverlay: MKPolyline?
@@ -435,12 +435,19 @@ final class SiponMapEngine: NSObject {
 
     // 初始相机对齐旧版 attach 的语义：城市级视野一眼看到整片城区
     // （zoom 11.8 为城市级视野）。
-    let center = SiponMapGeometry.cityCenter(named: city)
+    let cityCenter = SiponMapGeometry.cityCenter(named: city)
+    let latitude = SiponMapProtocol.double(args, "lat", fallback: .nan)
+    let longitude = SiponMapProtocol.double(args, "lng", fallback: .nan)
+    let location = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    let center = CLLocationCoordinate2DIsValid(location) ? location : cityCenter
+    let zoom = CLLocationCoordinate2DIsValid(location)
+      ? SiponMapGeometry.initialCityZoom + 3.2
+      : SiponMapGeometry.initialCityZoom
     moveCamera(
       SiponMapProtocol.CameraMove(dict: [
         "lng": center.longitude,
         "lat": center.latitude,
-        "zoom": SiponMapGeometry.initialCityZoom,
+        "zoom": zoom,
         "pitch": 0,
         "bearing": 0,
         "bottomPadding": 0,
@@ -784,10 +791,10 @@ final class SiponMapEngine: NSObject {
     if !toAdd.isEmpty { mapView.addAnnotations(toAdd) }
   }
 
-  // MARK: 选中高亮 diff（原胶囊只变颜色，不改变形状）
+  // MARK: 选中状态 diff（胶囊切换为单独图标）
 
   private func diffSelection(_ selected: SiponMapProtocol.SelectedSpec?) {
-    // 清理旧实现可能遗留的独立选中图标，避免它改变胶囊外观。
+    // 清理旧实现可能遗留的独立选中图标。
     if let existing = selectionAnnotation {
       selectionAnnotation = nil
       mapView.removeAnnotation(existing)
@@ -845,7 +852,7 @@ final class SiponMapEngine: NSObject {
       view.setHighlighted(venueId == selectedVenueId)
     }
 
-    // 选中点位用放大 PNG 呈现，不跟模式隐藏（它是详情卡片指向的唯一锚点）。
+    // 兼容旧实现遗留的独立选中图标。
     if let annotation = selectionAnnotation,
        let view = mapView.view(for: annotation) as? VenueIconAnnotationView {
       view.apply(icon: markerIcons[annotation.category], selected: true)
@@ -1132,24 +1139,18 @@ final class SelectionAnnotation: NSObject, MKAnnotation, VenueSelecting {
 // =============================================================================
 
 /// 普通点位与选中点位共用的图标视图：显示分类 PNG，图片底部对齐地图坐标。
-/// 普通态 22×28，选中态放大到 30×38（§1/§2）。
+/// 普通态和选中态均按原尺寸的 2/3 显示。
 final class VenueIconAnnotationView: MKAnnotationView {
 
   private enum Metrics {
-    static let normalSize = CGSize(width: 22, height: 28)
-    static let selectedSize = CGSize(width: 30, height: 38)
+    static let normalSize = CGSize(width: 22 * 2 / 3, height: 28 * 2 / 3)
+    static let selectedSize = CGSize(width: 30 * 2 / 3, height: 38 * 2 / 3)
   }
 
   private let iconView = UIImageView(frame: .zero)
-  private let selectionHalo = UIView(frame: .zero)
 
   override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
     super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
-    selectionHalo.isUserInteractionEnabled = false
-    selectionHalo.backgroundColor = UIColor(red: 0.60, green: 0.24, blue: 0.47, alpha: 0.24)
-    selectionHalo.layer.borderColor = UIColor.white.cgColor
-    selectionHalo.layer.borderWidth = 2
-    addSubview(selectionHalo)
     addSubview(iconView)
     iconView.contentMode = .scaleAspectFit
     isUserInteractionEnabled = true
@@ -1164,7 +1165,6 @@ final class VenueIconAnnotationView: MKAnnotationView {
   func apply(icon: UIImage?, selected: Bool) {
     let size = selected ? Metrics.selectedSize : Metrics.normalSize
     iconView.image = icon
-    selectionHalo.isHidden = !selected
     layer.zPosition = selected ? 1000 : 0
     if #available(iOS 14.0, *) {
       zPriority = selected ? .max : .defaultUnselected
@@ -1173,12 +1173,6 @@ final class VenueIconAnnotationView: MKAnnotationView {
     UIView.performWithoutAnimation {
       bounds = CGRect(origin: .zero, size: size)
       iconView.frame = bounds
-      selectionHalo.frame = bounds.insetBy(dx: -8, dy: -5)
-      selectionHalo.layer.cornerRadius = selectionHalo.bounds.width / 2
-      layer.shadowColor = UIColor(red: 0.60, green: 0.24, blue: 0.47, alpha: 1).cgColor
-      layer.shadowOpacity = selected ? 0.6 : 0
-      layer.shadowRadius = 6
-      layer.shadowOffset = .zero
       // 锚点 = 图标底边中点（对应旧 iconAnchor BOTTOM）：
       // 视图中心上移半个高度 ⇒ centerOffset.y = -height/2。
       centerOffset = CGPoint(x: 0, y: -size.height / 2)
@@ -1186,23 +1180,25 @@ final class VenueIconAnnotationView: MKAnnotationView {
   }
 }
 
-/// 地图 marker：普通 POI 与路线站点统一使用「分类图标 + 评分」白色胶囊；
+/// 地图 marker：未选中时显示缩小的「分类图标 + 评分」胶囊，选中时只显示分类图标。
 /// 路线站点额外在左上角显示顺序编号。MapKit 没有文字碰撞 API（决策 D4），
 /// 普通 POI 靠 Dart 抽样限流，路线站点则设为 required 保证顺序始终可见。
 final class MarkerAnnotationView: MKAnnotationView {
 
   private enum Metrics {
-    static let capsuleSize = CGSize(width: 104, height: 44)
-    static let capsuleTotalHeight: CGFloat = 50
-    static let capsuleCornerRadius: CGFloat = 22
-    static let capsuleIconCircle: CGFloat = 36
-    static let capsuleIconSize: CGFloat = 22
-    static let capsuleIconInset: CGFloat = 4
-    static let capsuleTailSize: CGFloat = 10
+    static let scale: CGFloat = 2.0 / 3.0
+    static let capsuleSize = CGSize(width: 104 * scale, height: 44 * scale)
+    static let capsuleTotalHeight: CGFloat = 50 * scale
+    static let capsuleCornerRadius: CGFloat = 22 * scale
+    static let capsuleIconCircle: CGFloat = 36 * scale
+    static let capsuleIconSize: CGFloat = 22 * scale
+    static let capsuleIconInset: CGFloat = 4 * scale
+    static let capsuleTailSize: CGFloat = 10 * scale
+    static let selectedIconSize = CGSize(width: 30 * scale, height: 38 * scale)
     static let routeIconSize = CGSize(width: 22, height: 28)
-    static let sequenceHeight: CGFloat = 21
-    static let sequenceMinimumWidth: CGFloat = 21
-    static let sequenceHorizontalPadding: CGFloat = 8
+    static let sequenceHeight: CGFloat = 21 * scale
+    static let sequenceMinimumWidth: CGFloat = 21 * scale
+    static let sequenceHorizontalPadding: CGFloat = 8 * scale
     static let routeGap: CGFloat = 2
     static let maxLabelWidth: CGFloat = 170
   }
@@ -1253,17 +1249,17 @@ final class MarkerAnnotationView: MKAnnotationView {
       blue: 0x10 / 255,
       alpha: 1
     )
-    ratingLabel.font = UIFont.systemFont(ofSize: 16, weight: .semibold)
+    ratingLabel.font = UIFont.systemFont(ofSize: 16 * Metrics.scale, weight: .semibold)
     ratingLabel.textAlignment = .center
     ratingLabel.adjustsFontSizeToFitWidth = true
     ratingLabel.minimumScaleFactor = 0.85
     sequenceBadge.backgroundColor = UIColor.white
     sequenceBadge.textColor = UIColor(red: 0x9A / 255, green: 0x3D / 255, blue: 0x78 / 255, alpha: 1)
-    sequenceBadge.font = UIFont.systemFont(ofSize: 12, weight: .black)
+    sequenceBadge.font = UIFont.systemFont(ofSize: 12 * Metrics.scale, weight: .black)
     sequenceBadge.textAlignment = .center
     sequenceBadge.layer.masksToBounds = true
     sequenceBadge.layer.borderColor = UIColor(red: 0x9A / 255, green: 0x3D / 255, blue: 0x78 / 255, alpha: 1).cgColor
-    sequenceBadge.layer.borderWidth = 1
+    sequenceBadge.layer.borderWidth = Metrics.scale
     label.numberOfLines = 1
     label.lineBreakMode = .byTruncatingTail
     isUserInteractionEnabled = true
@@ -1333,23 +1329,11 @@ final class MarkerAnnotationView: MKAnnotationView {
     setNeedsLayout()
   }
 
-  /// 选中态不创建新图标，也不改 bounds/圆角/尾尖，只叠加与图标底色一致的
-  /// 描边、光晕和文字强调色。
+  /// 选中时切换为单独的分类图标，不显示胶囊和评分。
   func setHighlighted(_ highlighted: Bool) {
     guard isPoiHighlighted != highlighted else { return }
     isPoiHighlighted = highlighted
 
-    let accent = iconCircle.backgroundColor ?? UIColor(
-      red: 0x9A / 255,
-      green: 0x3D / 255,
-      blue: 0x78 / 255,
-      alpha: 1
-    )
-    capsule.layer.borderColor = accent.cgColor
-    capsule.layer.borderWidth = highlighted ? 2.5 : 0
-    ratingLabel.textColor = highlighted
-      ? accent
-      : UIColor(red: 0x10 / 255, green: 0x10 / 255, blue: 0x10 / 255, alpha: 1)
     layer.zPosition = highlighted ? 1000 : 0
     displayPriority = highlighted || isRouteMarker ? .required : .defaultLow
     if #available(iOS 14.0, *) {
@@ -1360,16 +1344,21 @@ final class MarkerAnnotationView: MKAnnotationView {
     } else {
       accessibilityTraits.remove(.selected)
     }
+    updateIconRenderingMode()
+    updateAccessibilityLabel()
     setNeedsLayout()
   }
 
   private func updateIconRenderingMode() {
-    // 胶囊内的分类图标统一转成白色模板图，不再显示独立 PNG 原色。
-    iconView.image = sourceIcon?.withRenderingMode(.alwaysTemplate)
+    iconView.image = sourceIcon?.withRenderingMode(
+      isPoiHighlighted ? .alwaysOriginal : .alwaysTemplate
+    )
   }
 
   private func updateAccessibilityLabel() {
-    if isRouteMarker {
+    if isPoiHighlighted {
+      accessibilityLabel = currentLabel
+    } else if isRouteMarker {
       accessibilityLabel = "第\(sequenceBadge.text ?? "-")站，\(currentLabel)，评分 \(currentRatingText)"
     } else if currentLabel.isEmpty {
       accessibilityLabel = "评分 \(currentRatingText)"
@@ -1380,22 +1369,46 @@ final class MarkerAnnotationView: MKAnnotationView {
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    layoutCapsule()
+    if isPoiHighlighted {
+      layoutSelectedIcon()
+    } else {
+      layoutCapsule()
+    }
+  }
+
+  private func layoutSelectedIcon() {
+    capsule.isHidden = true
+    capsuleTail.isHidden = true
+    iconCircle.isHidden = true
+    ratingLabel.isHidden = true
+    sequenceBadge.isHidden = true
+    label.isHidden = true
+    iconView.isHidden = false
+    layer.shadowPath = nil
+    layer.shadowOpacity = 0
+
+    let size = Metrics.selectedIconSize
+    if bounds.size != size {
+      bounds = CGRect(origin: .zero, size: size)
+    }
+    UIView.performWithoutAnimation {
+      iconView.frame = bounds
+      centerOffset = CGPoint(x: 0, y: -size.height / 2)
+    }
   }
 
   private func layoutCapsule() {
     capsule.isHidden = false
     capsuleTail.isHidden = false
     iconCircle.isHidden = false
+    iconView.isHidden = false
     ratingLabel.isHidden = false
     sequenceBadge.isHidden = !isRouteMarker
     label.isHidden = true
-    layer.shadowColor = (isPoiHighlighted
-      ? iconCircle.backgroundColor
-      : UIColor.black)?.cgColor
-    layer.shadowOpacity = isPoiHighlighted ? 0.42 : 0.12
-    layer.shadowRadius = isPoiHighlighted ? 12 : 9
-    layer.shadowOffset = CGSize(width: 0, height: 3)
+    layer.shadowColor = UIColor.black.cgColor
+    layer.shadowOpacity = 0.12
+    layer.shadowRadius = 9 * Metrics.scale
+    layer.shadowOffset = CGSize(width: 0, height: 3 * Metrics.scale)
 
     let totalSize = CGSize(
       width: Metrics.capsuleSize.width,
@@ -1415,7 +1428,7 @@ final class MarkerAnnotationView: MKAnnotationView {
       )
       capsuleTail.center = CGPoint(
         x: Metrics.capsuleSize.width / 2,
-        y: Metrics.capsuleSize.height - 1
+        y: Metrics.capsuleSize.height - Metrics.scale
       )
       iconCircle.frame = CGRect(
         x: Metrics.capsuleIconInset,
@@ -1430,9 +1443,9 @@ final class MarkerAnnotationView: MKAnnotationView {
         height: Metrics.capsuleIconSize
       )
       ratingLabel.frame = CGRect(
-        x: iconCircle.frame.maxX + 4,
+        x: iconCircle.frame.maxX + 4 * Metrics.scale,
         y: 0,
-        width: Metrics.capsuleSize.width - iconCircle.frame.maxX - 8,
+        width: Metrics.capsuleSize.width - iconCircle.frame.maxX - 8 * Metrics.scale,
         height: Metrics.capsuleSize.height
       )
       if isRouteMarker {
@@ -1442,8 +1455,8 @@ final class MarkerAnnotationView: MKAnnotationView {
         )
         sequenceBadge.layer.cornerRadius = Metrics.sequenceHeight / 2
         sequenceBadge.frame = CGRect(
-          x: -5,
-          y: -6,
+          x: -5 * Metrics.scale,
+          y: -6 * Metrics.scale,
           width: sequenceWidth,
           height: Metrics.sequenceHeight
         )
@@ -1453,9 +1466,15 @@ final class MarkerAnnotationView: MKAnnotationView {
         roundedRect: capsule.frame,
         cornerRadius: Metrics.capsuleCornerRadius
       )
-      shadowPath.move(to: CGPoint(x: bounds.midX - 6, y: Metrics.capsuleSize.height - 1))
+      shadowPath.move(to: CGPoint(
+        x: bounds.midX - 6 * Metrics.scale,
+        y: Metrics.capsuleSize.height - Metrics.scale
+      ))
       shadowPath.addLine(to: CGPoint(x: bounds.midX, y: Metrics.capsuleTotalHeight))
-      shadowPath.addLine(to: CGPoint(x: bounds.midX + 6, y: Metrics.capsuleSize.height - 1))
+      shadowPath.addLine(to: CGPoint(
+        x: bounds.midX + 6 * Metrics.scale,
+        y: Metrics.capsuleSize.height - Metrics.scale
+      ))
       shadowPath.close()
       layer.shadowPath = shadowPath.cgPath
 

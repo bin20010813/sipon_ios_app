@@ -49,6 +49,7 @@ class MapkitSceneController extends MapSceneController {
     SiponMapHost host, {
     required String city,
     MapBaseStyle style = MapBaseStyle.standard,
+    MapLatLng? initialCenter,
   }) async {
     _host = host;
     host.onNativeCall(handleNativeEvent);
@@ -60,7 +61,7 @@ class MapkitSceneController extends MapSceneController {
     // 收到这条命令后原生才装配地图并回报 onMapReady——不存在事件早于监听。
     await host.invoke(
       SiponMapCommands.setup,
-      encodeSetup(city: city, style: style),
+      encodeSetup(city: city, style: style, initialCenter: initialCenter),
     );
     // 手势显式下一次：原来 [encodeGestures] 与原生 setGestures 分支都在，
     // 但没有任何调用点，等于「靠原生默认值恰好是开着的」。补齐这条，缩放/拖拽

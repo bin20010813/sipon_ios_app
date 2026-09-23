@@ -23,11 +23,13 @@ class HomePage extends StatefulWidget {
     super.key,
     this.bottomOverlayInset = 0,
     this.onRecordPressed,
+    this.onVenueMapRequested,
     this.searchExpanded,
   });
 
   final double bottomOverlayInset;
   final VoidCallback? onRecordPressed;
+  final ValueChanged<MapVenue>? onVenueMapRequested;
 
   /// 外部共享的搜索展开状态（壳层用它在遮罩出现时同步隐藏底栏）；
   /// 为空时由页面内部自建，页面可独立使用。
@@ -243,7 +245,10 @@ class _HomePageState extends State<HomePage> {
                                     statusMessage: '正在加载接口数据...',
                                   );
 
-                              return _HomeDataSections(data: data);
+                              return _HomeDataSections(
+                                data: data,
+                                onVenueMapRequested: widget.onVenueMapRequested,
+                              );
                             },
                           ),
                         ],
@@ -709,9 +714,10 @@ class _HomeRecordPrompt extends StatelessWidget {
 }
 
 class _HomeDataSections extends StatelessWidget {
-  const _HomeDataSections({required this.data});
+  const _HomeDataSections({required this.data, this.onVenueMapRequested});
 
   final _HomeBarsData data;
+  final ValueChanged<MapVenue>? onVenueMapRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -737,7 +743,11 @@ class _HomeDataSections extends StatelessWidget {
             padding: const EdgeInsets.only(right: 23),
             child: _FeaturedBarCard(
               bar: data.featuredBar,
-              onTap: () => _pushVenueDetail(context, data.featuredBar),
+              onTap: () => _pushVenueDetail(
+                context,
+                data.featuredBar,
+                onVenueMapRequested,
+              ),
             ),
           ),
         // if (data.bars.isNotEmpty) const SizedBox(height: 14),
@@ -753,7 +763,11 @@ class _HomeDataSections extends StatelessWidget {
         //   child: _BartenderStories(),
         // ),
         if (data.bars.length > 1) const SizedBox(height: 26),
-        if (data.bars.length > 1) _TopBarsSection(bars: data.bars),
+        if (data.bars.length > 1)
+          _TopBarsSection(
+            bars: data.bars,
+            onVenueMapRequested: onVenueMapRequested,
+          ),
       ],
     );
   }
@@ -788,10 +802,22 @@ class _HomeDataStatus extends StatelessWidget {
 }
 
 /// 全屏打开某个酒吧/地点的详情页。
-void _pushVenueDetail(BuildContext context, _HomeBar bar) {
+void _pushVenueDetail(
+  BuildContext context,
+  _HomeBar bar,
+  ValueChanged<MapVenue>? onVenueMapRequested,
+) {
   Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (_) => VenueDetailPage(venue: bar.toVenue()),
+      builder: (_) => VenueDetailPage(
+        venue: bar.toVenue(),
+        onMapRequested: onVenueMapRequested == null
+            ? null
+            : (venue) {
+                Navigator.of(context).pop();
+                onVenueMapRequested(venue);
+              },
+      ),
     ),
   );
 }
@@ -1816,9 +1842,10 @@ class _StoryCard extends StatelessWidget {
 }
 
 class _TopBarsSection extends StatelessWidget {
-  const _TopBarsSection({required this.bars});
+  const _TopBarsSection({required this.bars, this.onVenueMapRequested});
 
   final List<_HomeBar> bars;
+  final ValueChanged<MapVenue>? onVenueMapRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -1839,7 +1866,7 @@ class _TopBarsSection extends StatelessWidget {
               .toList(),
           onItemTap: [
             for (final bar in recommendationBars)
-              () => _pushVenueDetail(context, bar),
+              () => _pushVenueDetail(context, bar, onVenueMapRequested),
           ],
         ),
       ),

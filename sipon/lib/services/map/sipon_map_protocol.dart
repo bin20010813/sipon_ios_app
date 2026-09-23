@@ -49,7 +49,15 @@ abstract final class SiponMapEvents {
 Map<String, Object?> encodeSetup({
   required String city,
   required MapBaseStyle style,
-}) => {'city': city, 'styleId': style.id};
+  MapLatLng? initialCenter,
+}) => {
+  'city': city,
+  'styleId': style.id,
+  if (initialCenter != null) ...{
+    'lng': initialCenter.longitude,
+    'lat': initialCenter.latitude,
+  },
+};
 
 Map<String, Object?> encodeStyle(String styleId) => {'styleId': styleId};
 

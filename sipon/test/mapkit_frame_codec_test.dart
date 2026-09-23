@@ -284,6 +284,17 @@ void main() {
       expect(setup['styleId'], 'satellite');
     });
 
+    test('初始 setup 可使用用户坐标作为地图中心', () {
+      final setup = encodeSetup(
+        city: '上海',
+        style: MapBaseStyle.standard,
+        initialCenter: const MapLatLng(longitude: 113.2644, latitude: 23.1291),
+      );
+
+      expect(setup['lng'], 113.2644);
+      expect(setup['lat'], 23.1291);
+    });
+
     test('未知档位 id 归一到 standard（widget 初始样式分支）', () {
       expect(MapBaseStyle.fromId('muted'), MapBaseStyle.muted);
       expect(MapBaseStyle.fromId('whatever'), MapBaseStyle.standard);

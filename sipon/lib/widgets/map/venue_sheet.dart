@@ -27,6 +27,7 @@ class VenueSheetSurface extends StatelessWidget {
   const VenueSheetSurface({
     super.key,
     required this.venue,
+    this.filterActive = false,
     required this.scrollController,
     required this.progress,
     required this.fullscreenProgress,
@@ -49,6 +50,7 @@ class VenueSheetSurface extends StatelessWidget {
 
   /// 当前视野一家酒吧都没有时为 null，此时面板只显示一句提示、也不能展开。
   final MapVenue? venue;
+  final bool filterActive;
   final ScrollController scrollController;
   final double progress;
   final double fullscreenProgress;
@@ -124,7 +126,7 @@ class VenueSheetSurface extends StatelessWidget {
                   opacity: collapsedOpacity,
                   interactive: false,
                   child: selected == null
-                      ? const _VenueSheetEmptyContent()
+                      ? _VenueSheetEmptyContent(filterActive: filterActive)
                       : _VenueSummaryContent(venue: selected),
                 ),
               ),
@@ -202,7 +204,9 @@ class _VenueSheetDragHandle extends StatelessWidget {
 /// 视野里没有酒吧时的占位内容。原来这条分支根本到不了（永远兜底 4 家精选），
 /// 现在平移到郊区就会真的看到它。
 class _VenueSheetEmptyContent extends StatelessWidget {
-  const _VenueSheetEmptyContent();
+  const _VenueSheetEmptyContent({required this.filterActive});
+
+  final bool filterActive;
 
   @override
   Widget build(BuildContext context) {
@@ -222,7 +226,7 @@ class _VenueSheetEmptyContent extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              text.t('当前视野暂无可展示酒吧'),
+              text.t(filterActive ? '暂无符合筛选条件的酒吧' : '当前视野暂无可展示酒吧'),
               style: const TextStyle(
                 color: MapDesign.ink,
                 fontSize: 14,
@@ -232,7 +236,7 @@ class _VenueSheetEmptyContent extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              text.t('试着缩小地图或者换个分类看看'),
+              text.t(filterActive ? '试着调整金额、评分或酒吧类型' : '试着缩小地图或者换个分类看看'),
               style: const TextStyle(
                 color: MapDesign.muted,
                 fontSize: 12,

@@ -16,6 +16,7 @@ import 'pages/route_planning_page.dart';
 import 'pages/sipon_launch_page.dart';
 import 'pages/sms_login_page.dart';
 import 'services/drink_budget_store.dart';
+import 'services/map/map_models.dart';
 import 'services/sipon_auth_service.dart';
 import 'services/sipon_city_controller.dart';
 import 'widgets/sipon_city_picker.dart';
@@ -282,9 +283,8 @@ class _SiponShellState extends State<_SiponShell> {
   // viewPadding 是设备的固定系统安全区；padding 会在键盘出现时扣掉
   // viewInsets，因此不能用它来决定全局悬浮导航的基线位置。间距按平台
   // 的具体旋钮见 _bottomBarBottomGapFor 的文档注释。
-  double get _bottomBarBottomGap => _bottomBarBottomGapFor(
-    MediaQuery.viewPaddingOf(context).bottom,
-  );
+  double get _bottomBarBottomGap =>
+      _bottomBarBottomGapFor(MediaQuery.viewPaddingOf(context).bottom);
 
   /// 底栏占据的总高度，各页面用它做列表底部的滚动预留。
   double get _effectiveNavigationReserveHeight =>
@@ -295,6 +295,7 @@ class _SiponShellState extends State<_SiponShell> {
       GlobalKey<ProfilePageState>();
 
   int _currentIndex = 0;
+  MapVenue? _mapRequestedVenue;
   bool _recordRouteOpening = false;
   final ValueNotifier<double> _mapSheetProgress = ValueNotifier<double>(0);
   // 首页搜索遮罩展开状态：注入 HomePage，并由悬浮底栏监听以同步隐藏。
@@ -331,11 +332,21 @@ class _SiponShellState extends State<_SiponShell> {
       return;
     }
 
-    setState(() => _currentIndex = index);
+    setState(() {
+      _currentIndex = index;
+      _mapRequestedVenue = null;
+    });
     if (index == 2) {
       _profilePageKey.currentState?.refreshProfile();
       _profilePageKey.currentState?.refreshCounts();
     }
+  }
+
+  void _showVenueOnMap(MapVenue venue) {
+    setState(() {
+      _mapRequestedVenue = venue;
+      _currentIndex = 1;
+    });
   }
 
   Future<void> _openDrinkRecord() async {
@@ -436,10 +447,13 @@ class _SiponShellState extends State<_SiponShell> {
               HomePage(
                 bottomOverlayInset: _effectiveNavigationReserveHeight,
                 onRecordPressed: _openDrinkRecord,
+                onVenueMapRequested: _showVenueOnMap,
                 searchExpanded: _homeSearchExpanded,
               ),
               MapPage(
                 bottomOverlayInset: _effectiveNavigationReserveHeight,
+                active: _currentIndex == 1,
+                requestedVenue: _mapRequestedVenue,
                 onSheetProgressChanged: _handleMapSheetProgress,
               ),
               TickerMode(

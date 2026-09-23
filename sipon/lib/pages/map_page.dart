@@ -30,18 +30,30 @@ class MapPage extends StatefulWidget {
     super.key,
     this.bottomOverlayInset = 0,
     this.initialVenue,
+    this.requestedVenue,
     this.initialSheetStage = VenueSheetStage.collapsed,
     this.showMapControls = true,
+    this.active = true,
     this.allowSheetCollapse = true,
+    this.onMapTapped,
     this.onVenueClose,
     this.onSheetProgressChanged,
   });
 
   final double bottomOverlayInset;
   final MapVenue? initialVenue;
+
+  /// 首页地址入口请求在地图 Tab 中选中并聚焦的 POI。
+  final MapVenue? requestedVenue;
   final VenueSheetStage initialSheetStage;
   final bool showMapControls;
+
+  /// IndexedStack 中只有地图 Tab 可见时才请求一次当前位置。
+  final bool active;
   final bool allowSheetCollapse;
+
+  /// Optional map tap action for embedded map pages.
+  final VoidCallback? onMapTapped;
   final VoidCallback? onVenueClose;
   final ValueChanged<double>? onSheetProgressChanged;
 
@@ -64,6 +76,8 @@ class _MapPageState extends State<MapPage> {
   VenueSheetStage? _lastLoggedStage;
   String _mapDiagnosticName = 'pending';
   bool _sheetCameraUpdateScheduled = false;
+  MapLatLng? _pendingLocatedCenter;
+  int _locationRequest = 0;
 
   void _logMapMotion(String event, String details) {
     if (!kDebugMode) return;
@@ -85,13 +99,13 @@ class _MapPageState extends State<MapPage> {
     _data = MapDataController(
       repository: SiponApiMapVenueRepository(),
       city: SiponCityController.defaultCity,
-      initialVenue: widget.initialVenue,
+      initialVenue: widget.initialVenue ?? widget.requestedVenue,
     )..addListener(_handleDataChanged);
     _scene = MapSceneController.create(
       onViewportSettled: _handleViewportSettled,
       onVenueTapped: _handleVenueTapped,
       // 点地图空白处就收起面板。原来这里毫无反应。
-      onBlankTapped: widget.allowSheetCollapse ? _handleBlankTapped : () {},
+      onBlankTapped: _handleMapBackgroundTap,
     );
 
     // 档位变化时重新取景（收起/半屏/全屏的 padding 不同）。
@@ -108,6 +122,12 @@ class _MapPageState extends State<MapPage> {
       _cityController = cityController..addListener(_handleCityChanged);
       _handleCityChanged();
     }
+    if (widget.active &&
+        widget.initialVenue == null &&
+        widget.requestedVenue == null &&
+        _locationRequest == 0) {
+      unawaited(_centerOnCurrentLocation());
+    }
 
     // 语言也是一条依赖：marker 的文字标签在这一层翻译好再交给地图，
     // 所以切换语言要重新下发一帧。
@@ -115,7 +135,27 @@ class _MapPageState extends State<MapPage> {
   }
 
   @override
+  void didUpdateWidget(covariant MapPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active &&
+        widget.requestedVenue != null &&
+        (!oldWidget.active ||
+            !identical(widget.requestedVenue, oldWidget.requestedVenue))) {
+      _locationRequest++;
+      _pendingLocatedCenter = null;
+      _data.focusVenueFromPage(widget.requestedVenue!);
+      _sheet.collapse();
+      if (_scene.isAttached) unawaited(_applyStage(reason: 'homeVenue'));
+    } else if (widget.active && !oldWidget.active) {
+      unawaited(_centerOnCurrentLocation());
+    } else if (!widget.active && oldWidget.active) {
+      _locationRequest++;
+    }
+  }
+
+  @override
   void dispose() {
+    _locationRequest++;
     _cityController?.removeListener(_handleCityChanged);
     _data.removeListener(_handleDataChanged);
     _scene.detach();
@@ -131,9 +171,36 @@ class _MapPageState extends State<MapPage> {
   Future<void> _handleMapCreated(SiponMapHost host) async {
     if (host is ChannelMapHost) _mapDiagnosticName = host.diagnosticName;
     _logMapMotion('MAP_CREATED', '');
-    await _scene.attach(host, city: _data.city, style: _data.style);
+    final anchor = _cityController?.detectedPosition;
+    await _scene.attach(
+      host,
+      city: _data.city,
+      style: _data.style,
+      initialCenter: widget.requestedVenue != null
+          ? MapLatLng(
+              longitude: widget.requestedVenue!.longitude,
+              latitude: widget.requestedVenue!.latitude,
+            )
+          : widget.initialVenue == null && anchor != null
+          ? MapLatLng(longitude: anchor.longitude, latitude: anchor.latitude)
+          : null,
+    );
+    final locatedCenter = _pendingLocatedCenter;
+    final movingToLocation =
+        locatedCenter != null &&
+        widget.active &&
+        widget.initialVenue == null &&
+        widget.requestedVenue == null;
+    if (movingToLocation) {
+      _pendingLocatedCenter = null;
+      await _scene.focusOn(
+        longitude: locatedCenter.longitude,
+        latitude: locatedCenter.latitude,
+      );
+    }
     await _applyStage(
-      focusSelection: widget.initialVenue != null,
+      focusSelection:
+          widget.initialVenue != null || widget.requestedVenue != null,
       reason: 'mapReady',
     );
 
@@ -141,6 +208,7 @@ class _MapPageState extends State<MapPage> {
     // 控制器；页面只需要在 attach 完成后把首帧交给它，并补齐首次取数。
     await _pushFrame();
 
+    if (movingToLocation) return;
     final viewport = await _scene.readViewport();
     if (viewport == null || !mounted) {
       return;
@@ -275,6 +343,10 @@ class _MapPageState extends State<MapPage> {
 
   /// 点中圆点或带标签的 marker。当前档位保持不变：收起态就换卡片，半屏态就换详情。
   void _handleVenueTapped(String venueId) {
+    if (widget.onMapTapped != null) {
+      widget.onMapTapped!();
+      return;
+    }
     if (_data.isSelected(venueId)) {
       // 已经选中的点再点一次 = 打开详情。
       _sheet.expand();
@@ -295,8 +367,42 @@ class _MapPageState extends State<MapPage> {
     unawaited(_scene.flyToCity(city, zoom: MapSceneController.cityZoom));
   }
 
+  Future<void> _centerOnCurrentLocation() async {
+    if (widget.initialVenue != null) return;
+    final controller = _cityController;
+    if (controller == null) return;
+    final request = ++_locationRequest;
+    final result = await controller.locateCurrentCity();
+    if (!mounted || !widget.active || request != _locationRequest) return;
+    final position = result.position;
+    if (position == null) return;
+    if (result.city != null && result.city!.name != _data.city) {
+      _data.setCity(result.city!.name);
+    }
+    final center = MapLatLng(
+      longitude: position.longitude,
+      latitude: position.latitude,
+    );
+    if (!_scene.isAttached) {
+      _pendingLocatedCenter = center;
+      return;
+    }
+    await _scene.focusOn(
+      longitude: center.longitude,
+      latitude: center.latitude,
+    );
+  }
+
   /// 点地图空白处：收起面板，同时收起搜索下拉与键盘。候选列表挂在
   /// root overlay 上，焦点不收它就一直浮在地图上。
+  void _handleMapBackgroundTap() {
+    if (widget.onMapTapped != null) {
+      widget.onMapTapped!();
+    } else if (widget.allowSheetCollapse) {
+      _handleBlankTapped();
+    }
+  }
+
   void _handleBlankTapped() {
     FocusManager.instance.primaryFocus?.unfocus();
     _sheet.collapse();
@@ -315,9 +421,17 @@ class _MapPageState extends State<MapPage> {
 
   // --------------------------------------------------------------- POI 筛选
 
-  /// 右下角定位按钮：回到当前城市的城市级视野。
-  Future<void> _handleFocusDowntown() =>
-      _scene.flyToCity(_data.city, zoom: MapSceneController.cityZoom);
+  /// 右下角定位按钮：重新获取并聚焦当前位置。
+  Future<void> _handleFocusDowntown() => _centerOnCurrentLocation();
+
+  void _applyPoiFilter(MapPoiFilter filter) {
+    final previousSelection = _data.selectedVenue?.id;
+    _data.applyPoiFilter(filter);
+    if (_data.selectedVenue != null &&
+        _data.selectedVenue?.id != previousSelection) {
+      unawaited(_applyStage(reason: 'poiFilter'));
+    }
+  }
 
   Future<void> _showPoiFilters() async {
     await showModalBottomSheet<void>(
@@ -330,7 +444,7 @@ class _MapPageState extends State<MapPage> {
       ),
       builder: (context) => MapPoiFilterSheet(
         initialFilter: _data.poiFilter,
-        onApply: _data.applyPoiFilter,
+        onApply: _applyPoiFilter,
       ),
     );
   }
@@ -498,6 +612,9 @@ class _MapPageState extends State<MapPage> {
 
                     return VenueSheetSurface(
                       venue: _data.selectedVenue,
+                      filterActive:
+                          _data.poiFilter.isActive ||
+                          _data.categoryFilter != null,
                       scrollController: scrollController,
                       progress: _sheet.progressFor(extent),
                       fullscreenProgress: _sheet.fullscreenProgressFor(extent),

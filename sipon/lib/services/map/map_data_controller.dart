@@ -41,7 +41,7 @@ class MapDataController extends ChangeNotifier {
   final MapVenueRepository _repository;
   final MapVenueSearchRepository? _searchRepository;
 
-  final MapVenue? _pinnedVenue;
+  MapVenue? _pinnedVenue;
 
   String _city;
   List<MapVenue> _venues;
@@ -433,6 +433,20 @@ class MapDataController extends ChangeNotifier {
     if (!known) {
       _venues = [..._venues, venue];
     }
+    _selectedVenueId = venue.id;
+    _notify();
+  }
+
+  /// 从其他页面跳来的 POI 在视野请求完成后仍保留并保持选中。
+  /// 目标可能位于当前旧视野之外，不能等待视野请求才展示它。
+  void focusVenueFromPage(MapVenue venue) {
+    _pinnedVenue = venue;
+    _venues = [venue, ..._venues.where((item) => item.id != venue.id)];
+    _categoryFilter = null;
+    _poiFilter = MapPoiFilter.none;
+    _searchQuery = '';
+    _searchDebounce?.cancel();
+    _searchGeneration++;
     _selectedVenueId = venue.id;
     _notify();
   }
