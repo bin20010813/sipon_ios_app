@@ -256,13 +256,13 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
                     summary.description!,
                     style: const TextStyle(
                       color: _ink,
-                      fontSize: 14,
+                      fontSize: 16,
                       height: 1.5,
                       letterSpacing: 0,
                     ),
                   ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 12),
               ],
               // 用料清单。
               _SectionBlock(
@@ -272,7 +272,7 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
                         text.t(_loading ? '加载中…' : '暂无用料信息'),
                         style: const TextStyle(
                           color: _muted,
-                          fontSize: 13,
+                          fontSize: 15,
                           letterSpacing: 0,
                         ),
                       )
@@ -292,14 +292,14 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
               ),
               // 背后的故事。
               if (detail.story != null && detail.story!.isNotEmpty) ...[
-                const SizedBox(height: 18),
+                const SizedBox(height: 12),
                 _SectionBlock(
                   title: text.t('背后的故事'),
                   child: Text(
                     detail.story!,
                     style: const TextStyle(
                       color: _ink,
-                      fontSize: 14,
+                      fontSize: 16,
                       height: 1.5,
                       letterSpacing: 0,
                     ),
@@ -573,7 +573,7 @@ class _SectionBlock extends StatelessWidget {
               title,
               style: const TextStyle(
                 color: _CocktailDetailPageState._ink,
-                fontSize: 16,
+                fontSize: 18,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,
               ),
@@ -609,8 +609,8 @@ class _RecipeLineTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 20,
-            height: 20,
+            width: 22,
+            height: 22,
             alignment: Alignment.center,
             decoration: const BoxDecoration(
               color: Color(0xFFFFE8F6),
@@ -620,7 +620,7 @@ class _RecipeLineTile extends StatelessWidget {
               '${index + 1}',
               style: const TextStyle(
                 color: _CocktailDetailPageState._brand,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,
               ),
@@ -632,7 +632,7 @@ class _RecipeLineTile extends StatelessWidget {
               text: TextSpan(
                 style: const TextStyle(
                   color: _CocktailDetailPageState._ink,
-                  fontSize: 14,
+                  fontSize: 16,
                   height: 1.4,
                   letterSpacing: 0,
                 ),
