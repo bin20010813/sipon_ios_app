@@ -391,7 +391,7 @@ final class SiponMapEngine: NSObject {
       mapView.addOverlay(leg, level: .aboveRoads)
     }
     let bounds = legs.dropFirst().reduce(legs[0].boundingMapRect) { rect, leg in
-      MKMapRectUnion(rect, leg.boundingMapRect)
+      rect.union(leg.boundingMapRect)
     }
     mapView.setVisibleMapRect(
       bounds,
@@ -451,7 +451,11 @@ final class SiponMapEngine: NSObject {
     // MapKit 没有 logo / attribution，整段装饰物边距逻辑天然消失。
     mapView.showsCompass = false
     mapView.showsScale = false
-    mapView.showsUserLocation = false
+    // Let MapKit render the system user-location indicator (blue dot). The
+    // Flutter side still obtains the coordinate through geolocator so it can
+    // position the initial camera and load nearby venues; this flag keeps the
+    // user's position visible on the map after the initial camera move.
+    mapView.showsUserLocation = true
     mapView.isRotateEnabled = true
     mapView.isPitchEnabled = false
     mapView.isScrollEnabled = true

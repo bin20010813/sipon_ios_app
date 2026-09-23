@@ -52,28 +52,31 @@ class MapSearchAndFilters extends StatelessWidget {
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 430),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(26, 10, 26, 0),
+        padding: const EdgeInsets.only(top: 10),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                const SiponCityButton(
-                  backgroundColor: Color(0xF7FFFFFF),
-                  foregroundColor: MapDesign.ink,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _MapSearchField(
-                    hint: text.t('搜索喜欢的酒或者酒吧...'),
-                    initialValue: searchQuery,
-                    onChanged: onSearchChanged,
-                    suggestions: suggestions,
-                    onVenueSelected: onVenueSelected,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 26),
+              child: Row(
+                children: [
+                  const SiponCityButton(
+                    backgroundColor: Color(0xF7FFFFFF),
+                    foregroundColor: MapDesign.ink,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _MapSearchField(
+                      hint: text.t('搜索喜欢的酒或者酒吧...'),
+                      initialValue: searchQuery,
+                      onChanged: onSearchChanged,
+                      suggestions: suggestions,
+                      onVenueSelected: onVenueSelected,
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 14),
             SizedBox(
@@ -88,9 +91,11 @@ class MapSearchAndFilters extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          for (var index = start;
-                              index < start + 3 && index < filterPills.length;
-                              index++) ...[
+                          for (
+                            var index = start;
+                            index < start + 3 && index < filterPills.length;
+                            index++
+                          ) ...[
                             if (index > start) const SizedBox(width: 8),
                             filterPills[index],
                           ],
@@ -102,9 +107,12 @@ class MapSearchAndFilters extends StatelessWidget {
             ),
             if (status.needsBanner) ...[
               const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: _MapStatusBanner(status: status),
+              Padding(
+                padding: const EdgeInsets.only(left: 26),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: _MapStatusBanner(status: status),
+                ),
               ),
             ],
           ],
