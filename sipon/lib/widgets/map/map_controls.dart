@@ -39,6 +39,15 @@ class MapSearchAndFilters extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final filterPills = <Widget>[
+      for (final category in mapCategoryFilters)
+        MapCategoryPill(
+          category: category,
+          selected: category.kind == selectedKind,
+          onTap: () => onCategoryToggled(category.kind),
+        ),
+      _FilterIconPill(filter: poiFilter, onPressed: onFilterPressed),
+    ];
 
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 430),
@@ -67,21 +76,29 @@ class MapSearchAndFilters extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 14),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final category in mapCategoryFilters)
-                  MapCategoryPill(
-                    category: category,
-                    selected: category.kind == selectedKind,
-                    onTap: () => onCategoryToggled(category.kind),
-                  ),
-                _FilterIconPill(
-                  filter: poiFilter,
-                  onPressed: onFilterPressed,
-                ),
-              ],
+            SizedBox(
+              height: 40,
+              child: PageView(
+                physics: const PageScrollPhysics(),
+                children: [
+                  for (var start = 0; start < filterPills.length; start += 3)
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (var index = start;
+                              index < start + 3 && index < filterPills.length;
+                              index++) ...[
+                            if (index > start) const SizedBox(width: 8),
+                            filterPills[index],
+                          ],
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             ),
             if (status.needsBanner) ...[
               const SizedBox(height: 8),
