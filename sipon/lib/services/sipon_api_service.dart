@@ -282,6 +282,32 @@ class SiponApiService {
   /// 获取鸡尾酒详情（GET /api/cocktails/{id}）。
   Future<dynamic> getCocktailDetail(int id) => _get('/api/cocktails/$id');
 
+  // 虚拟饮品目录与个人偏好。虚拟互动不会写入真实饮酒记录。
+  Future<dynamic> getVirtualDrinkingBootstrap() =>
+      _get('/api/virtual-drinking/bootstrap');
+
+  Future<List<dynamic>> searchVirtualDrinks({
+    String? category,
+    String? keyword,
+    SiponPage page = const SiponPage(limit: 50),
+  }) => _getList(
+    '/api/virtual-drinking/drinks',
+    queryParameters: {
+      'category': category,
+      'keyword': keyword,
+      ...page.queryParameters,
+    },
+  );
+
+  Future<dynamic> getVirtualDrink(String code) =>
+      _get('/api/virtual-drinking/drinks/${Uri.encodeComponent(code)}');
+
+  Future<dynamic> getVirtualDrinkingPreferences() =>
+      _get('/api/virtual-drinking/users/me/preferences');
+
+  Future<dynamic> updateVirtualDrinkingPreferences(Map<String, Object?> body) =>
+      _putJson('/api/virtual-drinking/users/me/preferences', body: body);
+
   /// 按分类/分页拉取配料列表（GET /api/ingredients）。
   Future<List<dynamic>> searchIngredients({
     String? category,

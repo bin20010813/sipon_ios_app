@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import '../services/sipon_api_client.dart';
 import '../services/sipon_api_models.dart';
 import '../services/sipon_api_service.dart';
+import '../services/virtual_drinking_models.dart';
 import 'language_transform.dart';
+import 'virtual_drinking_page.dart';
 
 /// 封面显示尺寸（逻辑像素）；预取与展示共用，保证解码缓存键一致。
 const double kCocktailDetailCoverWidth = 260.0;
@@ -22,7 +24,11 @@ ImageProvider cocktailDetailCoverImageProvider(String url, double dpr) =>
 
 /// 鸡尾酒百科——详情页（GET /api/cocktails/{id}）。
 class CocktailDetailPage extends StatefulWidget {
-  const CocktailDetailPage({super.key, required this.cocktailId, this.initialSummary});
+  const CocktailDetailPage({
+    super.key,
+    required this.cocktailId,
+    this.initialSummary,
+  });
 
   final int cocktailId;
 
@@ -41,6 +47,7 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
   static const String _fallbackAsset = 'assest/首页/图片素材/鸡尾酒系列1.png';
 
   final SiponApiService _api = SiponApiService();
+  late final Future<String?> _virtualDrinkCode = _findVirtualDrinkCode();
 
   CocktailDetailInfo? _detail;
   bool _loading = false;
@@ -77,6 +84,20 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
         setState(() => _loading = false);
       }
     }
+  }
+
+  Future<String?> _findVirtualDrinkCode() async {
+    try {
+      final catalog = VirtualDrinkingCatalog.fromJson(
+        await _api.getVirtualDrinkingBootstrap(),
+      );
+      for (final drink in catalog.drinks) {
+        if (drink.cocktailId == widget.cocktailId) return drink.code;
+      }
+    } on Exception {
+      // 目录不可用时仍可正常阅读鸡尾酒百科。
+    }
+    return null;
   }
 
   /// 把异常转为用户可读文案。
@@ -163,7 +184,8 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
     final name = summary.name ?? (summary.nameEn ?? '');
     // 封面用长边 640px 中图：详情展示尺寸下与原图几乎无差，下载体积小得多；
     // 后端未生成中图时 resolvedMediumImageUrl 已逐级回退缩略图/原图。
-    final imageUrl = summary.resolvedMediumImageUrl() ?? summary.resolvedImageUrl();
+    final imageUrl =
+        summary.resolvedMediumImageUrl() ?? summary.resolvedImageUrl();
     final ingredients = detail.sortedIngredients;
 
     return CustomScrollView(
@@ -247,6 +269,30 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
           ),
           sliver: SliverList.list(
             children: [
+              FutureBuilder<String?>(
+                future: _virtualDrinkCode,
+                builder: (context, snapshot) {
+                  final code = snapshot.data;
+                  if (code == null) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 18),
+                    child: FilledButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) =>
+                              VirtualDrinkingPage(initialDrinkCode: code),
+                        ),
+                      ),
+                      icon: const Icon(Icons.nightlife_rounded),
+                      label: Text(text.t('在虚拟小酌体验这杯')),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _brand,
+                        minimumSize: const Size.fromHeight(46),
+                      ),
+                    ),
+                  );
+                },
+              ),
               // 简介。
               if (summary.description != null &&
                   summary.description!.isNotEmpty) ...[

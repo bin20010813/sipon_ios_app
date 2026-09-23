@@ -17,6 +17,7 @@ import 'cocktail_detail_page.dart';
 import 'cocktail_list_page.dart';
 import 'ingredient_list_page.dart';
 import 'language_transform.dart';
+import 'virtual_drinking_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({
@@ -227,6 +228,17 @@ class _HomePageState extends State<HomePage> {
                           ),
                           const SizedBox(height: 14),
                           const _CocktailScroller(),
+                          const SizedBox(height: 18),
+                          Padding(
+                            padding: const EdgeInsets.only(right: 23),
+                            child: _VirtualDrinkingPrompt(
+                              onPressed: () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const VirtualDrinkingPage(),
+                                ),
+                              ),
+                            ),
+                          ),
                           const SizedBox(height: 18),
                           Padding(
                             padding: const EdgeInsets.only(right: 23),
@@ -627,6 +639,72 @@ class _CocktailSuggestions extends StatelessWidget {
                   ),
               ],
             ),
+    );
+  }
+}
+
+class _VirtualDrinkingPrompt extends StatelessWidget {
+  const _VirtualDrinkingPrompt({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = SiponLanguageScope.textOf(context);
+    return Material(
+      color: const Color(0xFF253040),
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(18, 17, 15, 17),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: const LinearGradient(
+              colors: [Color(0xFF283749), Color(0xFF4A3446)],
+            ),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.nightlife_rounded,
+                color: Color(0xFFF4D89B),
+                size: 36,
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      text.t('虚拟小酌'),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      text.t('选一杯酒，走进属于你的场景'),
+                      style: const TextStyle(
+                        color: Color(0xFFE2D6D4),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.arrow_forward_ios_rounded,
+                color: Colors.white70,
+                size: 17,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

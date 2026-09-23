@@ -116,7 +116,14 @@ class _StartupGateState extends State<_StartupGate> {
   }
 
   Future<void> _restoreSession() async {
-    final isLoggedIn = await SiponAuthService.instance.restoreSession();
+    bool isLoggedIn;
+    try {
+      isLoggedIn = await SiponAuthService.instance.restoreSession();
+    } catch (error, stackTrace) {
+      debugPrint('Sipon: restoring the saved session failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      isLoggedIn = SiponAuthService.instance.session != null;
+    }
     if (!mounted) {
       return;
     }

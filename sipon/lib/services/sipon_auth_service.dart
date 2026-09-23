@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'sipon_api_client.dart';
@@ -25,16 +27,25 @@ class SiponAuthService {
     final restored = SiponAuthSession.tryParse(saved);
     if (restored != null) {
       _setSession(restored);
-      if (restored.accessTokenExpiresSoon) {
-        return (await _refreshSession()) != null;
-      }
+      // 启动时网络暂不可用不等于会话失效；仅服务端明确返回 401 才清除。
       try {
+        if (restored.accessTokenExpiresSoon) {
+          return (await _refreshSession()) != null;
+        }
         await _apiClient.getJson('/api/auth/me');
         return true;
       } on SiponApiException catch (error) {
-        if (error.statusCode != 401) rethrow;
-        await _clearSession(preferences);
-        return false;
+        if (error.statusCode == 401) {
+          await _clearSession(preferences);
+          return false;
+        }
+        return true;
+      } on TimeoutException {
+        return true;
+      } on SocketException {
+        return true;
+      } on http.ClientException {
+        return true;
       }
     }
 
@@ -46,10 +57,18 @@ class SiponAuthService {
       await _apiClient.getJson('/api/auth/me');
       return true;
     } on SiponApiException catch (error) {
-      if (error.statusCode != 401) rethrow;
-      await preferences.remove(_legacyAccessTokenKey);
-      SiponApiClient.clearSession();
-      return false;
+      if (error.statusCode == 401) {
+        await preferences.remove(_legacyAccessTokenKey);
+        SiponApiClient.clearSession();
+        return false;
+      }
+      return true;
+    } on TimeoutException {
+      return true;
+    } on SocketException {
+      return true;
+    } on http.ClientException {
+      return true;
     }
   }
 

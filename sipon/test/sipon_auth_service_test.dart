@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -94,5 +95,111 @@ void main() {
             .having((error) => error.requestId, 'requestId', 'request-123'),
       ),
     );
+  });
+
+  test('恢复已保存会话时验证请求超时仍保留登录状态', () async {
+    final savedSession = SiponAuthSession(
+      accessToken: 'saved-access-token',
+      refreshToken: 'saved-refresh-token',
+      expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+      refreshExpiresAt: null,
+      user: const {'id': 1},
+    );
+    SharedPreferences.setMockInitialValues({
+      'sipon_auth_session': jsonEncode(savedSession.toJson()),
+    });
+    final apiClient = SiponApiClient(
+      config: const SiponApiConfig(
+        baseUrl: 'https://api.example.test',
+        timeout: Duration(milliseconds: 10),
+      ),
+      httpClient: MockClient((request) {
+        expect(request.url.path, '/api/auth/me');
+        return Completer<http.Response>().future;
+      }),
+    );
+    final authService = SiponAuthService(apiClient: apiClient);
+
+    expect(await authService.restoreSession(), isTrue);
+    expect(authService.session?.accessToken, 'saved-access-token');
+    final preferences = await SharedPreferences.getInstance();
+    expect(preferences.getString('sipon_auth_session'), isNotNull);
+  });
+
+  test('令牌刷新超时仍保留已保存会话', () async {
+    final savedSession = SiponAuthSession(
+      accessToken: 'expired-access-token',
+      refreshToken: 'saved-refresh-token',
+      expiresAt: DateTime.now().toUtc().subtract(const Duration(minutes: 1)),
+      refreshExpiresAt: null,
+      user: const {'id': 1},
+    );
+    SharedPreferences.setMockInitialValues({
+      'sipon_auth_session': jsonEncode(savedSession.toJson()),
+    });
+    final apiClient = SiponApiClient(
+      config: const SiponApiConfig(
+        baseUrl: 'https://api.example.test',
+        timeout: Duration(milliseconds: 10),
+      ),
+      httpClient: MockClient((request) {
+        expect(request.url.path, '/api/auth/refresh');
+        return Completer<http.Response>().future;
+      }),
+    );
+    final authService = SiponAuthService(apiClient: apiClient);
+
+    expect(await authService.restoreSession(), isTrue);
+    expect(authService.session?.refreshToken, 'saved-refresh-token');
+  });
+
+  test('旧版 access token 验证超时仍可继续启动', () async {
+    SharedPreferences.setMockInitialValues({
+      'sipon_access_token': 'legacy-access-token',
+    });
+    final apiClient = SiponApiClient(
+      config: const SiponApiConfig(
+        baseUrl: 'https://api.example.test',
+        timeout: Duration(milliseconds: 10),
+      ),
+      httpClient: MockClient((request) {
+        expect(request.url.path, '/api/auth/me');
+        return Completer<http.Response>().future;
+      }),
+    );
+    final authService = SiponAuthService(apiClient: apiClient);
+
+    expect(await authService.restoreSession(), isTrue);
+    final preferences = await SharedPreferences.getInstance();
+    expect(preferences.getString('sipon_access_token'), 'legacy-access-token');
+  });
+
+  test('服务器确认会话失效时清除已保存会话', () async {
+    final savedSession = SiponAuthSession(
+      accessToken: 'invalid-access-token',
+      refreshToken: 'invalid-refresh-token',
+      expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+      refreshExpiresAt: null,
+      user: const {'id': 1},
+    );
+    SharedPreferences.setMockInitialValues({
+      'sipon_auth_session': jsonEncode(savedSession.toJson()),
+    });
+    final apiClient = SiponApiClient(
+      config: config,
+      httpClient: MockClient((request) async {
+        expect(
+          request.url.path,
+          anyOf('/api/auth/me', '/api/auth/refresh'),
+        );
+        return http.Response('{"code":"UNAUTHENTICATED"}', 401);
+      }),
+    );
+    final authService = SiponAuthService(apiClient: apiClient);
+
+    expect(await authService.restoreSession(), isFalse);
+    expect(authService.session, isNull);
+    final preferences = await SharedPreferences.getInstance();
+    expect(preferences.getString('sipon_auth_session'), isNull);
   });
 }
