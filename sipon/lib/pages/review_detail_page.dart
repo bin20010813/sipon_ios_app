@@ -66,6 +66,7 @@ class _ReviewDetailPageState extends State<ReviewDetailPage> {
   late final _api = widget.apiService ?? SiponApiService();
 
   bool get _hasLocation =>
+      (int.tryParse(_venue.id) ?? 0) > 0 &&
       _venue.longitude.isFinite &&
       _venue.latitude.isFinite &&
       _venue.longitude.abs() <= 180 &&
@@ -96,10 +97,14 @@ class _ReviewDetailPageState extends State<ReviewDetailPage> {
       final response = await _api.getBarById(id);
       if (response is! Map || !mounted) return;
       final bar = SiponBarMapItem.fromJson(response.cast<String, dynamic>());
+      final resolvedName =
+          (response['name'] ?? response['barName'] ?? response['title'])
+              ?.toString()
+              .trim();
       setState(
         () => _venue = MapVenue(
           id: _venue.id,
-          name: _venue.name,
+          name: resolvedName?.isNotEmpty == true ? resolvedName! : _venue.name,
           longitude: bar.longitude ?? _venue.longitude,
           latitude: bar.latitude ?? _venue.latitude,
           kind: _venue.kind,
