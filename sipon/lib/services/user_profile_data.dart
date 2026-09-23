@@ -19,6 +19,10 @@ class UserProfileData {
     this.wishlistCount,
     this.routeCount,
     this.isFollowing,
+    this.profileModerationStatus,
+    this.profileVersion,
+    this.profileModerationReason,
+    this.profileModeratedAt,
   });
 
   factory UserProfileData.fromJson(Object? value) {
@@ -71,6 +75,16 @@ class UserProfileData {
         'viewerFollowing',
         'followedByViewer',
       ]),
+      profileModerationStatus: _readString(source, const [
+        'profileModerationStatus',
+      ]),
+      profileVersion: _readInt(source, const ['profileVersion']),
+      profileModerationReason: _readString(source, const [
+        'profileModerationReason',
+      ]),
+      profileModeratedAt: DateTime.tryParse(
+        _readString(source, const ['profileModeratedAt']) ?? '',
+      ),
     );
   }
 
@@ -89,6 +103,10 @@ class UserProfileData {
   final int? wishlistCount;
   final int? routeCount;
   final bool? isFollowing;
+  final String? profileModerationStatus;
+  final int? profileVersion;
+  final String? profileModerationReason;
+  final DateTime? profileModeratedAt;
 
   String get name {
     final value = displayName ?? username ?? email;
@@ -106,6 +124,10 @@ class UserProfileData {
     'level': level,
     'locale': locale,
     'isFollowing': isFollowing,
+    'profileModerationStatus': profileModerationStatus,
+    'profileVersion': profileVersion,
+    'profileModerationReason': profileModerationReason,
+    'profileModeratedAt': profileModeratedAt?.toIso8601String(),
     'overview': overview,
   });
 }

@@ -394,6 +394,10 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     'city': widget.profile.city,
     'level': widget.profile.level,
     'locale': widget.profile.locale,
+    'profileModerationStatus': widget.profile.profileModerationStatus,
+    'profileVersion': widget.profile.profileVersion,
+    'profileModerationReason': widget.profile.profileModerationReason,
+    'profileModeratedAt': widget.profile.profileModeratedAt?.toIso8601String(),
   };
 
   String? _nullableValue(String input) {
