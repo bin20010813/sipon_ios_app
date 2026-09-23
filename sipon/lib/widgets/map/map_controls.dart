@@ -67,27 +67,21 @@ class MapSearchAndFilters extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 14),
-            SizedBox(
-              height: 40,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                children: [
-                  for (final category in mapCategoryFilters)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: MapCategoryPill(
-                        category: category,
-                        selected: category.kind == selectedKind,
-                        onTap: () => onCategoryToggled(category.kind),
-                      ),
-                    ),
-                  _FilterIconPill(
-                    filter: poiFilter,
-                    onPressed: onFilterPressed,
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final category in mapCategoryFilters)
+                  MapCategoryPill(
+                    category: category,
+                    selected: category.kind == selectedKind,
+                    onTap: () => onCategoryToggled(category.kind),
                   ),
-                ],
-              ),
+                _FilterIconPill(
+                  filter: poiFilter,
+                  onPressed: onFilterPressed,
+                ),
+              ],
             ),
             if (status.needsBanner) ...[
               const SizedBox(height: 8),

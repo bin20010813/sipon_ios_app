@@ -487,7 +487,7 @@ class _MapPageState extends State<MapPage> {
                 initialStyleId: _data.style.id,
                 compassTopInset:
                     MediaQuery.paddingOf(context).top +
-                    (widget.showMapControls ? 130 : 12),
+                    (widget.showMapControls ? 178 : 12),
                 onHostReady: _handleMapCreated,
               ),
               if (widget.showMapControls) _buildTopControls(),

@@ -128,8 +128,8 @@ final class SiponMapEngine: NSObject {
   private var selectionAnnotation: SelectionAnnotation?
   /// 选中态直接切换对应 marker 的视图，不再额外覆盖一枚 annotation。
   private var selectedVenueId: String?
-  /// 路径规划出的路线折线（单独成池，不受 renderFrame 的 id diff 影响）。
-  private var routeOverlay: MKPolyline?
+  /// 每对相邻站点各有一条道路折线；分开绘制，避免跨段出现直线连接。
+  private var routeOverlays: [MKPolyline] = []
 
   /// 路线版本：每次开始/取消规划都递增，旧回调据此作废。
   private var routeRevision = 0
@@ -234,7 +234,7 @@ final class SiponMapEngine: NSObject {
     case SiponMapProtocol.Command.clearRoute:
       // 两个动作：取消在途规划 + 移除已绘制折线。
       cancelRoutePlanning()
-      clearRouteOverlay()
+      clearRouteOverlays()
       return nil
     case SiponMapProtocol.Command.dispose:
       resetPools()
@@ -246,13 +246,15 @@ final class SiponMapEngine: NSObject {
 
   // ------------------------------------------------------------------ 路径规划
 
-  /// flutter 端调用：先按站点顺序直接画出一条多点折线，保证路线立即可见；
-  /// 再逐段使用 MKDirections 规划，并在全部成功后用道路折线替换预览线。
+  /// 每对相邻站点都通过 MKDirections 取得驾车道路路线；全部成功后才绘制。
   func planRoute(arguments: Any?, result: @escaping FlutterResult) {
     guard alive, configured else {
       result(false)
       return
     }
+    // A new request replaces the old route even when its payload is invalid.
+    cancelRoutePlanning()
+    clearRouteOverlays()
 
     guard let args = SiponMapProtocol.dict(arguments),
           let rawPoints = args["points"] as? [[String: Any]] else {
@@ -264,22 +266,20 @@ final class SiponMapEngine: NSObject {
     for raw in rawPoints {
       let lat = SiponMapProtocol.double(raw, "lat", fallback: .nan)
       let lng = SiponMapProtocol.double(raw, "lng", fallback: .nan)
-      guard lat.isFinite, lng.isFinite else { continue }
-      coordinates.append(CLLocationCoordinate2D(latitude: lat, longitude: lng))
+      let coordinate = CLLocationCoordinate2D(latitude: lat, longitude: lng)
+      guard CLLocationCoordinate2DIsValid(coordinate), (lat != 0 || lng != 0) else {
+        result(false)
+        return
+      }
+      coordinates.append(coordinate)
     }
     guard coordinates.count >= 2 else {
       result(FlutterError(code: "sipon_route", message: "need at least 2 stops", details: nil))
       return
     }
 
-    // 取消上一次规划，再保存本次版本与结果回调。
-    cancelRoutePlanning()
     let revision = routeRevision
     pendingRouteResult = result
-
-    // MKPolyline 会按传入顺序连接所有坐标。先显示这条确定可用的预览线，
-    // 避免离线、路网不可达或 Apple 路线服务失败时地图上完全没有连线。
-    drawRoutePolyline(coordinates, animated: true)
 
     planNextLeg(builder: RouteLegBuilder(coordinates: coordinates), revision: revision)
   }
@@ -307,12 +307,11 @@ final class SiponMapEngine: NSObject {
       guard self.alive, self.configured, revision == self.routeRevision else { return }
 
       if error != nil {
-        // 保留已画出的多点预览线；喝酒路线仍可按站点顺序保存和展示。
-        self.completeRoutePlanning(true, revision: revision)
+        self.completeRoutePlanning(false, revision: revision)
         return
       }
-      guard let leg = response?.routes.first?.polyline else {
-        self.completeRoutePlanning(true, revision: revision)
+      guard let leg = response?.routes.first?.polyline, leg.pointCount >= 2 else {
+        self.completeRoutePlanning(false, revision: revision)
         return
       }
       builder.advance(with: leg)
@@ -372,56 +371,41 @@ final class SiponMapEngine: NSObject {
     }
   }
 
-  /// 把各段折线拼成一条并绘制、取景。
+  /// 分别绘制每段道路折线，避免不同路段端点之间被补上一条直线。
   private func finishRoute(legs: [MKPolyline], revision: Int) {
     guard alive, configured, revision == routeRevision else { return }
-
-    var all: [CLLocationCoordinate2D] = []
-    for (legNumber, leg) in legs.enumerated() {
-      let points = leg.points()
-      // 跳过与上一段重复的衔接点（首段从 0 开始）。
-      let start = legNumber == 0 ? 0 : 1
-      for i in start..<Int(leg.pointCount) {
-        all.append(points[i].coordinate)
-      }
-    }
-    guard all.count >= 2 else {
-      // 理论上不会发生；即使服务返回了空折线，仍保留最初的多点预览线。
-      completeRoutePlanning(true, revision: revision)
+    guard !legs.isEmpty else {
+      completeRoutePlanning(false, revision: revision)
       return
     }
 
-    // 只替换屏幕上的旧折线，不调用 cancelRoutePlanning()，否则会把刚完成的
-    // 本次规划也作废。
-    drawRoutePolyline(all, animated: false)
+    drawRoutePolylines(legs)
     completeRoutePlanning(true, revision: revision)
   }
 
-  /// 用坐标数组创建并显示一条多段 MKPolyline。坐标的数组顺序就是连线顺序。
-  private func drawRoutePolyline(
-    _ coordinates: [CLLocationCoordinate2D],
-    animated: Bool
-  ) {
-    guard coordinates.count >= 2 else { return }
-
-    clearRouteOverlay()
-    var points = coordinates
-    let polyline = MKPolyline(coordinates: &points, count: points.count)
-    routeOverlay = polyline
-    mapView.addOverlay(polyline, level: .aboveRoads)
+  /// 添加各段导航路线，并让相机显示其完整范围。
+  private func drawRoutePolylines(_ legs: [MKPolyline]) {
+    clearRouteOverlays()
+    routeOverlays = legs
+    for leg in legs {
+      mapView.addOverlay(leg, level: .aboveRoads)
+    }
+    let bounds = legs.dropFirst().reduce(legs[0].boundingMapRect) { rect, leg in
+      MKMapRectUnion(rect, leg.boundingMapRect)
+    }
     mapView.setVisibleMapRect(
-      polyline.boundingMapRect,
+      bounds,
       edgePadding: UIEdgeInsets(top: 90, left: 60, bottom: 140, right: 60),
-      animated: animated
+      animated: true
     )
   }
 
-  /// 移除已绘制的路线折线。
-  private func clearRouteOverlay() {
-    if let route = routeOverlay {
+  /// 移除已绘制的所有道路路线。
+  private func clearRouteOverlays() {
+    for route in routeOverlays {
       mapView.removeOverlay(route)
-      routeOverlay = nil
     }
+    routeOverlays.removeAll()
   }
 
   // ------------------------------------------------------------------ 初始配置
@@ -871,15 +855,12 @@ final class SiponMapEngine: NSObject {
     if let selection = selectionAnnotation {
       mapView.removeAnnotation(selection)
     }
-    if let route = routeOverlay {
-      mapView.removeOverlay(route)
-    }
+    clearRouteOverlays()
 
     circlesById.removeAll()
     markersByVenueId.removeAll()
     selectionAnnotation = nil
     selectedVenueId = nil
-    routeOverlay = nil
     lastFrameArguments = nil
   }
 
@@ -1181,7 +1162,7 @@ final class VenueIconAnnotationView: MKAnnotationView {
 }
 
 /// 地图 marker：未选中时显示缩小的「分类图标 + 评分」胶囊，选中时只显示分类图标。
-/// 路线站点额外在左上角显示顺序编号。MapKit 没有文字碰撞 API（决策 D4），
+/// 路线站点只显示顺序编号圆圈与地点圆点。MapKit 没有文字碰撞 API（决策 D4），
 /// 普通 POI 靠 Dart 抽样限流，路线站点则设为 required 保证顺序始终可见。
 final class MarkerAnnotationView: MKAnnotationView {
 
@@ -1195,12 +1176,9 @@ final class MarkerAnnotationView: MKAnnotationView {
     static let capsuleIconInset: CGFloat = 4 * scale
     static let capsuleTailSize: CGFloat = 10 * scale
     static let selectedIconSize = CGSize(width: 30 * scale, height: 38 * scale)
-    static let routeIconSize = CGSize(width: 22, height: 28)
-    static let sequenceHeight: CGFloat = 21 * scale
-    static let sequenceMinimumWidth: CGFloat = 21 * scale
-    static let sequenceHorizontalPadding: CGFloat = 8 * scale
-    static let routeGap: CGFloat = 2
-    static let maxLabelWidth: CGFloat = 170
+    static let sequenceDiameter: CGFloat = 26
+    static let routeDotDiameter: CGFloat = 14
+    static let routeGap: CGFloat = 4
   }
 
   private let capsule = UIView(frame: .zero)
@@ -1255,11 +1233,13 @@ final class MarkerAnnotationView: MKAnnotationView {
     ratingLabel.minimumScaleFactor = 0.85
     sequenceBadge.backgroundColor = UIColor.white
     sequenceBadge.textColor = UIColor(red: 0x9A / 255, green: 0x3D / 255, blue: 0x78 / 255, alpha: 1)
-    sequenceBadge.font = UIFont.systemFont(ofSize: 12 * Metrics.scale, weight: .black)
+    sequenceBadge.font = UIFont.systemFont(ofSize: 12, weight: .bold)
     sequenceBadge.textAlignment = .center
+    sequenceBadge.adjustsFontSizeToFitWidth = true
+    sequenceBadge.minimumScaleFactor = 0.7
     sequenceBadge.layer.masksToBounds = true
     sequenceBadge.layer.borderColor = UIColor(red: 0x9A / 255, green: 0x3D / 255, blue: 0x78 / 255, alpha: 1).cgColor
-    sequenceBadge.layer.borderWidth = Metrics.scale
+    sequenceBadge.layer.borderWidth = 1.5
     label.numberOfLines = 1
     label.lineBreakMode = .byTruncatingTail
     isUserInteractionEnabled = true
@@ -1313,8 +1293,7 @@ final class MarkerAnnotationView: MKAnnotationView {
       isRouteMarker = true
       sequenceBadge.text = "\(value)"
       sequenceBadge.isHidden = false
-      // 路线 marker 与高优先级圆点在同一坐标。设为必显并跳过碰撞
-      // 淘汰，否则 MapKit 可能只保留圆点，把编号一起隐藏。
+      // 路线 marker 自己包含编号与圆点，必须始终可见。
       displayPriority = .required
       collisionMode = .rectangle
     } else {
@@ -1356,10 +1335,10 @@ final class MarkerAnnotationView: MKAnnotationView {
   }
 
   private func updateAccessibilityLabel() {
-    if isPoiHighlighted {
+    if isRouteMarker {
+      accessibilityLabel = "第\(sequenceBadge.text ?? "-")站，\(currentLabel)"
+    } else if isPoiHighlighted {
       accessibilityLabel = currentLabel
-    } else if isRouteMarker {
-      accessibilityLabel = "第\(sequenceBadge.text ?? "-")站，\(currentLabel)，评分 \(currentRatingText)"
     } else if currentLabel.isEmpty {
       accessibilityLabel = "评分 \(currentRatingText)"
     } else {
@@ -1369,7 +1348,9 @@ final class MarkerAnnotationView: MKAnnotationView {
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    if isPoiHighlighted {
+    if isRouteMarker {
+      layoutRouteMarker()
+    } else if isPoiHighlighted {
       layoutSelectedIcon()
     } else {
       layoutCapsule()
@@ -1403,7 +1384,7 @@ final class MarkerAnnotationView: MKAnnotationView {
     iconCircle.isHidden = false
     iconView.isHidden = false
     ratingLabel.isHidden = false
-    sequenceBadge.isHidden = !isRouteMarker
+    sequenceBadge.isHidden = true
     label.isHidden = true
     layer.shadowColor = UIColor.black.cgColor
     layer.shadowOpacity = 0.12
@@ -1436,6 +1417,7 @@ final class MarkerAnnotationView: MKAnnotationView {
         width: Metrics.capsuleIconCircle,
         height: Metrics.capsuleIconCircle
       )
+      iconCircle.layer.cornerRadius = Metrics.capsuleIconCircle / 2
       iconView.frame = CGRect(
         x: iconCircle.frame.midX - Metrics.capsuleIconSize / 2,
         y: iconCircle.frame.midY - Metrics.capsuleIconSize / 2,
@@ -1448,20 +1430,6 @@ final class MarkerAnnotationView: MKAnnotationView {
         width: Metrics.capsuleSize.width - iconCircle.frame.maxX - 8 * Metrics.scale,
         height: Metrics.capsuleSize.height
       )
-      if isRouteMarker {
-        let sequenceWidth = max(
-          Metrics.sequenceMinimumWidth,
-          ceil(sequenceBadge.intrinsicContentSize.width) + Metrics.sequenceHorizontalPadding
-        )
-        sequenceBadge.layer.cornerRadius = Metrics.sequenceHeight / 2
-        sequenceBadge.frame = CGRect(
-          x: -5 * Metrics.scale,
-          y: -6 * Metrics.scale,
-          width: sequenceWidth,
-          height: Metrics.sequenceHeight
-        )
-      }
-
       let shadowPath = UIBezierPath(
         roundedRect: capsule.frame,
         cornerRadius: Metrics.capsuleCornerRadius
@@ -1486,63 +1454,34 @@ final class MarkerAnnotationView: MKAnnotationView {
   private func layoutRouteMarker() {
     capsule.isHidden = true
     capsuleTail.isHidden = true
-    iconCircle.isHidden = true
+    iconCircle.isHidden = false
+    iconView.isHidden = true
     ratingLabel.isHidden = true
-    label.isHidden = false
+    label.isHidden = true
+    sequenceBadge.isHidden = false
 
-    let attributedText = label.attributedText
-    var textSize = CGSize.zero
-    if let attributedText = attributedText, attributedText.length > 0 {
-      textSize = (attributedText.string as NSString).size(
-        withAttributes: attributedText.attributes(at: 0, effectiveRange: nil)
-      )
-    }
-    let labelSize = CGSize(
-      width: min(ceil(textSize.width) + 3, Metrics.maxLabelWidth),
-      height: ceil(textSize.height)
-    )
-
-    let totalHeight = Metrics.routeIconSize.height + Metrics.routeGap + labelSize.height
-    let totalWidth = max(Metrics.routeIconSize.width, min(labelSize.width, Metrics.maxLabelWidth))
-
-    if bounds.size != CGSize(width: totalWidth, height: totalHeight) {
-      bounds = CGRect(origin: .zero, size: CGSize(width: totalWidth, height: totalHeight))
-    }
+    let diameter = Metrics.sequenceDiameter
+    let height = diameter + Metrics.routeGap + Metrics.routeDotDiameter
+    let size = CGSize(width: diameter, height: height)
+    if bounds.size != size { bounds = CGRect(origin: .zero, size: size) }
 
     UIView.performWithoutAnimation {
-      // 1–9 显示为圆形；10、11… 根据数字位数扩展为胶囊形，
-      // 路线点数量增加时不会出现数字挤压或截断。
-      let sequenceWidth = max(
-        Metrics.sequenceMinimumWidth,
-        ceil(sequenceBadge.intrinsicContentSize.width) + Metrics.sequenceHorizontalPadding
-      )
-      sequenceBadge.layer.cornerRadius = Metrics.sequenceHeight / 2
-      iconView.frame = CGRect(
-        x: (totalWidth - Metrics.routeIconSize.width) / 2,
-        y: 0,
-        width: Metrics.routeIconSize.width,
-        height: Metrics.routeIconSize.height
-      )
+      sequenceBadge.layer.cornerRadius = diameter / 2
       sequenceBadge.frame = CGRect(
-        x: iconView.frame.maxX - sequenceWidth + 5,
-        y: -5,
-        width: sequenceWidth,
-        height: Metrics.sequenceHeight
+        x: 0, y: 0, width: diameter, height: diameter
       )
-      label.frame = CGRect(
-        x: 0,
-        y: Metrics.routeIconSize.height + Metrics.routeGap,
-        width: totalWidth,
-        height: labelSize.height
+      iconCircle.layer.cornerRadius = Metrics.routeDotDiameter / 2
+      iconCircle.frame = CGRect(
+        x: (diameter - Metrics.routeDotDiameter) / 2,
+        y: diameter + Metrics.routeGap,
+        width: Metrics.routeDotDiameter,
+        height: Metrics.routeDotDiameter
       )
 
       layer.shadowPath = nil
       layer.shadowOpacity = 0
-
-      // 锚点 = 图标底尖（对应旧 iconAnchor BOTTOM + label 在下方）：
-      // 第 anchorRow 行压住坐标点 ⇒ offset.y = midY - anchorRow。
-      let anchorRow = Metrics.routeIconSize.height
-      centerOffset = CGPoint(x: 0, y: bounds.midY - anchorRow)
+      // 最下方圆点的中心对准酒吧坐标。
+      centerOffset = CGPoint(x: 0, y: -height / 2 + Metrics.routeDotDiameter / 2)
     }
   }
 }

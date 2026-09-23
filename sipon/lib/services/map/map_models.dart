@@ -225,7 +225,7 @@ class MapMarkerSpec {
   /// 原生端统一渲染为 `--`。路线站点不传评分，继续使用编号 marker。
   final double? rating;
 
-  /// 路线页可选的顺序编号；普通 POI 为 null，仍显示酒吧名称。
+  /// 路线页显示的站点序号；普通 POI 为 null，仍显示酒吧胶囊。
   final int? sequence;
 
   /// 覆盖原生图标缓存查找用的 category；为 null 时按 [kind] 取分类图标。

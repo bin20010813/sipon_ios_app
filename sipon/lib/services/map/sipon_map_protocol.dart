@@ -136,7 +136,9 @@ Map<String, Object?> encodeRenderFrame(
           'lat': marker.latitude,
           'lng': marker.longitude,
           'category': marker.iconCategory ?? marker.kind.id,
-          if (marker.rating != null && marker.rating!.isFinite)
+          if (marker.sequence == null &&
+              marker.rating != null &&
+              marker.rating!.isFinite)
             'rating': marker.rating,
           if (marker.sequence != null) 'sequence': marker.sequence,
         },

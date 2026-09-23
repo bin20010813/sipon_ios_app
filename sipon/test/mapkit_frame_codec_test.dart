@@ -203,7 +203,7 @@ void main() {
       expect((payload['markers']! as List).single, isNot(contains('rating')));
     });
 
-    test('路线胶囊同时下发顺序编号与评分', () {
+    test('路线标记即使有评分也只下发顺序编号', () {
       final payload = encodeRenderFrame(
         _frameWith(sequence: 3, rating: 4.7),
         zoom: 15,
@@ -211,7 +211,7 @@ void main() {
       final marker = (payload['markers']! as List).single as Map;
 
       expect(marker['sequence'], 3);
-      expect(marker['rating'], 4.7);
+      expect(marker, isNot(contains('rating')));
     });
   });
 

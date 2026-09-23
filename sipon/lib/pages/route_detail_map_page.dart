@@ -31,6 +31,30 @@ class RouteStop {
   final double? rating;
 }
 
+/// Keep the saved stop order intact. A missing location must not cause two
+/// non-adjacent stops to be routed directly to each other.
+List<MapLatLng>? routeNavigationCoordinates(List<RouteStop> stops) {
+  if (stops.length < 2) return null;
+  final points = <MapLatLng>[];
+  for (final stop in stops) {
+    if (!_hasValidRouteCoordinates(stop)) return null;
+    points.add(MapLatLng(longitude: stop.longitude!, latitude: stop.latitude!));
+  }
+  return points;
+}
+
+bool _hasValidRouteCoordinates(RouteStop stop) {
+  final longitude = stop.longitude;
+  final latitude = stop.latitude;
+  return longitude != null &&
+      latitude != null &&
+      longitude.isFinite &&
+      latitude.isFinite &&
+      longitude.abs() <= 180 &&
+      latitude.abs() <= 90 &&
+      (longitude != 0 || latitude != 0);
+}
+
 /// 从 map 里按候选键读取非空字符串。
 String? _pickString(Map<String, dynamic> map, List<String> keys) {
   for (final key in keys) {
@@ -204,6 +228,8 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
   List<RouteStop> _stops = const [];
   bool _loading = true;
   String? _error;
+  String? _routeError;
+  int _routeRenderRevision = 0;
 
   @override
   void initState() {
@@ -242,6 +268,7 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
       setState(() {
         _stops = stops;
         _loading = false;
+        _routeError = null;
       });
     } on Exception catch (error) {
       if (!mounted) return;
@@ -251,6 +278,7 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
         _stops = stops;
         _error = stops.isEmpty ? error.toString() : null;
         _loading = false;
+        _routeError = null;
       });
     }
     await _renderStops();
@@ -318,58 +346,62 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
     return '上海';
   }
 
-  /// 把站点以「白色评分胶囊 + 顺序编号 + 圆点」渲染到地图，并按
-  /// 站点顺序请求原生多点连线。原生会先显示直连线，再尝试替换成道路路线，
-  /// 并自动取景到整条路线。
+  /// 渲染编号站点，再为每对相邻站点请求导航道路路线。
   Future<void> _renderStops() async {
-    if (!_scene.isAttached || _stops.isEmpty) return;
-    final points = <MapPoint>[];
+    if (!_scene.isAttached) return;
+    final revision = ++_routeRenderRevision;
+    if (_stops.isEmpty) {
+      _scene.clearRoute();
+      await _scene.render(const MapSceneFrame(circlePoints: [], markers: []));
+      return;
+    }
+    if (_routeError != null) {
+      setState(() => _routeError = null);
+    }
     final markers = <MapMarkerSpec>[];
     for (var index = 0; index < _stops.length; index++) {
       final stop = _stops[index];
       final longitude = stop.longitude;
       final latitude = stop.latitude;
-      if (longitude == null || latitude == null) continue;
-      final sequence = points.length + 1;
-      points.add(
-        MapPoint(
-          id: 'route-stop-$index-${stop.id ?? index}',
-          name: stop.name,
-          longitude: longitude,
-          latitude: latitude,
-          kind: stop.kind,
-          weight: 1,
-          venueId: '${stop.id ?? index}',
-        ),
-      );
+      if (!_hasValidRouteCoordinates(stop)) continue;
+      final sequence = markers.length + 1;
       markers.add(
         MapMarkerSpec(
           venueId: 'route-stop-$index',
           label: stop.name,
-          longitude: longitude,
-          latitude: latitude,
+          longitude: longitude!,
+          latitude: latitude!,
           kind: stop.kind,
-          rating: stop.rating,
           sequence: sequence,
         ),
       );
     }
-    if (points.isEmpty) return;
-    await _scene.render(MapSceneFrame(circlePoints: points, markers: markers));
+    if (markers.isEmpty) {
+      _scene.clearRoute();
+      setState(() => _routeError = '站点缺少可用位置，无法规划导航路线');
+      return;
+    }
+    await _scene.render(
+      MapSceneFrame(circlePoints: const [], markers: markers),
+    );
+    if (!mounted || revision != _routeRenderRevision) return;
+    final navigationPoints = routeNavigationCoordinates(_stops);
+    if (navigationPoints == null && _stops.length >= 2) {
+      _scene.clearRoute();
+      setState(() => _routeError = '部分站点缺少可用位置，无法按顺序规划导航路线');
+      return;
+    }
 
-    // 详情页此前只下发 marker，因此即使站点已有坐标也不会有路线折线，
-    // 地图仍停留在城市初始视野。这里复用规划页的 MapKit 路线能力；
-    // 原生会先按站点顺序连线并取景；方向服务成功后再换成道路折线。
-    if (points.length >= 2) {
-      await _scene.planRoute(
-        points: [
-          for (final point in points)
-            MapLatLng(longitude: point.longitude, latitude: point.latitude),
-        ],
-      );
+    if (navigationPoints != null) {
+      final planned = await _scene.planRoute(points: navigationPoints);
+      if (!mounted || revision != _routeRenderRevision) return;
+      setState(() {
+        _routeError = planned ? null : '有路段无法规划导航路线，请稍后重试';
+      });
     } else {
-      // 只有一个有效站点时无法规划路线，仍将它置于可见区域中央。
-      final point = points.single;
+      _scene.clearRoute();
+      setState(() => _routeError = '至少需要两个有位置的站点才能规划路线');
+      final point = markers.single;
       await _scene.focusOn(
         longitude: point.longitude,
         latitude: point.latitude,
@@ -453,6 +485,32 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
                                 ),
                               ],
                             ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (_routeError != null && _stops.isNotEmpty)
+                    Positioned(
+                      left: 16,
+                      right: 16,
+                      top: 16,
+                      child: Material(
+                        color: Colors.white,
+                        elevation: 3,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(child: Text(_routeError!)),
+                              TextButton(
+                                onPressed: _renderStops,
+                                child: const Text('重试'),
+                              ),
+                            ],
                           ),
                         ),
                       ),

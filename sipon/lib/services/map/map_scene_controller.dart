@@ -198,8 +198,8 @@ abstract class MapSceneController {
 
   Future<void> flyToCity(String city, {required double zoom});
 
-  /// 按 [points] 顺序绘制原生多点折线，并尽量用方向服务的道路路线替换。
-  /// 直连折线已显示时返回 true；点位不足或引擎未就绪时返回 false。
+  /// 按 [points] 顺序规划每对相邻站点的道路路线；全部成功后才绘制。
+  /// 任一路段失败、点位不足或引擎未就绪时返回 false。
   Future<bool> planRoute({required List<MapLatLng> points});
 
   /// 清除已绘制的路线折线（站点变更后调用，避免旧路线残留）。

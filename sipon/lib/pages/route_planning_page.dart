@@ -138,17 +138,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
     final places = [_start, ..._stops, _end].whereType<_BarPlace>().toList();
     await _scene.render(
       MapSceneFrame(
-        circlePoints: [
-          for (var index = 0; index < places.length; index++)
-            MapPoint(
-              id: 'route-point-$index-${places[index].name}',
-              name: places[index].name,
-              longitude: places[index].longitude,
-              latitude: places[index].latitude,
-              kind: places[index].kind,
-              weight: 1,
-            ),
-        ],
+        circlePoints: const [],
         markers: [
           for (var index = 0; index < places.length; index++)
             MapMarkerSpec(
@@ -158,7 +148,6 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
               longitude: places[index].longitude,
               latitude: places[index].latitude,
               kind: places[index].kind,
-              rating: places[index].rating,
               sequence: index + 1,
             ),
         ],
@@ -255,8 +244,8 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
     });
   }
 
-  /// 点击「出发」：按已选站点顺序绘制原生多点折线，再尝试用 MKDirections
-  /// 的道路路线替换；折线显示成功后允许保存为我的路线。
+  /// 点击「出发」：每对相邻站点都用 MKDirections 规划驾车路线；
+  /// 全部路段成功绘制后才允许保存。
   Future<void> _planRoute() async {
     if (_planning) return;
     if (!_scene.isAttached) {
@@ -286,7 +275,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
       if (!mounted || revision != _routeRevision) return;
 
       setState(() => _planned = ok);
-      _showMessage(ok ? '路线已规划，可以保存为我的路线了' : '路径规划失败，请检查站点或稍后重试');
+      _showMessage(ok ? '路线已规划，可以保存为我的路线了' : '有路段无法规划导航路线，请检查站点或稍后重试');
       if (ok) {
         // 折线绘制后再重画一次点位，保证编号 marker 落在折线上层。
         unawaited(_renderMap());

@@ -40,6 +40,34 @@ String _formatCurrency(double value) {
   return '${negative ? '-' : ''}¥$reversed$decimals';
 }
 
+String _romanNumeral(int value) {
+  if (value <= 0 || value > 3999) return '—';
+  const numerals = <(int, String)>[
+    (1000, 'M'),
+    (900, 'CM'),
+    (500, 'D'),
+    (400, 'CD'),
+    (100, 'C'),
+    (90, 'XC'),
+    (50, 'L'),
+    (40, 'XL'),
+    (10, 'X'),
+    (9, 'IX'),
+    (5, 'V'),
+    (4, 'IV'),
+    (1, 'I'),
+  ];
+  final result = StringBuffer();
+  var remaining = value;
+  for (final (number, numeral) in numerals) {
+    while (remaining >= number) {
+      result.write(numeral);
+      remaining -= number;
+    }
+  }
+  return result.toString();
+}
+
 void _showProfileMessage(BuildContext context, String message) {
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
@@ -273,7 +301,10 @@ class ProfilePageState extends State<ProfilePage> {
                               assetPath: ProfilePage._memberAsset,
                               title: text.membership,
                               badge: text.membershipLimitedTime,
-                              onTap: () => _showMembershipSheet(context),
+                              onTap: () => _showMembershipSheet(
+                                context,
+                                userLevel: _profile?.level,
+                              ),
                             ),
                             _ProfileListRow(
                               assetPath: ProfilePage._couponAsset,
@@ -1277,19 +1308,20 @@ Future<void> _showAchievementList(BuildContext context) {
 */
 
 /// 打开「Sipon 会员」摘要弹窗：GET /api/users/me/membership。
-void _showMembershipSheet(BuildContext context) {
+void _showMembershipSheet(BuildContext context, {int? userLevel}) {
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => const _MembershipSheet(),
+    builder: (_) => _MembershipSheet(userLevel: userLevel),
   );
 }
 
-/// 会员卡摘要：后端字段以真实响应为准，这里把所有基础类型字段逐行展示，
-/// 常见键给出中文标签。
+/// 会员卡摘要：固定展示已开放权益，其余会员信息来自接口。
 class _MembershipSheet extends StatefulWidget {
-  const _MembershipSheet();
+  const _MembershipSheet({this.userLevel});
+
+  final int? userLevel;
 
   @override
   State<_MembershipSheet> createState() => _MembershipSheetState();
@@ -1297,8 +1329,6 @@ class _MembershipSheet extends StatefulWidget {
 
 class _MembershipSheetState extends State<_MembershipSheet> {
   static const _keyLabels = {
-    'level': '会员等级',
-    'levelName': '会员等级',
     'status': '状态',
     'balance': '余额',
     'points': '积分',
@@ -1414,6 +1444,7 @@ class _MembershipSheetState extends State<_MembershipSheet> {
                   ),
                 ],
               ),
+              _buildSummary(),
               Flexible(child: _buildBody()),
             ],
           ),
@@ -1421,6 +1452,53 @@ class _MembershipSheetState extends State<_MembershipSheet> {
       ),
     );
   }
+
+  Widget _buildSummary() {
+    // 等级优先取用户资料；会员接口中的等级用于资料尚未加载时兜底。
+    final membership = _membership ?? const <String, dynamic>{};
+    final level =
+        widget.userLevel ??
+        int.tryParse(
+          '${membership['level'] ?? membership['userLevel'] ?? membership['levelName'] ?? ''}',
+        );
+    const labels = ['用户等级', '喝酒路线规划', '鸡尾酒查看'];
+    final values = [level == null ? '—' : _romanNumeral(level), '特权开放', '特权开放'];
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var index = 0; index < labels.length; index++) ...[
+          if (index > 0) const Divider(height: 1, color: Color(0xFFE8E4E9)),
+          _membershipRow(labels[index], values[index]),
+        ],
+      ],
+    );
+  }
+
+  Widget _membershipRow(String label, String value) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 12),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF858991),
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Color(0xFF292B32),
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    ),
+  );
 
   Widget _buildBody() {
     if (_loading) {
@@ -1464,19 +1542,17 @@ class _MembershipSheetState extends State<_MembershipSheet> {
       );
     }
 
-    // 只展示基础类型字段，嵌套对象/数组暂不展开。
+    final membership = _membership ?? const <String, dynamic>{};
+    // 其他基础类型字段继续展示，避免丢失余额、积分等会员信息。
     final entries = [
-      for (final entry in (_membership ?? const {}).entries)
-        if (entry.value is! Map && entry.value is! List) entry,
+      for (final entry in membership.entries)
+        if (entry.value != null &&
+            entry.value is! Map &&
+            entry.value is! List &&
+            !{'level', 'userLevel', 'levelName'}.contains(entry.key))
+          entry,
     ];
-    if (entries.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 48),
-        child: Center(
-          child: Text('暂未开通会员', style: TextStyle(color: Color(0xFF858991))),
-        ),
-      );
-    }
+    if (entries.isEmpty) return const SizedBox.shrink();
 
     return ListView.separated(
       shrinkWrap: true,
@@ -1485,30 +1561,9 @@ class _MembershipSheetState extends State<_MembershipSheet> {
           const Divider(height: 1, color: Color(0xFFE8E4E9)),
       itemBuilder: (_, index) {
         final entry = entries[index];
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  _keyLabels[entry.key] ?? entry.key,
-                  style: const TextStyle(
-                    color: Color(0xFF858991),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Text(
-                '${entry.value}',
-                style: const TextStyle(
-                  color: Color(0xFF292B32),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
+        return _membershipRow(
+          _keyLabels[entry.key] ?? entry.key,
+          '${entry.value}',
         );
       },
     );
