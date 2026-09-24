@@ -343,6 +343,8 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
         _AuthPage.reset => text.t('密码已重置，请重新登录'),
         _AuthPage.login => null,
       },
+      // 重置密码接口（204）不返回会话，不能当作登录成功处理。
+      notifyLoginSucceeded: _page != _AuthPage.reset,
     );
     // 重置成功（未登录）后切回登录视图，方便直接用新密码登录。
     if (mounted && _page == _AuthPage.reset) {
@@ -362,7 +364,14 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
 
     setState(() => _sendingCode = true);
     try {
-      await _authService.requestEmailCode(email);
+      // 登录/注册码与重置密码码不可混用：
+      // 重置视图必须请求 /api/auth/email/password-reset/code，
+      // 其余视图请求 /api/auth/email/code。
+      if (_page == _AuthPage.reset) {
+        await _authService.requestEmailPasswordResetCode(email);
+      } else {
+        await _authService.requestEmailCode(email);
+      }
       if (!mounted) return;
       _showMessage(text.t('验证码已发送，请查收邮箱'));
       setState(() {
@@ -390,9 +399,12 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
   }
 
   /// 统一执行认证动作：成功回调登入，失败按异常类型提示。
+  /// [notifyLoginSucceeded] 为 false 时不触发登录成功回调，
+  /// 用于重置密码（204 无会话，用户并未登录）等场景。
   Future<void> _runAuthAction(
     Future<void> Function() action, {
     required String? successMessage,
+    bool notifyLoginSucceeded = true,
   }) async {
     FocusScope.of(context).unfocus();
     setState(() => _submitting = true);
@@ -400,7 +412,7 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
       await action();
       if (!mounted) return;
       if (successMessage != null) _showMessage(successMessage);
-      widget.onLoginSucceeded();
+      if (notifyLoginSucceeded) widget.onLoginSucceeded();
     } catch (error) {
       _showMessage(_errorMessage(error));
     } finally {

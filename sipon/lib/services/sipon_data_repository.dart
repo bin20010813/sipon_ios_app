@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'sipon_api_client.dart';
 import 'sipon_api_models.dart';
 import 'sipon_region_data.dart';
+import 'sipon_search_preferences.dart';
 
 class SiponDataRepository {
   SiponDataRepository({SiponApiClient? apiClient})
@@ -75,10 +76,12 @@ class SiponDataRepository {
   }
 
   /// 按经纬度拉取附近酒吧（文档 4.5）：radiusMeters 限 1000~5000，limit 1~10000。
+  ///
+  /// [radiusMeters] 缺省时使用偏好设置里的全局搜索半径（上限 3km）。
   Future<List<SiponBarMapItem>> fetchNearbyBars({
     required double longitude,
     required double latitude,
-    int radiusMeters = 3000,
+    int? radiusMeters,
     int limit = 20,
   }) async {
     final json = await _apiClient.getJson(
@@ -86,7 +89,8 @@ class SiponDataRepository {
       queryParameters: {
         'longitude': longitude,
         'latitude': latitude,
-        'radiusMeters': radiusMeters,
+        'radiusMeters':
+            radiusMeters ?? SiponSearchPreferences.instance.radiusMeters,
         'hasImage': true,
         'limit': limit,
       },

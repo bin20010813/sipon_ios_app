@@ -390,6 +390,10 @@ const Map<String, String> _englishText = {
   '评价与反馈': 'Reviews & Feedback',
   '账号安全': 'Account Security',
   '偏好选择': 'Preferences',
+  '搜索半径': 'Search Radius',
+  '打卡与路线规划按此范围查找附近酒吧':
+      'Check-in and route planning find nearby bars within this range',
+  '拖动滑块调整搜索范围': 'Drag the slider to adjust the range',
   '通知设置': 'Notifications',
   '资料审核中': 'Profile under review',
   '资料审核已通过': 'Profile approved',

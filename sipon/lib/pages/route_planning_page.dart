@@ -9,6 +9,7 @@ import '../services/map/sipon_map_host.dart';
 import '../services/map/sipon_map_widget.dart';
 import '../services/sipon_api_service.dart';
 import '../services/sipon_city_controller.dart';
+import '../services/sipon_search_preferences.dart';
 import '../widgets/sipon_city_picker.dart';
 
 class RoutePlanningPage extends StatefulWidget {
@@ -50,6 +51,8 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
       onVenueTapped: (_) {},
       onBlankTapped: () {},
     );
+    // 偏好设置里调整搜索半径后，按新半径刷新可选酒吧。
+    SiponSearchPreferences.instance.addListener(_handleRadiusChanged);
   }
 
   @override
@@ -90,10 +93,16 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
   void dispose() {
     _requestVersion++;
     _cityController?.removeListener(_handleCityChanged);
+    SiponSearchPreferences.instance.removeListener(_handleRadiusChanged);
     _routeRevision++;
     _scene.detach();
     _routeListController.dispose();
     super.dispose();
+  }
+
+  void _handleRadiusChanged() {
+    if (!mounted) return;
+    _loadNearbyBars();
   }
 
   /// 拉取附近真实酒吧作为可选项；失败时保持空列表。
@@ -111,7 +120,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
       final list = await _api.getNearbyBars(
         longitude: anchor.longitude,
         latitude: anchor.latitude,
-        radiusMeters: 5000,
+        radiusMeters: SiponSearchPreferences.instance.radiusMeters,
       );
       final parsed = [
         for (final item in list.whereType<Map>())

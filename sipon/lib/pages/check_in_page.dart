@@ -10,6 +10,7 @@ import '../services/map/sipon_map_host.dart';
 import '../services/map/sipon_map_widget.dart';
 import '../services/sipon_api_service.dart';
 import '../services/sipon_city_controller.dart';
+import '../services/sipon_search_preferences.dart';
 import '../widgets/map/venue_detail_page.dart';
 import '../widgets/review_composer.dart';
 import '../widgets/sipon_city_picker.dart';
@@ -56,6 +57,8 @@ class _CheckInPageState extends State<CheckInPage> {
       onVenueTapped: (_) {},
       onBlankTapped: () {},
     );
+    // 偏好设置里调整搜索半径后，即时按新半径重新拉取附近酒吧。
+    SiponSearchPreferences.instance.addListener(_handleRadiusChanged);
   }
 
   @override
@@ -71,12 +74,18 @@ class _CheckInPageState extends State<CheckInPage> {
   @override
   void dispose() {
     _requestVersion++;
+    SiponSearchPreferences.instance.removeListener(_handleRadiusChanged);
     _barsController.dispose();
     _scene.detach();
     super.dispose();
   }
 
-  /// 每次打开或重试获取实际定位，以同一坐标查询 3 公里内的酒吧。
+  void _handleRadiusChanged() {
+    if (!mounted) return;
+    _loadNearbyBars();
+  }
+
+  /// 每次打开或重试获取实际定位，以同一坐标查询偏好半径内的酒吧。
   Future<void> _loadNearbyBars() async {
     final version = ++_requestVersion;
     setState(() {
@@ -111,7 +120,7 @@ class _CheckInPageState extends State<CheckInPage> {
       final list = await _api.getNearbyBars(
         longitude: anchor.longitude,
         latitude: anchor.latitude,
-        radiusMeters: 3000,
+        radiusMeters: SiponSearchPreferences.instance.radiusMeters,
         limit: _nearbyPageSize,
       );
       final parsed = [

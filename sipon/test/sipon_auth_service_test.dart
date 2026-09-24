@@ -202,4 +202,52 @@ void main() {
     final preferences = await SharedPreferences.getInstance();
     expect(preferences.getString('sipon_auth_session'), isNull);
   });
+
+  test('发送重置密码验证码请求匿名 password-reset/code 接口并规范化邮箱', () async {
+    final apiClient = SiponApiClient(
+      config: config,
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/api/auth/email/password-reset/code');
+        expect(request.headers['authorization'], isNull);
+        expect(request.headers['content-type'], 'application/json');
+        expect(jsonDecode(request.body), {'email': 'user@example.com'});
+        return http.Response('{}', 202);
+      }),
+    );
+    final authService = SiponAuthService(apiClient: apiClient);
+
+    await authService.requestEmailPasswordResetCode('  User@Example.COM  ');
+
+    expect(authService.session, isNull);
+  });
+
+  test('重置密码提交完整凭据到 password-reset/confirm 且不保存会话', () async {
+    final apiClient = SiponApiClient(
+      config: config,
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/api/auth/email/password-reset/confirm');
+        expect(request.headers['authorization'], isNull);
+        expect(request.headers['content-type'], 'application/json');
+        expect(jsonDecode(request.body), {
+          'email': 'user@example.com',
+          'code': '012345',
+          'newPassword': 'SiponNew#2026',
+        });
+        return http.Response('', 204);
+      }),
+    );
+    final authService = SiponAuthService(apiClient: apiClient);
+
+    await authService.resetEmailPassword(
+      email: ' User@Example.com ',
+      code: ' 012345 ',
+      newPassword: 'SiponNew#2026',
+    );
+
+    expect(authService.session, isNull);
+    final preferences = await SharedPreferences.getInstance();
+    expect(preferences.getString('sipon_auth_session'), isNull);
+  });
 }

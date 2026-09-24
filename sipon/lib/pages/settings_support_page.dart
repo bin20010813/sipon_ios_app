@@ -6,6 +6,7 @@ import '../services/sipon_agreement_links.dart';
 import '../services/sipon_api_client.dart';
 import '../services/sipon_api_service.dart';
 import '../services/sipon_auth_service.dart';
+import '../services/sipon_search_preferences.dart';
 import 'language_transform.dart';
 import 'review_page.dart';
 
@@ -792,6 +793,13 @@ class _PreferenceSelectionPageState extends State<_PreferenceSelectionPage> {
   String _scene = '微醺小聚';
 
   @override
+  void initState() {
+    super.initState();
+    // 兜底：若启动加载尚未完成，进入页面时补一次，保证滑块回显已存值。
+    SiponSearchPreferences.instance.ensureLoaded();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
     final flavors = ['清爽', '果香', '烟熏', '草本', '甜口', '烈酒感'];
@@ -804,6 +812,21 @@ class _PreferenceSelectionPageState extends State<_PreferenceSelectionPage> {
           icon: Icons.local_bar_outlined,
           title: text.t('偏好画像'),
           subtitle: text.t('这些选择会用于后续推荐酒款、酒吧和活动。'),
+        ),
+        const SizedBox(height: 16),
+        _SupportPanel(
+          title: text.t('搜索半径'),
+          children: [
+            AnimatedBuilder(
+              animation: SiponSearchPreferences.instance,
+              builder: (context, _) {
+                return _SearchRadiusSlider(
+                  radiusMeters: SiponSearchPreferences.instance.radiusMeters,
+                  onChanged: SiponSearchPreferences.instance.setRadiusMeters,
+                );
+              },
+            ),
+          ],
         ),
         const SizedBox(height: 16),
         _SupportPanel(
@@ -834,6 +857,141 @@ class _PreferenceSelectionPageState extends State<_PreferenceSelectionPage> {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// 搜索半径卡片：说明行 + 居中大数值 + 宽滑块 + 两端刻度，
+/// 档位由 [SiponSearchPreferences.radiusStepMeters] 决定（1~3km 共 5 档）。
+class _SearchRadiusSlider extends StatelessWidget {
+  const _SearchRadiusSlider({
+    required this.radiusMeters,
+    required this.onChanged,
+  });
+
+  final int radiusMeters;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = SiponLanguageScope.textOf(context);
+    final label = siponFormatRadiusMeters(radiusMeters);
+    const minRadius = SiponSearchPreferences.minRadiusMeters;
+    const maxRadius = SiponSearchPreferences.maxRadiusMeters;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF6FB),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.radar_rounded,
+                  color: SettingsSupportPage._brand,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  text.t('打卡与路线规划按此范围查找附近酒吧'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: SettingsSupportPage._muted,
+                    fontSize: 12,
+                    height: 1.35,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Center(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 160),
+              child: Text(
+                label,
+                key: ValueKey<String>(label),
+                style: const TextStyle(
+                  color: SettingsSupportPage._brand,
+                  fontSize: 34,
+                  fontWeight: FontWeight.w900,
+                  height: 1,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Center(
+            child: Text(
+              text.t('拖动滑块调整搜索范围'),
+              style: const TextStyle(
+                color: SettingsSupportPage._muted,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: SettingsSupportPage._brand,
+              inactiveTrackColor: const Color(0xFFF3E4EF),
+              thumbColor: SettingsSupportPage._brand,
+              overlayColor: SettingsSupportPage._brand.withValues(alpha: 0.10),
+              trackHeight: 5,
+            ),
+            child: Slider(
+              value: radiusMeters.toDouble(),
+              min: minRadius.toDouble(),
+              max: maxRadius.toDouble(),
+              divisions:
+                  (maxRadius - minRadius) ~/
+                  SiponSearchPreferences.radiusStepMeters,
+              onChanged: (value) => onChanged(value.round()),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  siponFormatRadiusMeters(minRadius),
+                  style: const TextStyle(
+                    color: SettingsSupportPage._muted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
+                ),
+                Text(
+                  siponFormatRadiusMeters(maxRadius),
+                  style: const TextStyle(
+                    color: SettingsSupportPage._muted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

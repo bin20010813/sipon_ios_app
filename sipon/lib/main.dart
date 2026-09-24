@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
@@ -19,6 +19,7 @@ import 'services/drink_budget_store.dart';
 import 'services/map/map_models.dart';
 import 'services/sipon_auth_service.dart';
 import 'services/sipon_city_controller.dart';
+import 'services/sipon_search_preferences.dart';
 import 'widgets/sipon_city_picker.dart';
 
 void main() {
@@ -52,6 +53,7 @@ class _SiponAppState extends State<SiponApp> {
   void initState() {
     super.initState();
     DrinkBudgetStore.instance.ensureLoaded();
+    SiponSearchPreferences.instance.ensureLoaded();
   }
 
   @override
@@ -101,9 +103,7 @@ class _StartupGate extends StatefulWidget {
 }
 
 class _StartupGateState extends State<_StartupGate> {
-  bool _ready = false;
   bool _showShell = false;
-  bool _openRecordInitially = false;
   bool _sessionChecked = false;
   bool _isLoggedIn = false;
   bool _loginPageOpen = false;
@@ -151,7 +151,7 @@ class _StartupGateState extends State<_StartupGate> {
     }
 
     setState(() => _launchCompleted = true);
-    _bootstrap(showShellImmediately: true);
+    _bootstrap();
   }
 
   void _openLoginPage() {
@@ -189,52 +189,19 @@ class _StartupGateState extends State<_StartupGate> {
 
   void _onLogoutSucceeded() {
     setState(() {
-      _ready = false;
       _showShell = false;
-      _openRecordInitially = false;
       _isLoggedIn = false;
       _launchCompleted = false;
     });
   }
 
-  Future<void> _bootstrap({bool showShellImmediately = false}) async {
-    if (showShellImmediately) {
-      await widget.cityController.load();
-    } else {
-      await Future.wait([
-        widget.cityController.load(),
-        Future<void>.delayed(const Duration(milliseconds: 1300)),
-      ]);
-    }
+  Future<void> _bootstrap() async {
+    await widget.cityController.load();
 
     if (!mounted) {
       return;
     }
-
-    if (showShellImmediately) {
-      setState(() {
-        _ready = true;
-        _showShell = true;
-      });
-      return;
-    }
-    setState(() => _ready = true);
-    await Future<void>.delayed(const Duration(milliseconds: 450));
-
-    if (mounted && !_showShell) {
-      setState(() => _showShell = true);
-    }
-  }
-
-  void _openRecord() {
-    if (!_ready || _showShell) {
-      return;
-    }
-
-    setState(() {
-      _openRecordInitially = true;
-      _showShell = true;
-    });
+    setState(() => _showShell = true);
   }
 
   @override
@@ -247,23 +214,28 @@ class _StartupGateState extends State<_StartupGate> {
       );
     }
     if (_showShell) {
-      return _SiponShell(
-        openRecordInitially: _openRecordInitially,
-        onLogoutSucceeded: _onLogoutSucceeded,
-      );
+      return _SiponShell(onLogoutSucceeded: _onLogoutSucceeded);
     }
 
-    return _SiponSplashScreen(ready: _ready, onRecordPressed: _openRecord);
+    return const Scaffold(
+      backgroundColor: Colors.white,
+      body: Center(
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: Color(0xFF9A3D78),
+        ),
+      ),
+    );
   }
 }
 
-/// 悬浮底栏与 Plus 弹层底边距离屏幕底边的间距。
+/// 鎮诞搴曟爮涓?Plus 寮瑰眰搴曡竟璺濈灞忓箷搴曡竟鐨勯棿璺濄€?
 ///
-/// iOS 与安卓的系统底部安全区差异很大（iPhone 恒为 34pt，安卓手势导航通常
-/// 0~24dp、三键导航约 48dp），因此拆成两个独立旋钮：
-/// - iOS 调减数 `- 20`（越小底栏越高，iPhone 上离底 = 34 - 减数）；
-/// - 安卓调加数 `+ 0`（越大底栏越高；加法在任何安卓机型都生效，
-///   而减法结果会落到底部下限之下，看起来就是"改了没反应"）。
+/// iOS 涓庡畨鍗撶殑绯荤粺搴曢儴瀹夊叏鍖哄樊寮傚緢澶э紙iPhone 鎭掍负 34pt锛屽畨鍗撴墜鍔垮鑸€氬父
+/// 0~24dp銆佷笁閿鑸害 48dp锛夛紝鍥犳鎷嗘垚涓や釜鐙珛鏃嬮挳锛?
+/// - iOS 璋冨噺鏁?`- 20`锛堣秺灏忓簳鏍忚秺楂橈紝iPhone 涓婄搴?= 34 - 鍑忔暟锛夛紱
+/// - 瀹夊崜璋冨姞鏁?`+ 0`锛堣秺澶у簳鏍忚秺楂橈紱鍔犳硶鍦ㄤ换浣曞畨鍗撴満鍨嬮兘鐢熸晥锛?
+///   鑰屽噺娉曠粨鏋滀細钀藉埌搴曢儴涓嬮檺涔嬩笅锛岀湅璧锋潵灏辨槸"鏀逛簡娌″弽搴?锛夈€?
 double _bottomBarBottomGapFor(double safeBottom) {
   if (defaultTargetPlatform == TargetPlatform.iOS) {
     return math.max(safeBottom - 18, 10);
@@ -272,12 +244,8 @@ double _bottomBarBottomGapFor(double safeBottom) {
 }
 
 class _SiponShell extends StatefulWidget {
-  const _SiponShell({
-    this.openRecordInitially = false,
-    required this.onLogoutSucceeded,
-  });
+  const _SiponShell({required this.onLogoutSucceeded});
 
-  final bool openRecordInitially;
   final VoidCallback onLogoutSucceeded;
 
   @override
@@ -287,17 +255,17 @@ class _SiponShell extends StatefulWidget {
 class _SiponShellState extends State<_SiponShell> {
   static const double _navigationBarHeight = 62;
 
-  // viewPadding 是设备的固定系统安全区；padding 会在键盘出现时扣掉
-  // viewInsets，因此不能用它来决定全局悬浮导航的基线位置。间距按平台
-  // 的具体旋钮见 _bottomBarBottomGapFor 的文档注释。
+  // viewPadding 鏄澶囩殑鍥哄畾绯荤粺瀹夊叏鍖猴紱padding 浼氬湪閿洏鍑虹幇鏃舵墸鎺?
+  // viewInsets锛屽洜姝や笉鑳界敤瀹冩潵鍐冲畾鍏ㄥ眬鎮诞瀵艰埅鐨勫熀绾夸綅缃€傞棿璺濇寜骞冲彴
+  // 鐨勫叿浣撴棆閽 _bottomBarBottomGapFor 鐨勬枃妗ｆ敞閲娿€?
   double get _bottomBarBottomGap =>
       _bottomBarBottomGapFor(MediaQuery.viewPaddingOf(context).bottom);
 
-  /// 底栏占据的总高度，各页面用它做列表底部的滚动预留。
+  /// 搴曟爮鍗犳嵁鐨勬€婚珮搴︼紝鍚勯〉闈㈢敤瀹冨仛鍒楄〃搴曢儴鐨勬粴鍔ㄩ鐣欍€?
   double get _effectiveNavigationReserveHeight =>
       _navigationBarHeight + _bottomBarBottomGap;
 
-  /// 我的页状态引用，用于切回 tab / 规划路线 / 打卡返回后刷新快捷入口计数。
+  /// 鎴戠殑椤电姸鎬佸紩鐢紝鐢ㄤ簬鍒囧洖 tab / 瑙勫垝璺嚎 / 鎵撳崱杩斿洖鍚庡埛鏂板揩鎹峰叆鍙ｈ鏁般€?
   final GlobalKey<ProfilePageState> _profilePageKey =
       GlobalKey<ProfilePageState>();
 
@@ -305,7 +273,7 @@ class _SiponShellState extends State<_SiponShell> {
   MapVenue? _mapRequestedVenue;
   bool _recordRouteOpening = false;
   final ValueNotifier<double> _mapSheetProgress = ValueNotifier<double>(0);
-  // 首页搜索遮罩展开状态：注入 HomePage，并由悬浮底栏监听以同步隐藏。
+  // 棣栭〉鎼滅储閬僵灞曞紑鐘舵€侊細娉ㄥ叆 HomePage锛屽苟鐢辨偓娴簳鏍忕洃鍚互鍚屾闅愯棌銆?
   final ValueNotifier<bool> _homeSearchExpanded = ValueNotifier<bool>(false);
 
   @override
@@ -321,17 +289,9 @@ class _SiponShellState extends State<_SiponShell> {
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    if (widget.openRecordInitially) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _openDrinkRecord());
-    }
-  }
-
   void _selectTab(int index) {
     if (index == _currentIndex) {
-      // 重复点击当前 tab：视为手动刷新。
+      // 閲嶅鐐瑰嚮褰撳墠 tab锛氳涓烘墜鍔ㄥ埛鏂般€?
       if (index == 2) {
         _profilePageKey.currentState?.refreshProfile();
         _profilePageKey.currentState?.refreshCounts();
@@ -402,7 +362,7 @@ class _SiponShellState extends State<_SiponShell> {
     );
   }
 
-  /// 打开路线规划；返回后刷新我的页计数（新增/变化的路线立即反映）。
+  /// 鎵撳紑璺嚎瑙勫垝锛涜繑鍥炲悗鍒锋柊鎴戠殑椤佃鏁帮紙鏂板/鍙樺寲鐨勮矾绾跨珛鍗冲弽鏄狅級銆?
   Future<void> _openRoutePlanning() async {
     await Navigator.of(
       context,
@@ -419,13 +379,13 @@ class _SiponShellState extends State<_SiponShell> {
     }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('酒馆信息已提交，审核通过后会显示在地图中'),
+        content: Text('閰掗淇℃伅宸叉彁浜わ紝瀹℃牳閫氳繃鍚庝細鏄剧ず鍦ㄥ湴鍥句腑'),
         behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
-  /// 打开打卡弹窗；关闭后刷新我的页计数（打卡记录可能新增）。
+  /// 鎵撳紑鎵撳崱寮圭獥锛涘叧闂悗鍒锋柊鎴戠殑椤佃鏁帮紙鎵撳崱璁板綍鍙兘鏂板锛夈€?
   Future<void> _openCheckIn() async {
     await showModalBottomSheet<void>(
       context: context,
@@ -439,12 +399,12 @@ class _SiponShellState extends State<_SiponShell> {
 
   @override
   Widget build(BuildContext context) {
-    // 注意：不要在本层读取 MediaQuery.viewInsets —— 键盘滑入动画期间它逐帧
-    // 变化，会导致壳层与 IndexedStack 内三个页面逐帧重建（键盘掉帧的来源）。
-    // 底栏对键盘的响应已隔离到 _ShellBottomBar 内部。
+    // 娉ㄦ剰锛氫笉瑕佸湪鏈眰璇诲彇 MediaQuery.viewInsets 鈥斺€?閿洏婊戝叆鍔ㄧ敾鏈熼棿瀹冮€愬抚
+    // 鍙樺寲锛屼細瀵艰嚧澹冲眰涓?IndexedStack 鍐呬笁涓〉闈㈤€愬抚閲嶅缓锛堥敭鐩樻帀甯х殑鏉ユ簮锛夈€?
+    // 搴曟爮瀵归敭鐩樼殑鍝嶅簲宸查殧绂诲埌 _ShellBottomBar 鍐呴儴銆?
     return Scaffold(
-      // 搜索框获取焦点时，不让 Scaffold 缩短 Stack 的可用高度；否则底栏会
-      // 被键盘顶起。键盘期间底栏会隐藏，搜索框仍位于屏幕顶部可正常输入。
+      // 鎼滅储妗嗚幏鍙栫劍鐐规椂锛屼笉璁?Scaffold 缂╃煭 Stack 鐨勫彲鐢ㄩ珮搴︼紱鍚﹀垯搴曟爮浼?
+      // 琚敭鐩橀《璧枫€傞敭鐩樻湡闂村簳鏍忎細闅愯棌锛屾悳绱㈡浠嶄綅浜庡睆骞曢《閮ㄥ彲姝ｅ父杈撳叆銆?
       resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
@@ -489,9 +449,9 @@ class _SiponShellState extends State<_SiponShell> {
   }
 }
 
-/// 壳层悬浮底栏。对键盘 viewInsets 的依赖被刻意隔离在本组件内：iOS 键盘
-/// 滑入动画期间 engine 逐帧更新 viewInsets，若在壳层 build 读取会让
-/// IndexedStack 里三个页面跟着逐帧重建；在这里读取，每帧只重建这一小块。
+/// 澹冲眰鎮诞搴曟爮銆傚閿洏 viewInsets 鐨勪緷璧栬鍒绘剰闅旂鍦ㄦ湰缁勪欢鍐咃細iOS 閿洏
+/// 婊戝叆鍔ㄧ敾鏈熼棿 engine 閫愬抚鏇存柊 viewInsets锛岃嫢鍦ㄥ３灞?build 璇诲彇浼氳
+/// IndexedStack 閲屼笁涓〉闈㈣窡鐫€閫愬抚閲嶅缓锛涘湪杩欓噷璇诲彇锛屾瘡甯у彧閲嶅缓杩欎竴灏忓潡銆?
 class _ShellBottomBar extends StatelessWidget {
   const _ShellBottomBar({
     required this.mapSheetProgress,
@@ -521,8 +481,8 @@ class _ShellBottomBar extends StatelessWidget {
         valueListenable: searchOverlayActive,
         builder: (context, searchActive, _) {
           final progress = currentIndex == 1 ? sheetProgress : 0.0;
-          // 首页搜索遮罩展开时同步隐藏底栏：既避免底栏浮在模糊层之上，
-          // 也防止搜索模式下误点 tab 切页后首页残留搜索状态。
+          // 棣栭〉鎼滅储閬僵灞曞紑鏃跺悓姝ラ殣钘忓簳鏍忥細鏃㈤伩鍏嶅簳鏍忔诞鍦ㄦā绯婂眰涔嬩笂锛?
+          // 涔熼槻姝㈡悳绱㈡ā寮忎笅璇偣 tab 鍒囬〉鍚庨椤垫畫鐣欐悳绱㈢姸鎬併€?
           final hidden = keyboardVisible || searchActive;
           return Align(
             alignment: Alignment.bottomCenter,
@@ -647,7 +607,7 @@ class _SiponBottomPlusButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: '更多操作',
+      label: '鏇村鎿嶄綔',
       child: Material(
         color: Colors.transparent,
         child: InkResponse(
@@ -725,135 +685,6 @@ class _SiponBottomJumpItem extends StatelessWidget {
               borderRadius: BorderRadius.circular(22),
             ),
             child: Center(child: Icon(icon, size: 28)),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SiponSplashScreen extends StatelessWidget {
-  const _SiponSplashScreen({
-    required this.ready,
-    required this.onRecordPressed,
-  });
-
-  final bool ready;
-  final VoidCallback onRecordPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = SiponLanguageScope.textOf(context);
-
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(28, 28, 28, 32),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 360),
-              child: Column(
-                children: [
-                  const Spacer(flex: 3),
-                  const Text(
-                    'SipOn',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Color(0xFF9A3D78),
-                      fontSize: 46,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    text.t('记录每一次微醺'),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Color(0xFF9A3D78),
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                  const SizedBox(height: 26),
-                  Text(
-                    text.t('看见你的饮酒习惯'),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Color(0xFF252229),
-                      fontSize: 21,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    text.t('记录每一次饮酒，了解频率、偏好和变化趋势。'),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Color(0xFF8F8790),
-                      fontSize: 13,
-                      height: 1.42,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                  const Spacer(flex: 2),
-                  FilledButton.icon(
-                    onPressed: ready ? onRecordPressed : null,
-                    icon: const Icon(Icons.add_rounded),
-                    label: Text(text.t('记一笔')),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                      backgroundColor: const Color(0xFF9A3D78),
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: const Color(0xFFE6D3DF),
-                      disabledForegroundColor: Colors.white,
-                      textStyle: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: ready
-                            ? const Icon(
-                                Icons.check_circle_rounded,
-                                size: 14,
-                                color: Color(0xFF9A3D78),
-                              )
-                            : const CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Color(0xFF9A3D78),
-                              ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        text.t(ready ? '载入完成' : '正在整理你的饮酒记录...'),
-                        style: const TextStyle(
-                          color: Color(0xFF8F8790),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
           ),
         ),
       ),
