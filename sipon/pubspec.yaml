@@ -43,6 +43,7 @@ dependencies:
   cached_network_image: ^3.4.1
   audioplayers: ^6.7.1
   sign_in_with_apple: ^6.1.0
+  webview_flutter: ^4.14.1
 
 dev_dependencies:
   flutter_test:
@@ -73,6 +74,7 @@ flutter:
   #   - images/a_dot_ham.jpeg
   assets:
     - assets/virtual_drinking/audio/
+    - assets/virtual_drinking/three/scene.bundle.js
     - assest/logo.png
     - assest/app_name.png
     - assest/首页/首页.png

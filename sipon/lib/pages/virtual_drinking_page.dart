@@ -2,13 +2,18 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 
+import '../services/sipon_api_client.dart';
 import '../services/sipon_api_service.dart';
 import '../services/sipon_auth_service.dart';
 import '../services/virtual_drinking_audio.dart';
 import '../services/virtual_drinking_local_store.dart';
 import '../services/virtual_drinking_models.dart';
 import '../widgets/virtual_drinking_canvas.dart';
+import '../widgets/virtual_three_glass.dart';
 import 'language_transform.dart';
 
 /// 虚拟饮品体验。杯量与互动次数仅存在本机，不写入真实饮酒记录。
@@ -37,14 +42,8 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
   late final SiponApiService _api;
   late final VirtualDrinkingLocalStore _local;
   late final VirtualDrinkingAudio _audio;
-  late final AnimationController _motion = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 12),
-  )..repeat();
-  late final AnimationController _fill = AnimationController(
-    vsync: this,
-    value: 1,
-  );
+  late final AnimationController _motion;
+  late final AnimationController _fill;
 
   VirtualDrinkingCatalog? _catalog;
   VirtualDrinkingPreference? _preference;
@@ -68,6 +67,11 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
   @override
   void initState() {
     super.initState();
+    _motion = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 12),
+    )..repeat();
+    _fill = AnimationController(vsync: this, value: 1);
     _api = widget.apiService ?? SiponApiService();
     _local = widget.localStore ?? VirtualDrinkingLocalStore();
     _audio = widget.audio ?? VirtualDrinkingAudio();
@@ -77,7 +81,7 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    _pageVisible = state == AppLifecycleState.resumed;
+    setState(() => _pageVisible = state == AppLifecycleState.resumed);
     if (!_pageVisible) _stopHolding();
     _syncAudio();
   }
@@ -158,13 +162,40 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
       }
       _syncAudio();
       unawaited(_loadDetail(chosenDrink.code));
-    } catch (error) {
+    } catch (error, stackTrace) {
+      if (kDebugMode) {
+        final detail = error is SiponApiException
+            ? 'HTTP ${error.statusCode}, code=${error.code}, requestId=${error.requestId}'
+            : error.runtimeType.toString();
+        debugPrint('Virtual drinking load failed: $detail');
+        debugPrintStack(stackTrace: stackTrace);
+      }
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = error is StateError ? error.message : '加载虚拟饮品失败，请检查网络后重试';
+        _error = _loadErrorMessage(error);
       });
     }
+  }
+
+  String _loadErrorMessage(Object error) {
+    if (error is SiponApiException) {
+      return switch (error.statusCode) {
+        401 => '登录状态已失效或尚未登录，请登录后再体验虚拟小酌',
+        403 => '当前账号暂时无法使用虚拟小酌',
+        404 => '虚拟小酌服务暂未开放，请稍后再试',
+        429 => '请求过于频繁，请稍后重试',
+        >= 500 => '虚拟小酌服务暂时不可用，请稍后重试',
+        _ => '虚拟小酌请求失败，请稍后重试',
+      };
+    }
+    if (error is TimeoutException) return '加载虚拟小酌超时，请稍后重试';
+    if (error is http.ClientException) return '无法连接虚拟小酌服务，请检查网络后重试';
+    if (error is StateError) return error.message.toString();
+    if (error is FormatException || error is TypeError) {
+      return '虚拟小酌数据异常，请稍后重试';
+    }
+    return '加载虚拟小酌失败，请稍后重试';
   }
 
   VirtualDrinkingPreference _validPreference(
@@ -370,7 +401,8 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        _error!,
+                        text.t(_error!),
+                        textAlign: TextAlign.center,
                         style: const TextStyle(color: Colors.white70),
                       ),
                       const SizedBox(height: 14),
@@ -395,6 +427,7 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
       (preset) =>
           preset.code == scene.ambientSoundCode && _audio.supports(preset),
     );
+    final renderThree = VirtualThreeGlass.canRender(catalog, glass);
 
     return Scaffold(
       backgroundColor: scene.backgroundColors.first,
@@ -434,6 +467,7 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
                     glass,
                     scene,
                     soundAvailable,
+                    renderThree,
                     text,
                   ),
                 ),
@@ -495,6 +529,7 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
     VirtualGlass glass,
     VirtualScene scene,
     bool soundAvailable,
+    bool renderThree,
     SiponAppText text,
   ) => LayoutBuilder(
     builder: (context, constraints) {
@@ -532,18 +567,31 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
                 button: true,
                 label: text.t('点杯子喝一口，长按连喝'),
                 child: AnimatedRotation(
-                  turns: _tilting ? -0.025 : 0,
+                  turns: !renderThree && _tilting ? -0.025 : 0,
                   duration: const Duration(milliseconds: 220),
-                  child: AnimatedBuilder(
-                    animation: Listenable.merge([_fill, _motion]),
-                    builder: (_, _) => VirtualGlassCanvas(
-                      drink: drink,
-                      glass: glass,
-                      iceCode: _preference!.iceCode,
-                      remaining: _fill.value,
-                      progress: _motion.value,
-                    ),
-                  ),
+                  child: renderThree
+                      ? VirtualThreeGlass(
+                          catalog: catalog,
+                          drink: drink,
+                          glass: glass,
+                          iceCode: _preference!.iceCode,
+                          remaining: _remainingTarget,
+                          tilt: _tilting,
+                          pageVisible: _pageVisible,
+                          apiBaseUrl: _api.publicAssetBaseUrl,
+                          fallbackMotion: _motion,
+                          fallbackFill: _fill,
+                        )
+                      : AnimatedBuilder(
+                          animation: Listenable.merge([_fill, _motion]),
+                          builder: (_, _) => VirtualGlassCanvas(
+                            drink: drink,
+                            glass: glass,
+                            iceCode: _preference!.iceCode,
+                            remaining: _fill.value,
+                            progress: _motion.value,
+                          ),
+                        ),
                 ),
               ),
             ),
@@ -1021,6 +1069,18 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
         (recipe?['backgroundStory'] as String?)?.trim().isNotEmpty == true
         ? recipe!['backgroundStory'] as String
         : drink.backgroundStory;
+    final catalog = _catalog!;
+    final glass = catalog.glass(_preference!.glassCode);
+    final ice = catalog.iceOptions
+        .where((item) => item.code == _preference!.iceCode)
+        .firstOrNull;
+    final credits = <VirtualModelAsset>[];
+    final glassAsset = glass == null
+        ? null
+        : catalog.asset(glass.modelAssetCode);
+    final iceAsset = ice == null ? null : catalog.asset(ice.modelAssetCode);
+    if (glassAsset != null) credits.add(glassAsset);
+    if (iceAsset != null) credits.add(iceAsset);
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1068,6 +1128,44 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
               text.t('在家替代'),
               recipe?['homeSubstitution']?.toString() ?? '',
             ),
+            if (credits.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              Text(
+                text.t('3D 素材署名'),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              for (final asset in credits)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(asset.title.isEmpty ? asset.code : asset.title),
+                  subtitle: Text(
+                    [
+                      asset.author,
+                      asset.license,
+                      asset.modificationNote,
+                    ].where((item) => item.isNotEmpty).join(' · '),
+                  ),
+                  trailing: asset.sourceUrl.isEmpty
+                      ? null
+                      : const Icon(Icons.open_in_new, size: 18),
+                  onTap: () async {
+                    final uri = Uri.tryParse(asset.sourceUrl);
+                    if (uri != null && uri.scheme == 'https') {
+                      try {
+                        await launchUrl(
+                          uri,
+                          mode: LaunchMode.externalApplication,
+                        );
+                      } on Exception {
+                        // 署名文字仍可见；外部浏览器不可用时不影响体验。
+                      }
+                    }
+                  },
+                ),
+            ],
           ],
         ),
       ),

@@ -5,6 +5,7 @@ import '../services/map/checkin_pin_icon.dart';
 import '../services/map/map_display_options.dart';
 import '../services/map/map_models.dart';
 import '../services/map/map_scene_controller.dart';
+import '../services/map/map_viewport.dart';
 import '../services/map/sipon_map_host.dart';
 import '../services/map/sipon_map_widget.dart';
 import '../services/sipon_api_service.dart';
@@ -15,7 +16,9 @@ import '../widgets/sipon_city_picker.dart';
 
 /// 一级入口以底部弹窗展示，二级的记录页面仍然通过路由全屏打开。
 class CheckInPage extends StatefulWidget {
-  const CheckInPage({super.key});
+  const CheckInPage({super.key, this.apiService});
+
+  final SiponApiService? apiService;
 
   @override
   State<CheckInPage> createState() => _CheckInPageState();
@@ -24,22 +27,22 @@ class CheckInPage extends StatefulWidget {
 class _CheckInPageState extends State<CheckInPage> {
   static const _brand = Color(0xFF9A3D78);
 
-  final SiponApiService _api = SiponApiService();
+  late final SiponApiService _api;
 
   /// 附近酒吧每页条数。
   static const int _nearbyPageSize = 20;
 
-  /// nearby 接口最多返回 100 条，不支持 offset 翻页。
+  /// 地图和附近推荐共用本次获取的设备定位。
   List<_NearbyBar> _bars = [];
   SiponCityController? _cityController;
-  String? _loadedCity;
   SiponLocationPoint? _loadedAnchor;
+  String? _locationError;
   int _requestVersion = 0;
 
   /// 首屏是否还在加载（展示「正在加载附近酒吧…」）。
   bool _loadingBars = true;
 
-  /// 附近酒吧列表的滚动控制器，用于触底自动翻页。
+  /// 附近酒吧列表的滚动控制器。
   final ScrollController _barsController = ScrollController();
 
   late final MapSceneController _scene;
@@ -47,6 +50,7 @@ class _CheckInPageState extends State<CheckInPage> {
   @override
   void initState() {
     super.initState();
+    _api = widget.apiService ?? SiponApiService();
     _scene = MapSceneController.create(
       onViewportSettled: (_) {},
       onVenueTapped: (_) {},
@@ -59,56 +63,50 @@ class _CheckInPageState extends State<CheckInPage> {
     super.didChangeDependencies();
     final controller = SiponCityScope.controllerOf(context);
     if (_cityController != controller) {
-      _cityController?.removeListener(_handleCityChanged);
-      _cityController = controller..addListener(_handleCityChanged);
-    }
-    _handleCityChanged();
-  }
-
-  void _handleCityChanged() {
-    final city = _cityController?.city;
-    final anchor = _cityController?.queryAnchor;
-    if (city == null || (city == _loadedCity && anchor == _loadedAnchor)) {
-      return;
-    }
-    final wasLoaded = _loadedCity != null;
-    _loadedCity = city;
-    _loadedAnchor = anchor;
-    _bars = [];
-    _loadingBars = true;
-    if (wasLoaded && mounted) setState(() {});
-    _loadNearbyBars();
-    if (_scene.isAttached && anchor != null) {
-      _scene.flyToCity(city, zoom: MapSceneController.cityZoom);
-      _renderBars();
+      _cityController = controller;
+      _loadNearbyBars();
     }
   }
 
   @override
   void dispose() {
     _requestVersion++;
-    _cityController?.removeListener(_handleCityChanged);
     _barsController.dispose();
     _scene.detach();
     super.dispose();
   }
 
-  /// nearby 接口：radiusMeters 限 1000~5000，limit 1~10000（不传=范围内全量），
-  /// offset 仅在传 limit 时分页生效；当前一次拉一页展示，城市切换时重新请求。
+  /// 每次打开或重试获取实际定位，以同一坐标查询 3 公里内的酒吧。
   Future<void> _loadNearbyBars() async {
     final version = ++_requestVersion;
-    final anchor = await _cityController?.resolveQueryAnchor();
+    setState(() {
+      _loadingBars = true;
+      _locationError = null;
+    });
+    final location = await _cityController?.locateCurrentCity();
     if (!mounted || version != _requestVersion) return;
+    final anchor = location?.position;
     if (anchor == null) {
-      setState(() => _loadingBars = false);
+      setState(() {
+        _loadingBars = false;
+        _locationError = switch (location?.status) {
+          SiponLocateStatus.serviceDisabled => '请开启系统定位服务后重试',
+          SiponLocateStatus.permissionDenied => '需要定位权限，才能推荐你附近的酒吧',
+          SiponLocateStatus.permissionDeniedForever => '请在系统设置中允许 SipOn 使用定位',
+          _ => '暂时无法获取当前位置，请重试',
+        };
+      });
       return;
     }
-    if (_scene.isAttached && _cityController?.queryAnchor == null) {
+    final anchorChanged = _loadedAnchor != anchor;
+    setState(() => _loadedAnchor = anchor);
+    if (_scene.isAttached && anchorChanged) {
       await _scene.focusOn(
         longitude: anchor.longitude,
         latitude: anchor.latitude,
       );
     }
+    if (!mounted || version != _requestVersion) return;
     try {
       final list = await _api.getNearbyBars(
         longitude: anchor.longitude,
@@ -137,11 +135,26 @@ class _CheckInPageState extends State<CheckInPage> {
   }
 
   Future<void> _handleMapCreated(SiponMapHost host) async {
+    final initialAnchor = _loadedAnchor;
+    if (initialAnchor == null || !mounted) return;
     await _scene.attach(
       host,
       city: _cityController?.city ?? SiponCityController.defaultCity,
       style: MapBaseStyle.standard,
+      initialCenter: MapLatLng(
+        longitude: initialAnchor.longitude,
+        latitude: initialAnchor.latitude,
+      ),
     );
+    if (!mounted) return;
+    // 地图准备期间若重新获取了定位，使用最新设备坐标。
+    final anchor = _loadedAnchor;
+    if (anchor != null && anchor != initialAnchor) {
+      await _scene.focusOn(
+        longitude: anchor.longitude,
+        latitude: anchor.latitude,
+      );
+    }
     await _renderBars();
   }
 
@@ -224,17 +237,45 @@ class _CheckInPageState extends State<CheckInPage> {
               ),
               SizedBox(
                 height: height * 0.28,
-                child: SiponMapWidget(
-                  initialStyleId: MapBaseStyle.standard.id,
-                  onHostReady: _handleMapCreated,
-                ),
+                child: _loadedAnchor != null
+                    ? SiponMapWidget(
+                        initialStyleId: MapBaseStyle.standard.id,
+                        onHostReady: _handleMapCreated,
+                      )
+                    : Center(
+                        child: _locationError == null
+                            ? const Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CircularProgressIndicator(),
+                                  SizedBox(height: 12),
+                                  Text('正在获取当前位置…'),
+                                ],
+                              )
+                            : Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      _locationError!,
+                                      textAlign: TextAlign.center,
+                                    ),
+                                    TextButton(
+                                      onPressed: _loadNearbyBars,
+                                      child: const Text('重新定位'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                      ),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
                 child: Row(
                   children: [
                     const Text(
-                      '附近酒吧',
+                      '你附近的酒吧',
                       style: TextStyle(
                         color: Color(0xFF252229),
                         fontSize: 17,
@@ -243,7 +284,11 @@ class _CheckInPageState extends State<CheckInPage> {
                     ),
                     const Spacer(),
                     Text(
-                      _loadingBars ? '正在加载附近酒吧…' : '${_bars.length} 家可打卡',
+                      _loadingBars
+                          ? '正在加载附近酒吧…'
+                          : _locationError != null
+                          ? '等待定位'
+                          : '${_bars.length} 家可打卡',
                       style: const TextStyle(
                         color: Color(0xFF8F8790),
                         fontSize: 12,

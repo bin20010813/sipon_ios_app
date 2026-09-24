@@ -235,6 +235,20 @@ class SiponAppText {
 
 const Map<String, String> _englishText = {
   '虚拟小酌': 'Virtual Sips',
+  '登录状态已失效或尚未登录，请登录后再体验虚拟小酌': 'Please sign in again to use Virtual Sips.',
+  '当前账号暂时无法使用虚拟小酌': 'Virtual Sips is unavailable for this account.',
+  '虚拟小酌服务暂未开放，请稍后再试':
+      'Virtual Sips is not available yet. Please try again later.',
+  '请求过于频繁，请稍后重试': 'Too many requests. Please try again later.',
+  '虚拟小酌服务暂时不可用，请稍后重试':
+      'Virtual Sips is temporarily unavailable. Please try again later.',
+  '虚拟小酌请求失败，请稍后重试': 'The Virtual Sips request failed. Please try again later.',
+  '加载虚拟小酌超时，请稍后重试': 'Virtual Sips took too long to load. Please try again.',
+  '无法连接虚拟小酌服务，请检查网络后重试':
+      'Unable to connect to Virtual Sips. Check your connection and try again.',
+  '虚拟小酌数据异常，请稍后重试': 'Unable to read Virtual Sips data. Please try again later.',
+  '加载虚拟小酌失败，请稍后重试': 'Unable to load Virtual Sips. Please try again later.',
+  '虚拟饮品目录暂时为空': 'The virtual drink catalog is currently empty.',
   '选一杯酒，走进属于你的场景': 'Pick a drink and enter your scene',
   '在虚拟小酌体验这杯': 'Experience this drink virtually',
   '返回首页': 'Back to Home',

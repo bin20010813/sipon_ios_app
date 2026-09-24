@@ -100,6 +100,52 @@ void main() {
     expect(catalog.scene('rain_window')!.backgroundColors.length, 3);
   });
 
+  test('3D 资源目录解析杯子、酒液轮廓和冰型', () {
+    final catalog = VirtualDrinkingCatalog.fromJson({
+      'modelRendererVersion': '1',
+      'assets': [
+        {
+          'code': 'glass.highball',
+          'kind': 'glass_model',
+          'url': '/assets/virtual-drinking/models/glasses/highball.glb',
+          'title': 'Glass Collection',
+          'author': 'RagingCow',
+          'license': 'CC BY 4.0',
+        },
+      ],
+      'glasses': [
+        {
+          'code': 'highball',
+          'renderConfig': {
+            'model3d': {
+              'assetCode': 'glass.highball',
+              'liquidProfile': {
+                'points': [
+                  {'y': 0.11, 'radius': 0.17},
+                  {'y': 0.9, 'radius': 0.23},
+                ],
+              },
+            },
+          },
+        },
+      ],
+      'iceOptions': [
+        {
+          'code': 'large',
+          'model3d': {'renderer': 'glb-v1', 'assetCode': 'ice.cube'},
+        },
+      ],
+    });
+
+    expect(catalog.modelRendererVersion, '1');
+    expect(catalog.asset('glass.highball')?.kind, 'glass_model');
+    expect(catalog.asset('glass.highball')?.author, 'RagingCow');
+    expect(catalog.glass('highball')?.modelAssetCode, 'glass.highball');
+    expect(catalog.glass('highball')?.liquidProfile.last['radius'], 0.23);
+    expect(catalog.iceOptions.single.renderer, 'glb-v1');
+    expect(catalog.iceOptions.single.modelAssetCode, 'ice.cube');
+  });
+
   test('本地虚拟喝口计数按日期重置，并与偏好独立保存', () async {
     SharedPreferences.setMockInitialValues({});
     final store = VirtualDrinkingLocalStore(scope: 'test_user');

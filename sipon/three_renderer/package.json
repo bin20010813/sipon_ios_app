@@ -1,0 +1,14 @@
+{
+  "private": true,
+  "name": "sipon-virtual-drinking-three",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "esbuild scene.js --bundle --minify --format=iife --target=es2020 --legal-comments=eof --outfile=../assets/virtual_drinking/three/scene.bundle.js"
+  },
+  "dependencies": {
+    "three": "0.186.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

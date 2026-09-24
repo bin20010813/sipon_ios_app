@@ -18,6 +18,8 @@ class SiponApiService {
 
   final SiponApiClient _apiClient;
 
+  String get publicAssetBaseUrl => _apiClient.config.baseUrl;
+
   // 用户资料与设置
   Future<dynamic> getMyProfile() => _get('/api/users/me');
 
