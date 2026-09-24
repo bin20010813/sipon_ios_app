@@ -81,28 +81,25 @@ class MapSearchAndFilters extends StatelessWidget {
             const SizedBox(height: 14),
             SizedBox(
               height: 40,
-              child: PageView(
-                physics: const PageScrollPhysics(),
-                children: [
-                  for (var start = 0; start < filterPills.length; start += 3)
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          for (
-                            var index = start;
-                            index < start + 3 && index < filterPills.length;
-                            index++
-                          ) ...[
-                            if (index > start) const SizedBox(width: 8),
-                            filterPills[index],
-                          ],
-                        ],
-                      ),
-                    ),
-                ],
+              child: Padding(
+                padding: EdgeInsets.zero,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (
+                        var index = 0;
+                        index < filterPills.length;
+                        index++
+                      ) ...[
+                        if (index > 0) const SizedBox(width: 8),
+                        filterPills[index],
+                      ],
+                    ],
+                  ),
+                ),
               ),
             ),
             if (status.needsBanner) ...[
