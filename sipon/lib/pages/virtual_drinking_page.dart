@@ -3,7 +3,10 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 
+import '../services/sipon_api_client.dart';
 import '../services/sipon_api_service.dart';
 import '../services/sipon_auth_service.dart';
 import '../services/virtual_drinking_audio.dart';
@@ -39,14 +42,8 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
   late final SiponApiService _api;
   late final VirtualDrinkingLocalStore _local;
   late final VirtualDrinkingAudio _audio;
-  late final AnimationController _motion = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 12),
-  )..repeat();
-  late final AnimationController _fill = AnimationController(
-    vsync: this,
-    value: 1,
-  );
+  late final AnimationController _motion;
+  late final AnimationController _fill;
 
   VirtualDrinkingCatalog? _catalog;
   VirtualDrinkingPreference? _preference;
@@ -70,6 +67,11 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
   @override
   void initState() {
     super.initState();
+    _motion = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 12),
+    )..repeat();
+    _fill = AnimationController(vsync: this, value: 1);
     _api = widget.apiService ?? SiponApiService();
     _local = widget.localStore ?? VirtualDrinkingLocalStore();
     _audio = widget.audio ?? VirtualDrinkingAudio();
@@ -160,13 +162,40 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
       }
       _syncAudio();
       unawaited(_loadDetail(chosenDrink.code));
-    } catch (error) {
+    } catch (error, stackTrace) {
+      if (kDebugMode) {
+        final detail = error is SiponApiException
+            ? 'HTTP ${error.statusCode}, code=${error.code}, requestId=${error.requestId}'
+            : error.runtimeType.toString();
+        debugPrint('Virtual drinking load failed: $detail');
+        debugPrintStack(stackTrace: stackTrace);
+      }
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = error is StateError ? error.message : '加载虚拟饮品失败，请检查网络后重试';
+        _error = _loadErrorMessage(error);
       });
     }
+  }
+
+  String _loadErrorMessage(Object error) {
+    if (error is SiponApiException) {
+      return switch (error.statusCode) {
+        401 => '登录状态已失效或尚未登录，请登录后再体验虚拟小酌',
+        403 => '当前账号暂时无法使用虚拟小酌',
+        404 => '虚拟小酌服务暂未开放，请稍后再试',
+        429 => '请求过于频繁，请稍后重试',
+        >= 500 => '虚拟小酌服务暂时不可用，请稍后重试',
+        _ => '虚拟小酌请求失败，请稍后重试',
+      };
+    }
+    if (error is TimeoutException) return '加载虚拟小酌超时，请稍后重试';
+    if (error is http.ClientException) return '无法连接虚拟小酌服务，请检查网络后重试';
+    if (error is StateError) return error.message.toString();
+    if (error is FormatException || error is TypeError) {
+      return '虚拟小酌数据异常，请稍后重试';
+    }
+    return '加载虚拟小酌失败，请稍后重试';
   }
 
   VirtualDrinkingPreference _validPreference(
@@ -372,7 +401,8 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        _error!,
+                        text.t(_error!),
+                        textAlign: TextAlign.center,
                         style: const TextStyle(color: Colors.white70),
                       ),
                       const SizedBox(height: 14),

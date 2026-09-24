@@ -174,16 +174,17 @@ class _MapPageState extends State<MapPage> {
     if (host is ChannelMapHost) _mapDiagnosticName = host.diagnosticName;
     _logMapMotion('MAP_CREATED', '');
     final anchor = _cityController?.detectedPosition;
+    final targetVenue = widget.initialVenue ?? widget.requestedVenue;
     await _scene.attach(
       host,
       city: _data.city,
       style: _data.style,
-      initialCenter: widget.requestedVenue != null
+      initialCenter: targetVenue != null
           ? MapLatLng(
-              longitude: widget.requestedVenue!.longitude,
-              latitude: widget.requestedVenue!.latitude,
+              longitude: targetVenue.longitude,
+              latitude: targetVenue.latitude,
             )
-          : widget.initialVenue == null && anchor != null
+          : anchor != null
           ? MapLatLng(longitude: anchor.longitude, latitude: anchor.latitude)
           : null,
     );
@@ -360,6 +361,9 @@ class _MapPageState extends State<MapPage> {
   }
 
   void _handleCityChanged() {
+    // 独立酒吧地图以传入的地点为目标；全局选城及其异步恢复不能清空
+    // 该酒吧的选中态，也不能把相机从酒吧位置移到城市中心。
+    if (widget.initialVenue != null) return;
     final city = _cityController?.city ?? SiponCityController.defaultCity;
     if (city == _data.city) {
       return;
