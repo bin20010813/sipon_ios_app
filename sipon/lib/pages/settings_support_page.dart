@@ -1054,6 +1054,8 @@ class _AboutUsPage extends StatelessWidget {
           title: text.t('产品信息'),
           children: [
             _SupportInfoRow(label: text.t('版本'), value: '1.0.0'),
+            _SupportInfoRow(label: text.t('服务名称(APP)'), value: 'SipOn酒吧地图'),
+            _SupportInfoRow(label: text.t('服务备案号'), value: '浙ICP备2026046724号-2A'),
             _SupportInfoRow(label: text.t('服务邮箱'), value: 'support@sipon.app'),
             _SupportInfoRow(label: text.t('官方网站'), value: 'sipon.app'),
           ],
