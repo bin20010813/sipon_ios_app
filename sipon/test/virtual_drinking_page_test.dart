@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -41,6 +42,78 @@ http.Response _jsonResponse(Object value) => http.Response.bytes(
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  for (final entry in {
+    401: '登录状态已失效或尚未登录，请登录后再体验虚拟小酌',
+    403: '当前账号暂时无法使用虚拟小酌',
+    404: '虚拟小酌服务暂未开放，请稍后再试',
+    500: '虚拟小酌服务暂时不可用，请稍后重试',
+  }.entries) {
+    testWidgets('虚拟小酌 HTTP ${entry.key} 显示对应原因', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final api = SiponApiService(
+        apiClient: SiponApiClient(
+          config: const SiponApiConfig(baseUrl: 'https://api.example.test'),
+          httpClient: MockClient(
+            (request) async => http.Response('{}', entry.key),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        SiponLanguageScope(
+          controller: SiponLanguageController(),
+          child: MaterialApp(
+            home: VirtualDrinkingPage(apiService: api, audio: _SilentAudio()),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text(entry.value), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final failBeforeExit in [false, true]) {
+    testWidgets(failBeforeExit ? '加载失败后退出虚拟小酌页不会抛异常' : '加载期间退出虚拟小酌页不会抛异常', (
+      tester,
+    ) async {
+      SharedPreferences.setMockInitialValues({});
+      final response = Completer<http.Response>();
+      final api = SiponApiService(
+        apiClient: SiponApiClient(
+          config: const SiponApiConfig(baseUrl: 'https://api.example.test'),
+          httpClient: MockClient((request) => response.future),
+        ),
+      );
+      await tester.pumpWidget(
+        SiponLanguageScope(
+          controller: SiponLanguageController(),
+          child: MaterialApp(
+            home: VirtualDrinkingPage(
+              apiService: api,
+              localStore: VirtualDrinkingLocalStore(scope: 'dispose_test'),
+              audio: _SilentAudio(),
+            ),
+          ),
+        ),
+      );
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      if (failBeforeExit) {
+        response.complete(_jsonResponse({}));
+        await tester.pump();
+        expect(find.text('虚拟饮品目录暂时为空'), findsOneWidget);
+      }
+      await tester.pumpWidget(const SizedBox.shrink());
+      expect(tester.takeException(), isNull);
+      if (!failBeforeExit) {
+        response.complete(_jsonResponse({}));
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+      }
+    });
+  }
 
   testWidgets('窄屏虚拟小酌页可选饮品并点杯子喝一口', (tester) async {
     tester.view.physicalSize = const Size(320, 568);

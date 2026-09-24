@@ -643,6 +643,15 @@ class _CocktailSuggestions extends StatelessWidget {
   }
 }
 
+final _homePromptDecoration = BoxDecoration(
+  color: const Color(0xFFFFF7FC),
+  borderRadius: BorderRadius.circular(16),
+  border: Border.all(color: const Color(0x1F9A3D78)),
+  boxShadow: const [
+    BoxShadow(color: Color(0x109A3D78), blurRadius: 18, offset: Offset(0, 8)),
+  ],
+);
+
 class _VirtualDrinkingPrompt extends StatelessWidget {
   const _VirtualDrinkingPrompt({required this.onPressed});
 
@@ -651,57 +660,65 @@ class _VirtualDrinkingPrompt extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
-    return Material(
-      color: const Color(0xFF253040),
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(18, 17, 15, 17),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: const LinearGradient(
-              colors: [Color(0xFF283749), Color(0xFF4A3446)],
-            ),
-          ),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.nightlife_rounded,
-                color: Color(0xFFF4D89B),
-                size: 36,
-              ),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      text.t('虚拟小酌'),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      text.t('选一杯酒，走进属于你的场景'),
-                      style: const TextStyle(
-                        color: Color(0xFFE2D6D4),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
+    return Container(
+      decoration: _homePromptDecoration,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.nightlife_rounded,
+                  color: HomePage.brand,
+                  size: 28,
                 ),
-              ),
-              const Icon(
-                Icons.arrow_forward_ios_rounded,
-                color: Colors.white70,
-                size: 17,
-              ),
-            ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        text.t('虚拟小酌'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: HomePage.ink,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        text.t('选一杯酒，走进属于你的场景'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: HomePage.muted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const SizedBox(
+                  height: 44,
+                  child: Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: HomePage.brand,
+                    size: 17,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -720,18 +737,7 @@ class _HomeRecordPrompt extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF7FC),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0x1F9A3D78)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x109A3D78),
-            blurRadius: 18,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
+      decoration: _homePromptDecoration,
       child: Row(
         children: [
           const Icon(Icons.auto_graph_rounded, color: HomePage.brand, size: 28),
