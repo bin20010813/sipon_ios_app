@@ -22,6 +22,16 @@ Future<List<dynamic>> loadProfileBarImages(
     }
   }
 
+  Future<Map<String, dynamic>?> fetchCheckIn(int id) async {
+    try {
+      final response = await api.getCheckIn(id);
+      if (response is! Map) return null;
+      return response.cast<String, dynamic>();
+    } on Exception {
+      return null;
+    }
+  }
+
   return Future.wait(
     entries.map((entry) async {
       if (entry is! Map) return entry;
@@ -34,32 +44,59 @@ Future<List<dynamic>> loadProfileBarImages(
         }
       }
       // A check-in's own id identifies the visit, not the bar.
-      final rawId =
+      var rawId =
           map['barId'] ??
           bar?['barId'] ??
           bar?['id'] ??
           (checkIns ? null : map['id']);
+      // The list can omit barId. Resolve the visit first; its top-level id
+      // must never be used as a bar id even when the two happen to coincide.
+      Map<String, dynamic>? checkInDetail;
+      if (checkIns && rawId == null) {
+        final checkInId = int.tryParse(map['id']?.toString() ?? '');
+        if (checkInId != null && checkInId > 0) {
+          checkInDetail = await fetchCheckIn(checkInId);
+          for (final key in ['bar', 'barInfo', 'venue', 'place']) {
+            if (checkInDetail?[key] is Map) {
+              bar = (checkInDetail![key] as Map).cast<String, dynamic>();
+              break;
+            }
+          }
+          rawId = checkInDetail?['barId'] ?? bar?['barId'] ?? bar?['id'];
+        }
+      }
       final id = int.tryParse(rawId?.toString() ?? '');
       final source = bar ?? (checkIns ? <String, dynamic>{} : map);
       final parsedSource = SiponBarMapItem.fromJson(source);
       Map<String, dynamic>? fetchedBar;
       if (id != null &&
           id > 0 &&
-          (!parsedSource.hasCoordinates ||
+          (checkIns ||
+              !parsedSource.hasCoordinates ||
               parsedSource.resolvedThumbnailUrl == null)) {
         fetchedBar = await requests.putIfAbsent(id, () => fetchBar(id));
       }
 
       // 接口详情是对应 barId 的权威数据，放在最后覆盖列表里的精简/旧字段；
       // 顶层打卡记录本身保持原样，尤其不能用酒吧 id 覆盖打卡记录 id。
+      final nestedId = int.tryParse(
+        (bar?['barId'] ?? bar?['id'])?.toString() ?? '',
+      );
+      final trustedBar =
+          checkIns && id != null && nestedId != null && nestedId != id
+          ? null
+          : bar;
       final resolvedBar = fetchedBar == null
-          ? bar
-          : <String, dynamic>{...?bar, ...fetchedBar};
+          ? trustedBar
+          : checkIns
+          ? fetchedBar
+          : <String, dynamic>{...?trustedBar, ...fetchedBar};
       final thumbnail = SiponBarMapItem.fromJson(
-        resolvedBar ?? source,
+        resolvedBar ?? (checkIns ? const <String, dynamic>{} : source),
       ).resolvedThumbnailUrl;
       return <String, dynamic>{
         ...map,
+        if (checkIns && id != null && id > 0) 'barId': id,
         'bar': ?resolvedBar,
         'profileThumbnailUrl': ?thumbnail,
       };

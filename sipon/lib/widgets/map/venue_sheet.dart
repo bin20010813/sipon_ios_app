@@ -34,6 +34,7 @@ class VenueSheetSurface extends StatelessWidget {
     required this.collapsedBottomGap,
     required this.bottomOverlayInset,
     required this.onExpand,
+    this.onExpandMap,
     required this.onCollapse,
   });
 
@@ -57,6 +58,7 @@ class VenueSheetSurface extends StatelessWidget {
   final double collapsedBottomGap;
   final double bottomOverlayInset;
   final VoidCallback onExpand;
+  final VoidCallback? onExpandMap;
   final VoidCallback onCollapse;
 
   @override
@@ -114,6 +116,7 @@ class VenueSheetSurface extends StatelessWidget {
                     topInset: topInset,
                     bottomOverlayInset: bottomOverlayInset,
                     onClose: onCollapse,
+                    onExpandMap: fullscreenProgress < 0.5 ? onExpandMap : null,
                     repository: _venueDetailRepository,
                   ),
             // 收起态内容钉在面板顶部，不随内部滚动移动，因此不受滚动偏移影响。

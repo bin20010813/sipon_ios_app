@@ -36,6 +36,7 @@ class MapPage extends StatefulWidget {
     this.active = true,
     this.allowSheetCollapse = true,
     this.onMapTapped,
+    this.onExpandMap,
     this.onVenueClose,
     this.onSheetProgressChanged,
   });
@@ -54,6 +55,7 @@ class MapPage extends StatefulWidget {
 
   /// Optional map tap action for embedded map pages.
   final VoidCallback? onMapTapped;
+  final VoidCallback? onExpandMap;
   final VoidCallback? onVenueClose;
   final ValueChanged<double>? onSheetProgressChanged;
 
@@ -625,6 +627,7 @@ class _MapPageState extends State<MapPage> {
                         _sheet.progressFor(extent),
                       ),
                       onExpand: _sheet.expand,
+                      onExpandMap: widget.onExpandMap,
                       onCollapse: widget.onVenueClose ?? _sheet.collapse,
                     );
                   },

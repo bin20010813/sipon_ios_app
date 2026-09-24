@@ -1365,7 +1365,7 @@ List<_Moment> _momentsFromCheckIn(
   final content = (_pickString(map, ['content']) ?? '').trim();
   final imageUrl =
       map['profileThumbnailUrl'] as String? ?? _pickCheckInImageUrl(map);
-  final venue = _venueFromEntryMap(map, name: name);
+  final venue = _venueFromEntryMap(map, name: name, checkIn: true);
 
   return [
     // 打卡卡副文只放城市，日期由卡片底部时间展示，避免重复。
@@ -1559,28 +1559,32 @@ String? _pickCheckInImageUrl(Map<String, dynamic> map) {
 }
 
 /// 从打卡/想喝条目原始 JSON 解析跳转半屏地图所需的 [MapVenue]。
-MapVenue _venueFromEntryMap(Map<String, dynamic> map, {required String name}) {
+MapVenue _venueFromEntryMap(
+  Map<String, dynamic> map, {
+  required String name,
+  bool checkIn = false,
+}) {
   final nested = _pickMapOf(map, ['bar', 'barInfo', 'venue', 'place']);
   final bar = nested ?? const <String, dynamic>{};
   return MapVenue(
     // 与「我的」页同一修复：顶层 `id` 是心愿记录 id，不是酒吧 id，
-    // 优先 barId / 嵌套 bar 对象里的 id，避免 /api/bars/{id} 传错参数。
+    // 打卡记录只用 barId / 嵌套 bar 的 id；顶层 id 是打卡记录 id。
     id:
         (_pickNum(map, ['barId']) ??
                 _pickNum(bar, ['barId', 'id']) ??
-                _pickNum(map, ['id']))
+                (checkIn ? null : _pickNum(map, ['id'])))
             ?.toString() ??
         name,
     name: name,
     // 目标是酒吧 POI，优先采用补齐后的 bar 详情坐标；顶层 location 可能是
-    // 打卡位置，仅在详情没有坐标时兜底。
+    // 打卡记录的顶层位置可能是打卡位置，不作为酒吧位置使用。
     longitude:
         _pickCoordinate(nested, longitude: true) ??
-        _pickCoordinate(map, longitude: true) ??
+        (checkIn ? null : _pickCoordinate(map, longitude: true)) ??
         0,
     latitude:
         _pickCoordinate(nested, longitude: false) ??
-        _pickCoordinate(map, longitude: false) ??
+        (checkIn ? null : _pickCoordinate(map, longitude: false)) ??
         0,
     kind: MapVenueKind.fromRaw(
       _pickString(map, ['barSubtype', 'subtype', 'kind', 'type']) ??

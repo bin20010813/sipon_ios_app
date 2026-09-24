@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../services/map/map_models.dart';
 import '../services/map/venue_sheet_controller.dart';
-import 'language_transform.dart';
 import 'map_page.dart';
 import 'venue_fullscreen_map_page.dart';
 
@@ -27,51 +26,14 @@ class VenueMapHalfPage extends StatelessWidget {
       );
     }
 
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: MapPage(
-            initialVenue: venue,
-            initialSheetStage: VenueSheetStage.half,
-            showMapControls: false,
-            allowSheetCollapse: false,
-            onMapTapped: openFullscreenMap,
-            onVenueClose: () => Navigator.of(context).pop(),
-          ),
-        ),
-        Positioned(
-          top: MediaQuery.paddingOf(context).top + 12,
-          left: 16,
-          child: Material(
-            color: Colors.white,
-            elevation: 2,
-            borderRadius: BorderRadius.circular(20),
-            child: InkWell(
-              key: const ValueKey('expand-venue-map'),
-              borderRadius: BorderRadius.circular(20),
-              onTap: openFullscreenMap,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.open_in_full_rounded, size: 16),
-                    const SizedBox(width: 5),
-                    Text(
-                      SiponLanguageScope.languageOf(context) == SiponLanguage.zh
-                          ? '放大地图'
-                          : 'Expand map',
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
+    return MapPage(
+      initialVenue: venue,
+      initialSheetStage: VenueSheetStage.half,
+      showMapControls: false,
+      allowSheetCollapse: false,
+      onMapTapped: openFullscreenMap,
+      onExpandMap: openFullscreenMap,
+      onVenueClose: () => Navigator.of(context).pop(),
     );
   }
 }

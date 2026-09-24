@@ -34,6 +34,7 @@ class VenueDetailContent extends StatefulWidget {
     required this.bottomOverlayInset,
     required this.onClose,
     this.onAddressTap,
+    this.onExpandMap,
     this.onMapClose,
     this.repository,
   });
@@ -58,6 +59,7 @@ class VenueDetailContent extends StatefulWidget {
 
   /// 独立详情页可接管地址点击；地图面板未传时仍打开外部导航。
   final ValueChanged<MapVenue>? onAddressTap;
+  final VoidCallback? onExpandMap;
 
   /// 半屏地图关闭回调；传入时在封面左上角显示独立的地图关闭按钮。
   final VoidCallback? onMapClose;
@@ -801,6 +803,18 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (widget.onExpandMap != null) ...[
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                key: const ValueKey('expand-venue-map'),
+                onPressed: widget.onExpandMap,
+                icon: const Icon(Icons.open_in_full_rounded, size: 18),
+                label: Text(text.t('放大地图')),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           _VenueTitleBlock(
             venue: widget.venue,
             detail: detail,

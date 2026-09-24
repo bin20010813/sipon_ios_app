@@ -15,6 +15,7 @@ import '../widgets/sipon_network_image.dart';
 import 'drink_sticker_calendar_page.dart';
 import 'language_transform.dart';
 import 'profile_edit_page.dart';
+import 'profile_notifications_page.dart';
 import 'route_detail_map_page.dart';
 import 'venue_map_half_page.dart';
 import 'public_profile_page.dart';
@@ -116,6 +117,7 @@ class ProfilePageState extends State<ProfilePage> {
   final SiponApiService _api = SiponApiService();
   UserProfileData? _profile;
   bool _profileLoading = true;
+  bool _hasUnreadNotifications = false;
 
   /// 礼券数量；为 null 表示尚未加载或加载失败。
   int? _couponCount;
@@ -128,6 +130,7 @@ class ProfilePageState extends State<ProfilePage> {
   void initState() {
     super.initState();
     _loadProfile();
+    _loadUnreadNotifications();
     _loadBenefits();
   }
 
@@ -166,8 +169,36 @@ class ProfilePageState extends State<ProfilePage> {
     );
     if (updated != null && mounted) {
       setState(() => _profile = updated);
+      _loadUnreadNotifications();
       // PATCH 成功后立即 GET 可能命中后端的短暂旧缓存，不能用旧响应覆盖
       // 刚刚提交的头像；下次进入页面时再按正常流程刷新即可。
+    }
+  }
+
+  Future<void> _loadUnreadNotifications() async {
+    try {
+      final response = await _api.getUnreadNotificationCount();
+      final value = response is Map
+          ? response['unreadCount'] ?? response['count']
+          : response;
+      final count = value is num ? value.toInt() : int.tryParse('$value');
+      if (mounted) {
+        setState(() => _hasUnreadNotifications = (count ?? 0) > 0);
+      }
+    } on Exception {
+      // The bell stays available when the count endpoint is unavailable.
+    }
+  }
+
+  Future<void> _openNotifications() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => ProfileNotificationsPage(profile: _profile),
+      ),
+    );
+    if (mounted) {
+      _loadProfile();
+      _loadUnreadNotifications();
     }
   }
 
@@ -187,7 +218,10 @@ class ProfilePageState extends State<ProfilePage> {
   }
 
   /// 切回「我的」页时重新拉取资料，避免后端变更用户 ID 后继续展示旧实例。
-  Future<void> refreshProfile() => _loadProfile();
+  Future<void> refreshProfile() async {
+    await _loadProfile();
+    await _loadUnreadNotifications();
+  }
 
   /// 拉取礼券数量；失败时不显示徽标。
   Future<void> _loadBenefits() async {
@@ -278,6 +312,8 @@ class ProfilePageState extends State<ProfilePage> {
                       children: [
                         _ProfileTopActions(
                           onLogoutSucceeded: onLogoutSucceeded,
+                          onNotificationsPressed: _openNotifications,
+                          hasUnreadNotifications: _hasUnreadNotifications,
                         ),
                         const SizedBox(height: 22),
                         _ProfileHeader(
@@ -341,9 +377,15 @@ class ProfilePageState extends State<ProfilePage> {
 }
 
 class _ProfileTopActions extends StatelessWidget {
-  const _ProfileTopActions({this.onLogoutSucceeded});
+  const _ProfileTopActions({
+    this.onLogoutSucceeded,
+    required this.onNotificationsPressed,
+    required this.hasUnreadNotifications,
+  });
 
   final VoidCallback? onLogoutSucceeded;
+  final VoidCallback onNotificationsPressed;
+  final bool hasUnreadNotifications;
 
   @override
   Widget build(BuildContext context) {
@@ -355,8 +397,8 @@ class _ProfileTopActions extends StatelessWidget {
         _TopIconButton(
           tooltip: text.messages,
           icon: Icons.notifications_none_rounded,
-          showDot: true,
-          onPressed: () {},
+          showDot: hasUnreadNotifications,
+          onPressed: onNotificationsPressed,
         ),
         const SizedBox(width: 10),
         _TopIconButton(
@@ -978,7 +1020,11 @@ String? _pickCheckInImageUrl(Map<String, dynamic> map) {
 /// 从喝过/想喝条目的原始 JSON 里解析跳转半屏地图所需的 [MapVenue]。
 /// 喝过条目（CheckIn）的酒吧字段可能平铺在顶层，也可能嵌在 bar/barInfo 等对象里；
 /// 坐标缺失时以 0 占位，跳转前由 [_openVenueHalfMap] 统一校验。
-MapVenue _venueFromEntryMap(Map<String, dynamic> map, {required String name}) {
+MapVenue _venueFromEntryMap(
+  Map<String, dynamic> map, {
+  required String name,
+  bool checkIn = false,
+}) {
   final nested = _pickMapOf(map, ['bar', 'barInfo', 'venue', 'place']);
   const empty = <String, dynamic>{};
   // 嵌套对象可能不存在，统一用空 map 兜底，便于直接复用宽松取值函数。
@@ -987,23 +1033,23 @@ MapVenue _venueFromEntryMap(Map<String, dynamic> map, {required String name}) {
   return MapVenue(
     // 注意顺序：顶层 `id` 在心愿单接口里是「心愿记录 id」而不是酒吧 id，
     // 直接用它调 /api/bars/{id} 会 422（通信传入参数不正确）并显示成别的酒吧。
-    // 必须先取顶层 barId，再取嵌套 bar 对象里的 id，最后才兜底顶层 id。
+    // 打卡记录的顶层 id 不是酒吧 id；仅想喝条目可用顶层 id 兜底。
     id:
         (_pickNum(map, ['barId']) ??
                 _pickNum(bar, ['barId', 'id']) ??
-                _pickNum(map, ['id']))
+                (checkIn ? null : _pickNum(map, ['id'])))
             ?.toString() ??
         name,
     name: name,
     // 跳转目标是酒吧 POI：优先使用补齐后的 bar 详情坐标。打卡记录顶层即使
-    // 也存在 location，也可能表示打卡发生位置，不能覆盖酒吧的标准坐标。
+    // 打卡记录的顶层位置可能是打卡位置，只有想喝条目可用它兜底。
     longitude:
         _pickCoordinate(nested, longitude: true) ??
-        _pickCoordinate(map, longitude: true) ??
+        (checkIn ? null : _pickCoordinate(map, longitude: true)) ??
         0,
     latitude:
         _pickCoordinate(nested, longitude: false) ??
-        _pickCoordinate(map, longitude: false) ??
+        (checkIn ? null : _pickCoordinate(map, longitude: false)) ??
         0,
     kind: MapVenueKind.fromRaw(
       _pickString(map, ['barSubtype', 'subtype', 'kind', 'type']) ??
@@ -1102,7 +1148,7 @@ Future<_ProfileListPage> _loadCheckInEntries(
           imageUrl:
               map['profileThumbnailUrl'] as String? ??
               _pickCheckInImageUrl(map),
-          venue: _venueFromEntryMap(map, name: name),
+          venue: _venueFromEntryMap(map, name: name, checkIn: true),
         );
       }(),
   ].whereType<_ProfileListEntry>().toList(growable: false);
