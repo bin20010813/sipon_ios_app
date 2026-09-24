@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart' hide Visibility;
 
 import '../../pages/check_in_page.dart';
@@ -85,6 +88,7 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
 
   /// 当前加载到的详情数据。
   VenueDetail? _detail;
+  List<VenueGalleryImage> _readyGallery = const [];
 
   /// 已加载的评价列表（详情首屏 + 分页追加）。
   List<VenueReview> _reviews = const [];
@@ -135,6 +139,7 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
     }
     if (oldWidget.venue.id != widget.venue.id) {
       _detail = null;
+      _readyGallery = const [];
       _loadError = null;
       _favorite = false;
       _detailTabIndex = 0;
@@ -154,12 +159,14 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
       if (mounted) {
         setState(() {
           _detail = detail;
+          _readyGallery = const [];
           _loadError = null;
           _reviews = detail.reviews;
           _reviewTotal = detail.reviewCount;
           _reviewsHasMore = _reviews.length < detail.reviewCount;
           _reviewsLoading = false;
         });
+        _prepareGallery(detail);
       }
       await _loadFavorite();
     } on Exception catch (error) {
@@ -169,6 +176,44 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
         });
       }
     }
+  }
+
+  void _prepareGallery(VenueDetail detail) {
+    for (final image in detail.gallery) {
+      unawaited(_checkGalleryImage(detail, image));
+    }
+  }
+
+  Future<void> _checkGalleryImage(
+    VenueDetail detail,
+    VenueGalleryImage image,
+  ) async {
+    final path = image.mediumImageUrl.trim();
+    if (path.isEmpty) return;
+
+    final ImageProvider provider = _isRemoteImage(path)
+        ? CachedNetworkImageProvider(
+            siponResolveImageUrl(path),
+            headers: siponImageAuthHeaders(siponResolveImageUrl(path)),
+          )
+        : AssetImage(path);
+    var failed = false;
+    try {
+      await precacheImage(
+        provider,
+        context,
+        onError: (error, stackTrace) => failed = true,
+      ).timeout(const Duration(seconds: 8));
+    } on Exception {
+      failed = true;
+    }
+    if (failed || !mounted || !identical(_detail, detail)) return;
+    setState(() {
+      final ready = {..._readyGallery, image};
+      _readyGallery = detail.gallery
+          .where(ready.contains)
+          .toList(growable: false);
+    });
   }
 
   Future<void> _loadFavorite() async {
@@ -566,6 +611,7 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
 
   @override
   Widget build(BuildContext context) {
+    final hasGallery = _readyGallery.isNotEmpty;
     return Stack(
       children: [
         CustomScrollView(
@@ -585,11 +631,17 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
                       SliverToBoxAdapter(child: _buildLoadError(context))
                     else ...[
                       SliverToBoxAdapter(child: _buildOverview(context)),
-                      SliverToBoxAdapter(child: _buildHero(context)),
+                      if (hasGallery)
+                        SliverToBoxAdapter(child: _buildHero(context)),
                       SliverToBoxAdapter(
                         child: Padding(
                           key: _tabsKey,
-                          padding: const EdgeInsets.fromLTRB(20, 28, 20, 16),
+                          padding: EdgeInsets.fromLTRB(
+                            20,
+                            hasGallery ? 28 : 8,
+                            20,
+                            16,
+                          ),
                           child: _VenueDetailTabs(
                             selectedIndex: _detailTabIndex,
                             onSelected: _scrollToSection,
@@ -690,14 +742,7 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
 
   /// 横向滚动的照片宫格：每组三张，左侧为 3:4 大图，右侧两张为 4:3 小图。
   Widget _buildHero(BuildContext context) {
-    final images =
-        _detail?.gallery ??
-        [
-          VenueGalleryImage(
-            mediumImageUrl: widget.venue.imageUrl ?? widget.venue.imageAsset,
-            imageUrl: widget.venue.imageUrl ?? widget.venue.imageAsset,
-          ),
-        ];
+    final images = _readyGallery;
 
     Widget buildImage(
       int index, {
@@ -714,7 +759,8 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
           borderRadius: borderRadius,
           child: VenueImage(
             imageUrl: remote ? path : null,
-            assetPath: remote ? widget.venue.imageAsset : path,
+            assetPath: remote ? '' : path,
+            auth: remote,
             width: width,
             height: height,
           ),
@@ -766,7 +812,11 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
                       width: smallWidth,
                       child: Column(
                         children: [
-                          for (var offset = 1; offset <= sideImages; offset++) ...[
+                          for (
+                            var offset = 1;
+                            offset <= sideImages;
+                            offset++
+                          ) ...[
                             if (offset > 1) const SizedBox(height: gap),
                             buildImage(
                               firstIndex + offset,
@@ -911,11 +961,8 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         fullscreenDialog: true,
-        builder: (_) => _VenueGalleryPreview(
-          images: images,
-          initialIndex: index,
-          fallbackAssetPath: widget.venue.imageAsset,
-        ),
+        builder: (_) =>
+            _VenueGalleryPreview(images: images, initialIndex: index),
       ),
     );
   }
@@ -926,12 +973,10 @@ class _VenueGalleryPreview extends StatefulWidget {
   const _VenueGalleryPreview({
     required this.images,
     required this.initialIndex,
-    required this.fallbackAssetPath,
   });
 
   final List<VenueGalleryImage> images;
   final int initialIndex;
-  final String fallbackAssetPath;
 
   @override
   State<_VenueGalleryPreview> createState() => _VenueGalleryPreviewState();
@@ -967,7 +1012,7 @@ class _VenueGalleryPreviewState extends State<_VenueGalleryPreview> {
                 final image = remote
                     ? SiponNetworkImage(
                         url: path,
-                        fallbackAsset: widget.fallbackAssetPath,
+                        auth: true,
                         fit: BoxFit.contain,
                       )
                     : Image.asset(path, fit: BoxFit.contain);

@@ -348,12 +348,7 @@ class SiponApiVenueDetailRepository implements VenueDetailRepository {
       ..._readGalleryImages(media),
     ];
     if (legacyImages.isEmpty) {
-      return [
-        VenueGalleryImage(
-          mediumImageUrl: venue.imageAsset,
-          imageUrl: venue.imageAsset,
-        ),
-      ];
+      return const [];
     }
     final seen = <String>{};
     return legacyImages

@@ -11,12 +11,14 @@ class VenueImage extends StatelessWidget {
     required this.assetPath,
     required this.width,
     required this.height,
+    this.auth = false,
   });
 
   final String? imageUrl;
   final String assetPath;
   final double width;
   final double height;
+  final bool auth;
 
   @override
   Widget build(BuildContext context) {
@@ -25,6 +27,7 @@ class VenueImage extends StatelessWidget {
       return SiponNetworkImage(
         url: url,
         fallbackAsset: assetPath,
+        auth: auth,
         width: width,
         height: height,
       );
@@ -34,6 +37,9 @@ class VenueImage extends StatelessWidget {
   }
 
   Widget _assetImage() {
+    if (assetPath.isEmpty) {
+      return SizedBox(width: width, height: height);
+    }
     return Image.asset(
       assetPath,
       width: width,
