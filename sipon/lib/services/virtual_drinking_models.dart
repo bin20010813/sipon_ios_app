@@ -34,6 +34,8 @@ class VirtualDrinkingCatalog {
     required this.defaults,
     required this.contentVersion,
     required this.rendererVersion,
+    this.modelRendererVersion = '',
+    this.assets = const [],
   });
 
   factory VirtualDrinkingCatalog.fromJson(dynamic value) {
@@ -47,6 +49,8 @@ class VirtualDrinkingCatalog {
       defaults: VirtualDrinkingPreference.fromJson(data['preferenceDefaults']),
       contentVersion: _string(data['contentVersion']),
       rendererVersion: _string(data['rendererVersion']),
+      modelRendererVersion: _string(data['modelRendererVersion']),
+      assets: _items(data['assets'], VirtualModelAsset.fromJson),
     );
   }
 
@@ -58,6 +62,15 @@ class VirtualDrinkingCatalog {
   final VirtualDrinkingPreference defaults;
   final String contentVersion;
   final String rendererVersion;
+  final String modelRendererVersion;
+  final List<VirtualModelAsset> assets;
+
+  VirtualModelAsset? asset(String code) {
+    for (final item in assets) {
+      if (item.code == code) return item;
+    }
+    return null;
+  }
 
   VirtualDrink? drink(String code) {
     for (final item in drinks) {
@@ -146,6 +159,7 @@ class VirtualDrink {
   double get opacity => _number(renderConfig['opacity'], 0.8).clamp(0.1, 1);
   bool get bubbles => renderConfig['bubbles'] == true;
   bool get foam => renderConfig['foam'] == true;
+  List<String> get garnish => _strings(renderConfig['garnish']);
   double get sipAmount =>
       _number(interactionPreset['sipAmount'], 0.08).clamp(0.01, 0.5);
   int get holdRepeatMs =>
@@ -176,6 +190,60 @@ class VirtualGlass {
   double get maxFill => _number(renderConfig['maxFill'], 0.76).clamp(0.25, 0.9);
   double get liquidInset =>
       _number(renderConfig['liquidInset'], 0.09).clamp(0.02, 0.25);
+  Map<String, dynamic> get model3d => _map(renderConfig['model3d']);
+  String get modelAssetCode => _string(model3d['assetCode']);
+  List<Map<String, double>> get liquidProfile {
+    final profile = _map(model3d['liquidProfile']);
+    final points = profile['points'];
+    if (points is! List) return const [];
+    return points
+        .whereType<Map>()
+        .map((point) {
+          final value = _map(point);
+          return {
+            'y': _number(value['y'], 0),
+            'radius': _number(value['radius'], 0),
+          };
+        })
+        .where((point) => point['radius']! > 0)
+        .toList(growable: false);
+  }
+}
+
+class VirtualModelAsset {
+  const VirtualModelAsset({
+    required this.code,
+    required this.url,
+    required this.kind,
+    this.title = '',
+    this.author = '',
+    this.sourceUrl = '',
+    this.license = '',
+    this.modificationNote = '',
+  });
+
+  factory VirtualModelAsset.fromJson(dynamic value) {
+    final data = _map(value);
+    return VirtualModelAsset(
+      code: _string(data['code']),
+      url: _string(data['url']),
+      kind: _string(data['kind']),
+      title: _string(data['title']),
+      author: _string(data['author']),
+      sourceUrl: _string(data['sourceUrl']),
+      license: _string(data['license']),
+      modificationNote: _string(data['modificationNote']),
+    );
+  }
+
+  final String code;
+  final String url;
+  final String kind;
+  final String title;
+  final String author;
+  final String sourceUrl;
+  final String license;
+  final String modificationNote;
 }
 
 class VirtualScene {
@@ -228,6 +296,7 @@ class VirtualIceOption {
     required this.code,
     required this.name,
     required this.description,
+    this.model3d = const {},
   });
 
   factory VirtualIceOption.fromJson(dynamic value) {
@@ -236,12 +305,16 @@ class VirtualIceOption {
       code: _string(data['code']),
       name: _string(data['name']),
       description: _string(data['description']),
+      model3d: _map(data['model3d']),
     );
   }
 
   final String code;
   final String name;
   final String description;
+  final Map<String, dynamic> model3d;
+  String get renderer => _string(model3d['renderer']);
+  String get modelAssetCode => _string(model3d['assetCode']);
 }
 
 class VirtualSoundPreset {

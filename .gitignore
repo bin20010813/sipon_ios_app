@@ -34,6 +34,8 @@ migrate_working_dir/
 **/.pub/
 **/build/
 **/coverage/
+**/node_modules/
+**/.three-build/
 
 # Local secrets / compile-time environment values
 .env*
