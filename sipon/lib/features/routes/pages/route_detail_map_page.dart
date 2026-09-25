@@ -7,6 +7,8 @@ import '../../map/models/map_viewport.dart';
 import '../../map/platform/sipon_map_host.dart';
 import '../../map/widgets/sipon_map_widget.dart';
 import '../../../shared/services/sipon_api_service.dart';
+import '../../../app/theme/sipon_theme_colors.dart';
+
 
 /// 路线里的一个站点（酒吧）简况。坐标为 null 时详情页会尝试按 id 补齐。
 class RouteStop {
@@ -200,10 +202,7 @@ List<RouteStop> parseRouteStops(Map<String, dynamic> map) {
 /// 路线详情地图页：把站点按顺序渲染到地图上、规划并绘制路线，底部面板逐站列出。
 /// 数据来自 GET /api/routes/{id}；缺坐标的站点会按 id 再拉 /api/bars/{id} 补齐。
 class RouteDetailMapPage extends StatefulWidget {
-  static const Color brand = Color(0xFF9A3D78);
-  static const Color ink = Color(0xFF292B32);
-  static const Color muted = Color(0xFF8E8790);
-
+      
   const RouteDetailMapPage({
     super.key,
     required this.routeId,
@@ -412,15 +411,15 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         title: Text(
           widget.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         surfaceTintColor: Colors.transparent,
       ),
       body: SafeArea(
@@ -437,13 +436,13 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
                     ),
                   ),
                   if (_loading && _stops.isEmpty)
-                    const Positioned.fill(
+                    Positioned.fill(
                       child: ColoredBox(
-                        color: Color(0x66FFFFFF),
+                        color: context.siponColors.glassSurface.withValues(alpha: 0.4),
                         child: Center(
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: RouteDetailMapPage.brand,
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
                       ),
@@ -451,7 +450,7 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
                   else if (_error != null && _stops.isEmpty)
                     Positioned.fill(
                       child: ColoredBox(
-                        color: const Color(0x66FFFFFF),
+                        color: context.siponColors.glassSurface.withValues(alpha: 0.4),
                         child: Center(
                           child: Padding(
                             padding: const EdgeInsets.all(24),
@@ -463,23 +462,23 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
                                   maxLines: 3,
                                   overflow: TextOverflow.ellipsis,
                                   textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: Color(0xFF858991),
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                                     fontSize: 13,
                                   ),
                                 ),
                                 const SizedBox(height: 12),
                                 OutlinedButton.icon(
                                   onPressed: _load,
-                                  icon: const Icon(
+                                  icon: Icon(
                                     Icons.refresh_rounded,
                                     size: 18,
                                   ),
-                                  label: const Text('重试'),
+                                  label: Text('重试'),
                                   style: OutlinedButton.styleFrom(
-                                    foregroundColor: RouteDetailMapPage.brand,
-                                    side: const BorderSide(
-                                      color: RouteDetailMapPage.brand,
+                                    foregroundColor: Theme.of(context).colorScheme.primary,
+                                    side: BorderSide(
+                                      color: Theme.of(context).colorScheme.primary,
                                     ),
                                   ),
                                 ),
@@ -495,7 +494,7 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
                       right: 16,
                       top: 16,
                       child: Material(
-                        color: Colors.white,
+                        color: Theme.of(context).colorScheme.surface,
                         elevation: 3,
                         borderRadius: BorderRadius.circular(12),
                         child: Padding(
@@ -508,7 +507,7 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
                               Expanded(child: Text(_routeError!)),
                               TextButton(
                                 onPressed: _renderStops,
-                                child: const Text('重试'),
+                                child: Text('重试'),
                               ),
                             ],
                           ),
@@ -533,14 +532,14 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
         child: Center(
           child: Text(
             '这条路线还没有添加站点',
-            style: const TextStyle(color: Color(0xFF858991), fontSize: 13),
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
           ),
         ),
       );
     }
     return Container(
       constraints: const BoxConstraints(maxHeight: 264),
-      decoration: const BoxDecoration(color: Colors.white),
+      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -550,8 +549,8 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
               children: [
                 Text(
                   '共 ${_stops.length} 个站点',
-                  style: const TextStyle(
-                    color: RouteDetailMapPage.ink,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0,
@@ -564,8 +563,8 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
                       widget.subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: RouteDetailMapPage.muted,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0,
@@ -619,7 +618,7 @@ class _RouteStopRow extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFFFBF8FA),
+          color: context.siponColors.subtleSurface,
           borderRadius: BorderRadius.circular(14),
         ),
         child: Row(
@@ -630,14 +629,14 @@ class _RouteStopRow extends StatelessWidget {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: index.isEven
-                    ? const Color(0xFFFFE6B8)
-                    : const Color(0xFFDDE5FF),
+                    ? context.siponColors.warningSurface
+                    : context.siponColors.brandSurface,
                 shape: BoxShape.circle,
               ),
               child: Text(
                 '${index + 1}',
-                style: const TextStyle(
-                  color: RouteDetailMapPage.ink,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 12,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 0,
@@ -653,8 +652,8 @@ class _RouteStopRow extends StatelessWidget {
                     stop.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: RouteDetailMapPage.ink,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0,
@@ -666,8 +665,8 @@ class _RouteStopRow extends StatelessWidget {
                       address,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF8E8790),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0,
@@ -677,10 +676,10 @@ class _RouteStopRow extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(
+            Icon(
               Icons.local_bar_rounded,
               size: 20,
-              color: RouteDetailMapPage.brand,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ],
         ),

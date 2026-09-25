@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../app/theme/sipon_theme_colors.dart';
 import '../../../../shared/services/sipon_api_client.dart';
 import '../../../../shared/services/sipon_api_models.dart';
 import '../../../../shared/services/sipon_api_service.dart';
@@ -41,9 +42,8 @@ class CocktailDetailPage extends StatefulWidget {
 }
 
 class _CocktailDetailPageState extends State<CocktailDetailPage> {
-  static const Color _brand = Color(0xFF9A3D78);
-  static const Color _ink = Color(0xFF292B32);
-  static const Color _muted = Color(0xFF8E8790);
+  // 私有浅色色板已移除：品牌/正文/次要文字统一在 build 中读主题语义色
+  // （scheme.primary / scheme.onSurface / scheme.onSurfaceVariant）。
   static const String _fallbackAsset = 'assest/首页/图片素材/鸡尾酒系列1.png';
 
   final SiponApiService _api = SiponApiService();
@@ -116,12 +116,13 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
 
     return Scaffold(
       body: DecoratedBox(
-        decoration: const BoxDecoration(
+        // 页面渐变跟随主题外观。
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topRight,
             end: Alignment.bottomLeft,
-            colors: [Color(0xFFFFF2F3), Color(0xFFFCFCFC), Colors.white],
-            stops: [0, 0.38, 1],
+            colors: context.siponColors.pageGradient,
+            stops: const [0, 0.38, 1],
           ),
         ),
         child: SafeArea(
@@ -141,6 +142,7 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
 
   /// 依据加载/错误/详情状态渲染内容。
   Widget _buildBody(SiponAppText text, CocktailDetailInfo? detail) {
+    final scheme = Theme.of(context).colorScheme;
     if (_loading && detail == null) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -149,15 +151,19 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.cloud_off_rounded, size: 40, color: _muted),
+            Icon(
+              Icons.cloud_off_rounded,
+              size: 40,
+              color: scheme.onSurfaceVariant,
+            ),
             const SizedBox(height: 10),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
               child: Text(
                 text.t(_error!),
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: _muted,
+                style: TextStyle(
+                  color: scheme.onSurfaceVariant,
                   fontSize: 13,
                   letterSpacing: 0,
                 ),
@@ -167,8 +173,8 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
             FilledButton.tonal(
               onPressed: _load,
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFFFE8F6),
-                foregroundColor: _brand,
+                backgroundColor: context.siponColors.brandSurface,
+                foregroundColor: scheme.primary,
               ),
               child: Text(text.t('点击重试')),
             ),
@@ -216,8 +222,8 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: _ink,
+                      style: TextStyle(
+                        color: scheme.onSurface,
                         fontSize: 24,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 0,
@@ -229,8 +235,8 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
                       Text(
                         summary.nameEn!,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: _muted,
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
                           fontSize: 13,
                           letterSpacing: 0,
                         ),
@@ -286,7 +292,7 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
                       icon: const Icon(Icons.nightlife_rounded),
                       label: Text(text.t('在虚拟小酌体验这杯')),
                       style: FilledButton.styleFrom(
-                        backgroundColor: _brand,
+                        backgroundColor: scheme.primary,
                         minimumSize: const Size.fromHeight(46),
                       ),
                     ),
@@ -300,8 +306,8 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
                   title: text.t('简介'),
                   child: Text(
                     summary.description!,
-                    style: const TextStyle(
-                      color: _ink,
+                    style: TextStyle(
+                      color: scheme.onSurface,
                       fontSize: 16,
                       height: 1.5,
                       letterSpacing: 0,
@@ -316,8 +322,8 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
                 child: ingredients.isEmpty
                     ? Text(
                         text.t(_loading ? '加载中…' : '暂无用料信息'),
-                        style: const TextStyle(
-                          color: _muted,
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
                           fontSize: 15,
                           letterSpacing: 0,
                         ),
@@ -343,8 +349,8 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
                   title: text.t('背后的故事'),
                   child: Text(
                     detail.story!,
-                    style: const TextStyle(
-                      color: _ink,
+                    style: TextStyle(
+                      color: scheme.onSurface,
                       fontSize: 16,
                       height: 1.5,
                       letterSpacing: 0,
@@ -369,6 +375,7 @@ class _DetailCover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     const coverWidth = 260.0;
     const coverHeight = 347.0;
     const radius = 24.0;
@@ -377,8 +384,8 @@ class _DetailCover extends StatelessWidget {
     Widget image() {
       if (url != null && url.isNotEmpty) {
         return Container(
-          // 加载中/淡入前的占位底色，避免封面区域闪白。
-          color: const Color(0xFFF5EFF4),
+          // 加载中/淡入前的占位底色，跟随主题占位色，深色下不再闪白。
+          color: context.siponColors.skeleton,
           child: Image(
             image: cocktailDetailCoverImageProvider(
               url,
@@ -423,14 +430,15 @@ class _DetailCover extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(radius),
               boxShadow: [
+                // 封面投影与高光都随主题，深色下不再出现白色亮边。
                 BoxShadow(
-                  color: const Color(0xFF77727A).withValues(alpha: 0.24),
+                  color: context.siponColors.shadow,
                   blurRadius: 18,
                   spreadRadius: 2,
                   offset: const Offset(0, 9),
                 ),
                 BoxShadow(
-                  color: Colors.white.withValues(alpha: 0.7),
+                  color: scheme.surface.withValues(alpha: 0.7),
                   blurRadius: 6,
                   spreadRadius: -2,
                   offset: const Offset(0, -2),
@@ -449,13 +457,14 @@ class _DetailCover extends StatelessWidget {
                     height: 36,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
+                        // 封面底部渐隐到页面表面色，深色下不再出现白色亮带。
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            Colors.white.withValues(alpha: 0),
-                            Colors.white.withValues(alpha: 0.22),
-                            const Color(0xFFB9B9C0).withValues(alpha: 0.3),
+                            scheme.surface.withValues(alpha: 0),
+                            scheme.surface.withValues(alpha: 0.22),
+                            scheme.surface.withValues(alpha: 0.3),
                           ],
                         ),
                       ),
@@ -472,6 +481,7 @@ class _DetailCover extends StatelessWidget {
             height: 36,
             child: ShaderMask(
               blendMode: BlendMode.dstIn,
+              // dstIn 蒙版语义：白色代表保留、透明代表擦除，与主题无关，保留常量。
               shaderCallback: (bounds) => const LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
@@ -513,26 +523,31 @@ class _DoubanRating extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         for (var i = 0; i < rating.clamp(0, 5); i++)
-          const Icon(Icons.star_rounded, size: 18, color: Color(0xFFF2A33C)),
+          Icon(
+            Icons.star_rounded,
+            size: 18,
+            color: context.siponColors.starRating,
+          ),
         const SizedBox(width: 6),
         Text(
           '$rating',
-          style: const TextStyle(
-            color: Color(0xFFF2A33C),
+          style: TextStyle(
+            color: context.siponColors.starRating,
             fontSize: 20,
             fontWeight: FontWeight.w800,
             letterSpacing: 0,
           ),
         ),
         const SizedBox(width: 2),
-        const Text(
+        Text(
           '分',
           style: TextStyle(
-            color: _CocktailDetailPageState._muted,
+            color: scheme.onSurfaceVariant,
             fontSize: 12,
             letterSpacing: 0,
           ),
@@ -550,14 +565,16 @@ class _FloatingBackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Tooltip(
       message: back,
       child: IconButton(
         onPressed: () => Navigator.of(context).maybePop(),
         style: IconButton.styleFrom(
           fixedSize: const Size(40, 40),
-          backgroundColor: Colors.white.withValues(alpha: 0.85),
-          foregroundColor: _CocktailDetailPageState._ink,
+          // 悬浮按钮：半透明表面色 + 主题正文色图标。
+          backgroundColor: scheme.surface.withValues(alpha: 0.85),
+          foregroundColor: scheme.onSurface,
           padding: EdgeInsets.zero,
           shape: const CircleBorder(),
         ),
@@ -577,15 +594,15 @@ class _MetaTag extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: const Color(0xFFFFE8F6),
+        color: context.siponColors.brandSurface,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         child: Text(
           label,
-          style: const TextStyle(
-            color: _CocktailDetailPageState._brand,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.primary,
             fontSize: 11,
             fontWeight: FontWeight.w600,
             letterSpacing: 0,
@@ -596,7 +613,7 @@ class _MetaTag extends StatelessWidget {
   }
 }
 
-/// 白底圆角内容区块。
+/// 主题表面色圆角内容区块。
 class _SectionBlock extends StatelessWidget {
   const _SectionBlock({required this.title, required this.child});
 
@@ -607,7 +624,7 @@ class _SectionBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.97),
+        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.97),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Padding(
@@ -617,8 +634,8 @@ class _SectionBlock extends StatelessWidget {
           children: [
             Text(
               title,
-              style: const TextStyle(
-                color: _CocktailDetailPageState._ink,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,
@@ -642,6 +659,7 @@ class _RecipeLineTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final ingredientName = line.name ?? line.nameEn ?? line.code;
     final amount = line.amountText;
     if ((ingredientName == null || ingredientName.isEmpty) &&
@@ -658,14 +676,14 @@ class _RecipeLineTile extends StatelessWidget {
             width: 22,
             height: 22,
             alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: Color(0xFFFFE8F6),
+            decoration: BoxDecoration(
+              color: context.siponColors.brandSurface,
               shape: BoxShape.circle,
             ),
             child: Text(
               '${index + 1}',
-              style: const TextStyle(
-                color: _CocktailDetailPageState._brand,
+              style: TextStyle(
+                color: scheme.primary,
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,
@@ -676,8 +694,8 @@ class _RecipeLineTile extends StatelessWidget {
           Expanded(
             child: RichText(
               text: TextSpan(
-                style: const TextStyle(
-                  color: _CocktailDetailPageState._ink,
+                style: TextStyle(
+                  color: scheme.onSurface,
                   fontSize: 16,
                   height: 1.4,
                   letterSpacing: 0,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../app/theme/sipon_theme_colors.dart';
 import '../../../../shared/services/sipon_api_client.dart';
 import '../../../../shared/services/sipon_api_models.dart';
 import '../../../../shared/services/sipon_api_service.dart';
@@ -20,9 +21,8 @@ class CocktailListPage extends StatefulWidget {
 
 class _CocktailListPageState extends State<CocktailListPage> {
   static const int _pageSize = 20;
-  static const Color _brand = Color(0xFF9A3D78);
-  static const Color _ink = Color(0xFF292B32);
-  static const Color _muted = Color(0xFF8E8790);
+  // 私有浅色色板已移除：品牌/正文/次要文字统一在 build 中读主题语义色
+  // （scheme.primary / scheme.onSurface / scheme.onSurfaceVariant）。
   static const String _fallbackAsset = 'assest/首页/图片素材/鸡尾酒系列1.png';
 
   final SiponApiService _api = SiponApiService();
@@ -151,12 +151,13 @@ class _CocktailListPageState extends State<CocktailListPage> {
 
     return Scaffold(
       body: DecoratedBox(
-        decoration: const BoxDecoration(
+        // 页面渐变跟随主题外观。
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topRight,
             end: Alignment.bottomLeft,
-            colors: [Color(0xFFFFF2F3), Color(0xFFFCFCFC), Colors.white],
-            stops: [0, 0.38, 1],
+            colors: context.siponColors.pageGradient,
+            stops: const [0, 0.38, 1],
           ),
         ),
         child: SafeArea(
@@ -176,7 +177,7 @@ class _CocktailListPageState extends State<CocktailListPage> {
                       trailing: TextButton(
                         onPressed: () => _openIngredientList(),
                         style: TextButton.styleFrom(
-                          foregroundColor: _brand,
+                          foregroundColor: Theme.of(context).colorScheme.primary,
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                           minimumSize: const Size(48, 34),
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -269,6 +270,7 @@ class _ListTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return SizedBox(
       height: 48,
       child: Row(
@@ -279,8 +281,9 @@ class _ListTopBar extends StatelessWidget {
               onPressed: () => Navigator.of(context).maybePop(),
               style: IconButton.styleFrom(
                 fixedSize: const Size(40, 40),
-                backgroundColor: Colors.white.withValues(alpha: 0.78),
-                foregroundColor: _CocktailListPageState._ink,
+                // 悬浮按钮：半透明表面色 + 主题正文色图标。
+                backgroundColor: scheme.surface.withValues(alpha: 0.78),
+                foregroundColor: scheme.onSurface,
                 padding: EdgeInsets.zero,
                 shape: const CircleBorder(),
               ),
@@ -293,8 +296,8 @@ class _ListTopBar extends StatelessWidget {
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: _CocktailListPageState._ink,
+              style: TextStyle(
+                color: scheme.onSurface,
                 fontSize: 22,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,
@@ -322,29 +325,31 @@ class _SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return TextField(
       controller: controller,
       textInputAction: TextInputAction.search,
       onSubmitted: onSubmit,
-      style: const TextStyle(
-        color: _CocktailListPageState._ink,
+      style: TextStyle(
+        color: scheme.onSurface,
         fontSize: 15,
         letterSpacing: 0,
       ),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(
-          color: _CocktailListPageState._muted,
+        hintStyle: TextStyle(
+          color: scheme.onSurfaceVariant,
           fontSize: 14,
           letterSpacing: 0,
         ),
-        prefixIcon: const Icon(
+        prefixIcon: Icon(
           Icons.search_rounded,
           size: 20,
-          color: _CocktailListPageState._muted,
+          color: scheme.onSurfaceVariant,
         ),
         filled: true,
-        fillColor: Colors.white.withValues(alpha: 0.9),
+        // 半透明表面色输入框底，深色下跟随主题。
+        fillColor: scheme.surface.withValues(alpha: 0.9),
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,
@@ -368,11 +373,12 @@ class _CocktailListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final name = item.name ?? (item.nameEn ?? '');
     if (name.isEmpty) return const SizedBox.shrink();
 
     return Material(
-      color: Colors.white.withValues(alpha: 0.97),
+      color: scheme.surface.withValues(alpha: 0.97),
       borderRadius: BorderRadius.circular(16),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -399,8 +405,8 @@ class _CocktailListCard extends StatelessWidget {
                             name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: _CocktailListPageState._ink,
+                            style: TextStyle(
+                              color: scheme.onSurface,
                               fontSize: 16,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0,
@@ -418,8 +424,8 @@ class _CocktailListCard extends StatelessWidget {
                         item.description!,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: _CocktailListPageState._muted,
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
                           fontSize: 12,
                           height: 1.35,
                           letterSpacing: 0,
@@ -435,8 +441,8 @@ class _CocktailListCard extends StatelessWidget {
                           const SizedBox(width: 8),
                           Text(
                             '${item.ingredientCount}种用料',
-                            style: const TextStyle(
-                              color: _CocktailListPageState._muted,
+                            style: TextStyle(
+                              color: scheme.onSurfaceVariant,
                               fontSize: 11,
                               letterSpacing: 0,
                             ),
@@ -509,12 +515,16 @@ class _StarRating extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         for (var i = 0; i < count; i++)
-          const Icon(Icons.star_rounded, size: 15, color: Color(0xFFF2A33C)),
+          Icon(
+            Icons.star_rounded,
+            size: 15,
+            color: context.siponColors.starRating,
+          ),
         const SizedBox(width: 2),
         Text(
           '$rating',
-          style: const TextStyle(
-            color: _CocktailListPageState._muted,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             fontSize: 11,
             letterSpacing: 0,
           ),
@@ -534,15 +544,15 @@ class _Tag extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: const Color(0xFFFFE8F6),
+        color: context.siponColors.brandSurface,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         child: Text(
           label,
-          style: const TextStyle(
-            color: _CocktailListPageState._brand,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.primary,
             fontSize: 10,
             fontWeight: FontWeight.w600,
             letterSpacing: 0,
@@ -563,14 +573,15 @@ class _ErrorRetry extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
+          Icon(
             Icons.cloud_off_rounded,
             size: 40,
-            color: _CocktailListPageState._muted,
+            color: scheme.onSurfaceVariant,
           ),
           const SizedBox(height: 10),
           Padding(
@@ -578,8 +589,8 @@ class _ErrorRetry extends StatelessWidget {
             child: Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: _CocktailListPageState._muted,
+              style: TextStyle(
+                color: scheme.onSurfaceVariant,
                 fontSize: 13,
                 letterSpacing: 0,
               ),
@@ -589,8 +600,8 @@ class _ErrorRetry extends StatelessWidget {
           FilledButton.tonal(
             onPressed: onRetry,
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFFFE8F6),
-              foregroundColor: _CocktailListPageState._brand,
+              backgroundColor: context.siponColors.brandSurface,
+              foregroundColor: scheme.primary,
             ),
             child: Text(text.t('点击重试')),
           ),
@@ -612,16 +623,16 @@ class _EmptyView extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
+          Icon(
             Icons.local_bar_rounded,
             size: 40,
-            color: _CocktailListPageState._muted,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
           const SizedBox(height: 10),
           Text(
             message,
-            style: const TextStyle(
-              color: _CocktailListPageState._muted,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontSize: 13,
               letterSpacing: 0,
             ),

@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../app/theme/sipon_theme_colors.dart';
+
 class ReviewDraft {
   const ReviewDraft({
     required this.rating,
@@ -111,16 +113,18 @@ class _ReviewComposerState extends State<ReviewComposer> {
           children: [
             Text(
               widget.venueName,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
-                color: Color(0xFF252229),
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 6),
             Text(
               widget.venueAddress,
-              style: const TextStyle(color: Color(0xFF8F8790)),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 28),
             const Text('本次体验', style: TextStyle(fontWeight: FontWeight.w700)),
@@ -133,7 +137,8 @@ class _ReviewComposerState extends State<ReviewComposer> {
                       index <= _rating
                           ? Icons.star_rounded
                           : Icons.star_outline_rounded,
-                      color: const Color(0xFFE09A35),
+                      // 评分星标使用评分语义色，浅深色下都保持可辨识。
+                      color: context.siponColors.starRating,
                       size: 30,
                     ),
                     tooltip: '$index 星',
@@ -145,13 +150,15 @@ class _ReviewComposerState extends State<ReviewComposer> {
               controller: _controller,
               minLines: 5,
               maxLines: 8,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: '写下这次的酒、音乐或遇见的人...',
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: Theme.of(context).colorScheme.surface,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(8)),
-                  borderSide: BorderSide(color: Color(0xFFF0E9ED)),
+                  borderRadius: const BorderRadius.all(Radius.circular(8)),
+                  borderSide: BorderSide(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
                 ),
               ),
             ),
@@ -171,13 +178,15 @@ class _ReviewComposerState extends State<ReviewComposer> {
                         width: 76,
                         height: 76,
                         decoration: BoxDecoration(
-                          color: Colors.white,
-                          border: Border.all(color: const Color(0xFFF0E9ED)),
+                          color: Theme.of(context).colorScheme.surface,
+                          border: Border.all(
+                            color: Theme.of(context).colorScheme.outlineVariant,
+                          ),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.add_photo_alternate_outlined,
-                          color: Color(0xFF9A3D78),
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
                     ),
@@ -190,18 +199,18 @@ class _ReviewComposerState extends State<ReviewComposer> {
               child: FilledButton.icon(
                 onPressed: _submitting ? null : _submit,
                 icon: _submitting
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.white,
+                          color: Theme.of(context).colorScheme.onPrimary,
                         ),
                       )
                     : const Icon(Icons.check_rounded),
                 label: Text(_submitting ? '提交中...' : widget.submitLabel),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF9A3D78),
+                  backgroundColor: Theme.of(context).colorScheme.primary,
                   minimumSize: const Size.fromHeight(50),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -229,7 +238,8 @@ class _ReviewComposerState extends State<ReviewComposer> {
                   ? Container(
                       width: 76,
                       height: 76,
-                      color: const Color(0xFFF0E9ED),
+                      // 图片解码中的占位，复用骨架色。
+                      color: context.siponColors.skeleton,
                     )
                   : Image.memory(
                       Uint8List.fromList(snapshot.data!),
@@ -245,7 +255,7 @@ class _ReviewComposerState extends State<ReviewComposer> {
             child: IconButton(
               onPressed: () => setState(() => _images.removeAt(index)),
               icon: const Icon(Icons.cancel_rounded, size: 20),
-              color: const Color(0xFF9A3D78),
+              color: Theme.of(context).colorScheme.primary,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints.tightFor(width: 24, height: 24),
             ),

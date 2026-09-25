@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../app/theme/sipon_theme_colors.dart';
 import '../../../../shared/services/sipon_api_client.dart';
 import '../../../../shared/services/sipon_api_models.dart';
 import '../../../../shared/services/sipon_api_service.dart';
@@ -20,9 +21,8 @@ class IngredientListPage extends StatefulWidget {
 
 class _IngredientListPageState extends State<IngredientListPage> {
   static const int _pageSize = 20;
-  static const Color _brand = Color(0xFF9A3D78);
-  static const Color _ink = Color(0xFF292B32);
-  static const Color _muted = Color(0xFF8E8790);
+  // 私有浅色色板已移除：品牌/正文/次要文字统一在 build 中读主题语义色
+  // （scheme.primary / scheme.onSurface / scheme.onSurfaceVariant）。
   static const String _fallbackAsset = 'assest/首页/图片素材/鸡尾酒系列2.png';
 
   /// 分类筛选项：中文标签 + 后端分类值（null 表示全部）。
@@ -148,12 +148,13 @@ class _IngredientListPageState extends State<IngredientListPage> {
 
     return Scaffold(
       body: DecoratedBox(
-        decoration: const BoxDecoration(
+        // 页面渐变跟随主题外观。
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topRight,
             end: Alignment.bottomLeft,
-            colors: [Color(0xFFFFF2F3), Color(0xFFFCFCFC), Colors.white],
-            stops: [0, 0.38, 1],
+            colors: context.siponColors.pageGradient,
+            stops: const [0, 0.38, 1],
           ),
         ),
         child: SafeArea(
@@ -193,6 +194,7 @@ class _IngredientListPageState extends State<IngredientListPage> {
 
   /// 依据加载/错误/空/列表状态渲染内容区。
   Widget _buildBody(SiponAppText text) {
+    final scheme = Theme.of(context).colorScheme;
     if (_loading && _items.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -201,15 +203,19 @@ class _IngredientListPageState extends State<IngredientListPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.cloud_off_rounded, size: 40, color: _muted),
+            Icon(
+              Icons.cloud_off_rounded,
+              size: 40,
+              color: scheme.onSurfaceVariant,
+            ),
             const SizedBox(height: 10),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
               child: Text(
                 text.t(_error!),
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: _muted,
+                style: TextStyle(
+                  color: scheme.onSurfaceVariant,
                   fontSize: 13,
                   letterSpacing: 0,
                 ),
@@ -219,8 +225,8 @@ class _IngredientListPageState extends State<IngredientListPage> {
             FilledButton.tonal(
               onPressed: () => _load(reset: true),
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFFFE8F6),
-                foregroundColor: _brand,
+                backgroundColor: context.siponColors.brandSurface,
+                foregroundColor: scheme.primary,
               ),
               child: Text(text.t('点击重试')),
             ),
@@ -233,12 +239,16 @@ class _IngredientListPageState extends State<IngredientListPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.liquor_rounded, size: 40, color: _muted),
+            Icon(
+              Icons.liquor_rounded,
+              size: 40,
+              color: scheme.onSurfaceVariant,
+            ),
             const SizedBox(height: 10),
             Text(
               text.t('没有找到相关配料'),
-              style: const TextStyle(
-                color: _muted,
+              style: TextStyle(
+                color: scheme.onSurfaceVariant,
                 fontSize: 13,
                 letterSpacing: 0,
               ),
@@ -289,6 +299,7 @@ class _IngredientTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return SizedBox(
       height: 48,
       child: Row(
@@ -299,8 +310,9 @@ class _IngredientTopBar extends StatelessWidget {
               onPressed: () => Navigator.of(context).maybePop(),
               style: IconButton.styleFrom(
                 fixedSize: const Size(40, 40),
-                backgroundColor: Colors.white.withValues(alpha: 0.78),
-                foregroundColor: _IngredientListPageState._ink,
+                // 悬浮按钮：半透明表面色 + 主题正文色图标。
+                backgroundColor: scheme.surface.withValues(alpha: 0.78),
+                foregroundColor: scheme.onSurface,
                 padding: EdgeInsets.zero,
                 shape: const CircleBorder(),
               ),
@@ -313,8 +325,8 @@ class _IngredientTopBar extends StatelessWidget {
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: _IngredientListPageState._ink,
+              style: TextStyle(
+                color: scheme.onSurface,
                 fontSize: 22,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,
@@ -342,6 +354,7 @@ class _CategoryFilter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
 
     return SizedBox(
       height: 46,
@@ -360,17 +373,14 @@ class _CategoryFilter extends StatelessWidget {
               alignment: Alignment.center,
               padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
-                color: selected
-                    ? _IngredientListPageState._brand
-                    : Colors.white,
+                // 选中用品牌主色、未选中用主题表面色。
+                color: selected ? scheme.primary : scheme.surface,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
                 text.t(categories[index].$1),
                 style: TextStyle(
-                  color: selected
-                      ? Colors.white
-                      : _IngredientListPageState._muted,
+                  color: selected ? scheme.onPrimary : scheme.onSurfaceVariant,
                   fontSize: 13,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   letterSpacing: 0,
@@ -393,12 +403,13 @@ class _IngredientCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final name = item.name ?? (item.nameEn ?? '');
     if (name.isEmpty) return const SizedBox.shrink();
     final imageUrl = item.resolvedImageUrl();
 
     return Material(
-      color: Colors.white.withValues(alpha: 0.97),
+      color: scheme.surface.withValues(alpha: 0.97),
       borderRadius: BorderRadius.circular(16),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -420,8 +431,8 @@ class _IngredientCard extends StatelessWidget {
                       name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: _IngredientListPageState._ink,
+                      style: TextStyle(
+                        color: scheme.onSurface,
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0,
@@ -433,8 +444,8 @@ class _IngredientCard extends StatelessWidget {
                         item.nameEn!,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: _IngredientListPageState._muted,
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
                           fontSize: 12,
                           letterSpacing: 0,
                         ),
@@ -446,8 +457,8 @@ class _IngredientCard extends StatelessWidget {
                         if (item.category != null && item.category!.isNotEmpty)
                           Text(
                             item.category!,
-                            style: const TextStyle(
-                              color: _IngredientListPageState._muted,
+                            style: TextStyle(
+                              color: scheme.onSurfaceVariant,
                               fontSize: 11,
                               letterSpacing: 0,
                             ),
@@ -461,10 +472,10 @@ class _IngredientCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(
+              Icon(
                 Icons.chevron_right_rounded,
                 size: 22,
-                color: _IngredientListPageState._muted,
+                color: scheme.onSurfaceVariant,
               ),
             ],
           ),
@@ -519,15 +530,15 @@ class _BaseSpiritBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: const Color(0xFFFFE8F6),
+        color: context.siponColors.brandSurface,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         child: Text(
           '基酒',
           style: TextStyle(
-            color: _IngredientListPageState._brand,
+            color: Theme.of(context).colorScheme.primary,
             fontSize: 10,
             fontWeight: FontWeight.w600,
             letterSpacing: 0,

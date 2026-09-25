@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/theme/sipon_theme_colors.dart';
 import '../../map/models/map_models.dart';
 import '../../../shared/services/sipon_api_models.dart';
 import '../../../shared/services/sipon_api_service.dart';
@@ -58,9 +59,6 @@ List<String> reviewPhotoUrls(Map<String, dynamic> entry) {
 }
 
 class _ReviewDetailPageState extends State<ReviewDetailPage> {
-  static const _ink = Color(0xFF191C23);
-  static const _muted = Color(0xFF999DA9);
-  static const _orange = Color(0xFFFFA331);
   late MapVenue _venue = widget.venue;
   late UserProfileData? _author = widget.author;
   late final _api = widget.apiService ?? SiponApiService();
@@ -136,12 +134,14 @@ class _ReviewDetailPageState extends State<ReviewDetailPage> {
         : '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}';
     final content = '${entry['content'] ?? ''}'.trim();
     final photos = reviewPhotoUrls(entry);
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: scheme.surface,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: scheme.surface,
         surfaceTintColor: Colors.transparent,
-        foregroundColor: _ink,
+        foregroundColor: scheme.onSurface,
         centerTitle: true,
         title: const Text(
           '评价详情',
@@ -164,11 +164,12 @@ class _ReviewDetailPageState extends State<ReviewDetailPage> {
                           width: 58,
                           height: 58,
                           child: _author?.avatarUrl == null
-                              ? const ColoredBox(
-                                  color: Color(0xFFF4EDF2),
+                              // 头像占位：与图片占位共用骨架色。
+                              ? ColoredBox(
+                                  color: siponColors.skeleton,
                                   child: Icon(
                                     Icons.person_rounded,
-                                    color: _muted,
+                                    color: scheme.onSurfaceVariant,
                                     size: 32,
                                   ),
                                 )
@@ -185,18 +186,18 @@ class _ReviewDetailPageState extends State<ReviewDetailPage> {
                           children: [
                             Text(
                               _author?.name ?? 'Sipon 用户',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 17,
                                 fontWeight: FontWeight.w600,
-                                color: _ink,
+                                color: scheme.onSurface,
                               ),
                             ),
                             const SizedBox(height: 3),
                             Text(
                               dateLabel,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 14,
-                                color: _muted,
+                                color: scheme.onSurfaceVariant,
                               ),
                             ),
                             const SizedBox(height: 5),
@@ -215,9 +216,10 @@ class _ReviewDetailPageState extends State<ReviewDetailPage> {
                                           ? Icons.star_half_rounded
                                           : Icons.star_rounded,
                                       size: 20,
+                                      // 点亮星用评分语义色，未点亮星用描边色。
                                       color: rating != null && rating > i
-                                          ? _orange
-                                          : const Color(0xFFDDDEE2),
+                                          ? siponColors.starRating
+                                          : scheme.outlineVariant,
                                     ),
                                   ),
                                 ),
@@ -225,7 +227,9 @@ class _ReviewDetailPageState extends State<ReviewDetailPage> {
                                   rating?.toStringAsFixed(1) ?? '未评分',
                                   style: TextStyle(
                                     fontSize: 16,
-                                    color: rating == null ? _muted : _orange,
+                                    color: rating == null
+                                        ? scheme.onSurfaceVariant
+                                        : siponColors.starRating,
                                   ),
                                 ),
                               ],
@@ -241,7 +245,9 @@ class _ReviewDetailPageState extends State<ReviewDetailPage> {
                     style: TextStyle(
                       fontSize: 16,
                       height: 1.65,
-                      color: content.isEmpty ? _muted : _ink,
+                      color: content.isEmpty
+                          ? scheme.onSurfaceVariant
+                          : scheme.onSurface,
                     ),
                   ),
                   if (photos.isNotEmpty) ...[
@@ -275,12 +281,12 @@ class _ReviewDetailPageState extends State<ReviewDetailPage> {
                                       auth: true,
                                       width: width,
                                       height: width,
-                                      fallbackWidget: const ColoredBox(
-                                        color: Color(0xFFF1F1F3),
+                                      fallbackWidget: ColoredBox(
+                                        color: siponColors.skeleton,
                                         child: Center(
                                           child: Icon(
                                             Icons.image_outlined,
-                                            color: _muted,
+                                            color: scheme.onSurfaceVariant,
                                           ),
                                         ),
                                       ),
@@ -295,10 +301,10 @@ class _ReviewDetailPageState extends State<ReviewDetailPage> {
                   ],
                   const SizedBox(height: 22),
                   Material(
-                    color: Colors.white,
+                    color: scheme.surface,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(11),
-                      side: const BorderSide(color: Color(0xFFDCDDE3)),
+                      side: BorderSide(color: scheme.outlineVariant),
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: InkWell(
@@ -332,10 +338,10 @@ class _ReviewDetailPageState extends State<ReviewDetailPage> {
                                 children: [
                                   Text(
                                     _venue.name,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 18,
                                       fontWeight: FontWeight.w600,
-                                      color: _ink,
+                                      color: scheme.onSurface,
                                     ),
                                   ),
                                   const SizedBox(height: 8),
@@ -343,10 +349,10 @@ class _ReviewDetailPageState extends State<ReviewDetailPage> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      const Icon(
+                                      Icon(
                                         Icons.location_on_outlined,
                                         size: 17,
-                                        color: _muted,
+                                        color: scheme.onSurfaceVariant,
                                       ),
                                       const SizedBox(width: 4),
                                       Expanded(
@@ -354,10 +360,10 @@ class _ReviewDetailPageState extends State<ReviewDetailPage> {
                                           _venue.address.isEmpty
                                               ? '地址暂无'
                                               : _venue.address,
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontSize: 13,
                                             height: 1.4,
-                                            color: _muted,
+                                            color: scheme.onSurfaceVariant,
                                           ),
                                         ),
                                       ),
@@ -395,16 +401,17 @@ class _ReviewDetailPageState extends State<ReviewDetailPage> {
                         centered: true,
                       )
                     else
-                      const ColoredBox(
-                        color: Color(0xFFF4F5F5),
+                      // 无坐标时的地图占位底，复用图片骨架色。
+                      ColoredBox(
+                        color: siponColors.skeleton,
                         child: Center(
                           child: Text(
                             '暂无位置信息',
-                            style: TextStyle(color: _muted),
+                            style: TextStyle(color: scheme.onSurfaceVariant),
                           ),
                         ),
                       ),
-                    const Positioned(
+                    Positioned(
                       top: 0,
                       left: 0,
                       right: 0,
@@ -416,11 +423,11 @@ class _ReviewDetailPageState extends State<ReviewDetailPage> {
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
                               colors: [
-                                Colors.white,
-                                Color(0xE6FFFFFF),
-                                Color(0x00FFFFFF),
+                                scheme.surface,
+                                scheme.surface.withValues(alpha: 0.9),
+                                scheme.surface.withValues(alpha: 0),
                               ],
-                              stops: [0, .25, 1],
+                              stops: const [0, .25, 1],
                             ),
                           ),
                         ),
@@ -456,6 +463,7 @@ class _ReviewPhotoViewerState extends State<_ReviewPhotoViewer> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
+    // 全屏看图属于沉浸式内容底：纯黑与白色前景是内容固有色，两种外观保持一致。
     backgroundColor: Colors.black,
     appBar: AppBar(
       backgroundColor: Colors.black,
@@ -479,6 +487,7 @@ class _ReviewPhotoViewerState extends State<_ReviewPhotoViewer> {
               fallbackWidget: const Center(
                 child: Icon(
                   Icons.image_not_supported_outlined,
+                  // 沉浸式纯黑底上的失败图标，保留白色半透明。
                   color: Colors.white54,
                   size: 40,
                 ),

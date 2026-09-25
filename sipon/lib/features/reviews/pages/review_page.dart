@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../app/theme/sipon_theme_colors.dart';
 import '../../../shared/services/sipon_api_client.dart';
 import '../../../shared/services/sipon_api_service.dart';
 import '../../../shared/localization/language_transform.dart';
@@ -17,10 +18,6 @@ class ReviewPage extends StatefulWidget {
 class _ReviewPageState extends State<ReviewPage> {
   static const int _maxImages = 3;
   static const int _maxUploadBytes = 10 * 1024 * 1024;
-  static const Color _brand = Color(0xFF9A3D78);
-  static const Color _ink = Color(0xFF292B32);
-  static const Color _muted = Color(0xFF8E8790);
-  static const Color _line = Color(0xFFF1EBEF);
 
   final SiponApiService _api = SiponApiService();
   final ImagePicker _picker = ImagePicker();
@@ -80,13 +77,16 @@ class _ReviewPageState extends State<ReviewPage> {
       return;
     }
 
+    // 底部弹窗底：用主题浮层表面色，浅色下与原纯白一致。
+    final sheetSurface = context.siponColors.elevatedSurface;
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: sheetSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
       builder: (sheetContext) {
+        final scheme = Theme.of(sheetContext).colorScheme;
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -94,8 +94,8 @@ class _ReviewPageState extends State<ReviewPage> {
               const SizedBox(height: 12),
               Text(
                 text.t('选择图片来源'),
-                style: const TextStyle(
-                  color: _ink,
+                style: TextStyle(
+                  color: scheme.onSurface,
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0,
@@ -272,12 +272,12 @@ class _ReviewPageState extends State<ReviewPage> {
 
     return Scaffold(
       body: DecoratedBox(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topRight,
             end: Alignment.bottomLeft,
-            colors: [Color(0xFFFFF2F3), Color(0xFFFCFCFC), Colors.white],
-            stops: [0, 0.38, 1],
+            colors: context.siponColors.pageGradient,
+            stops: const [0, 0.38, 1],
           ),
         ),
         child: SafeArea(
@@ -399,6 +399,7 @@ class _ReviewTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return SizedBox(
       height: 48,
       child: Row(
@@ -409,8 +410,8 @@ class _ReviewTopBar extends StatelessWidget {
               onPressed: () => Navigator.of(context).maybePop(),
               style: IconButton.styleFrom(
                 fixedSize: const Size(40, 40),
-                backgroundColor: Colors.white.withValues(alpha: 0.78),
-                foregroundColor: _ReviewPageState._ink,
+                backgroundColor: scheme.surface.withValues(alpha: 0.78),
+                foregroundColor: scheme.onSurface,
                 padding: EdgeInsets.zero,
                 shape: const CircleBorder(),
               ),
@@ -423,8 +424,8 @@ class _ReviewTopBar extends StatelessWidget {
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: _ReviewPageState._ink,
+              style: TextStyle(
+                color: scheme.onSurface,
                 fontSize: 22,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,
@@ -450,12 +451,13 @@ class _SourceOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return ListTile(
-      leading: Icon(icon, color: _ReviewPageState._brand),
+      leading: Icon(icon, color: scheme.primary),
       title: Text(
         label,
-        style: const TextStyle(
-          color: _ReviewPageState._ink,
+        style: TextStyle(
+          color: scheme.onSurface,
           fontSize: 15,
           fontWeight: FontWeight.w700,
           letterSpacing: 0,
@@ -487,6 +489,8 @@ class _FeedbackSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
     return _SettingsCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -504,18 +508,15 @@ class _FeedbackSection extends StatelessWidget {
             decoration: InputDecoration(
               hintText: text.feedbackHint,
               filled: true,
-              fillColor: const Color(0xFFFCF8FA),
+              fillColor: siponColors.subtleSurface,
               contentPadding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: _ReviewPageState._line),
+                borderSide: BorderSide(color: scheme.outlineVariant),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(
-                  color: _ReviewPageState._brand,
-                  width: 1.3,
-                ),
+                borderSide: BorderSide(color: scheme.primary, width: 1.3),
               ),
             ),
           ),
@@ -533,21 +534,25 @@ class _FeedbackSection extends StatelessWidget {
               onPressed: submitting ? null : onSubmit,
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(46),
-                backgroundColor: _ReviewPageState._brand,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: const Color(0xFFE6D3DF),
-                disabledForegroundColor: Colors.white,
+                backgroundColor: scheme.primary,
+                foregroundColor: scheme.onPrimary,
+                disabledBackgroundColor: scheme.onSurface.withValues(
+                  alpha: 0.12,
+                ),
+                disabledForegroundColor: scheme.onSurface.withValues(
+                  alpha: 0.38,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
               icon: submitting
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Colors.white,
+                        color: scheme.onPrimary,
                       ),
                     )
                   : const Icon(Icons.post_add_rounded, size: 18),
@@ -581,13 +586,14 @@ class _ImagePickerSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           text.t('添加图片'),
-          style: const TextStyle(
-            color: _ReviewPageState._ink,
+          style: TextStyle(
+            color: scheme.onSurface,
             fontSize: 14,
             fontWeight: FontWeight.w800,
             letterSpacing: 0,
@@ -606,8 +612,8 @@ class _ImagePickerSection extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           text.t('最多上传 3 张问题截图，便于我们定位页面和异常。'),
-          style: const TextStyle(
-            color: _ReviewPageState._muted,
+          style: TextStyle(
+            color: scheme.onSurfaceVariant,
             fontSize: 12,
             height: 1.3,
             fontWeight: FontWeight.w600,
@@ -627,6 +633,7 @@ class _ImageTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return SizedBox(
       width: 88,
       height: 88,
@@ -640,13 +647,14 @@ class _ImageTile extends StatelessWidget {
                 File(file.path),
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) {
-                  return const DecoratedBox(
+                  // 图片解码失败的占位底，用内嵌次级容器色。
+                  return DecoratedBox(
                     decoration: BoxDecoration(
-                      color: Color(0xFFFFF6FB),
+                      color: context.siponColors.subtleSurface,
                     ),
                     child: Icon(
                       Icons.broken_image_outlined,
-                      color: _ReviewPageState._brand,
+                      color: scheme.primary,
                       size: 26,
                     ),
                   );
@@ -662,8 +670,8 @@ class _ImageTile extends StatelessWidget {
               style: IconButton.styleFrom(
                 fixedSize: const Size(24, 24),
                 padding: EdgeInsets.zero,
-                backgroundColor: _ReviewPageState._ink,
-                foregroundColor: Colors.white,
+                backgroundColor: scheme.onSurface,
+                foregroundColor: scheme.surface,
               ),
               icon: const Icon(Icons.close_rounded, size: 14),
             ),
@@ -682,6 +690,7 @@ class _AddImageTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -691,23 +700,23 @@ class _AddImageTile extends StatelessWidget {
           width: 88,
           height: 88,
           decoration: BoxDecoration(
-            color: const Color(0xFFFCF8FA),
+            color: context.siponColors.subtleSurface,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: _ReviewPageState._line),
+            border: Border.all(color: scheme.outlineVariant),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
+              Icon(
                 Icons.add_photo_alternate_outlined,
-                color: _ReviewPageState._brand,
+                color: scheme.primary,
                 size: 26,
               ),
               const SizedBox(height: 6),
               Text(
                 text.t('添加'),
-                style: const TextStyle(
-                  color: _ReviewPageState._brand,
+                style: TextStyle(
+                  color: scheme.primary,
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0,
@@ -767,6 +776,7 @@ class _FeedbackHistorySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return _SettingsCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -777,15 +787,15 @@ class _FeedbackHistorySection extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           if (loading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 18),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 18),
               child: Center(
                 child: SizedBox(
                   width: 22,
                   height: 22,
                   child: CircularProgressIndicator(
                     strokeWidth: 2.4,
-                    color: _ReviewPageState._brand,
+                    color: scheme.primary,
                   ),
                 ),
               ),
@@ -798,8 +808,8 @@ class _FeedbackHistorySection extends StatelessWidget {
                   children: [
                     Text(
                       text.t('历史反馈加载失败'),
-                      style: const TextStyle(
-                        color: _ReviewPageState._muted,
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0,
@@ -810,8 +820,8 @@ class _FeedbackHistorySection extends StatelessWidget {
                       onPressed: onRetry,
                       child: Text(
                         text.t('重新加载'),
-                        style: const TextStyle(
-                          color: _ReviewPageState._brand,
+                        style: TextStyle(
+                          color: scheme.primary,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -828,8 +838,8 @@ class _FeedbackHistorySection extends StatelessWidget {
               child: Center(
                 child: Text(
                   text.t('暂无反馈记录'),
-                  style: const TextStyle(
-                    color: _ReviewPageState._muted,
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0,
@@ -879,15 +889,17 @@ class _FeedbackHistoryItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
     final createdAt = time(record.createdAt);
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFFBFD),
+        color: siponColors.subtleSurface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _ReviewPageState._line),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -896,8 +908,8 @@ class _FeedbackHistoryItem extends StatelessWidget {
             children: [
               Text(
                 categoryLabel(record.category),
-                style: const TextStyle(
-                  color: _ReviewPageState._brand,
+                style: TextStyle(
+                  color: scheme.primary,
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0,
@@ -907,13 +919,13 @@ class _FeedbackHistoryItem extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFEDF7),
+                  color: siponColors.brandSurface,
                   borderRadius: BorderRadius.circular(9),
                 ),
                 child: Text(
                   statusLabel(record.status),
-                  style: const TextStyle(
-                    color: _ReviewPageState._brand,
+                  style: TextStyle(
+                    color: scheme.primary,
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0,
@@ -926,8 +938,8 @@ class _FeedbackHistoryItem extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               createdAt,
-              style: const TextStyle(
-                color: _ReviewPageState._muted,
+              style: TextStyle(
+                color: scheme.onSurfaceVariant,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0,
@@ -937,8 +949,8 @@ class _FeedbackHistoryItem extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             record.content,
-            style: const TextStyle(
-              color: _ReviewPageState._ink,
+            style: TextStyle(
+              color: scheme.onSurface,
               fontSize: 14,
               height: 1.35,
               fontWeight: FontWeight.w600,
@@ -949,16 +961,16 @@ class _FeedbackHistoryItem extends StatelessWidget {
             const SizedBox(height: 10),
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.photo_library_outlined,
-                  color: _ReviewPageState._brand,
+                  color: scheme.primary,
                   size: 16,
                 ),
                 const SizedBox(width: 5),
                 Text(
                   text.t('已附带 ${record.mediaIds.length} 张图片'),
-                  style: const TextStyle(
-                    color: _ReviewPageState._brand,
+                  style: TextStyle(
+                    color: scheme.primary,
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0,
@@ -980,15 +992,16 @@ class _SettingsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.92),
+        color: scheme.surface.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
-            color: Color(0x0F9A3D78),
+            color: context.siponColors.shadow,
             blurRadius: 24,
-            offset: Offset(0, 10),
+            offset: const Offset(0, 10),
           ),
         ],
       ),
@@ -1008,16 +1021,17 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Row(
       children: [
         Container(
           width: 30,
           height: 30,
           decoration: BoxDecoration(
-            color: const Color(0xFFFFEDF7),
+            color: context.siponColors.brandSurface,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(icon, color: _ReviewPageState._brand, size: 18),
+          child: Icon(icon, color: scheme.primary, size: 18),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -1025,8 +1039,8 @@ class _SectionHeader extends StatelessWidget {
             title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: _ReviewPageState._ink,
+            style: TextStyle(
+              color: scheme.onSurface,
               fontSize: 17,
               fontWeight: FontWeight.w800,
               letterSpacing: 0,

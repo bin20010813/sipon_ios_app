@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../map/widgets/checkin_pin_icon.dart';
+import '../../../app/theme/sipon_theme_colors.dart';
 import '../../map/models/map_display_options.dart';
 import '../../map/models/map_models.dart';
 import '../../map/controllers/map_scene_controller.dart';
@@ -26,8 +27,6 @@ class CheckInPage extends StatefulWidget {
 }
 
 class _CheckInPageState extends State<CheckInPage> {
-  static const _brand = Color(0xFF9A3D78);
-
   late final SiponApiService _api;
 
   /// 附近酒吧每页条数。
@@ -203,8 +202,10 @@ class _CheckInPageState extends State<CheckInPage> {
   @override
   Widget build(BuildContext context) {
     final height = MediaQuery.sizeOf(context).height * 0.78;
+    final scheme = Theme.of(context).colorScheme;
     return Material(
-      color: const Color(0xFFFBF8F9),
+      // 打卡面板是底部弹层，用主题浮层表面色（浅色下为白色）。
+      color: context.siponColors.elevatedSurface,
       borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       clipBehavior: Clip.antiAlias,
       child: SizedBox(
@@ -218,7 +219,8 @@ class _CheckInPageState extends State<CheckInPage> {
                 width: 38,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFD2CBD0),
+                  // 抓手条：由次要文字色降透明度合成，两种外观下都可见。
+                  color: scheme.onSurfaceVariant.withValues(alpha: 0.35),
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -226,11 +228,11 @@ class _CheckInPageState extends State<CheckInPage> {
                 padding: const EdgeInsets.fromLTRB(18, 12, 10, 10),
                 child: Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         '打卡酒吧',
                         style: TextStyle(
-                          color: Color(0xFF252229),
+                          color: scheme.onSurface,
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
                         ),
@@ -283,10 +285,10 @@ class _CheckInPageState extends State<CheckInPage> {
                 padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
                 child: Row(
                   children: [
-                    const Text(
+                    Text(
                       '你附近的酒吧',
                       style: TextStyle(
-                        color: Color(0xFF252229),
+                        color: scheme.onSurface,
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
                       ),
@@ -298,8 +300,8 @@ class _CheckInPageState extends State<CheckInPage> {
                           : _locationError != null
                           ? '等待定位'
                           : '${_bars.length} 家可打卡',
-                      style: const TextStyle(
-                        color: Color(0xFF8F8790),
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
                         fontSize: 12,
                       ),
                     ),
@@ -312,7 +314,10 @@ class _CheckInPageState extends State<CheckInPage> {
                   padding: const EdgeInsets.fromLTRB(18, 0, 18, 20),
                   itemCount: _bars.length,
                   itemBuilder: (context, index) {
-                    return _NearbyBarTile(bar: _bars[index], brand: _brand);
+                    return _NearbyBarTile(
+                      bar: _bars[index],
+                      brand: scheme.primary,
+                    );
                   },
                 ),
               ),
@@ -415,7 +420,7 @@ class _NearbyBarTile extends StatelessWidget {
     elevation: 0,
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(8),
-      side: const BorderSide(color: Color(0xFFF0E9ED)),
+      side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
     ),
     child: ListTile(
       contentPadding: const EdgeInsets.fromLTRB(14, 1, 8, 1),
@@ -439,14 +444,15 @@ class _NearbyBarTile extends StatelessWidget {
         child: bar.checkedIn
             ? DecoratedBox(
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE8F2E8),
+                  // 已打卡：成功语义的弱底与文字成对出现。
+                  color: context.siponColors.successSurface,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Center(
+                child: Center(
                   child: Text(
                     '已打卡',
                     style: TextStyle(
-                      color: Color(0xFF6C8C72),
+                      color: context.siponColors.success,
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
@@ -618,7 +624,8 @@ class _CheckInCommentPageState extends State<CheckInCommentPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: const Color(0xFFFBF8F9),
+    // 页面底沿用主题脚手架底色，与首页、个人页保持一致。
+    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
     appBar: AppBar(
       title: const Text('微醺这一刻', style: TextStyle(fontWeight: FontWeight.w800)),
       backgroundColor: Colors.transparent,
@@ -630,6 +637,8 @@ class _CheckInCommentPageState extends State<CheckInCommentPage> {
       submitLabel: '完成打卡',
       onSubmit: _submitDraft,
     ),
+    // 说明：下方注释块为未参与构建的历史代码，其中浅色常量保持原样，
+    // 不属于深色迁移范围，故不对其做主题替换。
     /* Padding(
       padding: const EdgeInsets.all(20),
       child: Column(

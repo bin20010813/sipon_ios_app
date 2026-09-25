@@ -70,6 +70,28 @@ void main() {
       expect(encodeAppearance(Brightness.dark), {'brightness': 'dark'});
       expect(SiponMapCommands.setAppearance, 'setAppearance');
     });
+
+    test('外观载荷只带亮度，不含任何相机或底图字段', () {
+      // 外观同步必须与相机解耦：协议里出现相机字段就意味着切换外观可能带动地图。
+      const cameraKeys = <String>{
+        'lng',
+        'lat',
+        'zoom',
+        'pitch',
+        'bearing',
+        'bottomPadding',
+        'styleId',
+        'points',
+      };
+
+      for (final brightness in Brightness.values) {
+        final payload = encodeAppearance(brightness);
+        expect(payload.keys, {'brightness'});
+        expect(payload.keys.any(cameraKeys.contains), isFalse);
+        // 重复编码结果一致，重复下发是幂等的。
+        expect(encodeAppearance(brightness), payload);
+      }
+    });
   });
 
   group('encodeRenderFrame', () {

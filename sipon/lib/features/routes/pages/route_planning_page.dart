@@ -11,6 +11,8 @@ import '../../../shared/services/sipon_api_service.dart';
 import '../../../shared/services/sipon_city_controller.dart';
 import '../../../shared/services/sipon_search_preferences.dart';
 import '../../../shared/widgets/sipon_city_picker.dart';
+import '../../../app/theme/sipon_theme_colors.dart';
+
 
 class RoutePlanningPage extends StatefulWidget {
   const RoutePlanningPage({super.key});
@@ -20,10 +22,7 @@ class RoutePlanningPage extends StatefulWidget {
 }
 
 class _RoutePlanningPageState extends State<RoutePlanningPage> {
-  static const _brand = Color(0xFF9A3D78);
-  static const _ink = Color(0xFF252229);
-  static const _muted = Color(0xFF8F8790);
-  static const _maxStops = 8;
+        static const _maxStops = 8;
 
   final SiponApiService _api = SiponApiService();
 
@@ -363,14 +362,14 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: Colors.white,
+          backgroundColor: Theme.of(context).colorScheme.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
-          title: const Text(
+          title: Text(
             '保存路线',
             style: TextStyle(
-              color: _ink,
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 18,
               fontWeight: FontWeight.w900,
             ),
@@ -382,7 +381,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
             decoration: InputDecoration(
               hintText: '给这条路线起个名字',
               filled: true,
-              fillColor: const Color(0xFFF3F3F3),
+              fillColor: context.siponColors.subtleSurface,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
@@ -392,13 +391,13 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('取消'),
+              child: Text('取消'),
             ),
             FilledButton(
               onPressed: () =>
                   Navigator.of(dialogContext).pop(controller.text.trim()),
-              style: FilledButton.styleFrom(backgroundColor: _brand),
-              child: const Text('保存'),
+              style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary),
+              child: Text('保存'),
             ),
           ],
         );
@@ -409,17 +408,17 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       // Keep the map preview and the persistent save action fixed while a
       // route-place field is being edited. The input list can still scroll,
       // but the keyboard must not resize the whole page.
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           '规划路线',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         surfaceTintColor: Colors.transparent,
       ),
       body: SafeArea(
@@ -471,10 +470,10 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
                                     12,
                                   ),
                                   children: [
-                                    const Text(
+                                    Text(
                                       '按顺序安排今晚的酒吧行程',
                                       style: TextStyle(
-                                        color: _muted,
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                                         fontSize: 13,
                                       ),
                                     ),
@@ -499,10 +498,10 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
                                             'route-$index-${_routeItems[index]?.name ?? 'empty'}',
                                           ),
                                           dotColor: isStart
-                                              ? const Color(0xFFD95151)
+                                              ? Theme.of(context).colorScheme.error
                                               : isEnd
-                                              ? const Color(0xFF39A568)
-                                              : const Color(0xFFB8AEB4),
+                                              ? context.siponColors.success
+                                              : Theme.of(context).colorScheme.outlineVariant,
                                           bar: _routeItems[index],
                                           placeholder: isStart || isEnd
                                               ? '请输入起终点'
@@ -544,13 +543,13 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
                                               _showRemoveActions = true;
                                               _stops.add(null);
                                             }),
-                                      icon: const Icon(
+                                      icon: Icon(
                                         Icons.add_rounded,
                                         size: 18,
                                       ),
-                                      label: const Text('添加途径酒吧'),
+                                      label: Text('添加途径酒吧'),
                                       style: TextButton.styleFrom(
-                                        foregroundColor: _brand,
+                                        foregroundColor: Theme.of(context).colorScheme.primary,
                                         alignment: Alignment.centerLeft,
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 4,
@@ -560,13 +559,13 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
                                   ),
                                   FilledButton.icon(
                                     onPressed: _planning ? null : _planRoute,
-                                    icon: const Icon(
+                                    icon: Icon(
                                       Icons.send_rounded,
                                       size: 18,
                                     ),
                                     label: Text(_planning ? '规划中…' : '出发'),
                                     style: FilledButton.styleFrom(
-                                      backgroundColor: _brand,
+                                      backgroundColor: Theme.of(context).colorScheme.primary,
                                       minimumSize: const Size(0, 40),
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 14,
@@ -588,12 +587,12 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                         child: Align(
                           alignment: Alignment.centerLeft,
-                          child: const Text(
+                          child: Text(
                             '路线预览',
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w800,
-                              color: _ink,
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
                         ),
@@ -617,8 +616,8 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
             ),
             Container(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-              decoration: const BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
                 border: Border(top: BorderSide(color: Color(0xFFEDE5E9))),
               ),
               child: Column(
@@ -630,8 +629,8 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
                       child: Text(
                         '先点击「出发」规划路线，才能保存为我的路线',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Color(0xFF8F8790),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                           letterSpacing: 0,
@@ -640,12 +639,12 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
                     ),
                   FilledButton.icon(
                     onPressed: (!_planned || _saving) ? null : _saveRoute,
-                    icon: const Icon(Icons.alt_route_rounded),
+                    icon: Icon(Icons.alt_route_rounded),
                     label: Text(_saving ? '保存中…' : '保存为我的酒馆路线'),
                     style: FilledButton.styleFrom(
-                      backgroundColor: _brand,
+                      backgroundColor: Theme.of(context).colorScheme.primary,
                       minimumSize: const Size.fromHeight(48),
-                      disabledBackgroundColor: const Color(0xFFE6D3DF),
+                      disabledBackgroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -748,7 +747,7 @@ class _RoutePlaceTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tile = Material(
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 5, 6, 5),
@@ -875,12 +874,12 @@ class _InlineBarSearchFieldState extends State<_InlineBarSearchField> {
         offset: const Offset(0, 40),
         child: Material(
           elevation: 6,
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(7),
           clipBehavior: Clip.antiAlias,
           child: Container(
             decoration: BoxDecoration(
-              border: Border.all(color: const Color(0xFFE9DDE3)),
+              border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
               borderRadius: BorderRadius.circular(7),
             ),
             child: ListView.builder(
@@ -892,20 +891,20 @@ class _InlineBarSearchFieldState extends State<_InlineBarSearchField> {
                 return ListTile(
                   dense: true,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 10),
-                  leading: const Icon(
+                  leading: Icon(
                     Icons.local_bar_outlined,
                     size: 17,
-                    color: Color(0xFF9A3D78),
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                   title: Text(
                     bar.name,
-                    style: const TextStyle(fontSize: 13),
+                    style: TextStyle(fontSize: 13),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   subtitle: Text(
                     '${bar.address}  |  ${bar.distance}',
-                    style: const TextStyle(fontSize: 11),
+                    style: TextStyle(fontSize: 11),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -955,8 +954,8 @@ class _InlineBarSearchFieldState extends State<_InlineBarSearchField> {
               },
               decoration: InputDecoration(
                 hintText: widget.placeholder,
-                hintStyle: const TextStyle(
-                  color: Color(0xFFAAA1A8),
+                hintStyle: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 14,
                 ),
                 suffixIcon: Row(
@@ -968,7 +967,7 @@ class _InlineBarSearchFieldState extends State<_InlineBarSearchField> {
                           _controller.clear();
                           setState(() {});
                         },
-                        icon: const Icon(Icons.close_rounded, size: 17),
+                        icon: Icon(Icons.close_rounded, size: 17),
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints.tightFor(
                           width: 30,
@@ -979,7 +978,7 @@ class _InlineBarSearchFieldState extends State<_InlineBarSearchField> {
                     if (widget.onRemove != null)
                       IconButton(
                         onPressed: widget.onRemove,
-                        icon: const Icon(Icons.close_rounded, size: 17),
+                        icon: Icon(Icons.close_rounded, size: 17),
                         tooltip: '删除路线点',
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints.tightFor(
@@ -997,7 +996,7 @@ class _InlineBarSearchFieldState extends State<_InlineBarSearchField> {
                     if (widget.dragIndex != null)
                       ReorderableDelayedDragStartListener(
                         index: widget.dragIndex!,
-                        child: const IconButton(
+                        child: IconButton(
                           onPressed: null,
                           icon: Icon(
                             Icons.drag_handle_rounded,
@@ -1027,7 +1026,7 @@ class _InlineBarSearchFieldState extends State<_InlineBarSearchField> {
                   minHeight: 32,
                 ),
                 filled: true,
-                fillColor: const Color(0xFFF3F3F3),
+                fillColor: context.siponColors.subtleSurface,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(7),
                   borderSide: BorderSide.none,

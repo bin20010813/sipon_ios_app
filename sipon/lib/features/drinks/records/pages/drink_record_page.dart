@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../../../../app/theme/sipon_theme_colors.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../data/drink_budget_store.dart';
@@ -19,12 +20,6 @@ class DrinkRecordPage extends StatefulWidget {
   /// 当前未传入时，仅做本地校验与成功提示，不写接口。
   final ValueChanged<DrinkRecordDraft>? onSaved;
 
-  static const Color _brand = Color(0xFF9A3D78);
-  static const Color _ink = Color(0xFF252229);
-  static const Color _muted = Color(0xFF8F8790);
-  static const Color _line = Color(0xFFF0E7EE);
-  static const Color _fieldBg = Color(0xFFFBF8FA);
-  static const Color _chipBg = Color(0xFFFFF7FC);
 
   @override
   State<DrinkRecordPage> createState() => _DrinkRecordPageState();
@@ -69,7 +64,7 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
       context: context,
       useSafeArea: true,
       showDragHandle: true,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
@@ -173,7 +168,7 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
       context: context,
       useSafeArea: true,
       showDragHandle: true,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
@@ -193,13 +188,13 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: DrinkRecordPage._brand,
-              onPrimary: Colors.white,
+            colorScheme: ColorScheme.light(
+              primary: Theme.of(context).colorScheme.primary,
+              onPrimary: Theme.of(context).colorScheme.onPrimary,
             ),
             datePickerTheme: DatePickerThemeData(
-              todayBorder: const BorderSide(
-                color: DrinkRecordPage._brand,
+              todayBorder: BorderSide(
+                color: Theme.of(context).colorScheme.primary,
                 width: 1.5,
               ),
             ),
@@ -318,12 +313,9 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
-    const ink = DrinkRecordPage._ink;
-    const muted = DrinkRecordPage._muted;
-    const brand = DrinkRecordPage._brand;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: SafeArea(
         // bottom:false 让内容视口延伸到屏幕底，可滚过小白条区域；
         // 底部空间由 CustomScrollView 的 SliverPadding 预留。
@@ -350,8 +342,8 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
                             onPressed: () => Navigator.of(context).pop(),
                             style: IconButton.styleFrom(
                               fixedSize: const Size(42, 42),
-                              backgroundColor: const Color(0xFFF8F3F7),
-                              foregroundColor: ink,
+                              backgroundColor: context.siponColors.subtleSurface,
+                              foregroundColor: Theme.of(context).colorScheme.onSurface,
                             ),
                             icon: const Icon(Icons.arrow_back_rounded),
                           ),
@@ -359,8 +351,8 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
                           Expanded(
                             child: Text(
                               text.t('记一笔'),
-                              style: const TextStyle(
-                                color: ink,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.onSurface,
                                 fontSize: 22,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 0,
@@ -372,8 +364,8 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
                       const SizedBox(height: 24),
                       Text(
                         text.t('把这杯变成贴纸'),
-                        style: const TextStyle(
-                          color: ink,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 24,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0,
@@ -382,8 +374,8 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
                       const SizedBox(height: 8),
                       Text(
                         text.t('记录饮品、地点和花费，让本月月历慢慢长出你的微醺收藏。'),
-                        style: const TextStyle(
-                          color: muted,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 14,
                           height: 1.45,
                           fontWeight: FontWeight.w600,
@@ -453,8 +445,8 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
                         label: Text(text.t('保存贴纸')),
                         style: FilledButton.styleFrom(
                           minimumSize: const Size.fromHeight(48),
-                          backgroundColor: brand,
-                          foregroundColor: Colors.white,
+                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          foregroundColor: Theme.of(context).colorScheme.onPrimary,
                           textStyle: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w900,
@@ -546,23 +538,23 @@ class _StickerComposer extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF8FC),
+        color: context.siponColors.brandSurface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFF0E7EE)),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Row(
         children: [
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 240),
             child: isGenerating
-                ? const SizedBox(
-                    key: ValueKey('processing'),
+                ? SizedBox(
+                    key: const ValueKey('processing'),
                     width: 86,
                     height: 86,
                     child: Center(
                       child: CircularProgressIndicator(
                         strokeWidth: 3,
-                        color: DrinkRecordPage._brand,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                   )
@@ -581,8 +573,8 @@ class _StickerComposer extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: DrinkRecordPage._ink,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 16,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 0,
@@ -591,8 +583,8 @@ class _StickerComposer extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   description,
-                  style: const TextStyle(
-                    color: DrinkRecordPage._muted,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontSize: 12,
                     height: 1.4,
                     fontWeight: FontWeight.w600,
@@ -610,10 +602,10 @@ class _StickerComposer extends StatelessWidget {
                   ),
                   label: Text(text.t(hasPhoto ? '更换照片' : '添加照片')),
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFEDF7),
-                    foregroundColor: DrinkRecordPage._brand,
-                    disabledBackgroundColor: const Color(0xFFF1E8ED),
-                    disabledForegroundColor: DrinkRecordPage._muted,
+                    backgroundColor: context.siponColors.brandSurface,
+                    foregroundColor: Theme.of(context).colorScheme.primary,
+                    disabledBackgroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.12),
+                    disabledForegroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     minimumSize: const Size(0, 34),
                     padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -651,11 +643,11 @@ class _PhotoActionTile extends StatelessWidget {
     return ListTile(
       onTap: onTap,
       contentPadding: EdgeInsets.zero,
-      leading: Icon(icon, color: DrinkRecordPage._brand),
+      leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
       title: Text(
         label,
-        style: const TextStyle(
-          color: DrinkRecordPage._ink,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurface,
           fontSize: 15,
           fontWeight: FontWeight.w800,
           letterSpacing: 0,
@@ -684,18 +676,18 @@ class _TextInputTile extends StatelessWidget {
       height: 54,
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
-        color: DrinkRecordPage._fieldBg,
+        color: context.siponColors.subtleSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: DrinkRecordPage._line),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Row(
         children: [
-          Icon(icon, color: DrinkRecordPage._brand, size: 21),
+          Icon(icon, color: Theme.of(context).colorScheme.primary, size: 21),
           const SizedBox(width: 10),
           Text(
             label,
-            style: const TextStyle(
-              color: DrinkRecordPage._ink,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 14,
               fontWeight: FontWeight.w800,
               letterSpacing: 0,
@@ -706,16 +698,16 @@ class _TextInputTile extends StatelessWidget {
             child: TextField(
               controller: controller,
               textAlign: TextAlign.end,
-              style: const TextStyle(
-                color: DrinkRecordPage._ink,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,
               ),
               decoration: InputDecoration(
                 hintText: hintText,
-                hintStyle: const TextStyle(
-                  color: DrinkRecordPage._muted,
+                hintStyle: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -740,8 +732,8 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       label,
-      style: const TextStyle(
-        color: DrinkRecordPage._ink,
+      style: TextStyle(
+        color: Theme.of(context).colorScheme.onSurface,
         fontSize: 16,
         fontWeight: FontWeight.w900,
         letterSpacing: 0,
@@ -792,7 +784,7 @@ class _DrinkChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? DrinkRecordPage._brand : DrinkRecordPage._chipBg,
+      color: selected ? Theme.of(context).colorScheme.primary : context.siponColors.brandSurface,
       borderRadius: BorderRadius.circular(15),
       child: InkWell(
         onTap: onTap,
@@ -804,7 +796,7 @@ class _DrinkChip extends StatelessWidget {
             borderRadius: BorderRadius.circular(15),
             border: Border.all(
               color: selected
-                  ? DrinkRecordPage._brand
+                  ? Theme.of(context).colorScheme.primary
                   : const Color(0x229A3D78),
             ),
           ),
@@ -814,7 +806,7 @@ class _DrinkChip extends StatelessWidget {
               Icon(
                 icon,
                 size: 17,
-                color: selected ? Colors.white : DrinkRecordPage._brand,
+                color: selected ? Colors.white : Theme.of(context).colorScheme.primary,
               ),
               const SizedBox(width: 6),
               Text(
@@ -854,7 +846,7 @@ class _FieldTile extends StatelessWidget {
     final hasValue = value != null && value!.isNotEmpty;
 
     return Material(
-      color: DrinkRecordPage._fieldBg,
+      color: context.siponColors.subtleSurface,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -864,17 +856,17 @@ class _FieldTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: DrinkRecordPage._line),
+            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
           ),
           child: Row(
             children: [
-              Icon(icon, color: DrinkRecordPage._brand, size: 21),
+              Icon(icon, color: Theme.of(context).colorScheme.primary, size: 21),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   label,
-                  style: const TextStyle(
-                    color: DrinkRecordPage._ink,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0,
@@ -886,8 +878,8 @@ class _FieldTile extends StatelessWidget {
                 hasValue ? value! : (placeholder ?? ''),
                 style: TextStyle(
                   color: hasValue
-                      ? DrinkRecordPage._ink
-                      : DrinkRecordPage._muted,
+                      ? Theme.of(context).colorScheme.onSurface
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0,
@@ -920,32 +912,32 @@ class _AmountTile extends StatelessWidget {
       height: 54,
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
-        color: DrinkRecordPage._fieldBg,
+        color: context.siponColors.subtleSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: DrinkRecordPage._line),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.payments_outlined,
-            color: DrinkRecordPage._brand,
+            color: Theme.of(context).colorScheme.primary,
             size: 21,
           ),
           const SizedBox(width: 10),
           Text(
             text.t('花费'),
-            style: const TextStyle(
-              color: DrinkRecordPage._ink,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 14,
               fontWeight: FontWeight.w800,
               letterSpacing: 0,
             ),
           ),
           const Spacer(),
-          const Text(
+          Text(
             '¥',
             style: TextStyle(
-              color: DrinkRecordPage._brand,
+              color: Theme.of(context).colorScheme.primary,
               fontSize: 18,
               fontWeight: FontWeight.w900,
               letterSpacing: 0,
@@ -959,16 +951,16 @@ class _AmountTile extends StatelessWidget {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              style: const TextStyle(
-                color: DrinkRecordPage._ink,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 15,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,
               ),
               decoration: InputDecoration(
                 hintText: '0.00',
-                hintStyle: const TextStyle(
-                  color: DrinkRecordPage._muted,
+                hintStyle: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w700,
                 ),
                 border: InputBorder.none,
@@ -997,22 +989,22 @@ class _CupsTile extends StatelessWidget {
       height: 54,
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
-        color: DrinkRecordPage._fieldBg,
+        color: context.siponColors.subtleSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: DrinkRecordPage._line),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.timer_outlined,
-            color: DrinkRecordPage._brand,
+            color: Theme.of(context).colorScheme.primary,
             size: 21,
           ),
           const SizedBox(width: 10),
           Text(
             text.t('杯数'),
-            style: const TextStyle(
-              color: DrinkRecordPage._ink,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 14,
               fontWeight: FontWeight.w800,
               letterSpacing: 0,
@@ -1048,8 +1040,8 @@ class _Stepper extends StatelessWidget {
           child: Text(
             '$value',
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: DrinkRecordPage._ink,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 16,
               fontWeight: FontWeight.w900,
               letterSpacing: 0,
@@ -1063,8 +1055,8 @@ class _Stepper extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           text.t('杯'),
-          style: const TextStyle(
-            color: DrinkRecordPage._muted,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             fontSize: 12,
             fontWeight: FontWeight.w700,
             letterSpacing: 0,
@@ -1086,7 +1078,7 @@ class _StepperButton extends StatelessWidget {
     final enabled = onPressed != null;
 
     return Material(
-      color: enabled ? DrinkRecordPage._brand : const Color(0xFFE6DDE3),
+      color: enabled ? Theme.of(context).colorScheme.primary : Color(0xFFE6DDE3),
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onPressed,
@@ -1119,22 +1111,22 @@ class _RatingTile extends StatelessWidget {
       height: 54,
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
-        color: DrinkRecordPage._fieldBg,
+        color: context.siponColors.subtleSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: DrinkRecordPage._line),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.star_outline_rounded,
-            color: DrinkRecordPage._brand,
+            color: Theme.of(context).colorScheme.primary,
             size: 21,
           ),
           const SizedBox(width: 10),
           Text(
             text.t('评分'),
-            style: const TextStyle(
-              color: DrinkRecordPage._ink,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 14,
               fontWeight: FontWeight.w800,
               letterSpacing: 0,
@@ -1180,25 +1172,25 @@ class _NoteTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
-        color: DrinkRecordPage._fieldBg,
+        color: context.siponColors.subtleSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: DrinkRecordPage._line),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.edit_note_rounded,
-                color: DrinkRecordPage._brand,
+                color: Theme.of(context).colorScheme.primary,
                 size: 21,
               ),
               const SizedBox(width: 10),
               Text(
                 text.t('备注'),
-                style: const TextStyle(
-                  color: DrinkRecordPage._ink,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0,
@@ -1211,8 +1203,8 @@ class _NoteTile extends StatelessWidget {
             controller: controller,
             maxLines: 3,
             minLines: 1,
-            style: const TextStyle(
-              color: DrinkRecordPage._ink,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 13,
               height: 1.4,
               fontWeight: FontWeight.w600,
@@ -1220,8 +1212,8 @@ class _NoteTile extends StatelessWidget {
             ),
             decoration: InputDecoration(
               hintText: text.t('添加备注'),
-              hintStyle: const TextStyle(
-                color: DrinkRecordPage._muted,
+              hintStyle: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w600,
               ),
               border: InputBorder.none,
@@ -1310,14 +1302,14 @@ class _PlacePickerSheetState extends State<_PlacePickerSheet> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: Colors.white,
+          backgroundColor: Theme.of(context).colorScheme.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
           title: Text(
             text.t('其他地点'),
-            style: const TextStyle(
-              color: DrinkRecordPage._ink,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 18,
               fontWeight: FontWeight.w900,
               letterSpacing: 0,
@@ -1328,12 +1320,12 @@ class _PlacePickerSheetState extends State<_PlacePickerSheet> {
             autofocus: true,
             decoration: InputDecoration(
               hintText: text.t('输入自定义地点'),
-              hintStyle: const TextStyle(
-                color: DrinkRecordPage._muted,
+              hintStyle: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w600,
               ),
               filled: true,
-              fillColor: DrinkRecordPage._fieldBg,
+              fillColor: context.siponColors.subtleSurface,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
@@ -1349,7 +1341,7 @@ class _PlacePickerSheetState extends State<_PlacePickerSheet> {
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
               style: TextButton.styleFrom(
-                foregroundColor: DrinkRecordPage._muted,
+                foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
               child: Text(text.t('取消')),
             ),
@@ -1357,8 +1349,8 @@ class _PlacePickerSheetState extends State<_PlacePickerSheet> {
               onPressed: () =>
                   Navigator.of(dialogContext).pop(customController.text.trim()),
               style: FilledButton.styleFrom(
-                backgroundColor: DrinkRecordPage._brand,
-                foregroundColor: Colors.white,
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Theme.of(context).colorScheme.onPrimary,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -1393,8 +1385,8 @@ class _PlacePickerSheetState extends State<_PlacePickerSheet> {
           children: [
             Text(
               text.t('选择地点'),
-              style: const TextStyle(
-                color: DrinkRecordPage._ink,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 20,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 0,
@@ -1405,15 +1397,15 @@ class _PlacePickerSheetState extends State<_PlacePickerSheet> {
               height: 44,
               padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
-                color: DrinkRecordPage._fieldBg,
+                color: context.siponColors.subtleSurface,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: DrinkRecordPage._line),
+                border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
               ),
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.search,
-                    color: DrinkRecordPage._muted,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     size: 20,
                   ),
                   const SizedBox(width: 8),
@@ -1421,15 +1413,15 @@ class _PlacePickerSheetState extends State<_PlacePickerSheet> {
                     child: TextField(
                       controller: _searchController,
                       onChanged: (_) => setState(() {}),
-                      style: const TextStyle(
-                        color: DrinkRecordPage._ink,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
                       decoration: InputDecoration(
                         hintText: text.t('搜索酒吧'),
-                        hintStyle: const TextStyle(
-                          color: DrinkRecordPage._muted,
+                        hintStyle: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontWeight: FontWeight.w600,
                         ),
                         border: InputBorder.none,
@@ -1443,12 +1435,12 @@ class _PlacePickerSheetState extends State<_PlacePickerSheet> {
             ),
             const SizedBox(height: 12),
             if (_loading)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 28),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 28),
                 child: Center(
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: DrinkRecordPage._brand,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
               )
@@ -1467,9 +1459,9 @@ class _PlacePickerSheetState extends State<_PlacePickerSheet> {
                     _PlaceTile(
                       place: text.t('其他地点'),
                       selected: false,
-                      trailing: const Icon(
+                      trailing: Icon(
                         Icons.add_rounded,
-                        color: DrinkRecordPage._brand,
+                        color: Theme.of(context).colorScheme.primary,
                         size: 20,
                       ),
                       onTap: _pickCustomPlace,
@@ -1516,7 +1508,7 @@ class _PlaceTile extends StatelessWidget {
             children: [
               Icon(
                 Icons.local_bar_outlined,
-                color: DrinkRecordPage._brand,
+                color: Theme.of(context).colorScheme.primary,
                 size: 20,
               ),
               const SizedBox(width: 12),
@@ -1525,8 +1517,8 @@ class _PlaceTile extends StatelessWidget {
                   place,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: DrinkRecordPage._ink,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0,
@@ -1536,9 +1528,9 @@ class _PlaceTile extends StatelessWidget {
               if (trailing != null)
                 trailing!
               else if (selected)
-                const Icon(
+                Icon(
                   Icons.check_circle_rounded,
-                  color: DrinkRecordPage._brand,
+                  color: Theme.of(context).colorScheme.primary,
                   size: 20,
                 ),
             ],

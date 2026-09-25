@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../app/theme/sipon_theme_colors.dart';
 
 import '../data/drink_budget_store.dart';
 import '../widgets/drink_sticker.dart';
@@ -15,10 +16,6 @@ class DrinkStickerCalendarPage extends StatefulWidget {
 }
 
 class _DrinkStickerCalendarPageState extends State<DrinkStickerCalendarPage> {
-  static const Color _brand = Color(0xFF9A3D78);
-  static const Color _ink = Color(0xFF252229);
-  static const Color _muted = Color(0xFF8F8790);
-  static const Color _line = Color(0xFFF0E7EE);
 
   final DrinkBudgetStore _store = DrinkBudgetStore.instance;
   late DateTime _month;
@@ -79,7 +76,7 @@ class _DrinkStickerCalendarPageState extends State<DrinkStickerCalendarPage> {
       context: context,
       useSafeArea: true,
       showDragHandle: true,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
@@ -92,8 +89,8 @@ class _DrinkStickerCalendarPageState extends State<DrinkStickerCalendarPage> {
             children: [
               Text(
                 text.isZh ? '${_month.month}月$day日' : '${_month.month}/$day',
-                style: const TextStyle(
-                  color: _ink,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 21,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 0,
@@ -115,8 +112,8 @@ class _DrinkStickerCalendarPageState extends State<DrinkStickerCalendarPage> {
                               drinkStickerTitle(record),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: _ink,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.onSurface,
                                 fontSize: 15,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 0,
@@ -127,8 +124,8 @@ class _DrinkStickerCalendarPageState extends State<DrinkStickerCalendarPage> {
                               '${text.t(record.place)} · ¥${record.amount.toStringAsFixed(0)}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: _muted,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 0,
@@ -164,7 +161,7 @@ class _DrinkStickerCalendarPageState extends State<DrinkStickerCalendarPage> {
     final cells = firstWeekday - 1 + daysInMonth;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: SafeArea(
         // bottom:false 让内容视口延伸到屏幕底，可滚过小白条区域；
         // 底部空间由 CustomScrollView 的 SliverPadding 预留。
@@ -211,8 +208,8 @@ class _DrinkStickerCalendarPageState extends State<DrinkStickerCalendarPage> {
                             child: Text(
                               _monthTitle(text),
                               textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: _ink,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.onSurface,
                                 fontSize: 20,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 0,
@@ -252,8 +249,8 @@ class _DrinkStickerCalendarPageState extends State<DrinkStickerCalendarPage> {
                               child: Center(
                                 child: Text(
                                   text.t(label),
-                                  style: const TextStyle(
-                                    color: _muted,
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                                     fontSize: 12,
                                     fontWeight: FontWeight.w900,
                                     letterSpacing: 0,
@@ -296,8 +293,8 @@ class _DrinkStickerCalendarPageState extends State<DrinkStickerCalendarPage> {
                           onPressed: widget.onRecordPressed,
                           style: FilledButton.styleFrom(
                             minimumSize: const Size.fromHeight(54),
-                            backgroundColor: _brand,
-                            foregroundColor: Colors.white,
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            foregroundColor: Theme.of(context).colorScheme.onPrimary,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
                             ),
@@ -342,9 +339,9 @@ class _MonthSummary extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF8FC),
+        color: context.siponColors.brandSurface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _DrinkStickerCalendarPageState._line),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Row(
         children: [
@@ -374,8 +371,8 @@ class _SummaryMetric extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(
-              color: _DrinkStickerCalendarPageState._muted,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 0,
@@ -387,8 +384,8 @@ class _SummaryMetric extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: Text(
               value,
-              style: const TextStyle(
-                color: _DrinkStickerCalendarPageState._brand,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
                 fontSize: 20,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 0,
@@ -421,13 +418,13 @@ class _CalendarDayCell extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(4, 4, 4, 5),
           decoration: BoxDecoration(
             color: records.isEmpty
-                ? const Color(0xFFFCFAFB)
-                : const Color(0xFFFFF7FC),
+                ? context.siponColors.subtleSurface
+                : context.siponColors.brandSurface,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: records.isEmpty
-                  ? const Color(0xFFF5EFF3)
-                  : const Color(0xFFEED9E7),
+                  ? Theme.of(context).colorScheme.outlineVariant
+                  : Theme.of(context).colorScheme.outlineVariant,
             ),
           ),
           child: Column(
@@ -461,13 +458,13 @@ class _CalendarDayCell extends StatelessWidget {
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: _DrinkStickerCalendarPageState._brand,
+                                  color: Theme.of(context).colorScheme.primary,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
                                   '+${records.length - 3}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.onPrimary,
                                     fontSize: 9,
                                     fontWeight: FontWeight.w900,
                                     letterSpacing: 0,

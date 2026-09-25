@@ -15,6 +15,7 @@ import '../models/virtual_drinking_models.dart';
 import '../widgets/virtual_drinking_canvas.dart';
 import '../widgets/virtual_three_glass.dart';
 import '../../../../shared/localization/language_transform.dart';
+import 'package:sipon/app/theme/sipon_theme_colors.dart';
 
 /// 虚拟饮品体验。杯量与互动次数仅存在本机，不写入真实饮酒记录。
 class VirtualDrinkingPage extends StatefulWidget {
@@ -384,26 +385,28 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
+    
     if (_loading || _error != null) {
       return Scaffold(
-        backgroundColor: const Color(0xFF1B2430),
+        backgroundColor: scheme.surface,
         body: SafeArea(
           child: Center(
             child: _loading
-                ? const CircularProgressIndicator(color: Color(0xFFE6D2A2))
+                ? CircularProgressIndicator(color: scheme.primary)
                 : Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.cloud_off_rounded,
-                        color: Colors.white70,
+                        color: scheme.onSurfaceVariant,
                         size: 42,
                       ),
                       const SizedBox(height: 12),
                       Text(
                         text.t(_error!),
                         textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white70),
+                        style: TextStyle(color: scheme.onSurfaceVariant),
                       ),
                       const SizedBox(height: 14),
                       FilledButton(onPressed: _load, child: Text(text.t('重试'))),
@@ -752,13 +755,15 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
 
   void _showDrinks() {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
     var query = '';
     var category = '';
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      backgroundColor: const Color(0xFFF8F5F2),
+      backgroundColor: siponColors.elevatedSurface,
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, update) {
           final drinks = _catalog!.drinks
@@ -786,7 +791,7 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
                       prefixIcon: const Icon(Icons.search),
                       hintText: text.t('搜索饮品'),
                       filled: true,
-                      fillColor: Colors.white,
+                      fillColor: scheme.surface,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                         borderSide: BorderSide.none,
@@ -826,20 +831,21 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
                             final drink = drinks[index];
                             return ListTile(
                               leading: CircleAvatar(
+                                // 内容固有色
                                 backgroundColor: drink.liquidColor.withValues(
                                   alpha: 0.35,
                                 ),
                                 child: Icon(
                                   Icons.local_bar_rounded,
-                                  color: drink.liquidColor,
+                                  color: drink.liquidColor, // 内容固有色
                                 ),
                               ),
                               title: Text(drink.name),
                               subtitle: Text(drink.subtitle),
                               trailing: drink.code == _drink?.code
-                                  ? const Icon(
+                                  ? Icon(
                                       Icons.check_circle,
-                                      color: Color(0xFF9A3D78),
+                                      color: scheme.primary,
                                     )
                                   : null,
                               onTap: () {
@@ -960,51 +966,56 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
     required List<_PickOption> options,
     required String selected,
     required ValueChanged<String> onPick,
-  }) => showModalBottomSheet<void>(
-    context: context,
-    useSafeArea: true,
-    backgroundColor: const Color(0xFFF8F5F2),
-    builder: (sheetContext) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _sheetTitle(title),
-          Flexible(
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: options.length,
-              itemBuilder: (context, index) {
-                final option = options[index];
-                return ListTile(
-                  leading: Icon(option.icon, color: const Color(0xFF8B627B)),
-                  title: Text(option.title),
-                  subtitle: option.subtitle.isEmpty
-                      ? null
-                      : Text(option.subtitle),
-                  trailing: option.code == selected
-                      ? const Icon(Icons.check_circle, color: Color(0xFF9A3D78))
-                      : null,
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    onPick(option.code);
-                  },
-                );
-              },
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
+    return showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: siponColors.elevatedSurface,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _sheetTitle(title),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: options.length,
+                itemBuilder: (context, index) {
+                  final option = options[index];
+                  return ListTile(
+                    leading: Icon(option.icon, color: scheme.primary),
+                    title: Text(option.title),
+                    subtitle: option.subtitle.isEmpty
+                        ? null
+                        : Text(option.subtitle),
+                    trailing: option.code == selected
+                        ? Icon(Icons.check_circle, color: scheme.primary)
+                        : null,
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      onPick(option.code);
+                    },
+                  );
+                },
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-        ],
+            const SizedBox(height: 10),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 
   void _showSound() {
     final text = SiponLanguageScope.textOf(context);
+    final siponColors = context.siponColors;
     var current = _preference!;
     showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
-      backgroundColor: const Color(0xFFF8F5F2),
+      backgroundColor: siponColors.elevatedSurface,
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, update) => SafeArea(
           child: Column(
@@ -1058,6 +1069,8 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
 
   Future<void> _showKnowledge() async {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
     if (_detail == null && !_detailLoading) await _loadDetail(_drink!.code);
     if (!mounted) return;
     final drink = _detail ?? _drink!;
@@ -1085,7 +1098,7 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      backgroundColor: const Color(0xFFF8F5F2),
+      backgroundColor: siponColors.elevatedSurface,
       builder: (context) => FractionallySizedBox(
         heightFactor: 0.78,
         child: ListView(
@@ -1095,7 +1108,7 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
             if (drink.subtitle.isNotEmpty)
               Text(
                 drink.subtitle,
-                style: const TextStyle(color: Color(0xFF786C74)),
+                style: TextStyle(color: scheme.onSurfaceVariant),
               ),
             _knowledgeBlock(text.t('简介'), drink.description),
             if (ingredients.isNotEmpty) ...[
@@ -1174,6 +1187,7 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
 
   Widget _knowledgeBlock(String title, String content) {
     if (content.trim().isEmpty) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(top: 18),
       child: Column(
@@ -1186,10 +1200,10 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
           const SizedBox(height: 6),
           Text(
             content,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               height: 1.55,
-              color: Color(0xFF554C52),
+              color: scheme.onSurface,
             ),
           ),
         ],
