@@ -14,7 +14,7 @@ import '../models/venue_detail_models.dart';
 import '../../../shared/services/sipon_api_service.dart';
 import '../../../shared/widgets/bottom_clamping_bouncing_scroll_physics.dart';
 import '../../../shared/widgets/sipon_network_image.dart';
-import 'map_theme.dart';
+import '../../../app/theme/sipon_theme_colors.dart';
 import 'venue_common.dart';
 
 /// 判断详情数据里的图片路径是否是网络地址（相对路径也算，交给 VenueImage 拼接）。
@@ -316,7 +316,7 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
       context: context,
       useSafeArea: true,
       showDragHandle: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.siponColors.elevatedSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
@@ -370,11 +370,13 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
       context: context,
       useSafeArea: true,
       showDragHandle: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.siponColors.elevatedSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
-      builder: (context) => SafeArea(
+      builder: (context) {
+        final scheme = Theme.of(context).colorScheme;
+        return SafeArea(
         top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -384,8 +386,8 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
               child: Text(
                 text.t('选择地图软件'),
-                style: const TextStyle(
-                  color: MapDesign.ink,
+                style: TextStyle(
+                  color: scheme.onSurface,
                   fontSize: 17,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 0,
@@ -394,11 +396,11 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
             ),
             for (final app in apps)
               ListTile(
-                leading: Icon(_mapAppIcon(app), color: MapDesign.brand),
+                leading: Icon(_mapAppIcon(app), color: scheme.primary),
                 title: Text(
                   app.label,
-                  style: const TextStyle(
-                    color: MapDesign.ink,
+                  style: TextStyle(
+                    color: scheme.onSurface,
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0,
@@ -406,8 +408,8 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
                 ),
                 subtitle: Text(
                   text.t('以当前位置规划路线，可选择交通方式'),
-                  style: const TextStyle(
-                    color: MapDesign.muted,
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
                     fontSize: 12,
                     letterSpacing: 0,
                   ),
@@ -417,7 +419,8 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
             const SizedBox(height: 8),
           ],
         ),
-      ),
+      );
+      },
     );
     if (selected == null) {
       return;
@@ -612,6 +615,8 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
   @override
   Widget build(BuildContext context) {
     final hasGallery = _readyGallery.isNotEmpty;
+    final scheme = Theme.of(context).colorScheme;
+    final sipon = context.siponColors;
     return Stack(
       children: [
         CustomScrollView(
@@ -666,9 +671,9 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
               child: Opacity(
                 opacity: widget.opacity,
                 child: Material(
-                  color: Colors.white,
+                  color: scheme.surface,
                   elevation: 1,
-                  shadowColor: const Color(0x1F000000),
+                  shadowColor: sipon.shadow,
                   child: Padding(
                     padding: EdgeInsets.fromLTRB(
                       20,
@@ -692,16 +697,17 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
   /// 详情加载失败的错误态：给出错误文案与重试入口，断网时不至于白屏。
   Widget _buildLoadError(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(_pagePadding, 32, _pagePadding, 32),
       child: Column(
         children: [
-          const Icon(Icons.wifi_off_rounded, color: MapDesign.muted, size: 32),
+          Icon(Icons.wifi_off_rounded, color: scheme.onSurfaceVariant, size: 32),
           const SizedBox(height: 12),
           Text(
             text.t('详情加载失败'),
-            style: const TextStyle(
-              color: MapDesign.ink,
+            style: TextStyle(
+              color: scheme.onSurface,
               fontSize: 15,
               fontWeight: FontWeight.w800,
               letterSpacing: 0,
@@ -713,8 +719,8 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: MapDesign.muted,
+            style: TextStyle(
+              color: scheme.onSurfaceVariant,
               fontSize: 12,
               letterSpacing: 0,
             ),
@@ -728,8 +734,8 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
             icon: const Icon(Icons.refresh_rounded, size: 18),
             label: Text(text.t('重试')),
             style: OutlinedButton.styleFrom(
-              foregroundColor: MapDesign.brand,
-              side: const BorderSide(color: MapDesign.brand),
+              foregroundColor: scheme.primary,
+              side: BorderSide(color: scheme.primary),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
@@ -998,6 +1004,7 @@ class _VenueGalleryPreviewState extends State<_VenueGalleryPreview> {
   Widget build(BuildContext context) {
     final images = widget.images;
     return Scaffold(
+      // 内容固有色：图片全屏沉浸式底色，两种外观一致，不随主题反色。
       backgroundColor: Colors.black,
       body: SafeArea(
         child: Stack(
@@ -1029,6 +1036,7 @@ class _VenueGalleryPreviewState extends State<_VenueGalleryPreview> {
               child: IconButton.filled(
                 onPressed: () => Navigator.of(context).pop(),
                 icon: const Icon(Icons.close_rounded),
+                // 内容固有色：沉浸式深色照片上的关闭按钮，前白字+半透明黑底保证对比度。
                 color: Colors.white,
                 style: IconButton.styleFrom(backgroundColor: Colors.black54),
               ),
@@ -1066,12 +1074,14 @@ class _HeaderIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final sipon = context.siponColors;
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: const Color(0xFFF7F3F6),
+        color: sipon.subtleSurface,
         elevation: 3,
-        shadowColor: const Color(0x26000000),
+        shadowColor: sipon.shadow,
         shape: const CircleBorder(),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -1079,7 +1089,7 @@ class _HeaderIconButton extends StatelessWidget {
           child: SizedBox(
             width: 36,
             height: 36,
-            child: Icon(icon, color: MapDesign.ink, size: 20),
+            child: Icon(icon, color: scheme.onSurface, size: 20),
           ),
         ),
       ),
@@ -1100,12 +1110,14 @@ class _GalleryPageBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
+        // 内容固有色：沉浸式照片上的页码胶囊，半透明黑底+白字保证对比度。
         color: Colors.black.withValues(alpha: 0.42),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         '$current / $total',
         style: const TextStyle(
+          // 内容固有色：见上方页码胶囊注释。
           color: Colors.white,
           fontSize: 11,
           fontWeight: FontWeight.w700,
@@ -1136,13 +1148,14 @@ class _VenueDetailTabs extends StatelessWidget {
       child: Row(
         children: [
           for (var index = 0; index < labels.length; index++)
-            _buildTab(labels[index], index),
+            _buildTab(context, labels[index], index),
         ],
       ),
     );
   }
 
-  Widget _buildTab(String label, int index) {
+  Widget _buildTab(BuildContext context, String label, int index) {
+    final scheme = Theme.of(context).colorScheme;
     return Expanded(
       child: Material(
         color: Colors.transparent,
@@ -1158,8 +1171,8 @@ class _VenueDetailTabs extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: selectedIndex == index
-                        ? MapDesign.brand
-                        : MapDesign.muted,
+                        ? scheme.primary
+                        : scheme.onSurfaceVariant,
                     fontSize: 14,
                     fontWeight: selectedIndex == index
                         ? FontWeight.w900
@@ -1176,7 +1189,7 @@ class _VenueDetailTabs extends StatelessWidget {
                   duration: const Duration(milliseconds: 180),
                   height: 2,
                   color: selectedIndex == index
-                      ? MapDesign.brand
+                      ? scheme.primary
                       : Colors.transparent,
                 ),
               ),
@@ -1210,6 +1223,8 @@ class _VenueTitleBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
+    final sipon = context.siponColors;
     final reviewCount = detail?.reviewCount;
 
     return Column(
@@ -1223,8 +1238,8 @@ class _VenueTitleBlock extends StatelessWidget {
                 text.t(venue.name),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: MapDesign.ink,
+                style: TextStyle(
+                  color: scheme.onSurface,
                   fontSize: 24,
                   height: 1.2,
                   fontWeight: FontWeight.w400,
@@ -1247,8 +1262,8 @@ class _VenueTitleBlock extends StatelessWidget {
             const SizedBox(width: 3),
             Text(
               venue.rating.toStringAsFixed(1),
-              style: const TextStyle(
-                color: MapDesign.ink,
+              style: TextStyle(
+                color: scheme.onSurface,
                 fontSize: 14,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 0,
@@ -1258,8 +1273,8 @@ class _VenueTitleBlock extends StatelessWidget {
               const SizedBox(width: 3),
               Text(
                 '($reviewCount)',
-                style: const TextStyle(
-                  color: MapDesign.muted,
+                style: TextStyle(
+                  color: scheme.onSurfaceVariant,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0,
@@ -1269,22 +1284,22 @@ class _VenueTitleBlock extends StatelessWidget {
             const SizedBox(width: 8),
             Text(
               '·',
-              style: const TextStyle(
-                color: MapDesign.muted,
+              style: TextStyle(
+                color: scheme.onSurfaceVariant,
                 fontSize: 13,
                 fontWeight: FontWeight.w900,
               ),
             ),
             const SizedBox(width: 8),
-            Icon(Icons.location_on_outlined, color: MapDesign.muted, size: 15),
+            Icon(Icons.location_on_outlined, color: scheme.onSurfaceVariant, size: 15),
             const SizedBox(width: 3),
             Flexible(
               child: Text(
                 text.t(venue.distance),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: MapDesign.muted,
+                style: TextStyle(
+                  color: scheme.onSurfaceVariant,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0,
@@ -1295,8 +1310,8 @@ class _VenueTitleBlock extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 '·',
-                style: const TextStyle(
-                  color: MapDesign.muted,
+                style: TextStyle(
+                  color: scheme.onSurfaceVariant,
                   fontSize: 13,
                   fontWeight: FontWeight.w900,
                 ),
@@ -1306,10 +1321,10 @@ class _VenueTitleBlock extends StatelessWidget {
                 child: Text(
                   '${text.t('人均')} ${detail!.priceLevel}',
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: MapDesign.muted,
-                    fontSize: 12,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
+                      fontSize: 12,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0,
                   ),
@@ -1334,13 +1349,13 @@ class _VenueTitleBlock extends StatelessWidget {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: MapDesign.brandSurface,
+                      color: sipon.brandSurface,
                       borderRadius: BorderRadius.circular(7),
                     ),
                     child: Text(
                       text.t(venue.kind.label),
-                      style: const TextStyle(
-                        color: MapDesign.brand,
+                      style: TextStyle(
+                        color: scheme.primary,
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0,
@@ -1421,10 +1436,12 @@ class _ActionCircleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final sipon = context.siponColors;
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: selected ? MapDesign.brandSurface : const Color(0xFFF7F3F6),
+        color: selected ? sipon.brandSurface : sipon.subtleSurface,
         shape: const CircleBorder(),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -1433,7 +1450,7 @@ class _ActionCircleButton extends StatelessWidget {
             dimension: 40,
             child: Icon(
               icon,
-              color: selected ? MapDesign.brand : MapDesign.ink,
+              color: selected ? scheme.primary : scheme.onSurface,
               size: 19,
             ),
           ),
@@ -1465,6 +1482,8 @@ class _VenueInfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final data = detail;
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
+    final sipon = context.siponColors;
 
     if (data == null) {
       return const _PlaceholderBlock(width: double.infinity, height: 148);
@@ -1472,7 +1491,7 @@ class _VenueInfoCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF9F5F8),
+        color: sipon.subtleSurface,
         borderRadius: BorderRadius.circular(16),
       ),
       clipBehavior: Clip.antiAlias,
@@ -1480,11 +1499,11 @@ class _VenueInfoCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _OpenStatusRow(detail: data, onContribute: onContribute),
-          const Divider(
+          Divider(
             height: 1,
             thickness: 1,
             indent: 62,
-            color: MapDesign.hairline,
+            color: scheme.outlineVariant,
           ),
           _InfoTile(
             icon: Icons.location_on_outlined,
@@ -1494,11 +1513,11 @@ class _VenueInfoCard extends StatelessWidget {
             titleMaxLines: null,
             onTap: onOpenMap,
           ),
-          const Divider(
+          Divider(
             height: 1,
             thickness: 1,
             indent: 62,
-            color: MapDesign.hairline,
+            color: scheme.outlineVariant,
           ),
           _InfoTile(
             icon: Icons.phone_outlined,
@@ -1525,8 +1544,10 @@ class _OpenStatusRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
+    final sipon = context.siponColors;
 
-    final statusColor = detail.openNow ? MapDesign.success : MapDesign.alert;
+    final statusColor = detail.openNow ? sipon.success : scheme.error;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 15, 10, 15),
@@ -1551,10 +1572,10 @@ class _OpenStatusRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          const Text(
+          Text(
             '·',
             style: TextStyle(
-              color: MapDesign.muted,
+              color: scheme.onSurfaceVariant,
               fontSize: 13,
               fontWeight: FontWeight.w700,
             ),
@@ -1565,8 +1586,8 @@ class _OpenStatusRow extends StatelessWidget {
               '${text.t(detail.todayKey)} ${detail.todayHoursLabel}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: MapDesign.muted,
+              style: TextStyle(
+                color: scheme.onSurfaceVariant,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0,
@@ -1591,10 +1612,13 @@ class _ContributePillButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     // edit_note 传达「帮忙修订/补全信息」，比加号更贴共建语义。
     return Material(
-      color: Colors.white,
-      shape: const StadiumBorder(side: BorderSide(color: Color(0x2E9A3D78))),
+      color: scheme.surface,
+      shape: StadiumBorder(
+        side: BorderSide(color: scheme.primary.withValues(alpha: 0.18)),
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
@@ -1603,16 +1627,16 @@ class _ContributePillButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
+              Icon(
                 Icons.edit_note_rounded,
-                color: MapDesign.brand,
+                color: scheme.primary,
                 size: 17,
               ),
               const SizedBox(width: 2),
               Text(
                 label,
-                style: const TextStyle(
-                  color: MapDesign.brand,
+                style: TextStyle(
+                  color: scheme.primary,
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0,
@@ -1647,6 +1671,8 @@ class _InfoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final sipon = context.siponColors;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -1657,10 +1683,10 @@ class _InfoTile extends StatelessWidget {
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: sipon.subtleSurface,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: MapDesign.brand, size: 18),
+              child: Icon(icon, color: scheme.primary, size: 18),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -1673,8 +1699,8 @@ class _InfoTile extends StatelessWidget {
                     overflow: titleMaxLines == null
                         ? TextOverflow.visible
                         : TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: MapDesign.ink,
+                    style: TextStyle(
+                      color: scheme.onSurface,
                       fontSize: 13.5,
                       height: 1.35,
                       fontWeight: FontWeight.w400,
@@ -1684,8 +1710,8 @@ class _InfoTile extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: const TextStyle(
-                      color: MapDesign.muted,
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
                       fontSize: 11.5,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0,
@@ -1701,8 +1727,8 @@ class _InfoTile extends StatelessWidget {
                 if (trailingLabel case final label?) ...[
                   Text(
                     label,
-                    style: const TextStyle(
-                      color: MapDesign.brand,
+                    style: TextStyle(
+                      color: scheme.primary,
                       fontSize: 11.5,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0,
@@ -1710,9 +1736,9 @@ class _InfoTile extends StatelessWidget {
                   ),
                   const SizedBox(width: 2),
                 ],
-                const Icon(
+                Icon(
                   Icons.chevron_right_rounded,
-                  color: MapDesign.muted,
+                  color: scheme.onSurfaceVariant,
                   size: 20,
                 ),
               ],
@@ -1737,6 +1763,7 @@ class _VenueAbout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
     final paragraphs = detail?.description;
     final features = detail?.features ?? const <String>[];
 
@@ -1760,8 +1787,8 @@ class _VenueAbout extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(
               text.t(paragraph),
-              style: const TextStyle(
-                color: MapDesign.ink,
+              style: TextStyle(
+                color: scheme.onSurface,
                 fontSize: 13.5,
                 height: 1.65,
                 fontWeight: FontWeight.w500,
@@ -1794,22 +1821,23 @@ class _FeatureChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: MapDesign.hairline),
+        color: scheme.surface,
+        border: Border.all(color: scheme.outlineVariant),
         borderRadius: BorderRadius.circular(9),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.check_rounded, color: MapDesign.brand, size: 15),
+          Icon(Icons.check_rounded, color: scheme.primary, size: 15),
           const SizedBox(width: 2),
           Text(
             label,
-            style: const TextStyle(
-              color: MapDesign.ink,
+            style: TextStyle(
+              color: scheme.onSurface,
               fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 0,
@@ -1843,6 +1871,7 @@ class _VenueLatestUpdates extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1850,8 +1879,8 @@ class _VenueLatestUpdates extends StatelessWidget {
         Text(
           key: headingKey,
           text.t('最新动态'),
-          style: const TextStyle(
-            color: MapDesign.ink,
+          style: TextStyle(
+            color: scheme.onSurface,
             fontSize: 17,
             fontWeight: FontWeight.w900,
             letterSpacing: 0,
@@ -1874,16 +1903,16 @@ class _VenueLatestUpdates extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Padding(
-                    padding: EdgeInsets.only(top: 6),
-                    child: Icon(Icons.circle, color: MapDesign.brand, size: 7),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Icon(Icons.circle, color: scheme.primary, size: 7),
                   ),
                   const SizedBox(width: 9),
                   Expanded(
                     child: Text(
                       text.t(update),
-                      style: const TextStyle(
-                        color: MapDesign.ink,
+                      style: TextStyle(
+                        color: scheme.onSurface,
                         fontSize: 13.5,
                         height: 1.5,
                         fontWeight: FontWeight.w500,
@@ -1923,6 +1952,7 @@ class _VenueDrinks extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1930,8 +1960,8 @@ class _VenueDrinks extends StatelessWidget {
         Text(
           key: headingKey,
           text.t('菜单'),
-          style: const TextStyle(
-            color: MapDesign.ink,
+          style: TextStyle(
+            color: scheme.onSurface,
             fontSize: 17,
             fontWeight: FontWeight.w900,
             letterSpacing: 0,
@@ -1960,8 +1990,8 @@ class _VenueDrinks extends StatelessWidget {
                 return Container(
                   width: 186,
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: MapDesign.hairline),
+                    color: scheme.surface,
+                    border: Border.all(color: scheme.outlineVariant),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   clipBehavior: Clip.antiAlias,
@@ -1998,8 +2028,8 @@ class _VenueDrinks extends StatelessWidget {
                                       text.t(drink.name),
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: MapDesign.ink,
+                                      style: TextStyle(
+                                        color: scheme.onSurface,
                                         fontSize: 14,
                                         height: 1.25,
                                         fontWeight: FontWeight.w900,
@@ -2010,8 +2040,8 @@ class _VenueDrinks extends StatelessWidget {
                                   const SizedBox(width: 8),
                                   Text(
                                     drink.price,
-                                    style: const TextStyle(
-                                      color: MapDesign.brand,
+                                    style: TextStyle(
+                                      color: scheme.primary,
                                       fontSize: 16,
                                       fontWeight: FontWeight.w900,
                                       letterSpacing: 0,
@@ -2024,8 +2054,8 @@ class _VenueDrinks extends StatelessWidget {
                                 text.t(drink.description),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: MapDesign.muted,
+                                style: TextStyle(
+                                  color: scheme.onSurfaceVariant,
                                   fontSize: 11.5,
                                   height: 1.4,
                                   fontWeight: FontWeight.w600,
@@ -2134,6 +2164,8 @@ class _VenueReviewsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
+    final sipon = context.siponColors;
     final averageRating = reviews.isEmpty
         ? null
         : reviews.map((r) => r.rating).reduce((a, b) => a + b) / reviews.length;
@@ -2176,32 +2208,32 @@ class _VenueReviewsSection extends StatelessWidget {
         height: 34,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: const Color(0xFFF7F3F6),
-          border: Border.all(color: MapDesign.hairline),
+          color: sipon.subtleSurface,
+          border: Border.all(color: scheme.outlineVariant),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
+            Icon(
               Icons.filter_list_rounded,
-              color: MapDesign.brand,
+              color: scheme.primary,
               size: 16,
             ),
             const SizedBox(width: 5),
             Text(
               text.t('筛选'),
-              style: const TextStyle(
-                color: MapDesign.ink,
+              style: TextStyle(
+                color: scheme.onSurface,
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,
               ),
             ),
             const SizedBox(width: 3),
-            const Icon(
+            Icon(
               Icons.keyboard_arrow_down_rounded,
-              color: MapDesign.muted,
+              color: scheme.onSurfaceVariant,
               size: 17,
             ),
           ],
@@ -2218,8 +2250,8 @@ class _VenueReviewsSection extends StatelessWidget {
               child: Text(
                 key: headingKey,
                 text.t('评价'),
-                style: const TextStyle(
-                  color: MapDesign.ink,
+                style: TextStyle(
+                  color: scheme.onSurface,
                   fontSize: 17,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 0,
@@ -2233,15 +2265,15 @@ class _VenueReviewsSection extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: const Color(0xFFF9F5F8),
+              color: sipon.subtleSurface,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
               children: [
                 Text(
                   averageRating.toStringAsFixed(1),
-                  style: const TextStyle(
-                    color: MapDesign.brand,
+                  style: TextStyle(
+                    color: scheme.primary,
                     fontSize: 32,
                     height: 1,
                     fontWeight: FontWeight.w900,
@@ -2260,8 +2292,8 @@ class _VenueReviewsSection extends StatelessWidget {
                           Expanded(
                             child: Text(
                               '$totalCount ${text.t('条评价')}',
-                              style: const TextStyle(
-                                color: MapDesign.muted,
+                              style: TextStyle(
+                                color: scheme.onSurfaceVariant,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 0,
@@ -2285,8 +2317,8 @@ class _VenueReviewsSection extends StatelessWidget {
               icon: const Icon(Icons.add_comment_outlined, size: 18),
               label: Text(text.t('添加评论')),
               style: OutlinedButton.styleFrom(
-                foregroundColor: MapDesign.brand,
-                side: const BorderSide(color: MapDesign.brand),
+                foregroundColor: scheme.primary,
+                side: BorderSide(color: scheme.primary),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -2315,7 +2347,7 @@ class _VenueReviewsSection extends StatelessWidget {
               Container(
                 height: 1,
                 margin: const EdgeInsets.symmetric(vertical: 12),
-                color: MapDesign.hairline,
+                color: scheme.outlineVariant,
               ),
             _ReviewItem(
               review: visibleReviews[i],
@@ -2329,8 +2361,8 @@ class _VenueReviewsSection extends StatelessWidget {
               child: TextButton.icon(
                 onPressed: reviewsLoading ? null : onViewMore,
                 style: TextButton.styleFrom(
-                  foregroundColor: MapDesign.brand,
-                  disabledForegroundColor: MapDesign.brand,
+                  foregroundColor: scheme.primary,
+                  disabledForegroundColor: scheme.primary,
                   textStyle: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
@@ -2338,12 +2370,12 @@ class _VenueReviewsSection extends StatelessWidget {
                   ),
                 ),
                 icon: reviewsLoading
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 14,
                         height: 14,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: MapDesign.brand,
+                          color: scheme.primary,
                         ),
                       )
                     : const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
@@ -2394,6 +2426,7 @@ class _ReviewItemState extends State<_ReviewItem> {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
     final review = widget.review;
 
     return Column(
@@ -2409,8 +2442,8 @@ class _ReviewItemState extends State<_ReviewItem> {
                 children: [
                   Text(
                     review.nickname,
-                    style: const TextStyle(
-                      color: MapDesign.ink,
+                    style: TextStyle(
+                      color: scheme.onSurface,
                       fontSize: 13,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0,
@@ -2419,8 +2452,8 @@ class _ReviewItemState extends State<_ReviewItem> {
                   const SizedBox(height: 1),
                   Text(
                     _relativeReviewDate(review, text),
-                    style: const TextStyle(
-                      color: MapDesign.muted,
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0,
@@ -2431,8 +2464,8 @@ class _ReviewItemState extends State<_ReviewItem> {
             ),
             Text(
               review.rating.toStringAsFixed(1),
-              style: const TextStyle(
-                color: MapDesign.ink,
+              style: TextStyle(
+                color: scheme.onSurface,
                 fontSize: 13,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 0,
@@ -2445,8 +2478,8 @@ class _ReviewItemState extends State<_ReviewItem> {
         const SizedBox(height: 8),
         Text(
           text.t(review.content),
-          style: const TextStyle(
-            color: MapDesign.ink,
+          style: TextStyle(
+            color: scheme.onSurface,
             fontSize: 13,
             height: 1.55,
             fontWeight: FontWeight.w600,
@@ -2553,11 +2586,13 @@ class _ReviewItemState extends State<_ReviewItem> {
 
   /// 默认头像占位。
   Widget _defaultAvatar() {
+    final scheme = Theme.of(context).colorScheme;
+    final sipon = context.siponColors;
     return Container(
       width: 36,
       height: 36,
-      color: MapDesign.brandSurface,
-      child: const Icon(Icons.person_outline, color: MapDesign.brand, size: 20),
+      color: sipon.brandSurface,
+      child: Icon(Icons.person_outline, color: scheme.primary, size: 20),
     );
   }
 }
@@ -2579,6 +2614,7 @@ class _ReviewActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Tooltip(
       message: label,
       child: InkWell(
@@ -2592,14 +2628,14 @@ class _ReviewActionButton extends StatelessWidget {
               Icon(
                 icon,
                 size: 18,
-                color: selected ? MapDesign.brand : MapDesign.muted,
+                color: selected ? scheme.primary : scheme.onSurfaceVariant,
               ),
               if (count != null) ...[
                 const SizedBox(width: 3),
                 Text(
                   '$count',
                   style: TextStyle(
-                    color: selected ? MapDesign.brand : MapDesign.muted,
+                    color: selected ? scheme.primary : scheme.onSurfaceVariant,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0,
@@ -2628,7 +2664,7 @@ class _PlaceholderBlock extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: MapDesign.hairline,
+        color: context.siponColors.skeleton,
         borderRadius: BorderRadius.circular(6),
       ),
     );
@@ -2659,22 +2695,24 @@ class _ContributionHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
+    final sipon = context.siponColors;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
       decoration: BoxDecoration(
-        color: const Color(0xFFF9F5F8),
+        color: sipon.subtleSurface,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         children: [
-          _buildIllustration(),
+          _buildIllustration(context),
           const SizedBox(height: 14),
           Text(
             title,
-            style: const TextStyle(
-              color: MapDesign.ink,
+            style: TextStyle(
+              color: scheme.onSurface,
               fontSize: 14,
               fontWeight: FontWeight.w900,
               letterSpacing: 0,
@@ -2684,8 +2722,8 @@ class _ContributionHint extends StatelessWidget {
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: MapDesign.muted,
+            style: TextStyle(
+              color: scheme.onSurfaceVariant,
               fontSize: 12,
               fontWeight: FontWeight.w600,
               letterSpacing: 0,
@@ -2699,7 +2737,9 @@ class _ContributionHint extends StatelessWidget {
   }
 
   /// 中央插画：渐变圆底 + 主题图标，四周用小圆点与星光点缀。
-  Widget _buildIllustration() {
+  Widget _buildIllustration(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final sipon = context.siponColors;
     return SizedBox(
       width: 96,
       height: 68,
@@ -2712,7 +2752,7 @@ class _ContributionHint extends StatelessWidget {
               width: 52,
               height: 8,
               decoration: BoxDecoration(
-                color: MapDesign.hairline,
+                color: scheme.outlineVariant,
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
@@ -2721,38 +2761,40 @@ class _ContributionHint extends StatelessWidget {
             width: 56,
             height: 56,
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
+              gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [Color(0xFFFFEDF7), Color(0xFFFFF8FB)],
+                colors: [sipon.brandSurface, sipon.brandSurface],
               ),
               shape: BoxShape.circle,
-              border: Border.all(color: const Color(0x149A3D78)),
-              boxShadow: const [
+              border: Border.all(
+                color: scheme.primary.withValues(alpha: 0.08),
+              ),
+              boxShadow: [
                 BoxShadow(
-                  color: Color(0x149A3D78),
+                  color: sipon.shadow,
                   blurRadius: 10,
-                  offset: Offset(0, 4),
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
-            child: Icon(icon, color: MapDesign.brand, size: 26),
+            child: Icon(icon, color: scheme.primary, size: 26),
           ),
-          const Positioned(
+          Positioned(
             top: 0,
             right: 20,
             child: Icon(
               Icons.auto_awesome_rounded,
-              color: Color(0xFFD9A8C7),
+              color: scheme.primary,
               size: 15,
             ),
           ),
-          const Positioned(
+          Positioned(
             bottom: 10,
             left: 20,
             child: Icon(
               Icons.auto_awesome_rounded,
-              color: Color(0x669A3D78),
+              color: scheme.primary.withValues(alpha: 0.4),
               size: 11,
             ),
           ),
@@ -2762,8 +2804,8 @@ class _ContributionHint extends StatelessWidget {
             child: Container(
               width: 6,
               height: 6,
-              decoration: const BoxDecoration(
-                color: Color(0x409A3D78),
+              decoration: BoxDecoration(
+                color: scheme.primary.withValues(alpha: 0.25),
                 shape: BoxShape.circle,
               ),
             ),
@@ -2774,8 +2816,8 @@ class _ContributionHint extends StatelessWidget {
             child: Container(
               width: 8,
               height: 8,
-              decoration: const BoxDecoration(
-                color: Color(0x269A3D78),
+              decoration: BoxDecoration(
+                color: scheme.primary.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
             ),
@@ -2806,11 +2848,12 @@ class _RatingStars extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         for (var i = 0; i < 5; i++)
-          Icon(_starIcon(i), color: MapDesign.brand, size: starSize),
+          Icon(_starIcon(i), color: scheme.primary, size: starSize),
       ],
     );
   }
@@ -2839,6 +2882,7 @@ class _ReportReasonSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
     return SafeArea(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -2847,8 +2891,8 @@ class _ReportReasonSheet extends StatelessWidget {
             padding: const EdgeInsets.only(top: 2, bottom: 4),
             child: Text(
               text.t('举报该评价'),
-              style: const TextStyle(
-                color: MapDesign.ink,
+              style: TextStyle(
+                color: scheme.onSurface,
                 fontSize: 15,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,
@@ -2861,8 +2905,8 @@ class _ReportReasonSheet extends StatelessWidget {
               title: Center(
                 child: Text(
                   text.t(reason.label),
-                  style: const TextStyle(
-                    color: MapDesign.ink,
+                  style: TextStyle(
+                    color: scheme.onSurface,
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0,

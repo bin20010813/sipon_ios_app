@@ -74,8 +74,6 @@ class _SiponBottomJumpBar extends StatelessWidget {
     required this.onPlusPressed,
   });
 
-  static const Color _activeColor = Color(0xFF9A3D78);
-
   final int currentIndex;
   final ValueChanged<int> onTabSelected;
   final VoidCallback onPlusPressed;
@@ -95,10 +93,10 @@ class _SiponBottomJumpBar extends StatelessWidget {
               decoration: BoxDecoration(
                 color: colors.surface.withValues(alpha: 0.94),
                 borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: const Color(0x14FFFFFF)),
-                boxShadow: const [
+                border: Border.all(color: colors.outlineVariant),
+                boxShadow: [
                   BoxShadow(
-                    color: Color(0x1F9A3D78),
+                    color: colors.primary.withValues(alpha: 0.12),
                     blurRadius: 24,
                     offset: Offset(0, 10),
                   ),
@@ -113,7 +111,7 @@ class _SiponBottomJumpBar extends StatelessWidget {
                       tooltip: text.homeTab,
                       icon: Icons.home_rounded,
                       selected: currentIndex == 0,
-                      activeColor: _activeColor,
+                      activeColor: colors.primary,
                       inactiveColor: colors.onSurfaceVariant,
                       onPressed: () => onTabSelected(0),
                     ),
@@ -121,7 +119,7 @@ class _SiponBottomJumpBar extends StatelessWidget {
                       tooltip: text.mapTab,
                       icon: Icons.map_rounded,
                       selected: currentIndex == 1,
-                      activeColor: _activeColor,
+                      activeColor: colors.primary,
                       inactiveColor: colors.onSurfaceVariant,
                       onPressed: () => onTabSelected(1),
                     ),
@@ -129,7 +127,7 @@ class _SiponBottomJumpBar extends StatelessWidget {
                       tooltip: text.profileTab,
                       icon: Icons.person_rounded,
                       selected: currentIndex == 2,
-                      activeColor: _activeColor,
+                      activeColor: colors.primary,
                       inactiveColor: colors.onSurfaceVariant,
                       onPressed: () => onTabSelected(2),
                     ),
@@ -153,6 +151,7 @@ class _SiponBottomPlusButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Semantics(
       button: true,
       label: '鏇村鎿嶄綔',
@@ -166,11 +165,11 @@ class _SiponBottomPlusButton extends StatelessWidget {
             width: 54,
             height: 54,
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
+              color: scheme.surface,
               shape: BoxShape.circle,
-              boxShadow: const [
+              boxShadow: [
                 BoxShadow(
-                  color: Color(0x33000000),
+                  color: scheme.shadow.withValues(alpha: 0.2),
                   blurRadius: 14,
                   offset: Offset(0, 6),
                 ),
@@ -178,7 +177,7 @@ class _SiponBottomPlusButton extends StatelessWidget {
             ),
             child: Icon(
               Icons.add_rounded,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              color: scheme.onSurfaceVariant,
               size: 28,
             ),
           ),
@@ -207,6 +206,7 @@ class _SiponBottomJumpItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Tooltip(
       message: tooltip,
       child: Semantics(
@@ -218,7 +218,7 @@ class _SiponBottomJumpItem extends StatelessWidget {
           style: IconButton.styleFrom(
             fixedSize: const Size(70, 52),
             backgroundColor: Colors.transparent,
-            foregroundColor: selected ? Colors.white : inactiveColor,
+            foregroundColor: selected ? scheme.onPrimary : inactiveColor,
             padding: EdgeInsets.zero,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(22),
@@ -276,7 +276,7 @@ class _SiponPlusSheet extends StatelessWidget {
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () => Navigator.of(context).maybePop(),
-              child: const ColoredBox(color: Color(0x1A1B1219)),
+              child: ColoredBox(color: scheme.scrim.withValues(alpha: 0.4)),
             ),
           ),
           Positioned(
@@ -288,10 +288,10 @@ class _SiponPlusSheet extends StatelessWidget {
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: const Color(0x66FFFFFF)),
-                  boxShadow: const [
+                  border: Border.all(color: scheme.outlineVariant),
+                  boxShadow: [
                     BoxShadow(
-                      color: Color(0x33000000),
+                      color: scheme.shadow.withValues(alpha: 0.2),
                       blurRadius: 24,
                       offset: Offset(0, 12),
                     ),
@@ -322,7 +322,9 @@ class _SiponPlusSheet extends StatelessWidget {
                                   width: 44,
                                   height: 5,
                                   decoration: BoxDecoration(
-                                    color: const Color(0x22000000),
+                                    color: scheme.shadow.withValues(
+                                      alpha: 0.13,
+                                    ),
                                     borderRadius: BorderRadius.circular(3),
                                   ),
                                 ),
@@ -448,7 +450,7 @@ class _SiponPlusSheetGridState extends State<_SiponPlusSheetGrid>
                 child: _SiponPlusActionCard(
                   icon: Icons.alt_route_rounded,
                   title: text.plusPlanRoute,
-                  accent: Color(0xFF3F7CA8),
+                  accent: Color(0xFF3F7CA8), // 内容固有色：路线动作图标，不随主题变化
                   onTap: widget.onPlanRoute,
                 ),
               ),
@@ -460,7 +462,7 @@ class _SiponPlusSheetGridState extends State<_SiponPlusSheetGrid>
                 child: _SiponPlusActionCard(
                   icon: Icons.location_on_rounded,
                   title: text.plusCheckInBar,
-                  accent: Color(0xFFE08A3C),
+                  accent: Color(0xFFE08A3C), // 内容固有色：打卡动作图标，不随主题变化
                   onTap: widget.onCheckIn,
                 ),
               ),
@@ -473,7 +475,7 @@ class _SiponPlusSheetGridState extends State<_SiponPlusSheetGrid>
           child: _SiponPlusActionCard(
             icon: Icons.add_business_rounded,
             title: text.plusAddVenue,
-            accent: Color(0xFF5E9B67),
+            accent: Color(0xFF5E9B67), // 内容固有色：新增地点动作图标，不随主题变化
             onTap: widget.onAddVenue,
           ),
         ),
@@ -497,10 +499,11 @@ class _SiponPlusActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return SizedBox(
       height: 78,
       child: Material(
-        color: Theme.of(context).colorScheme.surface,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(20),
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
@@ -511,12 +514,12 @@ class _SiponPlusActionCard extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
+              color: scheme.surface,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0x11000000)),
-              boxShadow: const [
+              border: Border.all(color: scheme.outlineVariant),
+              boxShadow: [
                 BoxShadow(
-                  color: Color(0x0F000000),
+                  color: scheme.shadow.withValues(alpha: 0.06),
                   blurRadius: 10,
                   offset: Offset(0, 4),
                 ),
@@ -530,7 +533,7 @@ class _SiponPlusActionCard extends StatelessWidget {
                   child: Text(
                     title,
                     style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurface,
+                      color: scheme.onSurface,
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0,

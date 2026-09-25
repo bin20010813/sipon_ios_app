@@ -19,12 +19,6 @@ class SettingsSupportPage extends StatelessWidget {
 
   final VoidCallback? onLogoutSucceeded;
 
-  static const Color _brand = Color(0xFF9A3D78);
-  static const Color _ink = Color(0xFF292B32);
-  static const Color _muted = Color(0xFF8E8790);
-  static const Color _line = Color(0xFFF1EBEF);
-  static const Color _danger = Color(0xFFD64F5A);
-
   static const String _settingsAsset = 'assest/我的/设置@3x.png';
 
   void _showMessage(BuildContext context, String message) {
@@ -295,6 +289,7 @@ class _AccountSecurityPageState extends State<_AccountSecurityPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
+        final dialogScheme = Theme.of(dialogContext).colorScheme;
         return AlertDialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
@@ -309,8 +304,8 @@ class _AccountSecurityPageState extends State<_AccountSecurityPage> {
             FilledButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
               style: FilledButton.styleFrom(
-                backgroundColor: SettingsSupportPage._danger,
-                foregroundColor: Colors.white,
+                backgroundColor: dialogScheme.error,
+                foregroundColor: dialogScheme.onError,
               ),
               child: Text(text.t('删除')),
             ),
@@ -352,6 +347,7 @@ class _AccountSecurityPageState extends State<_AccountSecurityPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
+        final dialogScheme = Theme.of(dialogContext).colorScheme;
         return AlertDialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
@@ -366,8 +362,8 @@ class _AccountSecurityPageState extends State<_AccountSecurityPage> {
             FilledButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
               style: FilledButton.styleFrom(
-                backgroundColor: SettingsSupportPage._brand,
-                foregroundColor: Colors.white,
+                backgroundColor: dialogScheme.primary,
+                foregroundColor: dialogScheme.onPrimary,
               ),
               child: Text(text.t('退出')),
             ),
@@ -603,6 +599,7 @@ class _ChangePasswordPageState extends State<_ChangePasswordPage> {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
     return _SupportDetailScaffold(
       title: text.t('修改密码'),
       children: [
@@ -642,8 +639,8 @@ class _ChangePasswordPageState extends State<_ChangePasswordPage> {
                         ? null
                         : _sendCode,
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: SettingsSupportPage._brand,
-                      side: const BorderSide(color: SettingsSupportPage._brand),
+                      foregroundColor: scheme.primary,
+                      side: BorderSide(color: scheme.primary),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -710,18 +707,20 @@ class _ChangePasswordPageState extends State<_ChangePasswordPage> {
                 child: FilledButton(
                   onPressed: _canSubmit ? _submit : null,
                   style: FilledButton.styleFrom(
-                    backgroundColor: SettingsSupportPage._brand,
-                    disabledBackgroundColor: const Color(0xFFE9D8E2),
+                    backgroundColor: scheme.primary,
+                    disabledBackgroundColor: scheme.onSurface.withValues(
+                      alpha: 0.12,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                   child: _submitting
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
-                            color: Colors.white,
+                            color: scheme.onPrimary,
                             strokeWidth: 2,
                           ),
                         )
@@ -765,6 +764,7 @@ class _ChangePasswordField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: TextField(
@@ -775,30 +775,27 @@ class _ChangePasswordField extends StatelessWidget {
         maxLength: maxLength,
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(color: Color(0xFFAAA3AA)),
-          prefixIcon: Icon(icon, size: 21, color: const Color(0xFF8E8790)),
+          hintStyle: TextStyle(color: scheme.onSurfaceVariant),
+          prefixIcon: Icon(icon, size: 21, color: scheme.onSurfaceVariant),
           suffixIcon: suffixIcon,
           counterText: maxLength == null ? null : '',
           filled: true,
-          fillColor: Colors.white,
+          fillColor: scheme.surface,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 15,
             vertical: 16,
           ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Color(0xFFE9E3E7)),
+            borderSide: BorderSide(color: scheme.outlineVariant),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Color(0xFFE9E3E7)),
+            borderSide: BorderSide(color: scheme.outlineVariant),
           ),
-          focusedBorder: const OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(8)),
-            borderSide: BorderSide(
-              color: SettingsSupportPage._brand,
-              width: 1.4,
-            ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: const BorderRadius.all(Radius.circular(8)),
+            borderSide: BorderSide(color: scheme.primary, width: 1.4),
           ),
         ),
       ),
@@ -901,6 +898,8 @@ class _SearchRadiusSlider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
+    final colors = context.siponColors;
     final label = siponFormatRadiusMeters(radiusMeters);
     const minRadius = SiponSearchPreferences.minRadiusMeters;
     const maxRadius = SiponSearchPreferences.maxRadiusMeters;
@@ -916,12 +915,12 @@ class _SearchRadiusSlider extends StatelessWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF6FB),
+                  color: colors.brandSurface,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.radar_rounded,
-                  color: SettingsSupportPage._brand,
+                  color: scheme.primary,
                   size: 20,
                 ),
               ),
@@ -931,8 +930,8 @@ class _SearchRadiusSlider extends StatelessWidget {
                   text.t('打卡与路线规划按此范围查找附近酒吧'),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: SettingsSupportPage._muted,
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
                     fontSize: 12,
                     height: 1.35,
                     fontWeight: FontWeight.w600,
@@ -949,8 +948,8 @@ class _SearchRadiusSlider extends StatelessWidget {
               child: Text(
                 label,
                 key: ValueKey<String>(label),
-                style: const TextStyle(
-                  color: SettingsSupportPage._brand,
+                style: TextStyle(
+                  color: scheme.primary,
                   fontSize: 34,
                   fontWeight: FontWeight.w900,
                   height: 1,
@@ -963,8 +962,8 @@ class _SearchRadiusSlider extends StatelessWidget {
           Center(
             child: Text(
               text.t('拖动滑块调整搜索范围'),
-              style: const TextStyle(
-                color: SettingsSupportPage._muted,
+              style: TextStyle(
+                color: scheme.onSurfaceVariant,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0,
@@ -974,10 +973,10 @@ class _SearchRadiusSlider extends StatelessWidget {
           const SizedBox(height: 4),
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
-              activeTrackColor: SettingsSupportPage._brand,
-              inactiveTrackColor: const Color(0xFFF3E4EF),
-              thumbColor: SettingsSupportPage._brand,
-              overlayColor: SettingsSupportPage._brand.withValues(alpha: 0.10),
+              activeTrackColor: scheme.primary,
+              inactiveTrackColor: scheme.outlineVariant,
+              thumbColor: scheme.primary,
+              overlayColor: scheme.primary.withValues(alpha: 0.10),
               trackHeight: 5,
             ),
             child: Slider(
@@ -997,8 +996,8 @@ class _SearchRadiusSlider extends StatelessWidget {
               children: [
                 Text(
                   siponFormatRadiusMeters(minRadius),
-                  style: const TextStyle(
-                    color: SettingsSupportPage._muted,
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0,
@@ -1006,8 +1005,8 @@ class _SearchRadiusSlider extends StatelessWidget {
                 ),
                 Text(
                   siponFormatRadiusMeters(maxRadius),
-                  style: const TextStyle(
-                    color: SettingsSupportPage._muted,
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0,
@@ -1349,15 +1348,17 @@ class _SupportHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final colors = context.siponColors;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: context.siponColors.glassSurface,
+        color: colors.glassSurface,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
+        border: Border.all(color: scheme.outlineVariant),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x0F9A3D78),
+            color: colors.shadow,
             blurRadius: 24,
-            offset: Offset(0, 10),
+            offset: const Offset(0, 10),
           ),
         ],
       ),
@@ -1390,8 +1391,8 @@ class _SupportHero extends StatelessWidget {
                   Text(
                     subtitle,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: SettingsSupportPage._muted,
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
                       fontSize: 13,
                       height: 1.4,
                       fontWeight: FontWeight.w600,
@@ -1418,8 +1419,8 @@ class _SupportHero extends StatelessWidget {
                           title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: SettingsSupportPage._ink,
+                          style: TextStyle(
+                            color: scheme.onSurface,
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0,
@@ -1428,8 +1429,8 @@ class _SupportHero extends StatelessWidget {
                         const SizedBox(height: 6),
                         Text(
                           subtitle,
-                          style: const TextStyle(
-                            color: SettingsSupportPage._muted,
+                          style: TextStyle(
+                            color: scheme.onSurfaceVariant,
                             fontSize: 12,
                             height: 1.35,
                             fontWeight: FontWeight.w600,
@@ -1463,6 +1464,8 @@ class _SupportHeroMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final colors = context.siponColors;
     final path = assetPath;
 
     return ClipRRect(
@@ -1472,12 +1475,8 @@ class _SupportHeroMark extends StatelessWidget {
         height: size,
         child: path == null
             ? ColoredBox(
-                color: const Color(0xFFFFEDF7),
-                child: Icon(
-                  icon,
-                  color: SettingsSupportPage._brand,
-                  size: iconSize,
-                ),
+                color: colors.brandSurface,
+                child: Icon(icon, color: scheme.primary, size: iconSize),
               )
             : Image.asset(path, fit: BoxFit.cover),
       ),
@@ -1493,10 +1492,13 @@ class _SupportPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final colors = context.siponColors;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.78),
+        color: colors.glassSurface.withValues(alpha: 0.78),
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
@@ -1505,8 +1507,8 @@ class _SupportPanel extends StatelessWidget {
           children: [
             Text(
               title,
-              style: const TextStyle(
-                color: SettingsSupportPage._ink,
+              style: TextStyle(
+                color: scheme.onSurface,
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,
@@ -1542,9 +1544,8 @@ class _SupportActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final highlightColor = danger
-        ? SettingsSupportPage._danger
-        : SettingsSupportPage._brand;
+    final scheme = Theme.of(context).colorScheme;
+    final highlightColor = danger ? scheme.error : scheme.primary;
 
     return _SupportBaseRow(
       icon: icon,
@@ -1567,9 +1568,9 @@ class _SupportActionRow extends StatelessWidget {
           // 不可点击的行（如纯展示的邮箱）不显示箭头，避免误导。
           if (onTap != null) ...[
             const SizedBox(width: 2),
-            const Icon(
+            Icon(
               Icons.chevron_right_rounded,
-              color: Color(0xFFC7C1C6),
+              color: scheme.onSurfaceVariant,
               size: 20,
             ),
           ],
@@ -1596,6 +1597,8 @@ class _SupportSwitchRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final colors = context.siponColors;
     return _SupportBaseRow(
       icon: icon,
       title: title,
@@ -1603,8 +1606,8 @@ class _SupportSwitchRow extends StatelessWidget {
       trailing: Switch.adaptive(
         value: value,
         onChanged: onChanged,
-        activeThumbColor: SettingsSupportPage._brand,
-        activeTrackColor: const Color(0xFFFFD8EC),
+        activeThumbColor: scheme.primary,
+        activeTrackColor: colors.brandSurface,
       ),
     );
   }
@@ -1617,7 +1620,7 @@ class _SupportBaseRow extends StatelessWidget {
     required this.subtitle,
     required this.trailing,
     this.onTap,
-    this.highlightColor = SettingsSupportPage._brand,
+    this.highlightColor,
   });
 
   final IconData icon;
@@ -1627,10 +1630,13 @@ class _SupportBaseRow extends StatelessWidget {
   final VoidCallback? onTap;
 
   /// 图标高亮色，默认使用品牌色；危险操作传入警示色。
-  final Color highlightColor;
+  final Color? highlightColor;
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final colors = context.siponColors;
+    final highlight = highlightColor ?? scheme.primary;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
@@ -1642,10 +1648,10 @@ class _SupportBaseRow extends StatelessWidget {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF6FB),
+                color: colors.brandSurface,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: highlightColor, size: 20),
+              child: Icon(icon, color: highlight, size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1656,8 +1662,8 @@ class _SupportBaseRow extends StatelessWidget {
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: SettingsSupportPage._ink,
+                    style: TextStyle(
+                      color: scheme.onSurface,
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0,
@@ -1668,8 +1674,8 @@ class _SupportBaseRow extends StatelessWidget {
                     subtitle,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: SettingsSupportPage._muted,
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
                       fontSize: 12,
                       height: 1.25,
                       fontWeight: FontWeight.w600,
@@ -1696,14 +1702,15 @@ class _SupportInfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
           Text(
             label,
-            style: const TextStyle(
-              color: SettingsSupportPage._muted,
+            style: TextStyle(
+              color: scheme.onSurfaceVariant,
               fontSize: 13,
               fontWeight: FontWeight.w700,
               letterSpacing: 0,
@@ -1712,8 +1719,8 @@ class _SupportInfoRow extends StatelessWidget {
           const Spacer(),
           Text(
             value,
-            style: const TextStyle(
-              color: SettingsSupportPage._ink,
+            style: TextStyle(
+              color: scheme.onSurface,
               fontSize: 13,
               fontWeight: FontWeight.w800,
               letterSpacing: 0,
@@ -1739,6 +1746,8 @@ class _ChoiceWrap extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
+    final colors = context.siponColors;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -1751,17 +1760,17 @@ class _ChoiceWrap extends StatelessWidget {
               label: Text(text.t(value)),
               selected: selectedValues.contains(value),
               onSelected: (_) => onTap(value),
-              selectedColor: const Color(0xFFFFEDF7),
-              backgroundColor: const Color(0xFFFCF8FA),
+              selectedColor: colors.brandSurface,
+              backgroundColor: colors.subtleSurface,
               side: BorderSide(
                 color: selectedValues.contains(value)
-                    ? SettingsSupportPage._brand
-                    : SettingsSupportPage._line,
+                    ? scheme.primary
+                    : scheme.outlineVariant,
               ),
               labelStyle: TextStyle(
                 color: selectedValues.contains(value)
-                    ? SettingsSupportPage._brand
-                    : SettingsSupportPage._muted,
+                    ? scheme.primary
+                    : scheme.onSurfaceVariant,
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,
@@ -1843,11 +1852,9 @@ class _SettingsCard extends StatelessWidget {
           border: Border.all(color: scheme.outlineVariant),
           boxShadow: [
             BoxShadow(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? Colors.black.withValues(alpha: 0.22)
-                  : const Color(0x0F9A3D78),
+              color: colors.shadow,
               blurRadius: 22,
-              offset: Offset(0, 10),
+              offset: const Offset(0, 10),
             ),
           ],
         ),

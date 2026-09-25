@@ -7,8 +7,9 @@ class BudgetBillPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: scheme.surface,
       body: SafeArea(
         // 底部不进安全区：内容与背景延伸到屏幕底部，小白条区域由
         // 列表自身的 padding 预留，避免底部留出一段不参与滚动的白边。
@@ -34,6 +35,7 @@ class _BudgetBillBody extends StatefulWidget {
 }
 
 class _BudgetBillBodyState extends State<_BudgetBillBody> {
+  // 内容固有色：饼图分类色，不随主题变化。
   static const _chartColors = [
     Color(0xFF9A3D78),
     Color(0xFFEE8E51),
@@ -188,6 +190,7 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
     final records = _recordsForPeriod();
     final total = records.fold<double>(0, (sum, record) => sum + record.amount);
     final categoryExpenses = _categoryExpenses(records);
@@ -224,8 +227,8 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
                       Text(
                         text.t('统计'),
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: ProfilePage._ink,
+                        style: TextStyle(
+                          color: scheme.onSurface,
                           fontSize: 22,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0,
@@ -249,7 +252,7 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
                     child: TextButton(
                       onPressed: _pickDate,
                       style: TextButton.styleFrom(
-                        foregroundColor: ProfilePage._ink,
+                        foregroundColor: scheme.onSurface,
                         minimumSize: const Size(0, 32),
                         padding: const EdgeInsets.symmetric(horizontal: 4),
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -288,7 +291,7 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
                     context: context,
                     useSafeArea: true,
                     showDragHandle: true,
-                    backgroundColor: Colors.white,
+                    backgroundColor: context.siponColors.elevatedSurface,
                     shape: const RoundedRectangleBorder(
                       borderRadius: BorderRadius.vertical(
                         top: Radius.circular(22),
@@ -312,8 +315,8 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
                 const SizedBox(height: 24),
                 Text(
                   text.t('消费构成'),
-                  style: const TextStyle(
-                    color: ProfilePage._ink,
+                  style: TextStyle(
+                    color: scheme.onSurface,
                     fontSize: 16,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 0,
@@ -331,8 +334,8 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
                     Expanded(
                       child: Text(
                         '${_period.label(text)}${text.t('明细')}',
-                        style: const TextStyle(
-                          color: ProfilePage._ink,
+                        style: TextStyle(
+                          color: scheme.onSurface,
                           fontSize: 16,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0,
@@ -341,8 +344,8 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
                     ),
                     Text(
                       '${records.length}${text.t('笔')}',
-                      style: const TextStyle(
-                        color: ProfilePage._muted,
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0,
@@ -361,8 +364,8 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
                 child: Center(
                   child: Text(
                     text.noRecords,
-                    style: const TextStyle(
-                      color: ProfilePage._muted,
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0,
@@ -386,7 +389,7 @@ class _BudgetBillBodyState extends State<_BudgetBillBody> {
                 );
               },
               separatorBuilder: (_, _) =>
-                  const Divider(height: 1, color: ProfilePage._line),
+                  Divider(height: 1, color: scheme.outlineVariant),
             ),
           // 尾部留白 = 原有间距 32 + 底部安全区，保证静止时明细不被
           // 小白条遮挡；滚动中该区域随内容一起滑入滑出。
@@ -441,12 +444,14 @@ class _BillDatePickerDialogState extends State<_BillDatePickerDialog> {
   }
 
   Widget _buildYearPicker(SiponAppText text) {
+    final scheme = Theme.of(context).colorScheme;
+    final sipon = context.siponColors;
     final now = DateTime.now();
     final years = [
       for (var year = now.year; year >= now.year - 11; year--) year,
     ];
     return AlertDialog(
-      backgroundColor: Colors.white,
+      backgroundColor: sipon.elevatedSurface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       contentPadding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
       content: SizedBox(
@@ -456,8 +461,8 @@ class _BillDatePickerDialogState extends State<_BillDatePickerDialog> {
           children: [
             Text(
               text.t('选择年份'),
-              style: const TextStyle(
-                color: ProfilePage._ink,
+              style: TextStyle(
+                color: scheme.onSurface,
                 fontSize: 17,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 0,
@@ -484,14 +489,14 @@ class _BillDatePickerDialogState extends State<_BillDatePickerDialog> {
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: selected
-                          ? ProfilePage._brand
-                          : const Color(0xFFF5F0F4),
+                          ? scheme.primary
+                          : sipon.subtleSurface,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       '$year',
                       style: TextStyle(
-                        color: selected ? Colors.white : ProfilePage._ink,
+                        color: selected ? scheme.onPrimary : scheme.onSurface,
                         fontSize: 14,
                         fontWeight: selected
                             ? FontWeight.w900
@@ -516,13 +521,14 @@ class _BillDatePickerDialogState extends State<_BillDatePickerDialog> {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
     if (widget.period == _BillPeriod.year) {
       return _buildYearPicker(text);
     }
     final firstWeekday = DateTime(_month.year, _month.month, 1).weekday;
     final days = DateUtils.getDaysInMonth(_month.year, _month.month);
     return AlertDialog(
-      backgroundColor: Colors.white,
+      backgroundColor: context.siponColors.elevatedSurface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       contentPadding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
       content: SizedBox(
@@ -540,8 +546,8 @@ class _BillDatePickerDialogState extends State<_BillDatePickerDialog> {
                   child: Text(
                     '${_month.year}年${_month.month}月',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: ProfilePage._ink,
+                    style: TextStyle(
+                      color: scheme.onSurface,
                       fontSize: 17,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 0,
@@ -561,8 +567,8 @@ class _BillDatePickerDialogState extends State<_BillDatePickerDialog> {
                     child: Center(
                       child: Text(
                         label,
-                        style: const TextStyle(
-                          color: ProfilePage._muted,
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0,
@@ -603,13 +609,15 @@ class _BillDatePickerDialogState extends State<_BillDatePickerDialog> {
                         height: 30,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: selected ? ProfilePage._brand : null,
+                          color: selected ? scheme.primary : null,
                           shape: BoxShape.circle,
                         ),
                         child: Text(
                           '$day',
                           style: TextStyle(
-                            color: selected ? Colors.white : ProfilePage._ink,
+                            color: selected
+                                ? scheme.onPrimary
+                                : scheme.onSurface,
                             fontSize: 13,
                             fontWeight: selected
                                 ? FontWeight.w900
@@ -624,7 +632,7 @@ class _BillDatePickerDialogState extends State<_BillDatePickerDialog> {
                         height: 4,
                         decoration: BoxDecoration(
                           color: hasRecord
-                              ? ProfilePage._brand
+                              ? scheme.primary
                               : Colors.transparent,
                           shape: BoxShape.circle,
                         ),
@@ -656,8 +664,6 @@ extension on _BillPeriod {
         return text.t('本周');
       case _BillPeriod.month:
         return text.t('本月');
-      case _BillPeriod.week:
-        return text.t('本周');
     }
   }
 }
@@ -679,7 +685,7 @@ class _BillPeriodSelector extends StatelessWidget {
       height: 48,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0F0F0),
+        color: context.siponColors.skeleton,
         borderRadius: BorderRadius.circular(24),
       ),
       child: Row(
@@ -715,6 +721,7 @@ class _BillPeriodOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -722,14 +729,14 @@ class _BillPeriodOption extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         child: Ink(
           decoration: BoxDecoration(
-            color: selected ? Colors.white : Colors.transparent,
+            color: selected ? scheme.surface : Colors.transparent,
             borderRadius: BorderRadius.circular(20),
           ),
           child: Center(
             child: Text(
               label,
               style: TextStyle(
-                color: ProfilePage._ink,
+                color: scheme.onSurface,
                 fontSize: 17,
                 fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
                 letterSpacing: 0,
@@ -762,21 +769,23 @@ class _BillSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
+    final sipon = context.siponColors;
     final average = activeDays == 0 ? 0.0 : total / activeDays;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF7FB),
+        color: sipon.subtleSurface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFF2DFEB)),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             headline,
-            style: const TextStyle(
-              color: ProfilePage._muted,
+            style: TextStyle(
+              color: scheme.onSurfaceVariant,
               fontSize: 14,
               fontWeight: FontWeight.w700,
               letterSpacing: 0,
@@ -785,8 +794,8 @@ class _BillSummary extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             _formatCurrency(total),
-            style: const TextStyle(
-              color: ProfilePage._brand,
+            style: TextStyle(
+              color: scheme.primary,
               fontSize: 32,
               fontWeight: FontWeight.w900,
               letterSpacing: 0,
@@ -798,23 +807,23 @@ class _BillSummary extends StatelessWidget {
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 8,
-              backgroundColor: const Color(0xFFF2E6ED),
-              valueColor: const AlwaysStoppedAnimation(ProfilePage._brand),
+              backgroundColor: scheme.onSurface.withValues(alpha: 0.12),
+              valueColor: AlwaysStoppedAnimation(scheme.primary),
             ),
           ),
           const SizedBox(height: 6),
           Text(
             '${text.t('预算')} ${_formatCurrency(budget)}  ·  ${text.t('剩余')} ${_formatCurrency(budget - total)}',
-            style: const TextStyle(
-              color: ProfilePage._muted,
+            style: TextStyle(
+              color: scheme.onSurfaceVariant,
               fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 0,
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 10),
-            child: Divider(height: 1, color: Color(0xFFF0E3EB)),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Divider(height: 1, color: scheme.outlineVariant),
           ),
           Row(
             children: [
@@ -828,7 +837,7 @@ class _BillSummary extends StatelessWidget {
                 width: 1,
                 height: 34,
                 margin: const EdgeInsets.symmetric(horizontal: 10),
-                color: const Color(0xFFF0E3EB),
+                color: scheme.outlineVariant,
               ),
               Expanded(
                 child: _BillMetric(label: text.t('消费天数'), value: '$activeDays'),
@@ -837,7 +846,7 @@ class _BillSummary extends StatelessWidget {
                 width: 1,
                 height: 34,
                 margin: const EdgeInsets.symmetric(horizontal: 10),
-                color: const Color(0xFFF0E3EB),
+                color: scheme.outlineVariant,
               ),
               Expanded(
                 child: _BillMetric(
@@ -860,13 +869,14 @@ class _BillMetric extends StatelessWidget {
   final String value;
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(
-            color: ProfilePage._muted,
+          style: TextStyle(
+            color: scheme.onSurfaceVariant,
             fontSize: 12,
             fontWeight: FontWeight.w600,
             letterSpacing: 0,
@@ -877,8 +887,8 @@ class _BillMetric extends StatelessWidget {
           fit: BoxFit.scaleDown,
           child: Text(
             value,
-            style: const TextStyle(
-              color: ProfilePage._ink,
+            style: TextStyle(
+              color: scheme.onSurface,
               fontSize: 15,
               fontWeight: FontWeight.w900,
               letterSpacing: 0,
@@ -888,13 +898,6 @@ class _BillMetric extends StatelessWidget {
       ],
     );
   }
-}
-
-class _DayExpense {
-  const _DayExpense(this.date, this.amount);
-
-  final DateTime date;
-  final double amount;
 }
 
 class _BillCategoryChart extends StatelessWidget {
@@ -910,6 +913,7 @@ class _BillCategoryChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     if (expenses.isEmpty) {
       return const _BillChartEmpty();
     }
@@ -939,8 +943,8 @@ class _BillCategoryChart extends StatelessWidget {
               child: Text(
                 _formatCurrency(total),
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: ProfilePage._ink,
+                style: TextStyle(
+                  color: scheme.onSurface,
                   fontSize: 12,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 0,
@@ -972,8 +976,8 @@ class _BillCategoryChart extends StatelessWidget {
                           text.t(entries[index].key),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: ProfilePage._ink,
+                          style: TextStyle(
+                            color: scheme.onSurface,
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0,
@@ -982,8 +986,8 @@ class _BillCategoryChart extends StatelessWidget {
                       ),
                       Text(
                         '${(entries[index].value / total * 100).round()}%',
-                        style: const TextStyle(
-                          color: ProfilePage._muted,
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0,
@@ -1006,17 +1010,18 @@ class _BillChartEmpty extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       height: 116,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: const Color(0xFFFBF8FA),
+        color: context.siponColors.subtleSurface,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         text.t('暂无统计数据'),
-        style: const TextStyle(
-          color: ProfilePage._muted,
+        style: TextStyle(
+          color: scheme.onSurfaceVariant,
           fontSize: 13,
           fontWeight: FontWeight.w600,
           letterSpacing: 0,
@@ -1098,7 +1103,7 @@ class _BudgetRecordTile extends StatelessWidget {
       context: context,
       useSafeArea: true,
       showDragHandle: true,
-      backgroundColor: Colors.white,
+      backgroundColor: context.siponColors.elevatedSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
@@ -1112,6 +1117,7 @@ class _BudgetRecordTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
 
     return Material(
       color: Colors.transparent,
@@ -1132,8 +1138,8 @@ class _BudgetRecordTile extends StatelessWidget {
                       text.t(record.drinkType),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: ProfilePage._ink,
+                      style: TextStyle(
+                        color: scheme.onSurface,
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0,
@@ -1144,8 +1150,8 @@ class _BudgetRecordTile extends StatelessWidget {
                       '${text.t(record.place)} · $dateText',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: ProfilePage._muted,
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0,
@@ -1157,8 +1163,8 @@ class _BudgetRecordTile extends StatelessWidget {
               const SizedBox(width: 10),
               Text(
                 _formatCurrency(record.amount),
-                style: const TextStyle(
-                  color: ProfilePage._brand,
+                style: TextStyle(
+                  color: scheme.primary,
                   fontSize: 15,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 0,
@@ -1169,7 +1175,7 @@ class _BudgetRecordTile extends StatelessWidget {
                 onPressed: onDeleted,
                 style: IconButton.styleFrom(
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  foregroundColor: const Color(0xFFC7C1C6),
+                  foregroundColor: scheme.onSurfaceVariant,
                   padding: EdgeInsets.zero,
                   minimumSize: const Size(28, 28),
                 ),
@@ -1195,6 +1201,7 @@ class _BudgetRecordDetailSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
     final note = record.note.trim();
 
     return SafeArea(
@@ -1219,8 +1226,8 @@ class _BudgetRecordDetailSheet extends StatelessWidget {
                     children: [
                       Text(
                         text.t('记录详情'),
-                        style: const TextStyle(
-                          color: ProfilePage._ink,
+                        style: TextStyle(
+                          color: scheme.onSurface,
                           fontSize: 20,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0,
@@ -1229,8 +1236,8 @@ class _BudgetRecordDetailSheet extends StatelessWidget {
                       const SizedBox(height: 3),
                       Text(
                         text.t('本笔记账'),
-                        style: const TextStyle(
-                          color: ProfilePage._muted,
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0,
@@ -1241,8 +1248,8 @@ class _BudgetRecordDetailSheet extends StatelessWidget {
                 ),
                 Text(
                   _formatCurrency(record.amount),
-                  style: const TextStyle(
-                    color: ProfilePage._brand,
+                  style: TextStyle(
+                    color: scheme.primary,
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 0,
@@ -1294,6 +1301,7 @@ class _RecordDetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 9),
       child: Row(
@@ -1305,8 +1313,8 @@ class _RecordDetailRow extends StatelessWidget {
             width: 58,
             child: Text(
               label,
-              style: const TextStyle(
-                color: ProfilePage._muted,
+              style: TextStyle(
+                color: scheme.onSurfaceVariant,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0,
@@ -1318,8 +1326,8 @@ class _RecordDetailRow extends StatelessWidget {
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: const TextStyle(
-                color: ProfilePage._ink,
+              style: TextStyle(
+                color: scheme.onSurface,
                 fontSize: 14,
                 height: 1.35,
                 fontWeight: FontWeight.w800,

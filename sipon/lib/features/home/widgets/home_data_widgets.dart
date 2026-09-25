@@ -121,11 +121,13 @@ class _DrinkCarousel extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onPageChanged;
 
+  // 酒品轮播的酒液/分类配色属于内容固有色，不随主题变化。
   static const List<_DrinkProduct> _products = [
     _DrinkProduct(
       title: '朗姆酒',
       subtitle: '热带甜感',
       label: 'Limon',
+      // 内容固有色：朗姆酒酒液/标签色（不是错误语义色，不迁移到 scheme.error）。
       tint: Color(0xFFB71E22),
       kind: _DrinkVisualKind.rum,
     ),
@@ -133,6 +135,7 @@ class _DrinkCarousel extends StatelessWidget {
       title: '伏特加',
       subtitle: '莹质酒',
       label: 'VODKA',
+      // 内容固有色：伏特加酒液色。
       tint: Color(0xFF89DDF2),
       kind: _DrinkVisualKind.vodka,
     ),
@@ -140,6 +143,7 @@ class _DrinkCarousel extends StatelessWidget {
       title: '冰块',
       subtitle: '风味辅助',
       label: 'ICE',
+      // 内容固有色：冰块固有色。
       tint: Color(0xFF8DDAF0),
       kind: _DrinkVisualKind.ice,
     ),
@@ -147,6 +151,7 @@ class _DrinkCarousel extends StatelessWidget {
       title: '金酒',
       subtitle: '草本香气',
       label: 'GIN',
+      // 内容固有色：金酒酒液色。
       tint: Color(0xFF7DCBB5),
       kind: _DrinkVisualKind.gin,
     ),
@@ -154,6 +159,8 @@ class _DrinkCarousel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
     return Column(
       children: [
         SizedBox(
@@ -194,8 +201,8 @@ class _DrinkCarousel extends StatelessWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 3),
                 decoration: BoxDecoration(
                   color: index == currentIndex
-                      ? HomePage.brand
-                      : const Color(0xFFDCD8DC),
+                      ? scheme.primary
+                      : siponColors.skeleton,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -222,6 +229,8 @@ class _DrinkProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
 
     final content = Padding(
       padding: const EdgeInsets.fromLTRB(17, 16, 13, 16),
@@ -252,8 +261,8 @@ class _DrinkProductCard extends StatelessWidget {
                       text.t(product.subtitle),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFFB7B1B7),
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
                         fontSize: 11,
                         letterSpacing: 0,
                       ),
@@ -261,10 +270,10 @@ class _DrinkProductCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const Text(
+              Text(
                 'SIPON',
                 style: TextStyle(
-                  color: Color(0xFFC8C4C8),
+                  color: scheme.onSurfaceVariant,
                   fontSize: 8,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0,
@@ -285,9 +294,9 @@ class _DrinkProductCard extends StatelessWidget {
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(10),
         boxShadow: selected
-            ? const [
+            ? [
                 BoxShadow(
-                  color: Color(0x12000000),
+                  color: siponColors.shadow,
                   blurRadius: 18,
                   offset: Offset(0, 10),
                 ),
@@ -355,7 +364,9 @@ class _VodkaBottle extends StatelessWidget {
               width: 24,
               height: 12,
               decoration: BoxDecoration(
+                // 内容固有色：酒瓶插画瓶盖色。
                 color: const Color(0xFFD8DDE1),
+                // 内容固有色：酒瓶插画描边色。
                 border: Border.all(color: const Color(0xFF8A9299)),
                 borderRadius: BorderRadius.circular(3),
               ),
@@ -367,9 +378,11 @@ class _VodkaBottle extends StatelessWidget {
               width: 18,
               height: 36,
               decoration: BoxDecoration(
+                // 内容固有色：酒瓶瓶颈玻璃渐变。
                 gradient: const LinearGradient(
                   colors: [Color(0xFFE9EFF2), Color(0xFFBFC8CD)],
                 ),
+                // 内容固有色：酒瓶插画描边色。
                 border: Border.all(color: const Color(0xFF89939A)),
                 borderRadius: BorderRadius.circular(4),
               ),
@@ -381,6 +394,7 @@ class _VodkaBottle extends StatelessWidget {
               width: 55,
               height: 94,
               decoration: BoxDecoration(
+                // 内容固有色：酒瓶瓶身玻璃渐变。
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -390,6 +404,7 @@ class _VodkaBottle extends StatelessWidget {
                     Color(0xFFF5FBFD),
                   ],
                 ),
+                // 内容固有色：酒瓶插画描边色。
                 border: Border.all(color: const Color(0xFF9EA8AE)),
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(20),
@@ -415,12 +430,15 @@ class _VodkaBottle extends StatelessWidget {
               width: 17,
               height: 17,
               decoration: BoxDecoration(
+                // 内容固有色：酒瓶高光（玻璃反光，两种外观一致）。
                 color: Colors.white.withValues(alpha: 0.72),
+                // 内容固有色：酒瓶插画描边色。
                 border: Border.all(color: const Color(0xFF9AA4AA)),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.water_drop_outlined,
+                // 内容固有色：酒瓶插画点缀色。
                 color: Color(0xFF94A0A6),
                 size: 10,
               ),
@@ -451,6 +469,7 @@ class _RumBottle extends StatelessWidget {
               width: 26,
               height: 14,
               decoration: BoxDecoration(
+                // 内容固有色：朗姆酒瓶盖色。
                 color: const Color(0xFF8D1117),
                 borderRadius: BorderRadius.circular(3),
               ),
@@ -461,6 +480,7 @@ class _RumBottle extends StatelessWidget {
             child: Container(
               width: 20,
               height: 35,
+              // 内容固有色：朗姆酒瓶颈色。
               color: const Color(0xFFF9C447),
             ),
           ),
@@ -470,11 +490,13 @@ class _RumBottle extends StatelessWidget {
               width: 55,
               height: 82,
               decoration: BoxDecoration(
+                // 内容固有色：朗姆酒酒液渐变。
                 gradient: const LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [Color(0xFFAE151D), Color(0xFFEEB220)],
                 ),
+                // 内容固有色：朗姆酒瓶身描边色。
                 border: Border.all(color: const Color(0xFF6E1013), width: 1.5),
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(12),
@@ -487,6 +509,7 @@ class _RumBottle extends StatelessWidget {
                   height: 26,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
+                    // 内容固有色：朗姆酒瓶标签底色。
                     color: const Color(0xFFFFE78A),
                     borderRadius: BorderRadius.circular(3),
                   ),
@@ -494,6 +517,7 @@ class _RumBottle extends StatelessWidget {
                     product.label,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
+                      // 内容固有色：朗姆酒瓶标签文字色。
                       color: Color(0xFF941214),
                       fontSize: 7,
                       fontWeight: FontWeight.w900,
@@ -560,12 +584,14 @@ class _IceCube extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
+                // 内容固有色：冰块高光（两种外观一致）。
                 Colors.white,
                 color.withValues(alpha: 0.5),
                 color.withValues(alpha: 0.84),
               ],
             ),
             borderRadius: BorderRadius.circular(6),
+            // 内容固有色：冰块描边高光（两种外观一致）。
             border: Border.all(color: Colors.white.withValues(alpha: 0.85)),
             boxShadow: [
               BoxShadow(
@@ -641,6 +667,8 @@ class _FeaturedBarCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
 
     return GestureDetector(
       onTap: onTap,
@@ -649,9 +677,9 @@ class _FeaturedBarCard extends StatelessWidget {
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: HomePage.lineOf(context)),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
-              color: Color(0x1F000000),
+              color: siponColors.shadow,
               blurRadius: 24,
               offset: Offset(0, 12),
             ),
@@ -713,17 +741,17 @@ class _FeaturedBarCard extends StatelessWidget {
                           children: [
                             Text(
                               bar.rating.toStringAsFixed(1),
-                              style: const TextStyle(
-                                color: Color(0xFF6F6870),
+                              style: TextStyle(
+                                color: scheme.onSurfaceVariant,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 0,
                               ),
                             ),
                             const SizedBox(width: 3),
-                            const Icon(
+                            Icon(
                               Icons.star_rounded,
-                              color: HomePage.brand,
+                              color: scheme.primary,
                               size: 16,
                             ),
                           ],
@@ -790,7 +818,7 @@ class _OverlayTag extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.46),
+        color: context.siponColors.scrim,
         borderRadius: BorderRadius.circular(3),
       ),
       child: Padding(
@@ -798,6 +826,7 @@ class _OverlayTag extends StatelessWidget {
         child: Text(
           label,
           style: const TextStyle(
+            // 内容固有色：内容图蒙层上的标签文字，两种外观一致。
             color: Colors.white,
             fontSize: 10,
             fontWeight: FontWeight.w600,
@@ -825,8 +854,8 @@ class _LightTag extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: Text(
           label,
-          style: const TextStyle(
-            color: HomePage.brand,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.primary,
             fontSize: 10,
             fontWeight: FontWeight.w600,
             letterSpacing: 0,

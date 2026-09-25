@@ -145,11 +145,11 @@ class _BudgetCardState extends State<_BudgetCard> {
       decoration: BoxDecoration(
         color: context.siponColors.glassSurface,
         borderRadius: BorderRadius.circular(18),
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
-            color: Color(0x149A3D78),
+            color: context.siponColors.shadow,
             blurRadius: 24,
-            offset: Offset(0, 10),
+            offset: const Offset(0, 10),
           ),
         ],
       ),
@@ -378,7 +378,7 @@ class _MonthlyExpense extends StatelessWidget {
                   style: TextStyle(
                     color: delta >= 0
                         ? scheme.primary
-                        : const Color(0xFF3FA66A),
+                        : context.siponColors.success,
                     fontWeight: FontWeight.w800,
                   ),
                 ),

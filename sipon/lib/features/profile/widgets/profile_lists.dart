@@ -612,7 +612,7 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
       context: context,
       barrierDismissible: true,
       barrierLabel: '取消删除',
-      barrierColor: const Color(0x660F0910),
+      barrierColor: context.siponColors.scrim,
       transitionDuration: const Duration(milliseconds: 240),
       transitionBuilder: (context, animation, secondaryAnimation, child) {
         final curve = CurvedAnimation(
@@ -667,6 +667,8 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
   }
 
   Widget _selectionActions() {
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
     final selectable = _items
         .map((item) => item.id)
         .whereType<int>()
@@ -678,13 +680,13 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: siponColors.elevatedSurface,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
         children: [
           TextButton(
-            style: TextButton.styleFrom(foregroundColor: ProfilePage._brand),
+            style: TextButton.styleFrom(foregroundColor: scheme.primary),
             onPressed: _deleting
                 ? null
                 : () => setState(() {
@@ -699,7 +701,7 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
           const Spacer(),
           TextButton(
             style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFF85818B),
+              foregroundColor: scheme.onSurfaceVariant,
             ),
             onPressed: _deleting
                 ? null
@@ -711,7 +713,7 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: ProfilePage._brand,
+              backgroundColor: scheme.primary,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -810,6 +812,8 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
     // 固定弹窗高度：让加载/空态/列表态高度一致，避免数据返回时 bottom sheet
     // 因内容高度变化而重新调整自身尺寸，出现“抖动/跳动”。
     final sheetHeight = math.min(
@@ -820,8 +824,8 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
       canPop: !_deleting,
       child: Container(
         height: sheetHeight,
-        decoration: const BoxDecoration(
-          color: Color(0xFFF5F6F8),
+        decoration: BoxDecoration(
+          color: siponColors.elevatedSurface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: SafeArea(
@@ -835,7 +839,7 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
                   width: 38,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFD1D3D8),
+                    color: scheme.outlineVariant,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -845,10 +849,10 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
                     Expanded(
                       child: Text(
                         widget.title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF292B32),
+                          color: scheme.onSurface,
                         ),
                       ),
                     ),
@@ -864,11 +868,14 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
                 if (!_selecting &&
                     widget.deleteEntry != null &&
                     _items.isNotEmpty)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.only(bottom: 8),
                     child: Text(
                       '长按记录可多选删除',
-                      style: TextStyle(color: Color(0xFF858991), fontSize: 12),
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 Flexible(child: _buildBody()),
@@ -881,13 +888,14 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
   }
 
   Widget _buildBody() {
+    final scheme = Theme.of(context).colorScheme;
     if (_loading) {
-      return const Padding(
+      return Padding(
         padding: EdgeInsets.symmetric(vertical: 60),
         child: Center(
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            color: ProfilePage._brand,
+            color: scheme.primary,
           ),
         ),
       );
@@ -905,7 +913,10 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF858991), fontSize: 13),
+              style: TextStyle(
+                color: scheme.onSurfaceVariant,
+                fontSize: 13,
+              ),
             ),
             const SizedBox(height: 14),
             OutlinedButton.icon(
@@ -913,8 +924,8 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
               icon: const Icon(Icons.refresh_rounded, size: 18),
               label: const Text('重试'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: ProfilePage._brand,
-                side: const BorderSide(color: ProfilePage._brand),
+                foregroundColor: scheme.primary,
+                side: BorderSide(color: scheme.primary),
               ),
             ),
           ],
@@ -928,7 +939,10 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
         child: Center(
           child: Text(
             widget.emptyText,
-            style: const TextStyle(color: Color(0xFF858991), fontSize: 13),
+            style: TextStyle(
+              color: scheme.onSurfaceVariant,
+              fontSize: 13,
+            ),
           ),
         ),
       );
@@ -1007,6 +1021,7 @@ class _ProfileListFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Center(
@@ -1019,7 +1034,7 @@ class _ProfileListFooter extends StatelessWidget {
             : TextButton(
                 onPressed: onLoadMore,
                 style: TextButton.styleFrom(
-                  foregroundColor: ProfilePage._brand,
+                  foregroundColor: scheme.primary,
                 ),
                 child: const Text(
                   '加载更多',
@@ -1061,8 +1076,10 @@ class _DeleteRecordsDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
     return Dialog(
-      backgroundColor: Colors.white,
+      backgroundColor: siponColors.elevatedSurface,
       surfaceTintColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
@@ -1076,23 +1093,23 @@ class _DeleteRecordsDialog extends StatelessWidget {
               Container(
                 width: 60,
                 height: 60,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF9EDF4),
+                decoration: BoxDecoration(
+                  color: siponColors.brandSurface,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.delete_outline_rounded,
-                  color: ProfilePage._brand,
+                  color: scheme.primary,
                   size: 28,
                 ),
               ),
               const SizedBox(height: 20),
               Text(
                 '删除 $count 条记录？',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 21,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF29232D),
+                  color: scheme.onSurface,
                 ),
               ),
               const SizedBox(height: 10),
@@ -1102,21 +1119,21 @@ class _DeleteRecordsDialog extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF625668),
+                    color: scheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 6),
               ],
-              const Text(
+              Text(
                 '删除后无法恢复，请确认后再操作。',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 13,
                   height: 1.6,
-                  color: Color(0xFF938995),
+                  color: scheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 26),
@@ -1126,8 +1143,8 @@ class _DeleteRecordsDialog extends StatelessWidget {
                     child: TextButton(
                       style: TextButton.styleFrom(
                         minimumSize: const Size(0, 48),
-                        backgroundColor: const Color(0xFFF4F2F5),
-                        foregroundColor: const Color(0xFF625668),
+                        backgroundColor: siponColors.subtleSurface,
+                        foregroundColor: scheme.onSurfaceVariant,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(15),
                         ),
@@ -1141,7 +1158,7 @@ class _DeleteRecordsDialog extends StatelessWidget {
                     child: FilledButton(
                       style: FilledButton.styleFrom(
                         minimumSize: const Size(0, 48),
-                        backgroundColor: ProfilePage._brand,
+                        backgroundColor: scheme.primary,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(15),
                         ),
@@ -1189,6 +1206,8 @@ class _MockListCardState extends State<_MockListCard> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
     final duration = Duration(milliseconds: reduceMotion ? 0 : 180);
     return AnimatedScale(
@@ -1211,18 +1230,19 @@ class _MockListCardState extends State<_MockListCard> {
           curve: Curves.easeOutCubic,
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: selected ? const Color(0xFFFFF5FB) : Colors.white,
+            color: selected ? siponColors.brandSurface : scheme.surface,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: selected
-                  ? ProfilePage._brand.withValues(alpha: 0.55)
+                  ? scheme.primary.withValues(alpha: 0.55)
                   : Colors.transparent,
               width: 1.5,
             ),
+            // 深色卡片靠层级 + 描边区分，不再依赖品牌色阴影。
             boxShadow: [
               if (selected || _pressed)
                 BoxShadow(
-                  color: ProfilePage._brand.withValues(alpha: 0.10),
+                  color: siponColors.shadow,
                   blurRadius: 14,
                   offset: const Offset(0, 4),
                 ),
@@ -1245,9 +1265,10 @@ class _MockListCardState extends State<_MockListCard> {
                             item.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
+                              color: scheme.onSurface,
                             ),
                           ),
                           const SizedBox(height: 5),
@@ -1255,18 +1276,18 @@ class _MockListCardState extends State<_MockListCard> {
                             item.description,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
-                              color: Color(0xFF858991),
+                              color: scheme.onSurfaceVariant,
                               height: 1.3,
                             ),
                           ),
                           const SizedBox(height: 6),
                           Text(
                             item.meta,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
-                              color: Color(0xFF9A3D78),
+                              color: scheme.primary,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -1287,22 +1308,22 @@ class _MockListCardState extends State<_MockListCard> {
                         height: 24,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: selected ? ProfilePage._brand : Colors.white,
+                          color: selected ? scheme.primary : scheme.surface,
                           border: Border.all(
                             color: selected
-                                ? ProfilePage._brand
-                                : const Color(0xFFD9D1DC),
+                                ? scheme.primary
+                                : scheme.outlineVariant,
                             width: 1.5,
                           ),
                         ),
                         child: AnimatedSwitcher(
                           duration: duration,
                           child: selected
-                              ? const Icon(
+                              ? Icon(
                                   Icons.check_rounded,
                                   key: ValueKey(true),
                                   size: 17,
-                                  color: Colors.white,
+                                  color: scheme.onPrimary,
                                 )
                               : const SizedBox.shrink(key: ValueKey(false)),
                         ),
@@ -1314,10 +1335,10 @@ class _MockListCardState extends State<_MockListCard> {
                 IconButton(
                   // 箭头与整卡同行为；无地点列表保持原先"可点无操作"，避免变灰。
                   onPressed: onOpenMap ?? () {},
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.arrow_forward_ios_rounded,
                     size: 16,
-                    color: Color(0xFF9A3D78),
+                    color: scheme.primary,
                   ),
                 ),
             ],
@@ -1335,6 +1356,7 @@ class _CheckInListDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final review = item.description.trim();
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -1344,11 +1366,11 @@ class _CheckInListDetails extends StatelessWidget {
           review.isEmpty ? item.name : review,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 15,
             height: 1.3,
             fontWeight: FontWeight.w800,
-            color: ProfilePage._ink,
+            color: scheme.onSurface,
           ),
         ),
         const SizedBox(height: 8),
@@ -1377,17 +1399,18 @@ class _CheckInMetaLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Row(
       children: [
-        Icon(icon, size: 14, color: const Color(0xFF9A3D78)),
+        Icon(icon, size: 14, color: scheme.primary),
         const SizedBox(width: 4),
         Expanded(
           child: Text(
             text,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Color(0xFF79747C),
+            style: TextStyle(
+              color: scheme.onSurfaceVariant,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -1427,6 +1450,9 @@ class _MockRouteCardState extends State<_MockRouteCard> {
   @override
   Widget build(BuildContext context) {
     final isPrivate = item.isPrivate;
+    // 内容固有色：路线卡片多彩底与深色文字成对（浅底 + 深字），深色模式下保持原样以保证
+    // 对比度；多彩底无现有语义色可映射，已上报需新增路线卡片语义色，待主题层收敛后再迁移。
+    // 同理卡片内深灰文字、选中品牌色、图片白色描边与占位色暂保留。
     const routeColors = [
       Color(0xFFFFE6B8), // 杏桃
       Color(0xFFDDE5FF), // 雾蓝

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/theme/sipon_theme_colors.dart';
 import '../models/map_models.dart';
 import '../widgets/venue_mini_map.dart';
 import '../../../shared/localization/language_transform.dart';
@@ -23,7 +24,7 @@ class VenueFullscreenMapPage extends StatelessWidget {
               child: Align(
                 alignment: Alignment.topLeft,
                 child: Material(
-                  color: Colors.white,
+                  color: context.siponColors.elevatedSurface,
                   elevation: 3,
                   shape: const CircleBorder(),
                   child: IconButton(

@@ -128,10 +128,16 @@ class _HomeTopBarState extends State<_HomeTopBar> {
                   child: IgnorePointer(
                     ignoring: widget.expanded,
                     child: Center(
-                      child: Image.asset(
+                      child: SvgPicture.asset(
                         HomePage.nameAsset,
                         width: 82,
                         height: 30,
+                        // SVG 已改为 fill="currentColor"，此处跟随主题：
+                        // 浅色下为深色字、深色下为白色，自动适配深浅色切换。
+                        colorFilter: ColorFilter.mode(
+                          HomePage.inkOf(context),
+                          BlendMode.srcIn,
+                        ),
                       ),
                     ),
                   ),
@@ -268,14 +274,16 @@ class _CocktailSuggestions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
     return Container(
       margin: const EdgeInsets.only(top: 4),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
-            color: Color(0x16000000),
+            color: siponColors.shadow,
             blurRadius: 14,
             offset: Offset(0, 6),
           ),
@@ -298,9 +306,9 @@ class _CocktailSuggestions extends StatelessWidget {
                   ListTile(
                     dense: true,
                     minVerticalPadding: 0,
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.local_bar_outlined,
-                      color: HomePage.brand,
+                      color: scheme.primary,
                       size: 20,
                     ),
                     title: Text(
@@ -321,14 +329,22 @@ class _CocktailSuggestions extends StatelessWidget {
   }
 }
 
-BoxDecoration _homePromptDecoration(BuildContext context) => BoxDecoration(
-  color: Theme.of(context).colorScheme.surface,
-  borderRadius: BorderRadius.circular(16),
-  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-  boxShadow: const [
-    BoxShadow(color: Color(0x109A3D78), blurRadius: 18, offset: Offset(0, 8)),
-  ],
-);
+BoxDecoration _homePromptDecoration(BuildContext context) {
+  final scheme = Theme.of(context).colorScheme;
+  final siponColors = context.siponColors;
+  return BoxDecoration(
+    color: scheme.surface,
+    borderRadius: BorderRadius.circular(16),
+    border: Border.all(color: scheme.outlineVariant),
+    boxShadow: [
+      BoxShadow(
+        color: siponColors.shadow,
+        blurRadius: 18,
+        offset: Offset(0, 8),
+      ),
+    ],
+  );
+}
 
 class _VirtualDrinkingPrompt extends StatelessWidget {
   const _VirtualDrinkingPrompt({required this.onPressed});
@@ -338,6 +354,7 @@ class _VirtualDrinkingPrompt extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       decoration: _homePromptDecoration(context),
       child: Material(
@@ -350,9 +367,9 @@ class _VirtualDrinkingPrompt extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.nightlife_rounded,
-                  color: HomePage.brand,
+                  color: scheme.primary,
                   size: 28,
                 ),
                 const SizedBox(width: 12),
@@ -387,11 +404,11 @@ class _VirtualDrinkingPrompt extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
-                const SizedBox(
+                SizedBox(
                   height: 44,
                   child: Icon(
                     Icons.arrow_forward_ios_rounded,
-                    color: HomePage.brand,
+                    color: scheme.primary,
                     size: 17,
                   ),
                 ),
@@ -412,13 +429,14 @@ class _HomeRecordPrompt extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
       decoration: _homePromptDecoration(context),
       child: Row(
         children: [
-          const Icon(Icons.auto_graph_rounded, color: HomePage.brand, size: 28),
+          Icon(Icons.auto_graph_rounded, color: scheme.primary, size: 28),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -456,8 +474,8 @@ class _HomeRecordPrompt extends StatelessWidget {
             style: FilledButton.styleFrom(
               minimumSize: const Size(82, 44),
               padding: const EdgeInsets.symmetric(horizontal: 14),
-              backgroundColor: HomePage.brand,
-              foregroundColor: Colors.white,
+              backgroundColor: scheme.primary,
+              foregroundColor: scheme.onPrimary,
               textStyle: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w900,

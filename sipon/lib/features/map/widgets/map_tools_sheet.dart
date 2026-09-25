@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/theme/sipon_theme_colors.dart';
 import '../../../shared/localization/language_transform.dart';
 import '../models/map_models.dart';
-import 'map_theme.dart';
 
 /// 地图工具栏打开的 POI 组合筛选面板。
 ///
@@ -56,6 +56,7 @@ class _MapPoiFilterSheetState extends State<MapPoiFilterSheet> {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
 
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(
@@ -73,8 +74,8 @@ class _MapPoiFilterSheetState extends State<MapPoiFilterSheet> {
               Expanded(
                 child: Text(
                   text.t('筛选'),
-                  style: const TextStyle(
-                    color: MapDesign.ink,
+                  style: TextStyle(
+                    color: scheme.onSurface,
                     fontSize: 20,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 0,
@@ -87,8 +88,8 @@ class _MapPoiFilterSheetState extends State<MapPoiFilterSheet> {
           const SizedBox(height: 4),
           Text(
             text.t('可与酒吧类型同时筛选'),
-            style: const TextStyle(
-              color: MapDesign.muted,
+            style: TextStyle(
+              color: scheme.onSurfaceVariant,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -134,8 +135,8 @@ class _MapPoiFilterSheetState extends State<MapPoiFilterSheet> {
             child: FilledButton(
               onPressed: _apply,
               style: FilledButton.styleFrom(
-                backgroundColor: MapDesign.brand,
-                foregroundColor: Colors.white,
+                backgroundColor: scheme.primary,
+                foregroundColor: scheme.onPrimary,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
@@ -162,13 +163,14 @@ class _FilterSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
-          style: const TextStyle(
-            color: MapDesign.ink,
+          style: TextStyle(
+            color: scheme.onSurface,
             fontSize: 14,
             fontWeight: FontWeight.w900,
             letterSpacing: 0,
@@ -194,21 +196,23 @@ class _FilterChoice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
     return ChoiceChip(
       label: Text(label),
       selected: selected,
       onSelected: (_) => onTap(),
       showCheckmark: false,
-      selectedColor: MapDesign.brand,
-      backgroundColor: const Color(0xFFF7F3F6),
+      selectedColor: scheme.primary,
+      backgroundColor: siponColors.subtleSurface,
       labelStyle: TextStyle(
-        color: selected ? Colors.white : MapDesign.ink,
+        color: selected ? scheme.onPrimary : scheme.onSurface,
         fontSize: 13,
         fontWeight: FontWeight.w800,
         letterSpacing: 0,
       ),
       side: BorderSide(
-        color: selected ? MapDesign.brand : const Color(0xFFE8DFE5),
+        color: selected ? scheme.primary : scheme.outlineVariant,
       ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),

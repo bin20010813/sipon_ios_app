@@ -16,6 +16,7 @@ import '../../../shared/services/sipon_city_controller.dart';
 import '../widgets/map_controls.dart';
 import '../widgets/map_tools_sheet.dart';
 import '../widgets/venue_sheet.dart';
+import '../../../app/theme/sipon_theme_colors.dart';
 import '../../../shared/widgets/sipon_city_picker.dart';
 import '../../../shared/localization/language_transform.dart';
 
@@ -578,7 +579,7 @@ class _MapPageState extends State<MapPage> {
           );
         },
         child: Material(
-          color: Colors.white,
+          color: context.siponColors.elevatedSurface,
           elevation: 2,
           borderRadius: BorderRadius.circular(20),
           child: InkWell(

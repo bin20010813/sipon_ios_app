@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart' hide Visibility;
 
+import '../../../app/theme/sipon_theme_colors.dart';
 import '../../../shared/widgets/sipon_network_image.dart';
-import 'map_theme.dart';
 
 /// 酒吧封面。有网图先用网图，失败或没有就退回本地资产。
 class VenueImage extends StatelessWidget {
@@ -56,9 +56,11 @@ class VenueTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final sipon = context.siponColors;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: MapDesign.tagSurface,
+        color: sipon.brandSurface,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Padding(
@@ -67,8 +69,8 @@ class VenueTag extends StatelessWidget {
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: MapDesign.brand,
+          style: TextStyle(
+            color: scheme.primary,
             fontSize: 9,
             fontWeight: FontWeight.w700,
             letterSpacing: 0,

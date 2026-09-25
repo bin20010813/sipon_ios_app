@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import 'package:sipon/app/theme/sipon_theme_colors.dart';
 import 'package:sipon/features/drinks/records/data/drink_budget_store.dart';
 import 'package:sipon/features/map/models/map_models.dart';
 import 'package:sipon/features/profile/data/profile_bar_images.dart';
@@ -28,9 +29,11 @@ class PublicProfilePage extends StatefulWidget {
   final int userId;
   final bool isCurrentUser;
 
+  /// 内容固有色保留：时间线节点圆点与打卡徽章配套的品牌色，不跟随主题变化。
   static const Color _brand = Color(0xFF9A3D78);
+
+  /// 内容固有色保留：路线卡浅色固有底上的配套深色字，保证浅底上的对比度。
   static const Color _ink = Color(0xFF292B32);
-  static const Color _muted = Color(0xFF8E8790);
   static const String _fallbackCover = 'assest/首页/图片素材/酒吧1.png';
 
   @override
@@ -182,25 +185,22 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: Colors.white,
-      // 需求：不展示「用户主页」标题，仅保留返回按钮。
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-        title: const Text(''),
-      ),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      // 需求：不展示「用户主页」标题，仅保留返回按钮；外观走主题 AppBar。
+      appBar: AppBar(title: const Text('')),
       body: _loading
-          ? const Center(
+          ? Center(
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: PublicProfilePage._brand,
+                color: scheme.primary,
               ),
             )
           : _error != null || _profile == null
           ? _ProfileLoadError(onRetry: _load)
           : RefreshIndicator(
-              color: PublicProfilePage._brand,
+              color: scheme.primary,
               onRefresh: () async {
                 await _load();
                 if (widget.isCurrentUser) await _loadMoments();
@@ -309,6 +309,7 @@ class _ProfileHeaderSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final profile = this.profile;
     final bio = profile.bio?.trim() ?? '';
+    final scheme = Theme.of(context).colorScheme;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
@@ -320,7 +321,7 @@ class _ProfileHeaderSection extends StatelessWidget {
             profile.name,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w800,
-              color: PublicProfilePage._ink,
+              color: scheme.onSurface,
             ),
           ),
           // 编辑资料里填写的内容以小标签形式排在头像/昵称下方。
@@ -352,9 +353,9 @@ class _ProfileHeaderSection extends StatelessWidget {
             Text(
               bio,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 height: 1.5,
-                color: Color(0xFF4B464B),
+                color: scheme.onSurfaceVariant,
                 fontSize: 13,
               ),
             ),
@@ -367,11 +368,11 @@ class _ProfileHeaderSection extends StatelessWidget {
                 onPressed: updatingFollow ? null : onFollow,
                 style: FilledButton.styleFrom(
                   backgroundColor: profile.isFollowing == true
-                      ? const Color(0xFFF0E9ED)
-                      : PublicProfilePage._brand,
+                      ? scheme.outlineVariant
+                      : scheme.primary,
                   foregroundColor: profile.isFollowing == true
-                      ? const Color(0xFF6D5865)
-                      : Colors.white,
+                      ? scheme.onSurfaceVariant
+                      : scheme.onPrimary,
                 ),
                 child: Text(
                   updatingFollow
@@ -406,24 +407,25 @@ class _InfoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFFFDF1F7),
+        color: context.siponColors.brandSurface,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: PublicProfilePage._brand),
+          Icon(icon, size: 14, color: scheme.primary),
           const SizedBox(width: 4),
           Flexible(
             child: Text(
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: PublicProfilePage._brand,
+              style: TextStyle(
+                color: scheme.primary,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
@@ -468,7 +470,7 @@ class _StatsRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFFCF8FA),
+        color: context.siponColors.subtleSurface,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -492,23 +494,26 @@ class _StatTile extends StatelessWidget {
   final _ProfileStat stat;
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      Text(
-        stat.value?.toString() ?? '—',
-        style: const TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.w800,
-          color: PublicProfilePage._ink,
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      children: [
+        Text(
+          stat.value?.toString() ?? '—',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: scheme.onSurface,
+          ),
         ),
-      ),
-      const SizedBox(height: 4),
-      Text(
-        stat.label,
-        style: const TextStyle(color: PublicProfilePage._muted, fontSize: 12),
-      ),
-    ],
-  );
+        const SizedBox(height: 4),
+        Text(
+          stat.label,
+          style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+        ),
+      ],
+    );
+  }
 }
 
 class _UserAvatar extends StatelessWidget {
@@ -517,13 +522,14 @@ class _UserAvatar extends StatelessWidget {
   final double size;
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final value = url?.trim();
     final imageUrl = value == null || value.isEmpty
         ? null
         : SiponApiConfig.instance.resolveUri(value).toString();
     return CircleAvatar(
       radius: size / 2,
-      backgroundColor: const Color(0xFFFFE4F1),
+      backgroundColor: context.siponColors.brandSurface,
       backgroundImage: imageUrl == null
           ? null
           : CachedNetworkImageProvider(
@@ -535,7 +541,7 @@ class _UserAvatar extends StatelessWidget {
           ? Icon(
               Icons.person_rounded,
               size: size * .52,
-              color: PublicProfilePage._brand,
+              color: scheme.primary,
             )
           : null,
     );
@@ -578,6 +584,7 @@ class _MomentsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -590,15 +597,15 @@ class _MomentsSection extends StatelessWidget {
                   width: 4,
                   height: 16,
                   decoration: BoxDecoration(
-                    color: PublicProfilePage._brand,
+                    color: scheme.primary,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
                 const SizedBox(width: 8),
-                const Text(
+                Text(
                   '我的动态',
                   style: TextStyle(
-                    color: PublicProfilePage._ink,
+                    color: scheme.onSurface,
                     fontSize: 17,
                     fontWeight: FontWeight.w900,
                   ),
@@ -607,15 +614,15 @@ class _MomentsSection extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             if (loading)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 48),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 48),
                 child: Center(
                   child: SizedBox(
                     width: 22,
                     height: 22,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: PublicProfilePage._brand,
+                      color: scheme.primary,
                     ),
                   ),
                 ),
@@ -625,21 +632,21 @@ class _MomentsSection extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 40),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFCF8FA),
+                  color: context.siponColors.subtleSurface,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Column(
+                child: Column(
                   children: [
                     Icon(
                       Icons.local_bar_rounded,
                       size: 34,
-                      color: Color(0xFFD8C9D3),
+                      color: scheme.onSurfaceVariant,
                     ),
-                    SizedBox(height: 10),
+                    const SizedBox(height: 10),
                     Text(
                       '还没有动态，去打卡第一家酒吧吧',
                       style: TextStyle(
-                        color: PublicProfilePage._muted,
+                        color: scheme.onSurfaceVariant,
                         fontSize: 13,
                       ),
                     ),
@@ -739,10 +746,9 @@ class _TimelineRow extends StatelessWidget {
   final ValueChanged<_Moment> onOpenRoute;
   final VoidCallback onOpenDrinkCalendar;
 
-  static const Color _lineColor = Color(0xFFF0E2EB);
-
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -757,8 +763,8 @@ class _TimelineRow extends StatelessWidget {
                     child: Text(
                       dateText!,
                       textAlign: TextAlign.right,
-                      style: const TextStyle(
-                        color: Color(0xFFB9AEB6),
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
                       ),
@@ -777,6 +783,7 @@ class _TimelineRow extends StatelessWidget {
                   height: 10,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
+                    // 内容固有色：节点圆点与类型徽章同色，不跟随主题变化。
                     color: moment.dotColor,
                     border: Border.all(
                       color: moment.dotColor.withValues(alpha: 0.25),
@@ -787,7 +794,10 @@ class _TimelineRow extends StatelessWidget {
                 if (!isLast)
                   Expanded(
                     child: Center(
-                      child: Container(width: 2, color: _lineColor),
+                      child: Container(
+                        width: 2,
+                        color: scheme.outlineVariant,
+                      ),
                     ),
                   ),
               ],
@@ -825,14 +835,15 @@ class _MomentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final moment = this.moment;
+    final scheme = Theme.of(context).colorScheme;
     // shape 与 borderRadius 不能同时传给 Material（断言约束），
     // 圆角与描边统一放在 shape 里，裁剪也按 shape 生效。
     return Material(
-      color: Colors.white,
+      color: scheme.surface,
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: Color(0xFFF3EAF0)),
+        side: BorderSide(color: scheme.outlineVariant),
       ),
       child: InkWell(
         onTap: switch (moment.kind) {
@@ -873,6 +884,7 @@ class _CheckInBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final imageUrl = moment.imageUrl;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -884,10 +896,10 @@ class _CheckInBody extends StatelessWidget {
               height: 132,
               child: _MomentImage(url: imageUrl),
             ),
-            const Positioned(
+            Positioned(
               left: 8,
               top: 8,
-              child: _MomentBadge(label: '打卡', color: PublicProfilePage._brand),
+              child: _MomentBadge(label: '打卡', color: scheme.primary),
             ),
           ],
         ),
@@ -900,8 +912,8 @@ class _CheckInBody extends StatelessWidget {
                 moment.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: PublicProfilePage._ink,
+                style: TextStyle(
+                  color: scheme.onSurface,
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
                 ),
@@ -912,8 +924,8 @@ class _CheckInBody extends StatelessWidget {
                   moment.subtitle!,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: PublicProfilePage._muted,
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
                     fontSize: 12,
                     height: 1.35,
                   ),
@@ -937,6 +949,7 @@ class _WishBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -947,6 +960,7 @@ class _WishBody extends StatelessWidget {
               height: 112,
               child: _MomentImage(url: moment.imageUrl),
             ),
+            // 内容固有色保留：想喝徽章粉，与时间线节点同色。
             const Positioned(
               left: 8,
               top: 8,
@@ -963,8 +977,8 @@ class _WishBody extends StatelessWidget {
                 moment.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: PublicProfilePage._ink,
+                style: TextStyle(
+                  color: scheme.onSurface,
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
                 ),
@@ -976,8 +990,8 @@ class _WishBody extends StatelessWidget {
                     : '想去喝一杯',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: PublicProfilePage._muted,
+                style: TextStyle(
+                  color: scheme.onSurfaceVariant,
                   fontSize: 12,
                 ),
               ),
@@ -989,7 +1003,8 @@ class _WishBody extends StatelessWidget {
   }
 }
 
-/// 路线卡：暖色底 + 站点小标签流。
+/// 路线卡：暖色固有底 + 站点小标签流。
+/// 内容固有色保留：卡底、徽章、文字均为浅色底配套色，不跟随主题变化。
 class _RouteBody extends StatelessWidget {
   const _RouteBody({required this.moment});
 
@@ -1006,8 +1021,10 @@ class _RouteBody extends StatelessWidget {
         children: [
           Row(
             children: [
+              // 内容固有色保留：路线徽章金，与时间线节点同色。
               const _MomentBadge(label: '路线', color: Color(0xFFB8860B)),
               const Spacer(),
+              // 内容固有色保留：浅色固有底上的配套图标。
               Icon(
                 moment.isPrivate
                     ? Icons.lock_outline_rounded
@@ -1022,6 +1039,7 @@ class _RouteBody extends StatelessWidget {
             moment.title,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
+            // 内容固有色保留：浅色固有底上的配套深色字。
             style: const TextStyle(
               color: PublicProfilePage._ink,
               fontSize: 15,
@@ -1034,6 +1052,7 @@ class _RouteBody extends StatelessWidget {
             moment.subtitle?.isNotEmpty == true
                 ? moment.subtitle!
                 : '${stops.length} 个地点',
+            // 内容固有色保留：浅色固有底上的配套次要文字。
             style: const TextStyle(
               color: Color(0xFF79747C),
               fontSize: 12,
@@ -1053,6 +1072,7 @@ class _RouteBody extends StatelessWidget {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
+                      // 内容固有色保留：浅色固有底上的半透明白标签。
                       color: Colors.white.withValues(alpha: 0.75),
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -1060,6 +1080,7 @@ class _RouteBody extends StatelessWidget {
                       '${index + 1} ${stop.name}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+                      // 内容固有色保留：浅色标签上的配套深色字。
                       style: const TextStyle(
                         color: PublicProfilePage._ink,
                         fontSize: 11,
@@ -1074,11 +1095,13 @@ class _RouteBody extends StatelessWidget {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
+                      // 内容固有色保留：浅色固有底上的半透明白标签。
                       color: Colors.white.withValues(alpha: 0.75),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
                       '+${stops.length - 3}',
+                      // 内容固有色保留：浅色标签上的配套深色字。
                       style: const TextStyle(
                         color: PublicProfilePage._ink,
                         fontSize: 11,
@@ -1103,16 +1126,19 @@ class _ReviewBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
-      color: const Color(0xFFFFFBF5),
+      color: context.siponColors.subtleSurface,
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              // 内容固有色保留：点评徽章铜，与时间线节点同色。
               const _MomentBadge(label: '点评', color: Color(0xFFC98A2D)),
               const Spacer(),
+              // 内容固有色保留：引用装饰符号。
               const Icon(
                 Icons.format_quote_rounded,
                 size: 18,
@@ -1125,8 +1151,8 @@ class _ReviewBody extends StatelessWidget {
             moment.subtitle ?? '',
             maxLines: 6,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: PublicProfilePage._ink,
+            style: TextStyle(
+              color: scheme.onSurface,
               fontSize: 13,
               height: 1.5,
             ),
@@ -1134,10 +1160,10 @@ class _ReviewBody extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.local_bar_rounded,
                 size: 13,
-                color: PublicProfilePage._brand,
+                color: scheme.primary,
               ),
               const SizedBox(width: 4),
               Expanded(
@@ -1145,8 +1171,8 @@ class _ReviewBody extends StatelessWidget {
                   moment.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: PublicProfilePage._brand,
+                  style: TextStyle(
+                    color: scheme.primary,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
@@ -1170,20 +1196,23 @@ class _DrinkBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
     return Container(
-      color: const Color(0xFFF3FAF5),
+      color: siponColors.successSurface,
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              // 内容固有色保留：小酌徽章绿，与时间线节点同色。
               const _MomentBadge(label: '小酌', color: Color(0xFF3FA66A)),
               const Spacer(),
-              const Icon(
+              Icon(
                 Icons.local_drink_rounded,
                 size: 16,
-                color: Color(0xFF3FA66A),
+                color: siponColors.success,
               ),
             ],
           ),
@@ -1192,8 +1221,8 @@ class _DrinkBody extends StatelessWidget {
             moment.title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: PublicProfilePage._ink,
+            style: TextStyle(
+              color: scheme.onSurface,
               fontSize: 14,
               fontWeight: FontWeight.w800,
             ),
@@ -1202,16 +1231,16 @@ class _DrinkBody extends StatelessWidget {
           Row(
             children: [
               if (moment.cups > 0) ...[
-                const Icon(
+                Icon(
                   Icons.local_bar_rounded,
                   size: 13,
-                  color: Color(0xFF3FA66A),
+                  color: siponColors.success,
                 ),
                 const SizedBox(width: 3),
                 Text(
                   '×${moment.cups}',
-                  style: const TextStyle(
-                    color: Color(0xFF3FA66A),
+                  style: TextStyle(
+                    color: siponColors.success,
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
                   ),
@@ -1223,8 +1252,8 @@ class _DrinkBody extends StatelessWidget {
                   moment.subtitle ?? '',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: PublicProfilePage._muted,
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
                     fontSize: 12,
                   ),
                 ),
@@ -1256,6 +1285,7 @@ class _MomentBadge extends StatelessWidget {
       ),
       child: Text(
         label,
+        // 内容固有色保留：徽章上的白色文字。
         style: const TextStyle(
           color: Colors.white,
           fontSize: 10,
@@ -1277,7 +1307,10 @@ class _MomentTime extends StatelessWidget {
     if (value == null) return const SizedBox.shrink();
     return Text(
       '${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}',
-      style: const TextStyle(color: Color(0xFFB9B2BC), fontSize: 11),
+      style: TextStyle(
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        fontSize: 11,
+      ),
     );
   }
 }
@@ -1320,6 +1353,7 @@ class _Moment {
     this.stops = const [],
     this.isPrivate = false,
     this.cups = 0,
+    // 内容固有色保留：模型默认卡底；实际只有路线卡使用该字段且必传值。
     this.cardColor = Colors.white,
   });
 
@@ -1338,6 +1372,7 @@ class _Moment {
   final Color cardColor;
 
   /// 时间线节点圆点颜色：按动态类型区分。
+  /// 内容固有色保留：与各类型徽章同色，不跟随主题变化。
   Color get dotColor => switch (kind) {
     _MomentKind.checkIn => PublicProfilePage._brand,
     _MomentKind.wish => const Color(0xFFFF8BD0),
@@ -1427,6 +1462,7 @@ _Moment? _momentFromRoute(Map<String, dynamic> map) {
     routeId: _pickNum(map, ['id'])?.toInt(),
     stops: stops,
     isPrivate: _pickString(map, ['visibility'])?.toLowerCase() != 'public',
+    // 内容固有色保留：路线卡多彩底（F 代理同口径，不重复上报新语义色）。
     cardColor: stops.isEmpty || stops.length.isEven
         ? const Color(0xFFFFE6B8)
         : const Color(0xFFDDE5FF),
@@ -1445,13 +1481,6 @@ _Moment _momentFromDrinkRecord(DrinkBudgetRecord record) {
     subtitle: record.place.trim().isEmpty ? null : record.place.trim(),
     cups: record.cups,
   );
-}
-
-/// ISO 时间截断为 `yyyy-MM-dd` 日期文案。
-String _shortDate(Map<String, dynamic> map, List<String> keys) {
-  final iso = _pickString(map, keys);
-  if (iso == null || iso.length < 10) return '';
-  return iso.substring(0, 10);
 }
 
 // ---------- 宽松取值工具（与「我的」页同一套约定） ----------

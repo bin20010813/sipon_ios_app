@@ -74,15 +74,15 @@ class _TopIconButton extends StatelessWidget {
             icon: Icon(icon, size: 25),
           ),
           if (showDot)
-            const Positioned(
+            Positioned(
               right: 7,
               top: 7,
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: ProfilePage._brand,
+                  color: scheme.primary,
                   shape: BoxShape.circle,
                 ),
-                child: SizedBox(width: 7, height: 7),
+                child: const SizedBox(width: 7, height: 7),
               ),
             ),
         ],
@@ -152,16 +152,16 @@ class _ProfileHeader extends StatelessWidget {
                     Text(
                       '查看我的主页',
                       style: textTheme.bodySmall?.copyWith(
-                        color: ProfilePage._brand,
+                        color: scheme.primary,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0,
                       ),
                     ),
                     const SizedBox(width: 2),
-                    const Icon(
+                    Icon(
                       Icons.arrow_forward_ios_rounded,
                       size: 11,
-                      color: ProfilePage._brand,
+                      color: scheme.primary,
                     ),
                   ],
                 ),
@@ -199,6 +199,7 @@ class _ProfileAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
 
     return SizedBox(
       width: 70,
@@ -214,12 +215,14 @@ class _ProfileAvatar extends StatelessWidget {
               height: 64,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 3),
-                boxShadow: const [
+                // 头像描边用 surface：浅色与原白色一致，深色融入背景减少割裂，
+                // 分隔作用由下方品牌阴影继续承担。
+                border: Border.all(color: scheme.surface, width: 3),
+                boxShadow: [
                   BoxShadow(
-                    color: Color(0x269A3D78),
+                    color: context.siponColors.shadow,
                     blurRadius: 18,
-                    offset: Offset(0, 8),
+                    offset: const Offset(0, 8),
                   ),
                 ],
               ),
@@ -233,10 +236,12 @@ class _ProfileAvatar extends StatelessWidget {
               height: 20,
               padding: const EdgeInsets.fromLTRB(4, 2, 8, 2),
               decoration: BoxDecoration(
+                // 内容固有色保留：小酌徽章粉底。
                 color: const Color(0xFFFF8BD0),
                 borderRadius: BorderRadius.circular(11),
                 boxShadow: const [
                   BoxShadow(
+                    // 内容固有色保留：徽章配套粉色阴影。
                     color: Color(0x33FF80C8),
                     blurRadius: 10,
                     offset: Offset(0, 4),
@@ -248,9 +253,11 @@ class _ProfileAvatar extends StatelessWidget {
                 children: [
                   const CircleAvatar(
                     radius: 8,
+                    // 内容固有色保留：星标底。
                     backgroundColor: Color(0xFFFFD23C),
                     child: Icon(
                       Icons.star_rounded,
+                      // 内容固有色保留：星标红。
                       color: Color(0xFFB12C29),
                       size: 12,
                     ),
@@ -258,6 +265,7 @@ class _ProfileAvatar extends StatelessWidget {
                   const SizedBox(width: 3),
                   Text(
                     text.badgeTitle,
+                    // 内容固有色保留：徽章上的白色文字。
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 8,
@@ -354,11 +362,11 @@ class _QuickEntryCardState extends State<_QuickEntryCard> {
       decoration: BoxDecoration(
         color: context.siponColors.elevatedSurface,
         borderRadius: BorderRadius.circular(18),
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
-            color: Color(0x0F9A3D78),
+            color: context.siponColors.shadow,
             blurRadius: 24,
-            offset: Offset(0, 10),
+            offset: const Offset(0, 10),
           ),
         ],
       ),
@@ -410,7 +418,6 @@ class _QuickEntryItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final darkMode = theme.brightness == Brightness.dark;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -419,13 +426,9 @@ class _QuickEntryItem extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Image.asset(
-              assetPath,
-              width: 32,
-              height: 32,
-              color: darkMode ? theme.colorScheme.primary : null,
-              colorBlendMode: darkMode ? BlendMode.srcIn : null,
-            ),
+            // 内容图保持原图：多彩 PNG 不做主题着色，承载卡片底已随主题适配；
+            // 深色变体资源待设计补齐后可再替换 asset。
+            Image.asset(assetPath, width: 32, height: 32),
             const SizedBox(height: 5),
             Text(
               label,

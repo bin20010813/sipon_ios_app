@@ -84,6 +84,7 @@ class _StoryCard extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               Image.asset(imagePath, fit: BoxFit.cover),
+              // 内容固有色：照片上的渐变压暗与白色文字，两种外观一致，保证在图片上可读。
               const DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -106,6 +107,7 @@ class _StoryCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
+                    // 内容固有色：图片上的标题，深浅外观一致。
                     color: Colors.white,
                     fontSize: titleSize,
                     fontWeight: FontWeight.w900,
@@ -124,6 +126,7 @@ class _StoryCard extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
+                      // 内容固有色：图片上的副标题，深浅外观一致。
                       color: Colors.white,
                       fontSize: 12,
                       height: 1.35,
@@ -142,6 +145,7 @@ class _StoryCard extends StatelessWidget {
                     for (final tag in tags)
                       DecoratedBox(
                         decoration: BoxDecoration(
+                          // 内容固有色：图片上的标签底，保证标签文字在图片上可读。
                           color: Colors.black.withValues(alpha: 0.42),
                           borderRadius: BorderRadius.circular(3),
                         ),
@@ -153,6 +157,7 @@ class _StoryCard extends StatelessWidget {
                           child: Text(
                             tag,
                             style: const TextStyle(
+                              // 内容固有色：图片标签文字，深浅外观一致。
                               color: Colors.white,
                               fontSize: 9,
                               fontWeight: FontWeight.w600,
@@ -222,6 +227,7 @@ class _RankingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final siponColors = context.siponColors;
     return SizedBox(
       width: width,
       child: DecoratedBox(
@@ -229,9 +235,9 @@ class _RankingCard extends StatelessWidget {
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: HomePage.lineOf(context)),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
-              color: Color(0x14000000),
+              color: siponColors.shadow,
               blurRadius: 20,
               offset: Offset(0, 10),
             ),

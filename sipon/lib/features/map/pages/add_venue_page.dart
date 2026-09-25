@@ -13,8 +13,7 @@ import 'package:sipon/features/map/platform/sipon_map_host.dart';
 import 'package:sipon/features/map/widgets/sipon_map_widget.dart';
 import 'package:sipon/shared/services/sipon_api_client.dart';
 import 'package:sipon/shared/services/sipon_api_service.dart';
-import 'package:sipon/features/map/widgets/map_theme.dart';
-import 'package:sipon/features/map/widgets/venue_common.dart';
+import 'package:sipon/app/theme/sipon_theme_colors.dart';
 import 'package:sipon/shared/widgets/sipon_city_picker.dart';
 
 class AddVenuePage extends StatefulWidget {
@@ -176,7 +175,7 @@ class _AddVenuePageState extends State<AddVenuePage> {
 
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.siponColors.elevatedSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
@@ -185,9 +184,13 @@ class _AddVenuePageState extends State<AddVenuePage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 12),
-            const Text(
+            Text(
               '选择图片来源',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+              style: TextStyle(
+                color: Theme.of(sheetContext).colorScheme.onSurface,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
             ),
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
@@ -277,12 +280,13 @@ class _AddVenuePageState extends State<AddVenuePage> {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: scheme.surface,
       resizeToAvoidBottomInset: true,
       body: Material(
-        color: Colors.white,
+        color: scheme.surface,
         child: Form(
           key: _formKey,
           child: CustomScrollView(
@@ -305,8 +309,8 @@ class _AddVenuePageState extends State<AddVenuePage> {
                       Text(
                         text.t('拖动地图，让中心定位点对准酒吧位置'),
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: MapDesign.muted,
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0,
@@ -408,21 +412,23 @@ class _AddVenuePageState extends State<AddVenuePage> {
                       FilledButton.icon(
                         onPressed: _submitting ? null : _submit,
                         icon: _submitting
-                            ? const SizedBox(
+                            ? SizedBox(
                                 width: 18,
                                 height: 18,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: Colors.white,
+                                  color: scheme.onPrimary,
                                 ),
                               )
                             : const Icon(Icons.cloud_upload_rounded),
                         label: Text(text.t(_submitting ? '提交中...' : '提交酒馆信息')),
                         style: FilledButton.styleFrom(
                           minimumSize: const Size.fromHeight(50),
-                          backgroundColor: MapDesign.brand,
-                          foregroundColor: Colors.white,
-                          disabledBackgroundColor: const Color(0xFFE2C9D9),
+                          backgroundColor: scheme.primary,
+                          foregroundColor: scheme.onPrimary,
+                          disabledBackgroundColor: scheme.onSurface.withValues(
+                            alpha: 0.12,
+                          ),
                           textStyle: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w900,
@@ -437,8 +443,8 @@ class _AddVenuePageState extends State<AddVenuePage> {
                       Text(
                         text.t('提交后会进入审核，通过后展示在地图酒吧地点中。'),
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: MapDesign.muted,
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                           letterSpacing: 0,
@@ -466,6 +472,7 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
 
     return SafeArea(
       bottom: false,
@@ -482,8 +489,8 @@ class _Header extends StatelessWidget {
                     children: [
                       Text(
                         text.t('新增酒馆'),
-                        style: const TextStyle(
-                          color: MapDesign.ink,
+                        style: TextStyle(
+                          color: scheme.onSurface,
                           fontSize: 22,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0,
@@ -492,8 +499,8 @@ class _Header extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         text.t('补充地图里还没有的好去处'),
-                        style: const TextStyle(
-                          color: MapDesign.muted,
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                           letterSpacing: 0,
@@ -529,6 +536,7 @@ class _LocationPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return ClipRRect(
       borderRadius: BorderRadius.circular(18),
       child: SizedBox(
@@ -555,11 +563,11 @@ class _LocationPicker extends StatelessWidget {
               ),
             ),
             if (!mapReady)
-              const IgnorePointer(
+              IgnorePointer(
                 child: ColoredBox(
-                  color: Color(0x66FFFFFF),
+                  color: scheme.surface.withValues(alpha: 0.4),
                   child: Center(
-                    child: CircularProgressIndicator(color: MapDesign.brand),
+                    child: CircularProgressIndicator(color: scheme.primary),
                   ),
                 ),
               ),
@@ -579,6 +587,8 @@ class _KindSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -591,7 +601,7 @@ class _KindSelector extends StatelessWidget {
                 label: Text(text.t(kind.label)),
                 avatar: ColorFiltered(
                   colorFilter: ColorFilter.mode(
-                    selected == kind ? MapDesign.brand : MapDesign.ink,
+                    selected == kind ? scheme.primary : scheme.onSurface,
                     BlendMode.srcIn,
                   ),
                   child: Image.asset(kind.iconAsset, width: 18, height: 18),
@@ -599,15 +609,15 @@ class _KindSelector extends StatelessWidget {
                 selected: selected == kind,
                 onSelected: (_) => onChanged(kind),
                 showCheckmark: false,
-                selectedColor: const Color(0x1F9A3D78),
-                backgroundColor: const Color(0xFFF7F2F5),
+                selectedColor: scheme.primary.withValues(alpha: 0.12),
+                backgroundColor: siponColors.subtleSurface,
                 side: BorderSide(
                   color: selected == kind
-                      ? MapDesign.brand
-                      : const Color(0x00000000),
+                      ? scheme.primary
+                      : Colors.transparent,
                 ),
                 labelStyle: TextStyle(
-                  color: selected == kind ? MapDesign.brand : MapDesign.ink,
+                  color: selected == kind ? scheme.primary : scheme.onSurface,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0,
                 ),
@@ -647,6 +657,8 @@ class _VenueTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
@@ -667,29 +679,32 @@ class _VenueTextField extends StatelessWidget {
         hintText: hint,
         prefixIcon: Icon(icon),
         filled: true,
-        fillColor: const Color(0xFFF7F2F5),
+        fillColor: siponColors.subtleSurface,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0x00000000)),
+          borderSide: const BorderSide(color: Colors.transparent),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: MapDesign.brand, width: 1.2),
+          borderSide: BorderSide(color: scheme.primary, width: 1.2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFFDC2626), width: 1.2),
+          borderSide: BorderSide(color: scheme.error, width: 1.2),
         ),
-        labelStyle: const TextStyle(
-          color: MapDesign.muted,
+        labelStyle: TextStyle(
+          color: scheme.onSurfaceVariant,
           fontWeight: FontWeight.w700,
           letterSpacing: 0,
         ),
-        hintStyle: const TextStyle(color: Color(0x998F8790), letterSpacing: 0),
+        hintStyle: TextStyle(
+          color: scheme.onSurfaceVariant.withValues(alpha: 0.6),
+          letterSpacing: 0,
+        ),
       ),
     );
   }
@@ -712,6 +727,7 @@ class _VenueImageSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     const slotSize = 104.0;
     const gap = 8.0;
     final slots = List.generate(3, (index) {
@@ -747,8 +763,8 @@ class _VenueImageSection extends StatelessWidget {
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(
-                  color: MapDesign.ink,
+                style: TextStyle(
+                  color: scheme.onSurface,
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0,
@@ -757,8 +773,8 @@ class _VenueImageSection extends StatelessWidget {
             ),
             Text(
               '${images.length}/3',
-              style: const TextStyle(
-                color: MapDesign.muted,
+              style: TextStyle(
+                color: scheme.onSurfaceVariant,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0,
@@ -779,7 +795,7 @@ class _VenueImageSection extends StatelessWidget {
               physics: const ClampingScrollPhysics(),
               clipBehavior: Clip.hardEdge,
               itemCount: slots.length,
-              separatorBuilder: (_, __) => const SizedBox(width: gap),
+              separatorBuilder: (_, _) => const SizedBox(width: gap),
               itemBuilder: (_, index) => SizedBox(
                 width: slotSize,
                 height: slotSize,
@@ -800,6 +816,8 @@ class _AddImageSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -807,11 +825,13 @@ class _AddImageSlot extends StatelessWidget {
         width: 78,
         height: 78,
         decoration: BoxDecoration(
-          color: const Color(0xFFF7F2F5),
+          color: siponColors.subtleSurface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0x1A9A3D78)),
+          border: Border.all(
+            color: scheme.primary.withValues(alpha: 0.1),
+          ),
         ),
-        child: const Icon(Icons.add_a_photo_outlined, color: MapDesign.brand),
+        child: Icon(Icons.add_a_photo_outlined, color: scheme.primary),
       ),
     );
   }
@@ -822,13 +842,15 @@ class _EmptyImageSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
     return Container(
       width: 78,
       height: 78,
       decoration: BoxDecoration(
-        color: const Color(0xFFF7F2F5),
+        color: siponColors.subtleSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0x1A9A3D78)),
+        border: Border.all(color: scheme.primary.withValues(alpha: 0.1)),
       ),
     );
   }
@@ -842,6 +864,8 @@ class _ImagePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
     return Stack(
       children: [
         ClipRRect(
@@ -851,9 +875,9 @@ class _ImagePreview extends StatelessWidget {
             width: 78,
             height: 78,
             fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => const ColoredBox(
-              color: Color(0xFFF7F2F5),
-              child: SizedBox(
+            errorBuilder: (context, error, stackTrace) => ColoredBox(
+              color: siponColors.subtleSurface,
+              child: const SizedBox(
                 width: 78,
                 height: 78,
                 child: Icon(Icons.broken_image_outlined),
@@ -866,10 +890,15 @@ class _ImagePreview extends StatelessWidget {
           right: 3,
           child: GestureDetector(
             onTap: onRemove,
-            child: const CircleAvatar(
+            child: CircleAvatar(
               radius: 11,
-              backgroundColor: Color(0xCC292B32),
-              child: Icon(Icons.close_rounded, size: 14, color: Colors.white),
+              backgroundColor: scheme.scrim.withValues(alpha: 0.8),
+              // 照片上的固定深色关闭钮，白色图标保证在图片上对比度。
+              child: const Icon(
+                Icons.close_rounded,
+                size: 14,
+                color: Colors.white,
+              ),
             ),
           ),
         ),
@@ -885,10 +914,11 @@ class _FieldLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Text(
       label,
-      style: const TextStyle(
-        color: MapDesign.ink,
+      style: TextStyle(
+        color: scheme.onSurface,
         fontSize: 15,
         fontWeight: FontWeight.w900,
         letterSpacing: 0,

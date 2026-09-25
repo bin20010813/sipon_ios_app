@@ -58,15 +58,16 @@ class _ProfileNotificationsPageState extends State<ProfileNotificationsPage> {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
     final visible = _notifications
         .where((item) => item.belongsTo(_profile))
         .toList();
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFAFC),
       appBar: AppBar(
-        title: Text(text.t('消息')),
-        backgroundColor: const Color(0xFFFFFAFC),
-        surfaceTintColor: Colors.transparent,
+        title: Text(
+          text.t('消息'),
+          style: TextStyle(color: scheme.onSurface),
+        ),
       ),
       body: RefreshIndicator(
         onRefresh: _refresh,
@@ -95,8 +96,12 @@ class _ProfileNotificationsPageState extends State<ProfileNotificationsPage> {
             for (final notification in visible)
               Card(
                 margin: const EdgeInsets.only(bottom: 12),
-                color: Colors.white,
+                color: scheme.surface,
                 elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: scheme.outlineVariant),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -104,18 +109,24 @@ class _ProfileNotificationsPageState extends State<ProfileNotificationsPage> {
                     children: [
                       Text(
                         notification.title,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: scheme.onSurface,
+                        ),
                       ),
                       if (notification.body.isNotEmpty) ...[
                         const SizedBox(height: 8),
-                        Text(notification.body),
+                        Text(
+                          notification.body,
+                          style: TextStyle(color: scheme.onSurface),
+                        ),
                       ],
                       if (notification.createdAt != null) ...[
                         const SizedBox(height: 8),
                         Text(
                           _formatDate(notification.createdAt!),
-                          style: const TextStyle(
-                            color: Color(0xFF8E8790),
+                          style: TextStyle(
+                            color: scheme.onSurfaceVariant,
                             fontSize: 12,
                           ),
                         ),
@@ -139,6 +150,7 @@ class _ModerationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
     final status = profile.profileModerationStatus;
     final title = switch (status) {
       'pending' => '资料审核中',
@@ -153,14 +165,18 @@ class _ModerationCard extends StatelessWidget {
       _ => Icons.info_outline_rounded,
     };
     return Card(
-      color: Colors.white,
+      color: scheme.surface,
       elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: const Color(0xFF9A3D78)),
+            Icon(icon, color: scheme.primary),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -168,27 +184,34 @@ class _ModerationCard extends StatelessWidget {
                 children: [
                   Text(
                     text.t(title),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 16,
+                      color: scheme.onSurface,
                     ),
                   ),
                   if (status == 'pending') ...[
                     const SizedBox(height: 6),
-                    Text(text.t('昵称、头像或简介的修改正在审核中。')),
+                    Text(
+                      text.t('昵称、头像或简介的修改正在审核中。'),
+                      style: TextStyle(color: scheme.onSurface),
+                    ),
                   ],
                   if (status == 'rejected' &&
                       profile.profileModerationReason != null) ...[
                     const SizedBox(height: 6),
-                    Text('${text.t('原因')}：${profile.profileModerationReason}'),
+                    Text(
+                      '${text.t('原因')}：${profile.profileModerationReason}',
+                      style: TextStyle(color: scheme.onSurface),
+                    ),
                   ],
                   if (status != 'pending' &&
                       profile.profileModeratedAt != null) ...[
                     const SizedBox(height: 8),
                     Text(
                       _formatDate(profile.profileModeratedAt!),
-                      style: const TextStyle(
-                        color: Color(0xFF8E8790),
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
                         fontSize: 12,
                       ),
                     ),

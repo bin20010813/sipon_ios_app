@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart' hide Visibility;
 
+import '../../../app/theme/sipon_theme_colors.dart';
 import '../../../shared/localization/language_transform.dart';
 import '../models/map_display_options.dart';
 import '../models/map_models.dart';
 import '../../../shared/widgets/sipon_city_picker.dart';
-import 'map_theme.dart';
 
 /// 顶部一组悬浮控件：城市按钮 + 搜索框 + 分类筛选 + 状态提示条。
 class MapSearchAndFilters extends StatelessWidget {
@@ -236,7 +236,7 @@ class _MapSearchFieldState extends State<_MapSearchField> {
                     venue.iconAsset,
                     width: 18,
                     height: 18,
-                    color: MapDesign.brand,
+                    color: scheme.primary,
                   ),
                   title: Text(
                     venue.name,
@@ -350,9 +350,9 @@ class _MapSearchFieldState extends State<_MapSearchField> {
                       setState(() {});
                       _syncResultsOverlay();
                     },
-                    child: const Icon(
+                    child: Icon(
                       Icons.close_rounded,
-                      color: Color(0xFF9B939B),
+                      color: scheme.onSurfaceVariant,
                       size: 18,
                     ),
                   ),
@@ -498,7 +498,7 @@ class _MapStatusBanner extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: status == MapDataStatus.failed
-                ? MapDesign.alert
+                ? scheme.error
                 : scheme.onSurfaceVariant,
             fontSize: 11,
             fontWeight: FontWeight.w600,
@@ -522,7 +522,7 @@ class MapLocateButton extends StatelessWidget {
       color: scheme.surface,
       borderRadius: BorderRadius.circular(8),
       elevation: 0,
-      shadowColor: Colors.black26,
+      shadowColor: context.siponColors.shadow,
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(8),

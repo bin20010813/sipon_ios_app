@@ -57,6 +57,8 @@ class _MembershipSheetState extends State<_MembershipSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final themeColors = context.siponColors;
     // 固定弹窗高度：让加载/空态/数据态高度一致，避免接口返回时 bottom sheet
     // 因内容高度变化重新调整尺寸，弹出时出现“闪一下”。
     final sheetHeight = math.min(
@@ -65,9 +67,9 @@ class _MembershipSheetState extends State<_MembershipSheet> {
     );
     return Container(
       height: sheetHeight,
-      decoration: const BoxDecoration(
-        color: Color(0xFFF5F6F8),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: themeColors.elevatedSurface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: SafeArea(
         top: false,
@@ -79,7 +81,7 @@ class _MembershipSheetState extends State<_MembershipSheet> {
                 width: 38,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFD1D3D8),
+                  color: scheme.outlineVariant,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -89,12 +91,12 @@ class _MembershipSheetState extends State<_MembershipSheet> {
                   Expanded(
                     child: Row(
                       children: [
-                        const Text(
+                        Text(
                           'Sipon 会员',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w800,
-                            color: Color(0xFF292B32),
+                            color: scheme.onSurface,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -104,13 +106,13 @@ class _MembershipSheetState extends State<_MembershipSheet> {
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFFEDF7),
+                            color: themeColors.brandSurface,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Text(
+                          child: Text(
                             '限时',
                             style: TextStyle(
-                              color: ProfilePage._brand,
+                              color: scheme.primary,
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0,
@@ -136,6 +138,7 @@ class _MembershipSheetState extends State<_MembershipSheet> {
   }
 
   Widget _buildSummary() {
+    final scheme = Theme.of(context).colorScheme;
     // 等级优先取用户资料；会员接口中的等级用于资料尚未加载时兜底。
     final membership = _membership ?? const <String, dynamic>{};
     final level =
@@ -149,47 +152,51 @@ class _MembershipSheetState extends State<_MembershipSheet> {
       mainAxisSize: MainAxisSize.min,
       children: [
         for (var index = 0; index < labels.length; index++) ...[
-          if (index > 0) const Divider(height: 1, color: Color(0xFFE8E4E9)),
+          if (index > 0) Divider(height: 1, color: scheme.outlineVariant),
           _membershipRow(labels[index], values[index]),
         ],
       ],
     );
   }
 
-  Widget _membershipRow(String label, String value) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 12),
-    child: Row(
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFF858991),
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
+  Widget _membershipRow(String label, String value) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: scheme.onSurfaceVariant,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-        ),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Color(0xFF292B32),
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
+          Text(
+            value,
+            style: TextStyle(
+              color: scheme.onSurface,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 
   Widget _buildBody() {
+    final scheme = Theme.of(context).colorScheme;
     if (_loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 48),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 48),
         child: Center(
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            color: ProfilePage._brand,
+            color: scheme.primary,
           ),
         ),
       );
@@ -207,7 +214,7 @@ class _MembershipSheetState extends State<_MembershipSheet> {
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF858991), fontSize: 13),
+              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
             ),
             const SizedBox(height: 14),
             OutlinedButton.icon(
@@ -215,8 +222,8 @@ class _MembershipSheetState extends State<_MembershipSheet> {
               icon: const Icon(Icons.refresh_rounded, size: 18),
               label: const Text('重试'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: ProfilePage._brand,
-                side: const BorderSide(color: ProfilePage._brand),
+                foregroundColor: scheme.primary,
+                side: BorderSide(color: scheme.primary),
               ),
             ),
           ],
@@ -240,7 +247,7 @@ class _MembershipSheetState extends State<_MembershipSheet> {
       shrinkWrap: true,
       itemCount: entries.length,
       separatorBuilder: (_, _) =>
-          const Divider(height: 1, color: Color(0xFFE8E4E9)),
+          Divider(height: 1, color: scheme.outlineVariant),
       itemBuilder: (_, index) {
         final entry = entries[index];
         return _membershipRow(

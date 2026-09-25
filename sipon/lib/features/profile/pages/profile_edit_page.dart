@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'package:sipon/app/theme/sipon_theme_colors.dart';
 import 'package:sipon/shared/services/sipon_api_client.dart';
 import 'package:sipon/shared/services/sipon_api_service.dart';
 import 'package:sipon/features/profile/data/user_profile_data.dart';
@@ -26,9 +27,6 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   // 与公开主页一致的默认头像占位图。
   static const String _avatarAsset = 'assest/首页/图片素材/Bharat Balami.png';
   static const int _maxAvatarBytes = 10 * 1024 * 1024;
-  static const Color _brand = Color(0xFF9A3D78);
-  static const Color _ink = Color(0xFF292B32);
-  static const Color _line = Color(0xFFF1EBEF);
   late final TextEditingController _nameController;
   late final TextEditingController _bioController;
   late final TextEditingController _cityController;
@@ -244,6 +242,8 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   }
 
   Widget _buildAvatarEditor() {
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
     return Center(
       child: GestureDetector(
         onTap: _changeAvatar,
@@ -254,11 +254,11 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
               height: 108,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white,
-                border: Border.all(color: Colors.white, width: 3),
+                color: scheme.surface,
+                border: Border.all(color: scheme.surface, width: 3),
                 boxShadow: [
                   BoxShadow(
-                    color: _brand.withValues(alpha: 0.16),
+                    color: scheme.primary.withValues(alpha: 0.16),
                     blurRadius: 18,
                     offset: const Offset(0, 8),
                   ),
@@ -269,17 +269,17 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
             if (_uploadingAvatar)
               Positioned.fill(
                 child: Container(
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.black38,
+                    color: siponColors.scrim,
                   ),
-                  child: const Center(
+                  child: Center(
                     child: SizedBox(
                       width: 26,
                       height: 26,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.5,
-                        valueColor: AlwaysStoppedAnimation(Colors.white),
+                        valueColor: AlwaysStoppedAnimation(scheme.onPrimary),
                       ),
                     ),
                   ),
@@ -293,24 +293,25 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 height: 32,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: const LinearGradient(
+                  // 品牌渐变固有色：浅色首档 B4528F 保持不变，尾档取主题 primary（浅色与原 _brand 一致）。
+                  gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [Color(0xFFB4528F), _brand],
+                    colors: [const Color(0xFFB4528F), scheme.primary],
                   ),
-                  border: Border.all(color: Colors.white, width: 2),
+                  border: Border.all(color: scheme.surface, width: 2),
                   boxShadow: [
                     BoxShadow(
-                      color: _brand.withValues(alpha: 0.28),
+                      color: scheme.primary.withValues(alpha: 0.28),
                       blurRadius: 8,
                       offset: const Offset(0, 3),
                     ),
                   ],
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.photo_camera_rounded,
                   size: 16,
-                  color: Colors.white,
+                  color: scheme.onPrimary,
                 ),
               ),
             ),
@@ -407,32 +408,34 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: scheme.surface,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           '编辑资料',
           style: TextStyle(
             fontSize: 17,
             fontWeight: FontWeight.w700,
-            color: _ink,
+            color: scheme.onSurface,
           ),
         ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-        iconTheme: const IconThemeData(color: _ink),
+        iconTheme: IconThemeData(color: scheme.onSurface),
       ),
       body: DecoratedBox(
-        // 与全站页面一致的浅粉渐变背景。
-        decoration: const BoxDecoration(
+        // 与全站页面一致的主题渐变背景。
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFFFFF2F3), Color(0xFFFCFCFC), Colors.white],
-            stops: [0, 0.45, 1],
+            colors: siponColors.pageGradient,
+            stops: const [0, 0.45, 1],
           ),
         ),
         child: SafeArea(
@@ -456,22 +459,22 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 Text(
                   _uploadingAvatar ? '头像上传中…' : '点击更换头像',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: _brand,
+                    color: scheme.primary,
                   ),
                 ),
                 const SizedBox(height: 24),
-                const _EditHint('头像、昵称、简介和所在城市会展示在你的公开主页；邮箱和账号 ID 不会在这里修改。'),
+                _EditHint('头像、昵称、简介和所在城市会展示在你的公开主页；邮箱和账号 ID 不会在这里修改。'),
                 const SizedBox(height: 16),
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: scheme.surface,
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: _brand.withValues(alpha: 0.06),
+                        color: scheme.primary.withValues(alpha: 0.06),
                         blurRadius: 16,
                         offset: const Offset(0, 8),
                       ),
@@ -491,7 +494,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                             ? '请输入昵称'
                             : null,
                       ),
-                      const Divider(height: 1, color: _line),
+                      Divider(height: 1, color: scheme.outlineVariant),
                       _ProfileField(
                         controller: _bioController,
                         label: '个人简介',
@@ -499,7 +502,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         maxLength: 160,
                         maxLines: 4,
                       ),
-                      const Divider(height: 1, color: _line),
+                      Divider(height: 1, color: scheme.outlineVariant),
                       _ProfileField(
                         controller: _cityController,
                         label: '所在城市',
@@ -521,19 +524,21 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
 
   Widget _buildSaveButton() {
     final enabled = !_saving && !_uploadingAvatar;
+    final scheme = Theme.of(context).colorScheme;
     return Opacity(
       opacity: enabled ? 1 : 0.7,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
+          // 品牌渐变固有色：浅色首档 B4528F 保持不变，尾档取主题 primary（浅色与原 _brand 一致）。
+          gradient: LinearGradient(
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
-            colors: [Color(0xFFB4528F), _brand],
+            colors: [const Color(0xFFB4528F), scheme.primary],
           ),
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-              color: _brand.withValues(alpha: 0.32),
+              color: scheme.primary.withValues(alpha: 0.32),
               blurRadius: 14,
               offset: const Offset(0, 8),
             ),
@@ -546,17 +551,18 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
             backgroundColor: Colors.transparent,
             disabledBackgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
+            foregroundColor: scheme.onPrimary,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
             ),
           ),
           child: _saving
-              ? const SizedBox(
+              ? SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation(Colors.white),
+                    valueColor: AlwaysStoppedAnimation(scheme.onPrimary),
                   ),
                 )
               : const Text(
@@ -574,38 +580,42 @@ class _EditHint extends StatelessWidget {
   final String text;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-    decoration: BoxDecoration(
-      color: const Color(0xFFFFF2F7),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: const Color(0xFFF6DFEA)),
-    ),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.only(top: 1),
-          child: Icon(
-            Icons.info_outline_rounded,
-            size: 15,
-            color: Color(0xFF9A3D78),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              fontSize: 12,
-              height: 1.5,
-              color: Color(0xFF6D5E67),
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final siponColors = context.siponColors;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: siponColors.brandSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(
+              Icons.info_outline_rounded,
+              size: 15,
+              color: scheme.primary,
             ),
           ),
-        ),
-      ],
-    ),
-  );
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.5,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ProfileField extends StatelessWidget {
@@ -626,70 +636,73 @@ class _ProfileField extends StatelessWidget {
   final FormFieldValidator<String>? validator;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
-    child: Row(
-      // 基线对齐：标签与输入区第一行文字（含占位提示）始终在同一水平线上。
-      crossAxisAlignment: CrossAxisAlignment.baseline,
-      textBaseline: TextBaseline.alphabetic,
-      children: [
-        SizedBox(
-          width: 72,
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF292B32),
-            ),
-          ),
-        ),
-        Expanded(
-          child: TextFormField(
-            controller: controller,
-            validator: validator,
-            maxLength: maxLength,
-            maxLines: maxLines,
-            textAlign: TextAlign.start,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w500,
-              color: Color(0xFF292B32),
-            ),
-            // 仅在聚焦时显示字数统计，保持列表整洁。
-            buildCounter:
-                (
-                  context, {
-                  required currentLength,
-                  required isFocused,
-                  maxLength,
-                }) {
-                  if (!isFocused || maxLength == null) {
-                    return const SizedBox.shrink();
-                  }
-                  return Text(
-                    '$currentLength/$maxLength',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF8E8790),
-                    ),
-                  );
-                },
-            decoration: InputDecoration(
-              hintText: hint,
-              hintStyle: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w400,
-                color: Color(0xFFC4BCC3),
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        // 基线对齐：标签与输入区第一行文字（含占位提示）始终在同一水平线上。
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: [
+          SizedBox(
+            width: 72,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: scheme.onSurface,
               ),
-              border: InputBorder.none,
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(vertical: 10),
-              counterText: '',
             ),
           ),
-        ),
-      ],
-    ),
-  );
+          Expanded(
+            child: TextFormField(
+              controller: controller,
+              validator: validator,
+              maxLength: maxLength,
+              maxLines: maxLines,
+              textAlign: TextAlign.start,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: scheme.onSurface,
+              ),
+              // 仅在聚焦时显示字数统计，保持列表整洁。
+              buildCounter:
+                  (
+                    context, {
+                    required currentLength,
+                    required isFocused,
+                    maxLength,
+                  }) {
+                    if (!isFocused || maxLength == null) {
+                      return const SizedBox.shrink();
+                    }
+                    return Text(
+                      '$currentLength/$maxLength',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    );
+                  },
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w400,
+                  color: scheme.onSurfaceVariant,
+                ),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                counterText: '',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

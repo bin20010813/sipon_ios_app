@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../app/theme/sipon_theme_colors.dart';
 import '../../../shared/localization/language_transform.dart';
 import 'venue_fullscreen_map_page.dart';
 import '../data/api_venue_detail_repository.dart';
@@ -198,7 +199,7 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
         _handlePopInvoked();
       },
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         body: Stack(
           children: [
             // 地图层：常驻在 sheet 后面。初始与全屏档被详情完全盖住，
@@ -214,8 +215,10 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
                 top: 0,
                 height: mapHeight,
                 child: DecoratedBox(
-                  // attach 完成前的兜底底色，接近标准底图的浅色。
-                  decoration: const BoxDecoration(color: Color(0xFFF3F0F2)),
+                  // attach 完成前的兜底底色，取骨架色（浅色与原值同值）。
+                  decoration: BoxDecoration(
+                    color: context.siponColors.skeleton,
+                  ),
                   child: Stack(
                     children: [
                       Positioned.fill(child: mapLayer),
@@ -223,7 +226,7 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
                         top: statusBarTop + 12,
                         right: 16,
                         child: Material(
-                          color: Colors.white,
+                          color: context.siponColors.elevatedSurface,
                           elevation: 2,
                           borderRadius: BorderRadius.circular(20),
                           child: InkWell(
@@ -280,17 +283,17 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
 
                     return DecoratedBox(
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: Theme.of(context).colorScheme.surface,
                         borderRadius: BorderRadius.vertical(
                           top: Radius.circular(corner),
                         ),
                         // 半屏态给顶部阴影撑出层次，全屏态消失。
                         boxShadow: progress < 1
-                            ? const [
+                            ? [
                                 BoxShadow(
-                                  color: Color(0x29000000),
+                                  color: context.siponColors.shadow,
                                   blurRadius: 18,
-                                  offset: Offset(0, -6),
+                                  offset: const Offset(0, -6),
                                 ),
                               ]
                             : const [],

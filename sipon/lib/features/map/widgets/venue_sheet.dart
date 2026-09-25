@@ -7,7 +7,7 @@ import '../data/api_venue_detail_repository.dart';
 import '../models/map_models.dart';
 import '../data/mock_venue_detail_repository.dart';
 import '../../../shared/widgets/bottom_clamping_bouncing_scroll_physics.dart';
-import 'map_theme.dart';
+import '../../../app/theme/sipon_theme_colors.dart';
 import 'venue_common.dart';
 import 'venue_detail_view.dart';
 
@@ -85,11 +85,7 @@ class VenueSheetSurface extends StatelessWidget {
       child: Material(
         color: Theme.of(context).colorScheme.surface,
         elevation: mapLerp(10, 12, progress),
-        shadowColor: Color.lerp(
-          const Color(0x52000000),
-          const Color(0x29000000),
-          progress,
-        ),
+        shadowColor: context.siponColors.shadow,
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(mapLerp(_cornerRadius, 0, fullscreenProgress)),
           bottom: Radius.circular(mapLerp(_cornerRadius, 0, progress)),
@@ -198,7 +194,7 @@ class _VenueSheetDragHandle extends StatelessWidget {
       width: 40,
       height: 5,
       decoration: BoxDecoration(
-        color: const Color(0xFFD2D0D2),
+        color: Theme.of(context).colorScheme.outlineVariant,
         borderRadius: BorderRadius.circular(4),
       ),
     );
@@ -215,6 +211,7 @@ class _VenueSheetEmptyContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 27, 18, 16),
@@ -223,16 +220,16 @@ class _VenueSheetEmptyContent extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.travel_explore_outlined,
-              color: MapDesign.muted,
+              color: scheme.onSurfaceVariant,
               size: 28,
             ),
             const SizedBox(height: 10),
             Text(
               text.t(filterActive ? '暂无符合筛选条件的酒吧' : '当前视野暂无可展示酒吧'),
-              style: const TextStyle(
-                color: MapDesign.ink,
+              style: TextStyle(
+                color: scheme.onSurface,
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,
@@ -241,8 +238,8 @@ class _VenueSheetEmptyContent extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               text.t(filterActive ? '试着调整金额、评分或酒吧类型' : '试着缩小地图或者换个分类看看'),
-              style: const TextStyle(
-                color: MapDesign.muted,
+              style: TextStyle(
+                color: scheme.onSurfaceVariant,
                 fontSize: 12,
                 letterSpacing: 0,
               ),
@@ -262,6 +259,7 @@ class _VenueSummaryContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
 
     return Padding(
       // 顶部 27 = 手柄上边距 8 + 手柄高 5 + 手柄与内容间距 14
@@ -287,8 +285,8 @@ class _VenueSummaryContent extends StatelessWidget {
                   text.t(venue.name),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: MapDesign.ink,
+                  style: TextStyle(
+                    color: scheme.onSurface,
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 0,
@@ -299,17 +297,17 @@ class _VenueSummaryContent extends StatelessWidget {
                   children: [
                     Text(
                       venue.rating.toStringAsFixed(1),
-                      style: const TextStyle(
-                        color: MapDesign.ink,
+                      style: TextStyle(
+                        color: scheme.onSurface,
                         fontSize: 13,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 0,
                       ),
                     ),
                     const SizedBox(width: 3),
-                    const Icon(
+                    Icon(
                       Icons.star_rounded,
-                      color: MapDesign.brand,
+                      color: scheme.primary,
                       size: 15,
                     ),
                     const SizedBox(width: 8),
@@ -329,9 +327,9 @@ class _VenueSummaryContent extends StatelessWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.location_on_outlined,
-                      color: MapDesign.brand,
+                      color: scheme.primary,
                       size: 17,
                     ),
                     const SizedBox(width: 4),
@@ -340,8 +338,8 @@ class _VenueSummaryContent extends StatelessWidget {
                         text.t(venue.address),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: MapDesign.muted,
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
                           fontSize: 12,
                           letterSpacing: 0,
                         ),
@@ -352,8 +350,8 @@ class _VenueSummaryContent extends StatelessWidget {
                 const SizedBox(height: 5),
                 Text(
                   text.t(venue.distance),
-                  style: const TextStyle(
-                    color: MapDesign.muted,
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
                     fontSize: 12,
                     letterSpacing: 0,
                   ),

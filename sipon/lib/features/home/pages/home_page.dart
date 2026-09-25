@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:sipon/app/theme/sipon_theme_colors.dart';
 
 import 'package:sipon/features/drinks/cocktails/data/cocktail_recommendation_store.dart';
@@ -53,7 +54,8 @@ class HomePage extends StatefulWidget {
       Theme.of(context).colorScheme.outlineVariant;
 
   static const String logoAsset = 'assest/首页/logo@3x.png';
-  static const String nameAsset = 'assest/首页/NAME@3x.png';
+  static const String nameAsset = 'assest/首页/sipon_logo.svg';
+  static const String nameLegacyAsset = 'assest/首页/NAME@3x.png';
   static const String searchAsset = 'assest/首页/搜索@3x.png';
   static const String barMainAsset = 'assest/首页/图片素材/庙前冰室.png';
   static const String bharatAsset = 'assest/首页/图片素材/Bharat Balami.png';
