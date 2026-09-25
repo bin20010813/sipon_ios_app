@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
 import 'package:sipon/features/map/widgets/checkin_pin_icon.dart';
 import 'package:sipon/features/map/models/map_display_options.dart';
 import 'package:sipon/features/map/models/map_models.dart';
@@ -63,6 +64,14 @@ MapSceneFrame _frameWith({
 }
 
 void main() {
+  group('encodeAppearance', () {
+    test('encodes the resolved Flutter brightness for MapKit', () {
+      expect(encodeAppearance(Brightness.light), {'brightness': 'light'});
+      expect(encodeAppearance(Brightness.dark), {'brightness': 'dark'});
+      expect(SiponMapCommands.setAppearance, 'setAppearance');
+    });
+  });
+
   group('encodeRenderFrame', () {
     final frame = MapSceneFrame(
       circlePoints: [

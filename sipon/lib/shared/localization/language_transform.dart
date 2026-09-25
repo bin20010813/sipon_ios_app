@@ -204,6 +204,12 @@ class SiponAppText {
   String get languageChinese => t('中文');
   String get languageEnglish => t('En');
   String get languageChanged => t('语言已切换');
+  String get appearance => t('外观');
+  String get appearanceSystem => t('跟随系统');
+  String get appearanceLight => t('浅色');
+  String get appearanceDark => t('深色');
+  String get appearanceChanged => t('外观已切换');
+  String get appearanceSaveFailed => t('外观已切换，但未能保存');
   String get feedbackBoardTitle => t('用户反馈板');
   String get feesdbackBoardTitle => feedbackBoardTitle;
   String get feedbackHint => t('写下你的建议或遇到的问题');
@@ -234,6 +240,11 @@ class SiponAppText {
 }
 
 const Map<String, String> _englishText = {
+  '外观': 'Appearance',
+  '跟随系统': 'System',
+  '深色': 'Dark',
+  '外观已切换': 'Appearance updated',
+  '外观已切换，但未能保存': 'Appearance changed, but could not be saved',
   '虚拟小酌': 'Virtual Sips',
   '登录状态已失效或尚未登录，请登录后再体验虚拟小酌': 'Please sign in again to use Virtual Sips.',
   '当前账号暂时无法使用虚拟小酌': 'Virtual Sips is unavailable for this account.',

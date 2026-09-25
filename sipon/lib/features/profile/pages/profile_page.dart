@@ -14,6 +14,7 @@ import 'package:sipon/features/drinks/records/widgets/drink_sticker.dart';
 import 'package:sipon/shared/widgets/sipon_network_image.dart';
 import 'package:sipon/features/drinks/records/pages/drink_sticker_calendar_page.dart';
 import 'package:sipon/shared/localization/language_transform.dart';
+import 'package:sipon/app/theme/sipon_theme_colors.dart';
 import 'profile_edit_page.dart';
 import 'profile_notifications_page.dart';
 import 'package:sipon/features/routes/pages/route_detail_map_page.dart';
@@ -281,19 +282,20 @@ class ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final themeColors = context.siponColors;
     final bottomOverlayInset = widget.bottomOverlayInset;
     final onRecordPressed = widget.onRecordPressed;
     final onLogoutSucceeded = widget.onLogoutSucceeded;
 
     return Scaffold(
       // 背景显式设为渐变末端同色（白色），保证底部安全区不再露出米白底色条带。
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: DecoratedBox(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topRight,
             end: Alignment.bottomLeft,
-            colors: [Color(0xFFFFF2F3), Color(0xFFFFFCFC), Colors.white],
+            colors: themeColors.pageGradient,
             stops: [0, 0.38, 1],
           ),
         ),
@@ -381,4 +383,3 @@ class ProfilePageState extends State<ProfilePage> {
     );
   }
 }
-

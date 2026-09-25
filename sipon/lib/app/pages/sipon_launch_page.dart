@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sipon/app/theme/sipon_theme_colors.dart';
 
 import 'package:sipon/features/auth/pages/sms_login_page.dart';
 
@@ -19,7 +20,6 @@ class SiponLaunchPage extends StatefulWidget {
 }
 
 class _SiponLaunchPageState extends State<SiponLaunchPage> {
-  static const _brandColor = Color(0xFF563E5C);
   bool _leaving = false;
   bool _scheduled = false;
 
@@ -70,7 +70,7 @@ class _SiponLaunchPageState extends State<SiponLaunchPage> {
     );
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.siponColors.elevatedSurface,
       body: SafeArea(
         child: Stack(
           children: [
@@ -91,10 +91,10 @@ class _SiponLaunchPageState extends State<SiponLaunchPage> {
                     AnimatedOpacity(
                       opacity: _leaving ? 0 : 1,
                       duration: const Duration(milliseconds: 220),
-                      child: const Text(
+                      child: Text(
                         'Sip’On',
                         style: TextStyle(
-                          color: _brandColor,
+                          color: Theme.of(context).colorScheme.primary,
                           fontFamily: 'Dubai',
                           fontSize: 42,
                           fontWeight: FontWeight.w700,
@@ -106,10 +106,10 @@ class _SiponLaunchPageState extends State<SiponLaunchPage> {
                     AnimatedOpacity(
                       opacity: _leaving ? 0 : 1,
                       duration: const Duration(milliseconds: 220),
-                      child: const Text(
+                      child: Text(
                         '酒吧地图',
                         style: TextStyle(
-                          color: _brandColor,
+                          color: Theme.of(context).colorScheme.primary,
                           fontFamily: 'Microsoft YaHei',
                           fontSize: 26,
                           fontWeight: FontWeight.w700,
@@ -129,11 +129,11 @@ class _SiponLaunchPageState extends State<SiponLaunchPage> {
               child: AnimatedOpacity(
                 opacity: _leaving ? 0 : 1,
                 duration: const Duration(milliseconds: 220),
-                child: const Text(
+                child: Text(
                   '杭州探极科技有限公司',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: _brandColor,
+                    color: Theme.of(context).colorScheme.primary,
                     fontFamily: 'Microsoft YaHei',
                     fontSize: 13,
                     fontWeight: FontWeight.w400,

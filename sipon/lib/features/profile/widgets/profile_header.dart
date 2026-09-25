@@ -57,6 +57,7 @@ class _TopIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Tooltip(
       message: tooltip,
       child: Stack(
@@ -67,7 +68,7 @@ class _TopIconButton extends StatelessWidget {
             style: IconButton.styleFrom(
               fixedSize: const Size(34, 34),
               padding: EdgeInsets.zero,
-              foregroundColor: const Color(0xFF3A3B42),
+              foregroundColor: scheme.onSurfaceVariant,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
             icon: Icon(icon, size: 25),
@@ -109,6 +110,7 @@ class _ProfileHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
     final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
 
     // 整块头像+资料区域可点进公开主页；编辑资料按钮保留在右侧，
     // 按钮自身消费点击，不会触发外层跳转。
@@ -129,7 +131,7 @@ class _ProfileHeader extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: textTheme.titleLarge?.copyWith(
-                    color: ProfilePage._ink,
+                    color: scheme.onSurface,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0,
                   ),
@@ -140,7 +142,7 @@ class _ProfileHeader extends StatelessWidget {
                       ? text.profileId
                       : 'Sipon ID: ${profile!.id}',
                   style: textTheme.bodySmall?.copyWith(
-                    color: ProfilePage._muted,
+                    color: scheme.onSurfaceVariant,
                     letterSpacing: 0,
                   ),
                 ),
@@ -169,7 +171,7 @@ class _ProfileHeader extends StatelessWidget {
           TextButton(
             onPressed: loading ? null : onEdit,
             style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFFB7ABB3),
+              foregroundColor: scheme.onSurfaceVariant,
               padding: const EdgeInsets.symmetric(horizontal: 4),
               minimumSize: const Size(64, 36),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -350,7 +352,7 @@ class _QuickEntryCardState extends State<_QuickEntryCard> {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.97),
+        color: context.siponColors.elevatedSurface,
         borderRadius: BorderRadius.circular(18),
         boxShadow: const [
           BoxShadow(
@@ -407,6 +409,8 @@ class _QuickEntryItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final darkMode = theme.brightness == Brightness.dark;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -415,12 +419,18 @@ class _QuickEntryItem extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Image.asset(assetPath, width: 32, height: 32),
+            Image.asset(
+              assetPath,
+              width: 32,
+              height: 32,
+              color: darkMode ? theme.colorScheme.primary : null,
+              colorBlendMode: darkMode ? BlendMode.srcIn : null,
+            ),
             const SizedBox(height: 5),
             Text(
               label,
-              style: const TextStyle(
-                color: ProfilePage._ink,
+              style: TextStyle(
+                color: theme.colorScheme.onSurface,
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
                 letterSpacing: 0,
@@ -432,4 +442,3 @@ class _QuickEntryItem extends StatelessWidget {
     );
   }
 }
-

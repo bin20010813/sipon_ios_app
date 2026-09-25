@@ -87,13 +87,13 @@ class SiponNetworkImage extends StatelessWidget {
       filterQuality: filterQuality,
       fadeInDuration: Duration.zero,
       fadeOutDuration: Duration.zero,
-      placeholder: (_, _) => _fallback(),
-      errorWidget: (_, _, _) => _fallback(),
+      placeholder: (_, _) => _fallback(context),
+      errorWidget: (_, _, _) => _fallback(context),
       errorListener: onError,
     );
   }
 
-  Widget _fallback() {
+  Widget _fallback(BuildContext context) {
     final widget = fallbackWidget;
     if (widget != null) return widget;
     final asset = fallbackAsset;
@@ -109,7 +109,7 @@ class SiponNetworkImage extends StatelessWidget {
     return Container(
       width: width,
       height: height,
-      color: const Color(0xFFF0E9ED),
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
     );
   }
 }

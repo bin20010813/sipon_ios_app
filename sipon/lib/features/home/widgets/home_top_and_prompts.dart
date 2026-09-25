@@ -159,7 +159,9 @@ class _HomeTopBarState extends State<_HomeTopBar> {
                       height: 44,
                       clipBehavior: Clip.hardEdge,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF2F2F2),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(22),
                       ),
                       // 图标固定贴右缘，输入框占左侧弹性空间随容器展开/收拢；
@@ -178,19 +180,29 @@ class _HomeTopBarState extends State<_HomeTopBar> {
                                       textInputAction: TextInputAction.search,
                                       onChanged: _onSearchChanged,
                                       onSubmitted: (_) => _submitSearch(),
-                                      style: const TextStyle(
-                                        color: HomePage.ink,
+                                      style: TextStyle(
+                                        color: HomePage.inkOf(context),
                                         fontSize: 14,
                                         letterSpacing: 0,
                                       ),
                                       decoration: InputDecoration(
                                         hintText: text.t('搜索鸡尾酒'),
-                                        hintStyle: const TextStyle(
-                                          color: HomePage.muted,
+                                        hintStyle: TextStyle(
+                                          color: HomePage.mutedOf(context),
                                           fontSize: 13,
                                           letterSpacing: 0,
                                         ),
+                                        // The pill owns the background and
+                                        // shape. Do not inherit the global
+                                        // filled input background here.
+                                        filled: false,
+                                        fillColor: Colors.transparent,
                                         border: InputBorder.none,
+                                        enabledBorder: InputBorder.none,
+                                        focusedBorder: InputBorder.none,
+                                        disabledBorder: InputBorder.none,
+                                        errorBorder: InputBorder.none,
+                                        focusedErrorBorder: InputBorder.none,
                                         isDense: true,
                                         contentPadding: EdgeInsets.zero,
                                       ),
@@ -211,7 +223,7 @@ class _HomeTopBarState extends State<_HomeTopBar> {
                                     HomePage.searchAsset,
                                     width: 22,
                                     height: 22,
-                                    color: const Color(0xFF6B666B),
+                                    color: HomePage.mutedOf(context),
                                   ),
                                 ),
                               ),
@@ -259,7 +271,7 @@ class _CocktailSuggestions extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(top: 4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(14),
         boxShadow: const [
           BoxShadow(
@@ -295,8 +307,8 @@ class _CocktailSuggestions extends StatelessWidget {
                       item.name ?? item.nameEn ?? text.t('鸡尾酒'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: HomePage.ink,
+                      style: TextStyle(
+                        color: HomePage.inkOf(context),
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
@@ -309,10 +321,10 @@ class _CocktailSuggestions extends StatelessWidget {
   }
 }
 
-final _homePromptDecoration = BoxDecoration(
-  color: const Color(0xFFFFF7FC),
+BoxDecoration _homePromptDecoration(BuildContext context) => BoxDecoration(
+  color: Theme.of(context).colorScheme.surface,
   borderRadius: BorderRadius.circular(16),
-  border: Border.all(color: const Color(0x1F9A3D78)),
+  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
   boxShadow: const [
     BoxShadow(color: Color(0x109A3D78), blurRadius: 18, offset: Offset(0, 8)),
   ],
@@ -327,7 +339,7 @@ class _VirtualDrinkingPrompt extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
     return Container(
-      decoration: _homePromptDecoration,
+      decoration: _homePromptDecoration(context),
       child: Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(16),
@@ -352,8 +364,8 @@ class _VirtualDrinkingPrompt extends StatelessWidget {
                         text.t('虚拟小酌'),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: HomePage.ink,
+                        style: TextStyle(
+                          color: HomePage.inkOf(context),
                           fontSize: 15,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0,
@@ -364,8 +376,8 @@ class _VirtualDrinkingPrompt extends StatelessWidget {
                         text.t('选一杯酒，走进属于你的场景'),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: HomePage.muted,
+                        style: TextStyle(
+                          color: HomePage.mutedOf(context),
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                           letterSpacing: 0,
@@ -403,7 +415,7 @@ class _HomeRecordPrompt extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
-      decoration: _homePromptDecoration,
+      decoration: _homePromptDecoration(context),
       child: Row(
         children: [
           const Icon(Icons.auto_graph_rounded, color: HomePage.brand, size: 28),
@@ -416,8 +428,8 @@ class _HomeRecordPrompt extends StatelessWidget {
                   text.t('看见你的饮酒习惯'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: HomePage.ink,
+                  style: TextStyle(
+                    color: HomePage.inkOf(context),
                     fontSize: 15,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 0,
@@ -428,8 +440,8 @@ class _HomeRecordPrompt extends StatelessWidget {
                   text.t('少一点模糊印象，多一点清楚记录'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: HomePage.muted,
+                  style: TextStyle(
+                    color: HomePage.mutedOf(context),
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0,
@@ -462,4 +474,3 @@ class _HomeRecordPrompt extends StatelessWidget {
     );
   }
 }
-

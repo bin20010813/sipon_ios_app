@@ -57,15 +57,16 @@ class _BudgetCardState extends State<_BudgetCard> {
     final result = await showDialog<double>(
       context: context,
       builder: (dialogContext) {
+        final scheme = Theme.of(dialogContext).colorScheme;
         return AlertDialog(
-          backgroundColor: Colors.white,
+          backgroundColor: dialogContext.siponColors.elevatedSurface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
           title: Text(
             text.editBudget,
-            style: const TextStyle(
-              color: ProfilePage._ink,
+            style: TextStyle(
+              color: scheme.onSurface,
               fontSize: 18,
               fontWeight: FontWeight.w900,
               letterSpacing: 0,
@@ -77,12 +78,12 @@ class _BudgetCardState extends State<_BudgetCard> {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
               hintText: text.enterBudget,
-              hintStyle: const TextStyle(
-                color: ProfilePage._muted,
+              hintStyle: TextStyle(
+                color: scheme.onSurfaceVariant,
                 fontWeight: FontWeight.w600,
               ),
               filled: true,
-              fillColor: const Color(0xFFFBF8FA),
+              fillColor: scheme.surface,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
@@ -97,7 +98,9 @@ class _BudgetCardState extends State<_BudgetCard> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              style: TextButton.styleFrom(foregroundColor: ProfilePage._muted),
+              style: TextButton.styleFrom(
+                foregroundColor: scheme.onSurfaceVariant,
+              ),
               child: Text(text.cancel),
             ),
             FilledButton(
@@ -110,8 +113,8 @@ class _BudgetCardState extends State<_BudgetCard> {
                 Navigator.of(dialogContext).pop(value);
               },
               style: FilledButton.styleFrom(
-                backgroundColor: ProfilePage._brand,
-                foregroundColor: Colors.white,
+                backgroundColor: scheme.primary,
+                foregroundColor: scheme.onPrimary,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -134,12 +137,13 @@ class _BudgetCardState extends State<_BudgetCard> {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
     final monthExpense = _store.currentMonthExpense;
     final remaining = _store.remaining;
     final delta = _store.monthDeltaRatio;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.98),
+        color: context.siponColors.glassSurface,
         borderRadius: BorderRadius.circular(18),
         boxShadow: const [
           BoxShadow(
@@ -159,21 +163,21 @@ class _BudgetCardState extends State<_BudgetCard> {
                   width: 14,
                   height: 14,
                   decoration: BoxDecoration(
-                    color: ProfilePage._brand,
+                    color: scheme.primary,
                     borderRadius: BorderRadius.circular(3),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.currency_yen_rounded,
                     size: 11,
-                    color: Colors.white,
+                    color: scheme.onPrimary,
                   ),
                 ),
                 const SizedBox(width: 7),
                 Expanded(
                   child: Text(
                     text.drinkBudget,
-                    style: const TextStyle(
-                      color: ProfilePage._ink,
+                    style: TextStyle(
+                      color: scheme.onSurface,
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0,
@@ -186,8 +190,8 @@ class _BudgetCardState extends State<_BudgetCard> {
                     minimumSize: const Size(76, 26),
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    backgroundColor: const Color(0xFFFFEDF7),
-                    foregroundColor: ProfilePage._brand,
+                    backgroundColor: context.siponColors.brandSurface,
+                    foregroundColor: scheme.primary,
                   ),
                   icon: const Icon(Icons.add_rounded, size: 15),
                   label: Text(
@@ -216,7 +220,7 @@ class _BudgetCardState extends State<_BudgetCard> {
                   width: 1,
                   height: 74,
                   margin: const EdgeInsets.symmetric(horizontal: 18),
-                  color: ProfilePage._line,
+                  color: scheme.outlineVariant,
                 ),
                 Expanded(
                   flex: 4,
@@ -229,7 +233,7 @@ class _BudgetCardState extends State<_BudgetCard> {
               ],
             ),
             const SizedBox(height: 14),
-            const Divider(height: 1, color: ProfilePage._line),
+            Divider(height: 1, color: scheme.outlineVariant),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -270,8 +274,9 @@ class _BudgetShortcut extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Material(
-      color: const Color(0xFFFFF7FB),
+      color: context.siponColors.brandSurface,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -281,12 +286,12 @@ class _BudgetShortcut extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 18, color: ProfilePage._brand),
+              Icon(icon, size: 18, color: scheme.primary),
               const SizedBox(width: 7),
               Text(
                 label,
-                style: const TextStyle(
-                  color: ProfilePage._ink,
+                style: TextStyle(
+                  color: scheme.onSurface,
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0,
@@ -314,6 +319,7 @@ class _MonthlyExpense extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
 
     final deltaText = delta == 0
         ? text.noComparison
@@ -332,8 +338,8 @@ class _MonthlyExpense extends StatelessWidget {
                   text.monthlySpend,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: ProfilePage._ink,
+                  style: TextStyle(
+                    color: scheme.onSurface,
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0,
@@ -341,10 +347,10 @@ class _MonthlyExpense extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 5),
-              const Icon(
+              Icon(
                 Icons.visibility_outlined,
                 size: 13,
-                color: ProfilePage._muted,
+                color: scheme.onSurfaceVariant,
               ),
             ],
           ),
@@ -354,8 +360,8 @@ class _MonthlyExpense extends StatelessWidget {
             fit: BoxFit.scaleDown,
             child: Text(
               _formatCurrency(expense),
-              style: const TextStyle(
-                color: ProfilePage._brand,
+              style: TextStyle(
+                color: scheme.primary,
                 fontSize: 25,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,
@@ -371,15 +377,15 @@ class _MonthlyExpense extends StatelessWidget {
                   text: deltaText,
                   style: TextStyle(
                     color: delta >= 0
-                        ? ProfilePage._brand
+                        ? scheme.primary
                         : const Color(0xFF3FA66A),
                     fontWeight: FontWeight.w800,
                   ),
                 ),
               ],
             ),
-            style: const TextStyle(
-              color: ProfilePage._muted,
+            style: TextStyle(
+              color: scheme.onSurfaceVariant,
               fontSize: 11,
               letterSpacing: 0,
             ),
@@ -404,6 +410,7 @@ class _BudgetStats extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -414,16 +421,16 @@ class _BudgetStats extends StatelessWidget {
           child: _BudgetStat(
             label: text.monthlyBudget,
             value: _formatCurrency(budget),
-            trailing: const Icon(
+            trailing: Icon(
               Icons.edit_outlined,
               size: 13,
-              color: ProfilePage._muted,
+              color: scheme.onSurfaceVariant,
             ),
           ),
         ),
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 9),
-          child: Divider(height: 1, color: ProfilePage._line),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 9),
+          child: Divider(height: 1, color: scheme.outlineVariant),
         ),
         _BudgetStat(
           label: text.remainingBudget,
@@ -443,6 +450,7 @@ class _BudgetStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -452,8 +460,8 @@ class _BudgetStat extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: const TextStyle(
-                  color: Color(0xFFC4BBC2),
+                style: TextStyle(
+                  color: scheme.onSurfaceVariant,
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
                   letterSpacing: 0,
@@ -465,8 +473,8 @@ class _BudgetStat extends StatelessWidget {
                 fit: BoxFit.scaleDown,
                 child: Text(
                   value,
-                  style: const TextStyle(
-                    color: ProfilePage._brand,
+                  style: TextStyle(
+                    color: scheme.primary,
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0,
@@ -481,4 +489,3 @@ class _BudgetStat extends StatelessWidget {
     );
   }
 }
-

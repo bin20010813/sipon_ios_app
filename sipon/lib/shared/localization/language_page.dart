@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../app/theme/sipon_theme_colors.dart';
 import 'language_transform.dart';
 
 class LanguagePage extends StatelessWidget {
   const LanguagePage({super.key});
-
-  static const Color _brand = Color(0xFF9A3D78);
-  static const Color _ink = Color(0xFF292B32);
-  static const Color _muted = Color(0xFF8E8790);
-  static const Color _line = Color(0xFFF1EBEF);
 
   void _showMessage(BuildContext context, String message) {
     ScaffoldMessenger.of(context)
@@ -26,15 +22,16 @@ class LanguagePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final languageController = SiponLanguageScope.controllerOf(context);
     final text = SiponLanguageScope.textOf(context);
+    final colors = context.siponColors;
 
     return Scaffold(
       body: DecoratedBox(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topRight,
             end: Alignment.bottomLeft,
-            colors: [Color(0xFFFFF2F3), Color(0xFFFFFCFC), Colors.white],
-            stops: [0, 0.38, 1],
+            colors: colors.pageGradient,
+            stops: const [0, 0.38, 1],
           ),
         ),
         child: SafeArea(
@@ -92,6 +89,8 @@ class _LanguageTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return SizedBox(
       height: 48,
       child: Row(
@@ -102,8 +101,8 @@ class _LanguageTopBar extends StatelessWidget {
               onPressed: () => Navigator.of(context).maybePop(),
               style: IconButton.styleFrom(
                 fixedSize: const Size(40, 40),
-                backgroundColor: Colors.white.withValues(alpha: 0.78),
-                foregroundColor: LanguagePage._ink,
+                backgroundColor: context.siponColors.glassSurface,
+                foregroundColor: scheme.onSurface,
                 padding: EdgeInsets.zero,
                 shape: const CircleBorder(),
               ),
@@ -116,8 +115,8 @@ class _LanguageTopBar extends StatelessWidget {
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: LanguagePage._ink,
+              style: TextStyle(
+                color: scheme.onSurface,
                 fontSize: 22,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,
@@ -143,9 +142,11 @@ class _LanguageCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.92),
+        color: context.siponColors.glassSurface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [
           BoxShadow(
@@ -165,8 +166,8 @@ class _LanguageCard extends StatelessWidget {
               title: text.languageTitle,
               trailing: Text(
                 text.languageCurrent,
-                style: const TextStyle(
-                  color: LanguagePage._muted,
+                style: TextStyle(
+                  color: scheme.onSurfaceVariant,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0,
@@ -183,18 +184,18 @@ class _LanguageCard extends StatelessWidget {
                   visualDensity: VisualDensity.compact,
                   foregroundColor: WidgetStateProperty.resolveWith((states) {
                     if (states.contains(WidgetState.selected)) {
-                      return Colors.white;
+                      return scheme.onPrimary;
                     }
-                    return LanguagePage._ink;
+                    return scheme.onSurface;
                   }),
                   backgroundColor: WidgetStateProperty.resolveWith((states) {
                     if (states.contains(WidgetState.selected)) {
-                      return LanguagePage._brand;
+                      return scheme.primary;
                     }
-                    return Colors.white;
+                    return context.siponColors.elevatedSurface;
                   }),
                   side: WidgetStateProperty.all(
-                    const BorderSide(color: LanguagePage._line),
+                    BorderSide(color: scheme.outlineVariant),
                   ),
                   textStyle: WidgetStateProperty.all(
                     const TextStyle(
@@ -239,16 +240,18 @@ class _LanguageSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return Row(
       children: [
         Container(
           width: 30,
           height: 30,
           decoration: BoxDecoration(
-            color: const Color(0xFFFFEDF7),
+            color: context.siponColors.brandSurface,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(icon, color: LanguagePage._brand, size: 18),
+          child: Icon(icon, color: scheme.primary, size: 18),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -256,8 +259,8 @@ class _LanguageSectionHeader extends StatelessWidget {
             title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: LanguagePage._ink,
+            style: TextStyle(
+              color: scheme.onSurface,
               fontSize: 17,
               fontWeight: FontWeight.w800,
               letterSpacing: 0,

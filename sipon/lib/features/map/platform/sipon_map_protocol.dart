@@ -4,6 +4,8 @@
 /// 全部是纯函数：不碰 Flutter 绑定，可被纯 Dart 测试直接构造与回放。
 library;
 
+import 'package:flutter/material.dart';
+
 import '../models/map_display_options.dart';
 import '../models/map_models.dart';
 import '../controllers/map_scene_controller.dart';
@@ -18,6 +20,7 @@ String siponMapChannelName(int viewId) => 'sipon/mapkit_$viewId';
 /// Dart → 原生的方法名。
 abstract final class SiponMapCommands {
   static const String setup = 'setup';
+  static const String setAppearance = 'setAppearance';
   static const String setStyle = 'setStyle';
   static const String setGestures = 'setGestures';
   static const String readViewport = 'readViewport';
@@ -60,6 +63,11 @@ Map<String, Object?> encodeSetup({
 };
 
 Map<String, Object?> encodeStyle(String styleId) => {'styleId': styleId};
+
+/// Syncs Flutter's resolved brightness to the native MapKit view.
+Map<String, Object?> encodeAppearance(Brightness brightness) => {
+  'brightness': brightness == Brightness.dark ? 'dark' : 'light',
+};
 
 /// `drawRoute` 载荷：按站点顺序传入经纬度数组，原生先直连再尝试道路规划。
 Map<String, Object?> encodeRoutePoints(List<MapLatLng> points) => {

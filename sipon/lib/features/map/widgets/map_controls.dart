@@ -61,10 +61,7 @@ class MapSearchAndFilters extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 26),
               child: Row(
                 children: [
-                  const SiponCityButton(
-                    backgroundColor: Color(0xF7FFFFFF),
-                    foregroundColor: MapDesign.ink,
-                  ),
+                  const SiponCityButton(),
                   const SizedBox(width: 10),
                   Expanded(
                     child: _MapSearchField(
@@ -206,6 +203,7 @@ class _MapSearchFieldState extends State<_MapSearchField> {
   }
 
   Widget _buildResults() {
+    final scheme = Theme.of(context).colorScheme;
     final results = widget.suggestions.take(_maxSuggestions).toList();
     final panelHeight = (results.length * 56.0).clamp(0.0, 336.0).toDouble();
     return Positioned(
@@ -217,12 +215,12 @@ class _MapSearchFieldState extends State<_MapSearchField> {
         offset: const Offset(0, 52),
         child: Material(
           elevation: 6,
-          color: Colors.white,
+          color: scheme.surface,
           borderRadius: BorderRadius.circular(16),
           clipBehavior: Clip.antiAlias,
           child: Container(
             decoration: BoxDecoration(
-              border: Border.all(color: const Color(0xFFE6E3E5)),
+              border: Border.all(color: scheme.outlineVariant),
               borderRadius: BorderRadius.circular(16),
             ),
             child: ListView.builder(
@@ -242,8 +240,8 @@ class _MapSearchFieldState extends State<_MapSearchField> {
                   ),
                   title: Text(
                     venue.name,
-                    style: const TextStyle(
-                      color: MapDesign.ink,
+                    style: TextStyle(
+                      color: scheme.onSurface,
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0,
@@ -253,8 +251,8 @@ class _MapSearchFieldState extends State<_MapSearchField> {
                   ),
                   subtitle: Text(
                     '${venue.address}  |  ${venue.distance}',
-                    style: const TextStyle(
-                      color: MapDesign.muted,
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
                       fontSize: 11,
                       letterSpacing: 0,
                     ),
@@ -289,10 +287,11 @@ class _MapSearchFieldState extends State<_MapSearchField> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return CompositedTransformTarget(
       link: _layerLink,
       child: Material(
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(16),
         elevation: 0,
         child: InkWell(
@@ -303,13 +302,13 @@ class _MapSearchFieldState extends State<_MapSearchField> {
             padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE6E3E5), width: 1),
+              border: Border.all(color: scheme.outlineVariant, width: 1),
             ),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.search_rounded,
-                  color: Color(0xFF8E7588),
+                  color: scheme.onSurfaceVariant,
                   size: 22,
                 ),
                 const SizedBox(width: 8),
@@ -324,16 +323,16 @@ class _MapSearchFieldState extends State<_MapSearchField> {
                     },
                     onSubmitted: widget.onChanged,
                     textInputAction: TextInputAction.search,
-                    style: const TextStyle(
-                      color: MapDesign.ink,
+                    style: TextStyle(
+                      color: scheme.onSurface,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0,
                     ),
                     decoration: InputDecoration(
                       hintText: widget.hint,
-                      hintStyle: const TextStyle(
-                        color: Color(0xFFA198A0),
+                      hintStyle: TextStyle(
+                        color: scheme.onSurfaceVariant,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0,
@@ -381,9 +380,10 @@ class MapCategoryPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
 
     return Material(
-      color: selected ? MapDesign.brand : Colors.white.withValues(alpha: 0.96),
+      color: selected ? scheme.primary : scheme.surface.withValues(alpha: 0.96),
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: onTap,
@@ -397,13 +397,13 @@ class MapCategoryPill extends StatelessWidget {
                 category.iconAsset,
                 width: 18,
                 height: 18,
-                color: selected ? Colors.white : MapDesign.brand,
+                color: selected ? scheme.onPrimary : scheme.primary,
               ),
               const SizedBox(width: 5),
               Text(
                 text.t(category.label),
                 style: TextStyle(
-                  color: selected ? Colors.white : MapDesign.ink,
+                  color: selected ? scheme.onPrimary : scheme.onSurface,
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0,
@@ -426,6 +426,7 @@ class _FilterIconPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
     final active = filter.isActive;
     final maxPrice = filter.maxAveragePrice;
     final minimumRating = filter.minimumRating;
@@ -435,7 +436,7 @@ class _FilterIconPill extends StatelessWidget {
     ];
 
     return Material(
-      color: active ? MapDesign.brand : Colors.white.withValues(alpha: 0.96),
+      color: active ? scheme.primary : scheme.surface.withValues(alpha: 0.96),
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: onPressed,
@@ -450,13 +451,13 @@ class _FilterIconPill extends StatelessWidget {
                 MapAssets.filter,
                 width: 18,
                 height: 18,
-                color: active ? Colors.white : MapDesign.ink,
+                color: active ? scheme.onPrimary : scheme.onSurface,
               ),
               const SizedBox(width: 5),
               Text(
                 active ? parts.join(' · ') : text.t('筛选'),
                 style: TextStyle(
-                  color: active ? Colors.white : MapDesign.ink,
+                  color: active ? scheme.onPrimary : scheme.onSurface,
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0,
@@ -482,10 +483,11 @@ class _MapStatusBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
+        color: scheme.surface.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Padding(
@@ -497,7 +499,7 @@ class _MapStatusBanner extends StatelessWidget {
           style: TextStyle(
             color: status == MapDataStatus.failed
                 ? MapDesign.alert
-                : MapDesign.muted,
+                : scheme.onSurfaceVariant,
             fontSize: 11,
             fontWeight: FontWeight.w600,
             letterSpacing: 0,
@@ -515,20 +517,21 @@ class MapLocateButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Material(
-      color: Colors.white,
+      color: scheme.surface,
       borderRadius: BorderRadius.circular(8),
       elevation: 0,
       shadowColor: Colors.black26,
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(8),
-        child: const SizedBox(
+        child: SizedBox(
           width: 44,
           height: 44,
           child: Icon(
             Icons.my_location_rounded,
-            color: Color(0xFF737176),
+            color: scheme.onSurfaceVariant,
             size: 25,
           ),
         ),

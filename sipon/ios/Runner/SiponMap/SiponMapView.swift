@@ -15,7 +15,13 @@ final class SiponMapView: NSObject, FlutterPlatformView {
   private let engine: SiponMapEngine
   private let channel: FlutterMethodChannel
 
-  init(frame: CGRect, viewId: Int64, messenger: FlutterBinaryMessenger, compassTopInset: Double?) {
+  init(
+    frame: CGRect,
+    viewId: Int64,
+    messenger: FlutterBinaryMessenger,
+    compassTopInset: Double?,
+    appBrightness: String?
+  ) {
     channel = FlutterMethodChannel(
       name: SiponMapProtocol.channelName(viewId: viewId),
       binaryMessenger: messenger
@@ -23,6 +29,7 @@ final class SiponMapView: NSObject, FlutterPlatformView {
     engine = SiponMapEngine(
       mapView: mapView,
       diagnosticID: viewId,
+      appBrightness: appBrightness,
       sendEvent: { [weak channel] name, arguments in
         // Dart 侧宿主在注册监听前到达的事件由缓存补发机制兜住。
         channel?.invokeMethod(name, arguments: arguments)
@@ -119,6 +126,7 @@ final class SiponMapEngine: NSObject {
   private var alive = true
 
   private var styleId = "standard"
+  private var appBrightness: UIUserInterfaceStyle
 
   private var lastFrameArguments: Any?
 
@@ -148,12 +156,19 @@ final class SiponMapEngine: NSObject {
   /// delegate 集中在 proxy 上；手势识别器共享同一个 target。
   private lazy var proxy = EngineDelegateProxy(engine: self)
 
-  init(mapView: MKMapView, diagnosticID: Int64, sendEvent: @escaping (String, Any?) -> Void) {
+  init(
+    mapView: MKMapView,
+    diagnosticID: Int64,
+    appBrightness: String?,
+    sendEvent: @escaping (String, Any?) -> Void
+  ) {
     self.mapView = mapView
     self.diagnosticID = diagnosticID
+    self.appBrightness = appBrightness == "dark" ? .dark : .light
     self.sendEvent = sendEvent
     super.init()
     mapView.delegate = proxy
+    applyEffectiveAppearance()
   }
 
   deinit {
@@ -181,6 +196,12 @@ final class SiponMapEngine: NSObject {
     switch method {
     case SiponMapProtocol.Command.setup:
       handleSetup(SiponMapProtocol.dict(arguments) ?? [:])
+      return nil
+    case SiponMapProtocol.Command.setAppearance:
+      if let args = SiponMapProtocol.dict(arguments),
+         let brightness = SiponMapProtocol.string(args, "brightness") {
+        setAppearance(brightness: brightness)
+      }
       return nil
     case SiponMapProtocol.Command.setStyle:
       if let args = SiponMapProtocol.dict(arguments),
@@ -472,7 +493,6 @@ final class SiponMapEngine: NSObject {
   /// muted 退化为普通浅色（决策 D5）。
   func apply(styleId: String) {
     self.styleId = styleId
-    mapView.overrideUserInterfaceStyle = .unspecified
 
     if #available(iOS 16.0, *) {
       // POI 过滤必须设在 configuration 上：在 iOS 16+ 里 mapView 自身那个
@@ -490,7 +510,6 @@ final class SiponMapEngine: NSObject {
         configuration.emphasisStyle = .muted
         configuration.pointOfInterestFilter = .includingAll
         mapView.preferredConfiguration = configuration
-        mapView.overrideUserInterfaceStyle = .dark
       default:
         let configuration = MKStandardMapConfiguration()
         configuration.elevationStyle = .flat
@@ -501,6 +520,28 @@ final class SiponMapEngine: NSObject {
       // 老版本没有配置对象，POI 开关就是 mapView 自己的属性。
       mapView.mapType = (styleId == "satellite") ? .hybrid : .standard
       mapView.pointOfInterestFilter = .includingAll
+    }
+    applyEffectiveAppearance()
+  }
+
+  private func setAppearance(brightness: String) {
+    guard brightness == "light" || brightness == "dark" else { return }
+    appBrightness = brightness == "dark" ? .dark : .light
+    applyEffectiveAppearance()
+  }
+
+  /// Muted remains dark. Other map styles follow Flutter's resolved theme.
+  private func applyEffectiveAppearance() {
+    let effectiveStyle: UIUserInterfaceStyle = styleId == "muted" ? .dark : appBrightness
+    mapView.overrideUserInterfaceStyle = effectiveStyle
+
+    let isDark = effectiveStyle == .dark
+    for annotation in mapView.annotations {
+      (mapView.view(for: annotation) as? MarkerAnnotationView)?
+        .applyAppearance(isDark: isDark)
+    }
+    for overlay in routeOverlays {
+      (mapView.renderer(for: overlay) as? MKPolylineRenderer)?.strokeColor = routeStrokeColor
     }
   }
 
@@ -878,6 +919,14 @@ final class SiponMapEngine: NSObject {
   }
   fileprivate var shouldProcessEvents: Bool { alive && configured }
   fileprivate var hostMapView: MKMapView { mapView }
+  fileprivate var usesDarkAppearance: Bool {
+    styleId == "muted" || appBrightness == .dark
+  }
+  fileprivate var routeStrokeColor: UIColor {
+    usesDarkAppearance
+      ? UIColor(red: 0xE8 / 255, green: 0xA0 / 255, blue: 0xCC / 255, alpha: 1)
+      : UIColor(red: 0x9A / 255, green: 0x3D / 255, blue: 0x78 / 255, alpha: 1)
+  }
 
   fileprivate func icon(for category: String) -> UIImage? { markerIcons[category] }
 
@@ -950,6 +999,7 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
       view.setRating(marker.rating)
       view.setSequence(marker.sequence)
       view.setHighlighted(engine.isSelectedVenue(marker.venueId))
+      view.applyAppearance(isDark: engine.usesDarkAppearance)
       view.isHidden = engine.markersHiddenSnapshot
       return view
     case let selection as SelectionAnnotation:
@@ -972,12 +1022,7 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
   ) -> MKOverlayRenderer {
     if let polyline = overlay as? MKPolyline {
       let renderer = MKPolylineRenderer(polyline: polyline)
-      renderer.strokeColor = UIColor(
-        red: 0x9A / 255.0,
-        green: 0x3D / 255.0,
-        blue: 0x78 / 255.0,
-        alpha: 1
-      )
+      renderer.strokeColor = engine.routeStrokeColor
       renderer.lineWidth = 5
       renderer.lineCap = .round
       renderer.lineJoin = .round
@@ -1197,6 +1242,7 @@ final class MarkerAnnotationView: MKAnnotationView {
   private var currentRatingText = "--"
   private var isRouteMarker = false
   private var isPoiHighlighted = false
+  private var usesDarkAppearance = false
 
   override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
     super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
@@ -1254,10 +1300,55 @@ final class MarkerAnnotationView: MKAnnotationView {
     layer.shadowOpacity = 0.12
     layer.shadowRadius = 9
     layer.shadowOffset = CGSize(width: 0, height: 3)
+    applyAppearance(isDark: false)
   }
 
   @available(*, unavailable)
   required init?(coder: NSCoder) { nil }
+
+  func applyAppearance(isDark: Bool) {
+    usesDarkAppearance = isDark
+    let surface = isDark
+      ? UIColor(red: 0x21 / 255, green: 0x1C / 255, blue: 0x22 / 255, alpha: 1)
+      : .white
+    let foreground = isDark
+      ? UIColor(red: 0xF5 / 255, green: 0xEF / 255, blue: 0xF4 / 255, alpha: 1)
+      : UIColor(red: 0x10 / 255, green: 0x10 / 255, blue: 0x10 / 255, alpha: 1)
+    let outline = isDark
+      ? UIColor(red: 0x4A / 255, green: 0x3D / 255, blue: 0x48 / 255, alpha: 1)
+      : UIColor(red: 0x9A / 255, green: 0x3D / 255, blue: 0x78 / 255, alpha: 1)
+
+    capsule.backgroundColor = surface
+    capsuleTail.backgroundColor = surface
+    ratingLabel.textColor = foreground
+    sequenceBadge.backgroundColor = surface
+    sequenceBadge.textColor = isDark
+      ? UIColor(red: 0xE8 / 255, green: 0xA0 / 255, blue: 0xCC / 255, alpha: 1)
+      : outline
+    sequenceBadge.layer.borderColor = outline.cgColor
+    layer.shadowColor = UIColor.black.cgColor
+    layer.shadowOpacity = isDark ? 0.35 : 0.12
+    updateLabelAppearance()
+    setNeedsLayout()
+  }
+
+  private func updateLabelAppearance() {
+    let foreground = usesDarkAppearance
+      ? UIColor(red: 0xF5 / 255, green: 0xEF / 255, blue: 0xF4 / 255, alpha: 1)
+      : UIColor(red: 0x0F / 255, green: 0x17 / 255, blue: 0x2A / 255, alpha: 1)
+    let halo = usesDarkAppearance
+      ? UIColor(red: 0x21 / 255, green: 0x1C / 255, blue: 0x22 / 255, alpha: 1)
+      : UIColor.white
+    label.attributedText = NSAttributedString(
+      string: currentLabel,
+      attributes: [
+        .font: UIFont.systemFont(ofSize: 12, weight: .medium),
+        .foregroundColor: foreground,
+        .strokeColor: halo,
+        .strokeWidth: -3.0,
+      ]
+    )
+  }
 
   func setIcon(_ image: UIImage?) {
     sourceIcon = image
@@ -1267,16 +1358,7 @@ final class MarkerAnnotationView: MKAnnotationView {
 
   func setLabel(_ text: String) {
     currentLabel = text
-    // 白描边模拟旧版 textHalo（负 strokeWidth = 同时填充和描边）。
-    label.attributedText = NSAttributedString(
-      string: text,
-      attributes: [
-        .font: UIFont.systemFont(ofSize: 12, weight: .medium),
-        .foregroundColor: UIColor(red: 0x0F / 255, green: 0x17 / 255, blue: 0x2A / 255, alpha: 1),
-        .strokeColor: UIColor.white,
-        .strokeWidth: -3.0,
-      ]
-    )
+    updateLabelAppearance()
     updateAccessibilityLabel()
     setNeedsLayout()
   }
@@ -1391,7 +1473,7 @@ final class MarkerAnnotationView: MKAnnotationView {
     sequenceBadge.isHidden = true
     label.isHidden = true
     layer.shadowColor = UIColor.black.cgColor
-    layer.shadowOpacity = 0.12
+    layer.shadowOpacity = usesDarkAppearance ? 0.35 : 0.12
     layer.shadowRadius = 9 * Metrics.scale
     layer.shadowOffset = CGSize(width: 0, height: 3 * Metrics.scale)
 

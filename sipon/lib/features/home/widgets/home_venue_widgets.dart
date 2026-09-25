@@ -226,9 +226,9 @@ class _RankingCard extends StatelessWidget {
       width: width,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: HomePage.line),
+          border: Border.all(color: HomePage.lineOf(context)),
           boxShadow: const [
             BoxShadow(
               color: Color(0x14000000),
@@ -246,15 +246,15 @@ class _RankingCard extends StatelessWidget {
                 title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: HomePage.ink,
+                style: TextStyle(
+                  color: HomePage.inkOf(context),
                   fontSize: 17,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 0,
                 ),
               ),
               const SizedBox(height: 16),
-              const Divider(height: 1, color: HomePage.line),
+              Divider(height: 1, color: HomePage.lineOf(context)),
               const SizedBox(height: 12),
               for (var i = 0; i < items.length; i++) ...[
                 _RankingTile(item: items[i], onTap: onItemTap?[i]),
@@ -304,8 +304,8 @@ class _RankingTile extends StatelessWidget {
                     item.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: HomePage.ink,
+                    style: TextStyle(
+                      color: HomePage.inkOf(context),
                       fontSize: 16,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 0,
@@ -316,8 +316,8 @@ class _RankingTile extends StatelessWidget {
                     item.description,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: HomePage.muted,
+                    style: TextStyle(
+                      color: HomePage.mutedOf(context),
                       fontSize: 12,
                       height: 1.25,
                       letterSpacing: 0,
@@ -332,4 +332,3 @@ class _RankingTile extends StatelessWidget {
     );
   }
 }
-

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
+import 'package:sipon/app/theme/sipon_theme_colors.dart';
 import 'package:sipon/shared/localization/language_transform.dart';
 import '../services/sipon_city_controller.dart';
 import '../services/sipon_region_data.dart';
@@ -24,21 +25,25 @@ class SiponCityButton extends StatelessWidget {
   const SiponCityButton({
     super.key,
     this.compact = false,
-    this.backgroundColor = Colors.white,
-    this.foregroundColor = const Color(0xFF252229),
+    this.backgroundColor,
+    this.foregroundColor,
   });
 
   final bool compact;
-  final Color backgroundColor;
-  final Color foregroundColor;
+  final Color? backgroundColor;
+  final Color? foregroundColor;
 
   @override
   Widget build(BuildContext context) {
     final controller = SiponCityScope.controllerOf(context);
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
+    final resolvedBackground =
+        backgroundColor ?? context.siponColors.elevatedSurface;
+    final resolvedForeground = foregroundColor ?? scheme.onSurface;
 
     return Material(
-      color: backgroundColor,
+      color: resolvedBackground,
       borderRadius: BorderRadius.circular(compact ? 15 : 17),
       child: InkWell(
         onTap: () => showSiponCitySheet(context),
@@ -52,14 +57,14 @@ class SiponCityButton extends StatelessWidget {
           padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 13),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(compact ? 15 : 17),
-            border: Border.all(color: const Color(0x229A3D78)),
+            border: Border.all(color: scheme.primary.withValues(alpha: 0.2)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 Icons.location_on_outlined,
-                color: const Color(0xFF9A3D78),
+                color: scheme.primary,
                 size: compact ? 16 : 18,
               ),
               const SizedBox(width: 4),
@@ -69,7 +74,7 @@ class SiponCityButton extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: foregroundColor,
+                    color: resolvedForeground,
                     fontSize: compact ? 12 : 14,
                     fontWeight: FontWeight.w400,
                     letterSpacing: 0,
@@ -79,7 +84,7 @@ class SiponCityButton extends StatelessWidget {
               const SizedBox(width: 1),
               Icon(
                 Icons.keyboard_arrow_down_rounded,
-                color: foregroundColor.withValues(alpha: 0.68),
+                color: resolvedForeground.withValues(alpha: 0.68),
                 size: compact ? 17 : 19,
               ),
             ],
@@ -91,9 +96,9 @@ class SiponCityButton extends StatelessWidget {
 }
 
 Future<void> showSiponCitySheet(BuildContext context) {
-  return Navigator.of(context).push(
-    MaterialPageRoute<void>(builder: (_) => const SiponCityPickerPage()),
-  );
+  return Navigator.of(
+    context,
+  ).push(MaterialPageRoute<void>(builder: (_) => const SiponCityPickerPage()));
 }
 
 class SiponCityPickerPage extends StatelessWidget {
@@ -101,16 +106,18 @@ class SiponCityPickerPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: scheme.surface,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: scheme.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(
+          icon: Icon(
             Icons.arrow_back_ios_new_rounded,
-            color: Color(0xFF252229),
+            color: scheme.onSurface,
             size: 20,
           ),
           onPressed: () => Navigator.of(context).pop(),
@@ -193,16 +200,17 @@ class _SiponCitySheetState extends State<_SiponCitySheet> {
   Widget build(BuildContext context) {
     final cityController = SiponCityScope.controllerOf(context);
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
 
     return FutureBuilder<List<SiponProvinceGroup>>(
       future: _groupsFuture,
       builder: (context, snapshot) {
         final groups = snapshot.data;
         if (groups == null || groups.isEmpty) {
-          return const Center(
+          return Center(
             child: Padding(
-              padding: EdgeInsets.all(32),
-              child: CircularProgressIndicator(color: Color(0xFF9A3D78)),
+              padding: const EdgeInsets.all(32),
+              child: CircularProgressIndicator(color: scheme.primary),
             ),
           );
         }
@@ -227,8 +235,8 @@ class _SiponCitySheetState extends State<_SiponCitySheet> {
                       children: [
                         Text(
                           text.t('选择城市'),
-                          style: const TextStyle(
-                            color: Color(0xFF252229),
+                          style: TextStyle(
+                            color: scheme.onSurface,
                             fontSize: 20,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 0,
@@ -237,8 +245,8 @@ class _SiponCitySheetState extends State<_SiponCitySheet> {
                         const SizedBox(height: 6),
                         Text(
                           text.t('城市变化后会刷新附近酒吧和地图内容'),
-                          style: const TextStyle(
-                            color: Color(0xFF8F8790),
+                          style: TextStyle(
+                            color: scheme.onSurfaceVariant,
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
                             letterSpacing: 0,
@@ -276,7 +284,7 @@ class _SiponCitySheetState extends State<_SiponCitySheet> {
                   // 左侧：省级列表。
                   Container(
                     width: 112,
-                    color: const Color(0xFFF8F4F7),
+                    color: scheme.surfaceContainerLow,
                     child: ListView.builder(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       itemCount: groups.length,
@@ -285,9 +293,8 @@ class _SiponCitySheetState extends State<_SiponCitySheet> {
                         return _ProvinceTile(
                           label: groups[index].displayName(isZh),
                           selected: selected,
-                          onTap: () => setState(
-                            () => _selectedProvinceIndex = index,
-                          ),
+                          onTap: () =>
+                              setState(() => _selectedProvinceIndex = index),
                         );
                       },
                     ),
@@ -347,8 +354,10 @@ class _ProvinceTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return Material(
-      color: selected ? Colors.white : Colors.transparent,
+      color: selected ? scheme.surface : Colors.transparent,
       child: InkWell(
         onTap: onTap,
         child: Container(
@@ -356,9 +365,7 @@ class _ProvinceTile extends StatelessWidget {
           decoration: BoxDecoration(
             border: Border(
               left: BorderSide(
-                color: selected
-                    ? const Color(0xFF9A3D78)
-                    : Colors.transparent,
+                color: selected ? scheme.primary : Colors.transparent,
                 width: 3,
               ),
             ),
@@ -368,9 +375,7 @@ class _ProvinceTile extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: selected
-                  ? const Color(0xFF9A3D78)
-                  : const Color(0xFF342C34),
+              color: selected ? scheme.primary : scheme.onSurface,
               fontSize: 13,
               fontWeight: FontWeight.w400,
               letterSpacing: 0,
@@ -389,26 +394,24 @@ class _CurrentCityTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF7FC),
+        color: context.siponColors.brandSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0x229A3D78)),
+        border: Border.all(color: scheme.primary.withValues(alpha: 0.2)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
-            Icons.location_on_outlined,
-            color: Color(0xFF9A3D78),
-            size: 14,
-          ),
+          Icon(Icons.location_on_outlined, color: scheme.primary, size: 14),
           const SizedBox(width: 4),
           Text(
             SiponLanguageScope.textOf(context).t('当前：$city'),
-            style: const TextStyle(
-              color: Color(0xFF9A3D78),
+            style: TextStyle(
+              color: scheme.primary,
               fontSize: 12,
               fontWeight: FontWeight.w400,
               letterSpacing: 0,
@@ -444,6 +447,7 @@ class _LocateBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
 
     Widget banner({
       required IconData icon,
@@ -454,21 +458,21 @@ class _LocateBanner extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 20),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         decoration: BoxDecoration(
-          color: const Color(0xFFF8F4F7),
+          color: scheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0x159A3D78)),
+          border: Border.all(color: scheme.primary.withValues(alpha: 0.12)),
         ),
         child: Row(
           children: [
-            Icon(icon, color: const Color(0xFF9A3D78), size: 16),
+            Icon(icon, color: scheme.primary, size: 16),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 message,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xFF342C34),
+                style: TextStyle(
+                  color: scheme.onSurface,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0,
@@ -492,12 +496,12 @@ class _LocateBanner extends StatelessWidget {
         icon: Icons.my_location_rounded,
         message: text.t('正在定位…'),
         actions: [
-          const SizedBox(
+          SizedBox(
             width: 14,
             height: 14,
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              color: Color(0xFF9A3D78),
+              color: scheme.primary,
             ),
           ),
         ],
@@ -509,9 +513,7 @@ class _LocateBanner extends StatelessWidget {
       return banner(
         icon: Icons.location_off_rounded,
         message: text.t('定位失败，请手动选择城市'),
-        actions: [
-          _BannerAction(label: text.t('重试'), onTap: onRetry),
-        ],
+        actions: [_BannerAction(label: text.t('重试'), onTap: onRetry)],
       );
     }
 
@@ -537,8 +539,7 @@ class _LocateBanner extends StatelessWidget {
           icon: Icons.location_off_rounded,
           message: text.t('定位服务未开启，请手动选择城市'),
           actions: [
-            _BannerAction(
-                label: text.t('去设置'), onTap: onOpenLocationSettings),
+            _BannerAction(label: text.t('去设置'), onTap: onOpenLocationSettings),
             _BannerAction(label: text.t('重试'), onTap: onRetry),
           ],
         );
@@ -565,8 +566,10 @@ class _BannerAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return Material(
-      color: const Color(0xFF9A3D78),
+      color: scheme.primary,
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         onTap: onTap,
@@ -575,8 +578,8 @@ class _BannerAction extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           child: Text(
             label,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: scheme.onPrimary,
               fontSize: 11,
               fontWeight: FontWeight.w800,
               letterSpacing: 0,
@@ -601,8 +604,10 @@ class _CityChoiceChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return Material(
-      color: selected ? const Color(0xFF9A3D78) : const Color(0xFFFFF7FC),
+      color: selected ? scheme.primary : context.siponColors.brandSurface,
       borderRadius: BorderRadius.circular(17),
       child: InkWell(
         onTap: onTap,
@@ -615,8 +620,8 @@ class _CityChoiceChip extends StatelessWidget {
             borderRadius: BorderRadius.circular(17),
             border: Border.all(
               color: selected
-                  ? const Color(0xFF9A3D78)
-                  : const Color(0x229A3D78),
+                  ? scheme.primary
+                  : scheme.primary.withValues(alpha: 0.2),
             ),
           ),
           child: Text(
@@ -624,7 +629,7 @@ class _CityChoiceChip extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: selected ? Colors.white : const Color(0xFF342C34),
+              color: selected ? scheme.onPrimary : scheme.onSurface,
               fontSize: 13,
               fontWeight: FontWeight.w400,
               letterSpacing: 0,

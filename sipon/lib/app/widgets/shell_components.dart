@@ -75,7 +75,6 @@ class _SiponBottomJumpBar extends StatelessWidget {
   });
 
   static const Color _activeColor = Color(0xFF9A3D78);
-  static const Color _inactiveColor = Color(0xFF7F7F85);
 
   final int currentIndex;
   final ValueChanged<int> onTabSelected;
@@ -84,6 +83,7 @@ class _SiponBottomJumpBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final colors = Theme.of(context).colorScheme;
 
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 420),
@@ -93,7 +93,7 @@ class _SiponBottomJumpBar extends StatelessWidget {
           Expanded(
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.94),
+                color: colors.surface.withValues(alpha: 0.94),
                 borderRadius: BorderRadius.circular(28),
                 border: Border.all(color: const Color(0x14FFFFFF)),
                 boxShadow: const [
@@ -114,7 +114,7 @@ class _SiponBottomJumpBar extends StatelessWidget {
                       icon: Icons.home_rounded,
                       selected: currentIndex == 0,
                       activeColor: _activeColor,
-                      inactiveColor: _inactiveColor,
+                      inactiveColor: colors.onSurfaceVariant,
                       onPressed: () => onTabSelected(0),
                     ),
                     _SiponBottomJumpItem(
@@ -122,7 +122,7 @@ class _SiponBottomJumpBar extends StatelessWidget {
                       icon: Icons.map_rounded,
                       selected: currentIndex == 1,
                       activeColor: _activeColor,
-                      inactiveColor: _inactiveColor,
+                      inactiveColor: colors.onSurfaceVariant,
                       onPressed: () => onTabSelected(1),
                     ),
                     _SiponBottomJumpItem(
@@ -130,7 +130,7 @@ class _SiponBottomJumpBar extends StatelessWidget {
                       icon: Icons.person_rounded,
                       selected: currentIndex == 2,
                       activeColor: _activeColor,
-                      inactiveColor: _inactiveColor,
+                      inactiveColor: colors.onSurfaceVariant,
                       onPressed: () => onTabSelected(2),
                     ),
                   ],
@@ -166,7 +166,7 @@ class _SiponBottomPlusButton extends StatelessWidget {
             width: 54,
             height: 54,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               shape: BoxShape.circle,
               boxShadow: const [
                 BoxShadow(
@@ -176,9 +176,9 @@ class _SiponBottomPlusButton extends StatelessWidget {
                 ),
               ],
             ),
-            child: const Icon(
+            child: Icon(
               Icons.add_rounded,
-              color: Color(0xFF8F8790),
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               size: 28,
             ),
           ),
@@ -247,16 +247,20 @@ class _SiponPlusSheet extends StatelessWidget {
     required this.onAddVenue,
   });
 
-  static const Color _cardBg = Colors.white;
-  static const Color _muted = Color(0xFF8F8790);
-
   final VoidCallback onPlanRoute;
   final VoidCallback onCheckIn;
   final VoidCallback onAddVenue;
 
+  static const double _backgroundBlurSigma = 18;
+
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final scheme = Theme.of(context).colorScheme;
+    final glassTint = Color.alphaBlend(
+      scheme.primary.withValues(alpha: 0.10),
+      scheme.surface,
+    ).withValues(alpha: 0.76);
     final mediaQuery = MediaQuery.of(context);
     final viewInsets = mediaQuery.viewInsets.bottom;
     final bottomSafeInset = _bottomBarBottomGapFor(
@@ -296,9 +300,14 @@ class _SiponPlusSheet extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(28),
                   child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                    // Keep the frosted-glass blur constant across theme modes;
+                    // theme changes only affect the translucent surface tint.
+                    filter: ImageFilter.blur(
+                      sigmaX: _backgroundBlurSigma,
+                      sigmaY: _backgroundBlurSigma,
+                    ),
                     child: ColoredBox(
-                      color: const Color(0xBFF7F2F5),
+                      color: glassTint,
                       child: SafeArea(
                         top: false,
                         bottom: false,
@@ -322,7 +331,9 @@ class _SiponPlusSheet extends StatelessWidget {
                               Text(
                                 text.plusSheetTitle,
                                 style: TextStyle(
-                                  color: Color(0xFF252229),
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface,
                                   fontSize: 20,
                                   fontWeight: FontWeight.w900,
                                   letterSpacing: 0,
@@ -332,7 +343,9 @@ class _SiponPlusSheet extends StatelessWidget {
                               Text(
                                 text.plusSheetHint,
                                 style: TextStyle(
-                                  color: _muted,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
                                   letterSpacing: 0,
@@ -487,7 +500,7 @@ class _SiponPlusActionCard extends StatelessWidget {
     return SizedBox(
       height: 78,
       child: Material(
-        color: _SiponPlusSheet._cardBg,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
@@ -498,7 +511,7 @@ class _SiponPlusActionCard extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             decoration: BoxDecoration(
-              color: _SiponPlusSheet._cardBg,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: const Color(0x11000000)),
               boxShadow: const [
@@ -516,8 +529,8 @@ class _SiponPlusActionCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     title,
-                    style: const TextStyle(
-                      color: Color(0xFF252229),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0,

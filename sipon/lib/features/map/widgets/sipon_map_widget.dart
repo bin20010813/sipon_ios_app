@@ -74,7 +74,20 @@ class SiponMapWidget extends StatefulWidget {
 class _SiponMapWidgetState extends State<SiponMapWidget> {
   ChannelMapHost? _kitHost;
   int? _viewId;
+  Brightness? _brightness;
   final Map<int, Offset> _pointerStarts = {};
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final brightness = Theme.of(context).brightness;
+    if (_brightness == brightness) return;
+    _brightness = brightness;
+    final host = _kitHost;
+    if (host != null) {
+      host.invoke(SiponMapCommands.setAppearance, encodeAppearance(brightness));
+    }
+  }
 
   void _logPointer(PointerEvent event, String phase) {
     if (!kDebugMode) return;
@@ -91,9 +104,13 @@ class _SiponMapWidgetState extends State<SiponMapWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final brightness = _brightness ?? Theme.of(context).brightness;
     final map = UiKitView(
       viewType: kSiponMapViewType,
-      creationParams: {'compassTopInset': widget.compassTopInset},
+      creationParams: {
+        'compassTopInset': widget.compassTopInset,
+        ...encodeAppearance(brightness),
+      },
       creationParamsCodec: const StandardMessageCodec(),
       // opaque：空白像素区域也算命中平台视图。它只管「命中」，不管手势归属；
       // 手势竞争由下面的 Eager 识别器解决——没有它，平台视图在竞技场里从不
@@ -113,6 +130,12 @@ class _SiponMapWidgetState extends State<SiponMapWidget> {
         // 真正的 onMapReady 由 setup 命令触发，见原生侧实现。
         final host = ChannelMapHost(MethodChannel(siponMapChannelName(viewId)));
         _kitHost = host;
+        // creationParams covers the first native frame. Sending again here
+        // closes the gap if Flutter's effective theme changed during creation.
+        host.invoke(
+          SiponMapCommands.setAppearance,
+          encodeAppearance(_brightness ?? brightness),
+        );
         widget.onHostReady(host);
       },
     );

@@ -114,7 +114,7 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
       barrierDismissible: false,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: Colors.white,
+          backgroundColor: Theme.of(dialogContext).colorScheme.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
@@ -122,8 +122,8 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
           content: Text.rich(
             TextSpan(
               text: text.t('请阅读并同意'),
-              style: const TextStyle(
-                color: Color(0xFF5C565D),
+              style: TextStyle(
+                color: Theme.of(dialogContext).colorScheme.onSurfaceVariant,
                 fontSize: 14,
                 height: 1.6,
               ),
@@ -227,9 +227,7 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
         'code=${error.code.name}, message=${error.message}',
       );
       if (mounted) {
-        _showMessage(
-          '${text.t('Apple 登录失败，请重试')} (${error.code.name})',
-        );
+        _showMessage('${text.t('Apple 登录失败，请重试')} (${error.code.name})');
       }
     } on SignInWithAppleException catch (error) {
       debugPrint(
@@ -446,7 +444,7 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
     final text = SiponLanguageScope.textOf(context);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         // bottom:false 让滚动视口延伸到屏幕底，可滚过小白条区域；
         // 底部空间由 SingleChildScrollView 的 padding 预留。
@@ -492,7 +490,7 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
                               ),
                             ),
                             const SizedBox(height: 24),
-                            const SizedBox(
+                            SizedBox(
                               width: 220,
                               child: Column(
                                 children: [
@@ -500,7 +498,9 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
                                     'Turn the SIP ON',
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
-                                      color: Color(0xFF292B32),
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurface,
                                       fontFamily: 'Dubai',
                                       fontSize: 28,
                                       fontWeight: FontWeight.w700,
@@ -512,7 +512,9 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
                                     '开饮   就现在',
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
-                                      color: Color(0xFF292B32),
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurface,
                                       fontFamily: 'Microsoft YaHei',
                                       fontSize: 20,
                                       fontWeight: FontWeight.w700,
@@ -528,15 +530,13 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
                       ),
                       const SizedBox(height: 34),
                       Text(
-                        text.t(
-                          switch (_page) {
-                            _AuthPage.login => '登录',
-                            _AuthPage.register => '注册',
-                            _AuthPage.reset => '重置密码',
-                          },
-                        ),
-                        style: const TextStyle(
-                          color: Color(0xFF292B32),
+                        text.t(switch (_page) {
+                          _AuthPage.login => '登录',
+                          _AuthPage.register => '注册',
+                          _AuthPage.reset => '重置密码',
+                        }),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 24,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0,
@@ -545,8 +545,8 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
                       const SizedBox(height: 22),
                       Text(
                         text.t('邮箱'),
-                        style: const TextStyle(
-                          color: Color(0xFF292B32),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
                         ),
@@ -602,7 +602,9 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
                             child: TextButton(
                               onPressed: () => _switchPage(_AuthPage.reset),
                               style: TextButton.styleFrom(
-                                foregroundColor: const Color(0xFF8E8790),
+                                foregroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                                 minimumSize: const Size(0, 30),
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 6,
@@ -628,7 +630,9 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
                           onPressed: _canSubmit ? _submit : null,
                           style: FilledButton.styleFrom(
                             backgroundColor: _brand,
-                            disabledBackgroundColor: const Color(0xFFE9D8E2),
+                            disabledBackgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHighest,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -643,13 +647,11 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
                                   ),
                                 )
                               : Text(
-                                  text.t(
-                                    switch (_page) {
-                                      _AuthPage.login => '登录',
-                                      _AuthPage.register => '注册',
-                                      _AuthPage.reset => '重置密码',
-                                    },
-                                  ),
+                                  text.t(switch (_page) {
+                                    _AuthPage.login => '登录',
+                                    _AuthPage.register => '注册',
+                                    _AuthPage.reset => '重置密码',
+                                  }),
                                   style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w800,
@@ -657,8 +659,7 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
                                 ),
                         ),
                       ),
-                      if (_page == _AuthPage.login &&
-                          _supportsAppleSignIn) ...[
+                      if (_page == _AuthPage.login && _supportsAppleSignIn) ...[
                         const SizedBox(height: 18),
                         Row(
                           children: [
@@ -669,8 +670,10 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
                               ),
                               child: Text(
                                 text.t('或'),
-                                style: const TextStyle(
-                                  color: Color(0xFFAAA3AA),
+                                style: TextStyle(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                   fontSize: 12,
                                 ),
                               ),
@@ -688,9 +691,13 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
                                 : _loginWithApple,
                             icon: const Icon(Icons.apple, size: 24),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFF292B32),
-                              side: const BorderSide(
-                                color: Color(0xFFE9E3E7),
+                              foregroundColor: Theme.of(
+                                context,
+                              ).colorScheme.onSurface,
+                              side: BorderSide(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.outlineVariant,
                               ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
@@ -724,13 +731,11 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
                             ),
                           ),
                           child: Text(
-                            text.t(
-                              switch (_page) {
-                                _AuthPage.login => '还没有账号？立即注册',
-                                _AuthPage.register => '已有账号？去登录',
-                                _AuthPage.reset => '返回登录',
-                              },
-                            ),
+                            text.t(switch (_page) {
+                              _AuthPage.login => '还没有账号？立即注册',
+                              _AuthPage.register => '已有账号？去登录',
+                              _AuthPage.reset => '返回登录',
+                            }),
                           ),
                         ),
                       ),
@@ -828,13 +833,16 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
               fillColor: WidgetStateProperty.resolveWith(
                 (states) => states.contains(WidgetState.selected)
                     ? _brand
-                    : Colors.white,
+                    : Theme.of(context).colorScheme.surface,
               ),
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(5),
               ),
-              side: const BorderSide(color: Color(0xFFD5CDD2), width: 1.4),
+              side: BorderSide(
+                color: Theme.of(context).colorScheme.outline,
+                width: 1.4,
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -842,8 +850,8 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
             child: Text.rich(
               TextSpan(
                 text: text.t('我已阅读并同意'),
-                style: const TextStyle(
-                  color: Color(0xFF8E8790),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 12,
                   height: 1.4,
                 ),
@@ -897,23 +905,33 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
       maxLength: maxLength,
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: Color(0xFFAAA3AA)),
-        prefixIcon: Icon(icon, size: 21, color: const Color(0xFF8E8790)),
+        hintStyle: TextStyle(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+        prefixIcon: Icon(
+          icon,
+          size: 21,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
         suffixIcon: suffixIcon,
         counterText: maxLength == null ? null : '',
         filled: true,
-        fillColor: Colors.white,
+        fillColor: Theme.of(context).colorScheme.surface,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 15,
           vertical: 16,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Color(0xFFE9E3E7)),
+          borderSide: BorderSide(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Color(0xFFE9E3E7)),
+          borderSide: BorderSide(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
@@ -946,8 +964,8 @@ class _FieldLabelRow extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: const TextStyle(
-              color: Color(0xFF292B32),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 14,
               fontWeight: FontWeight.w800,
             ),
@@ -989,9 +1007,9 @@ class _LoginLanguageSwitch extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE9E3E7)),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Padding(
         padding: const EdgeInsets.all(2),
@@ -1049,7 +1067,9 @@ class _LoginLanguageOption extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: selected ? Colors.white : const Color(0xFF8E8790),
+                color: selected
+                    ? Colors.white
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,

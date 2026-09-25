@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:sipon/app/theme/sipon_theme_colors.dart';
 
 import 'package:sipon/features/drinks/cocktails/data/cocktail_recommendation_store.dart';
 import 'package:sipon/features/map/models/map_models.dart';
@@ -42,10 +43,14 @@ class HomePage extends StatefulWidget {
   final ValueNotifier<bool>? searchExpanded;
 
   static const Color brand = Color(0xFF9A3D78);
-  static const Color ink = Color(0xFF252229);
-  static const Color muted = Color(0xFF9B939B);
-  static const Color chipBg = Color(0xFFF8E7F7);
-  static const Color line = Color(0xFFF2EDF1);
+  static Color inkOf(BuildContext context) =>
+      Theme.of(context).colorScheme.onSurface;
+  static Color mutedOf(BuildContext context) =>
+      Theme.of(context).colorScheme.onSurfaceVariant;
+  static Color chipBgOf(BuildContext context) =>
+      context.siponColors.brandSurface;
+  static Color lineOf(BuildContext context) =>
+      Theme.of(context).colorScheme.outlineVariant;
 
   static const String logoAsset = 'assest/首页/logo@3x.png';
   static const String nameAsset = 'assest/首页/NAME@3x.png';
@@ -177,7 +182,7 @@ class _HomePageState extends State<HomePage> {
     final text = SiponLanguageScope.textOf(context);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         // 底部不进安全区：页面背景（白色）自然延伸到底，避免安全区露出
         // 与内容脱节的 Scaffold 底色条带；底部空间由 bottomOverlayInset 预留。
@@ -303,9 +308,8 @@ class _HomePageState extends State<HomePage> {
                                   sigmaY: 8 * progress,
                                 ),
                                 child: ColoredBox(
-                                  color: Colors.white.withValues(
-                                    alpha: 0.38 * progress,
-                                  ),
+                                  color: Theme.of(context).colorScheme.surface
+                                      .withValues(alpha: 0.38 * progress),
                                 ),
                               ),
                             );

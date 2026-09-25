@@ -1342,8 +1342,8 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       title,
-      style: const TextStyle(
-        color: Color(0xFF5D565C),
+      style: TextStyle(
+        color: Theme.of(context).colorScheme.onSurface,
         fontSize: 15,
         fontWeight: FontWeight.w700,
         letterSpacing: 0,
@@ -1351,4 +1351,3 @@ class _SectionTitle extends StatelessWidget {
     );
   }
 }
-

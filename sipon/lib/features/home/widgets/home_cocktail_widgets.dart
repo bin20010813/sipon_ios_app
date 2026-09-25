@@ -143,7 +143,7 @@ class _CocktailCard extends StatelessWidget {
     return SizedBox(
       width: 142,
       child: Material(
-        color: const Color(0xFFF7F7F7),
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -168,8 +168,8 @@ class _CocktailCard extends StatelessWidget {
                   item.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: HomePage.ink,
+                  style: TextStyle(
+                    color: HomePage.inkOf(context),
                     fontSize: 16,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 0,
@@ -182,8 +182,8 @@ class _CocktailCard extends StatelessWidget {
                   item.subtitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: HomePage.muted,
+                  style: TextStyle(
+                    color: HomePage.mutedOf(context),
                     fontSize: 12,
                     letterSpacing: 0,
                   ),
@@ -196,4 +196,3 @@ class _CocktailCard extends StatelessWidget {
     );
   }
 }
-

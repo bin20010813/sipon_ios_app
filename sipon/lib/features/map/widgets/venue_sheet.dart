@@ -83,7 +83,7 @@ class VenueSheetSurface extends StatelessWidget {
         bottom: mapLerp(collapsedBottomGap, 0, progress),
       ),
       child: Material(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         elevation: mapLerp(10, 12, progress),
         shadowColor: Color.lerp(
           const Color(0x52000000),

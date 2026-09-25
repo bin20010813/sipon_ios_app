@@ -1653,7 +1653,11 @@ class _VerticalDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(width: 1, height: 42, color: const Color(0xFFF6F1F4));
+    return Container(
+      width: 1,
+      height: 42,
+      color: Theme.of(context).colorScheme.outlineVariant,
+    );
   }
 }
 
@@ -1664,9 +1668,10 @@ class _ProfileListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.72),
+        color: context.siponColors.glassSurface,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -1674,9 +1679,9 @@ class _ProfileListCard extends StatelessWidget {
           for (var index = 0; index < rows.length; index++) ...[
             rows[index],
             if (index != rows.length - 1)
-              const Padding(
-                padding: EdgeInsets.only(left: 42),
-                child: Divider(height: 1, color: ProfilePage._line),
+              Padding(
+                padding: const EdgeInsets.only(left: 42),
+                child: Divider(height: 1, color: scheme.outlineVariant),
               ),
           ],
         ],
@@ -1702,6 +1707,7 @@ class _ProfileListRow extends StatelessWidget {
   final VoidCallback? onTap;
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -1714,8 +1720,8 @@ class _ProfileListRow extends StatelessWidget {
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(
-                  color: ProfilePage._ink,
+                style: TextStyle(
+                  color: scheme.onSurface,
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0,
@@ -1726,13 +1732,13 @@ class _ProfileListRow extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFEDF7),
+                  color: context.siponColors.brandSurface,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   badge!,
-                  style: const TextStyle(
-                    color: ProfilePage._brand,
+                  style: TextStyle(
+                    color: scheme.primary,
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0,
@@ -1751,9 +1757,9 @@ class _ProfileListRow extends StatelessWidget {
             //     ),
             //   ),
             const SizedBox(width: 7),
-            const Icon(
+            Icon(
               Icons.chevron_right_rounded,
-              color: Color(0xFFC7C1C6),
+              color: scheme.onSurfaceVariant,
               size: 22,
             ),
           ],

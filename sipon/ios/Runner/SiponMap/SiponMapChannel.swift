@@ -13,6 +13,7 @@ enum SiponMapProtocol {
   // Dart → 原生
   enum Command {
     static let setup = "setup"
+    static let setAppearance = "setAppearance"
     static let setStyle = "setStyle"
     static let setGestures = "setGestures"
     static let readViewport = "readViewport"

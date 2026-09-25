@@ -9,6 +9,10 @@ import 'package:sipon/shared/services/sipon_auth_service.dart';
 import 'package:sipon/shared/services/sipon_search_preferences.dart';
 import 'package:sipon/shared/localization/language_transform.dart';
 import 'package:sipon/features/reviews/pages/review_page.dart';
+import 'package:sipon/app/theme/sipon_theme_colors.dart';
+import 'package:sipon/app/theme/sipon_theme_controller.dart';
+
+final SiponThemeController _fallbackThemeController = SiponThemeController();
 
 class SettingsSupportPage extends StatelessWidget {
   const SettingsSupportPage({super.key, this.onLogoutSucceeded});
@@ -38,15 +42,18 @@ class SettingsSupportPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final languageController = SiponLanguageScope.controllerOf(context);
+    final themeController =
+        SiponThemeScope.maybeControllerOf(context) ?? _fallbackThemeController;
     final text = SiponLanguageScope.textOf(context);
+    final colors = context.siponColors;
 
     return Scaffold(
       body: DecoratedBox(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topRight,
             end: Alignment.bottomLeft,
-            colors: [Color(0xFFFFF2F3), Color(0xFFFFFCFC), Colors.white],
+            colors: colors.pageGradient,
             stops: [0, 0.38, 1],
           ),
         ),
@@ -89,6 +96,31 @@ class SettingsSupportPage extends StatelessWidget {
                                   context,
                                   SiponAppText(language).languageChanged,
                                 );
+                              },
+                            ),
+                            _AppearanceRow(
+                              title: text.appearance,
+                              text: text,
+                              mode: themeController.mode,
+                              onChanged: (mode) async {
+                                if (themeController.mode == mode) return;
+                                final messenger = ScaffoldMessenger.of(context);
+                                try {
+                                  await themeController.setMode(mode);
+                                  if (!context.mounted) return;
+                                  _showMessage(context, text.appearanceChanged);
+                                } catch (_) {
+                                  if (!context.mounted) return;
+                                  messenger
+                                    ..hideCurrentSnackBar()
+                                    ..showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          text.appearanceSaveFailed,
+                                        ),
+                                      ),
+                                    );
+                                }
                               },
                             ),
                           ],
@@ -264,7 +296,6 @@ class _AccountSecurityPageState extends State<_AccountSecurityPage> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
@@ -322,7 +353,6 @@ class _AccountSecurityPageState extends State<_AccountSecurityPage> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
@@ -613,9 +643,7 @@ class _ChangePasswordPageState extends State<_ChangePasswordPage> {
                         : _sendCode,
                     style: OutlinedButton.styleFrom(
                       foregroundColor: SettingsSupportPage._brand,
-                      side: const BorderSide(
-                        color: SettingsSupportPage._brand,
-                      ),
+                      side: const BorderSide(color: SettingsSupportPage._brand),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -647,8 +675,7 @@ class _ChangePasswordPageState extends State<_ChangePasswordPage> {
               onChanged: (_) => setState(() {}),
               suffixIcon: IconButton(
                 tooltip: text.t(_obscureNew ? '显示密码' : '隐藏密码'),
-                onPressed: () =>
-                    setState(() => _obscureNew = !_obscureNew),
+                onPressed: () => setState(() => _obscureNew = !_obscureNew),
                 icon: Icon(
                   _obscureNew
                       ? Icons.visibility_outlined
@@ -665,9 +692,8 @@ class _ChangePasswordPageState extends State<_ChangePasswordPage> {
               onChanged: (_) => setState(() {}),
               suffixIcon: IconButton(
                 tooltip: text.t(_obscureConfirm ? '显示密码' : '隐藏密码'),
-                onPressed: () => setState(
-                  () => _obscureConfirm = !_obscureConfirm,
-                ),
+                onPressed: () =>
+                    setState(() => _obscureConfirm = !_obscureConfirm),
                 icon: Icon(
                   _obscureConfirm
                       ? Icons.visibility_outlined
@@ -1187,7 +1213,9 @@ class _AboutUsPage extends StatelessWidget {
           SnackBar(
             content: Text(text.t('无法打开链接，请稍后重试。')),
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
         );
     }
@@ -1213,7 +1241,10 @@ class _AboutUsPage extends StatelessWidget {
           children: [
             _SupportInfoRow(label: text.t('版本'), value: '1.0.0'),
             _SupportInfoRow(label: text.t('服务名称(APP)'), value: 'SipOn酒吧地图'),
-            _SupportInfoRow(label: text.t('服务备案号'), value: '浙ICP备2026046724号-2A'),
+            _SupportInfoRow(
+              label: text.t('服务备案号'),
+              value: '浙ICP备2026046724号-2A',
+            ),
             _SupportInfoRow(label: text.t('服务邮箱'), value: 'support@sipon.app'),
             _SupportInfoRow(label: text.t('官方网站'), value: 'sipon.app'),
           ],
@@ -1227,20 +1258,14 @@ class _AboutUsPage extends StatelessWidget {
               title: text.t('用户协议'),
               subtitle: text.t('查看 Sipon 服务条款'),
               trailing: text.t('查看'),
-              onTap: () => _openAgreement(
-                context,
-                kSiponUserAgreementUrl,
-              ),
+              onTap: () => _openAgreement(context, kSiponUserAgreementUrl),
             ),
             _SupportActionRow(
               icon: Icons.policy_outlined,
               title: text.t('隐私政策'),
               subtitle: text.t('了解数据收集与使用方式'),
               trailing: text.t('查看'),
-              onTap: () => _openAgreement(
-                context,
-                kSiponPrivacyPolicyUrl,
-              ),
+              onTap: () => _openAgreement(context, kSiponPrivacyPolicyUrl),
             ),
           ],
         ),
@@ -1258,14 +1283,15 @@ class _SupportDetailScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
+    final colors = context.siponColors;
 
     return Scaffold(
       body: DecoratedBox(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topRight,
             end: Alignment.bottomLeft,
-            colors: [Color(0xFFFFF2F3), Color(0xFFFFFCFC), Colors.white],
+            colors: colors.pageGradient,
             stops: [0, 0.38, 1],
           ),
         ),
@@ -1322,9 +1348,10 @@ class _SupportHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.82),
+        color: context.siponColors.glassSurface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [
           BoxShadow(
@@ -1352,8 +1379,8 @@ class _SupportHero extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: SettingsSupportPage._ink,
+                    style: TextStyle(
+                      color: scheme.onSurface,
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0,
@@ -1757,6 +1784,7 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return SizedBox(
       height: 48,
       child: Row(
@@ -1767,8 +1795,8 @@ class _TopBar extends StatelessWidget {
               onPressed: () => Navigator.of(context).maybePop(),
               style: IconButton.styleFrom(
                 fixedSize: const Size(40, 40),
-                backgroundColor: Colors.white.withValues(alpha: 0.78),
-                foregroundColor: SettingsSupportPage._ink,
+                backgroundColor: context.siponColors.glassSurface,
+                foregroundColor: scheme.onSurface,
                 padding: EdgeInsets.zero,
                 shape: const CircleBorder(),
               ),
@@ -1781,8 +1809,8 @@ class _TopBar extends StatelessWidget {
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: SettingsSupportPage._ink,
+              style: TextStyle(
+                color: scheme.onSurface,
                 fontSize: 22,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,
@@ -1802,18 +1830,22 @@ class _SettingsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final colors = context.siponColors;
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(18),
       clipBehavior: Clip.antiAlias,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.92),
+          color: colors.glassSurface,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: SettingsSupportPage._line),
-          boxShadow: const [
+          border: Border.all(color: scheme.outlineVariant),
+          boxShadow: [
             BoxShadow(
-              color: Color(0x0F9A3D78),
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.black.withValues(alpha: 0.22)
+                  : const Color(0x0F9A3D78),
               blurRadius: 22,
               offset: Offset(0, 10),
             ),
@@ -1824,9 +1856,9 @@ class _SettingsCard extends StatelessWidget {
             for (var index = 0; index < rows.length; index++) ...[
               rows[index],
               if (index != rows.length - 1)
-                const Padding(
-                  padding: EdgeInsets.only(left: 42),
-                  child: Divider(height: 1, color: SettingsSupportPage._line),
+                Padding(
+                  padding: const EdgeInsets.only(left: 42),
+                  child: Divider(height: 1, color: scheme.outlineVariant),
                 ),
             ],
           ],
@@ -1845,6 +1877,7 @@ class _SettingsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -1852,22 +1885,22 @@ class _SettingsRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
         child: Row(
           children: [
-            Icon(icon, color: SettingsSupportPage._brand, size: 25),
+            Icon(icon, color: scheme.primary, size: 25),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(
-                  color: SettingsSupportPage._ink,
+                style: TextStyle(
+                  color: scheme.onSurface,
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0,
                 ),
               ),
             ),
-            const Icon(
+            Icon(
               Icons.chevron_right_rounded,
-              color: Color(0xFFC7C1C6),
+              color: scheme.onSurfaceVariant,
               size: 22,
             ),
           ],
@@ -1894,6 +1927,8 @@ class _LanguageRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final colors = context.siponColors;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 14),
       child: Row(
@@ -1905,8 +1940,8 @@ class _LanguageRow extends StatelessWidget {
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: SettingsSupportPage._ink,
+              style: TextStyle(
+                color: scheme.onSurface,
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0,
@@ -1915,9 +1950,9 @@ class _LanguageRow extends StatelessWidget {
           ),
           DecoratedBox(
             decoration: BoxDecoration(
-              color: const Color(0xFFFFF6FB),
+              color: colors.brandSurface,
               borderRadius: BorderRadius.circular(15),
-              border: Border.all(color: SettingsSupportPage._line),
+              border: Border.all(color: scheme.outlineVariant),
             ),
             child: Padding(
               padding: const EdgeInsets.all(2),
@@ -1944,6 +1979,107 @@ class _LanguageRow extends StatelessWidget {
   }
 }
 
+class _AppearanceRow extends StatelessWidget {
+  const _AppearanceRow({
+    required this.title,
+    required this.text,
+    required this.mode,
+    required this.onChanged,
+  });
+
+  final String title;
+  final SiponAppText text;
+  final ThemeMode mode;
+  final ValueChanged<ThemeMode> onChanged;
+
+  String _label(ThemeMode value) => switch (value) {
+    ThemeMode.system => text.appearanceSystem,
+    ThemeMode.light => text.appearanceLight,
+    ThemeMode.dark => text.appearanceDark,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
+      child: Row(
+        children: [
+          Icon(Icons.brightness_6_outlined, color: scheme.primary, size: 25),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                color: scheme.onSurface,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          PopupMenuButton<ThemeMode>(
+            initialValue: mode,
+            tooltip: title,
+            onSelected: onChanged,
+            itemBuilder: (context) => [
+              for (final value in ThemeMode.values)
+                PopupMenuItem<ThemeMode>(
+                  value: value,
+                  child: Row(
+                    children: [
+                      if (value == mode)
+                        Icon(
+                          Icons.check_rounded,
+                          size: 18,
+                          color: scheme.primary,
+                        )
+                      else
+                        const SizedBox(width: 18),
+                      const SizedBox(width: 8),
+                      Text(_label(value)),
+                    ],
+                  ),
+                ),
+            ],
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: context.siponColors.brandSurface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: scheme.outlineVariant),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _label(mode),
+                      style: TextStyle(
+                        color: scheme.onSurface,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(width: 3),
+                    Icon(
+                      Icons.expand_more_rounded,
+                      size: 18,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _LanguageOption extends StatelessWidget {
   const _LanguageOption({
     required this.label,
@@ -1957,6 +2093,7 @@ class _LanguageOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Tooltip(
       message: label,
       child: Material(
@@ -1969,7 +2106,7 @@ class _LanguageOption extends StatelessWidget {
             constraints: const BoxConstraints(minWidth: 48),
             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
             decoration: BoxDecoration(
-              color: selected ? SettingsSupportPage._brand : Colors.transparent,
+              color: selected ? scheme.primary : Colors.transparent,
               borderRadius: BorderRadius.circular(13),
             ),
             child: Text(
@@ -1978,7 +2115,7 @@ class _LanguageOption extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: selected ? Colors.white : SettingsSupportPage._muted,
+                color: selected ? scheme.onPrimary : scheme.onSurfaceVariant,
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,

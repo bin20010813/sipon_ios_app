@@ -1,8 +1,9 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:sipon/features/map/pages/add_venue_page.dart';
 import 'package:sipon/features/drinks/records/pages/drink_record_page.dart';
@@ -20,12 +21,16 @@ import 'package:sipon/shared/services/sipon_auth_service.dart';
 import 'package:sipon/shared/services/sipon_city_controller.dart';
 import 'package:sipon/shared/services/sipon_search_preferences.dart';
 import 'package:sipon/shared/widgets/sipon_city_picker.dart';
+import 'package:sipon/app/theme/sipon_theme.dart';
+import 'package:sipon/app/theme/sipon_theme_controller.dart';
 
 part 'shell/sipon_shell.dart';
 part 'widgets/shell_components.dart';
 
 class SiponApp extends StatefulWidget {
-  const SiponApp({super.key});
+  const SiponApp({super.key, this.themeController});
+
+  final SiponThemeController? themeController;
 
   @override
   State<SiponApp> createState() => _SiponAppState();
@@ -34,10 +39,14 @@ class SiponApp extends StatefulWidget {
 class _SiponAppState extends State<SiponApp> {
   final SiponLanguageController _languageController = SiponLanguageController();
   final SiponCityController _cityController = SiponCityController();
+  late final SiponThemeController _themeController;
+  late final bool _ownsThemeController;
 
   @override
   void initState() {
     super.initState();
+    _ownsThemeController = widget.themeController == null;
+    _themeController = widget.themeController ?? SiponThemeController();
     DrinkBudgetStore.instance.ensureLoaded();
     SiponSearchPreferences.instance.ensureLoaded();
   }
@@ -46,33 +55,49 @@ class _SiponAppState extends State<SiponApp> {
   void dispose() {
     _cityController.dispose();
     _languageController.dispose();
+    if (_ownsThemeController) _themeController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return SiponCityScope(
-      controller: _cityController,
-      child: SiponLanguageScope(
-        controller: _languageController,
-        child: Builder(
-          builder: (context) {
-            final text = SiponLanguageScope.textOf(context);
+    return SiponThemeScope(
+      controller: _themeController,
+      child: SiponCityScope(
+        controller: _cityController,
+        child: SiponLanguageScope(
+          controller: _languageController,
+          child: Builder(
+            builder: (context) {
+              final text = SiponLanguageScope.textOf(context);
+              final themeController = SiponThemeScope.controllerOf(context);
 
-            return MaterialApp(
-              title: text.appTitle,
-              debugShowCheckedModeBanner: false,
-              theme: ThemeData(
-                colorScheme: ColorScheme.fromSeed(
-                  seedColor: const Color(0xFF9A3D78),
-                  brightness: Brightness.light,
-                ),
-                scaffoldBackgroundColor: const Color(0xFFFBF8F9),
-                useMaterial3: true,
-              ),
-              home: _StartupGate(cityController: _cityController),
-            );
-          },
+              return MaterialApp(
+                title: text.appTitle,
+                debugShowCheckedModeBanner: false,
+                theme: SiponTheme.light,
+                darkTheme: SiponTheme.dark,
+                themeMode: themeController.mode,
+                builder: (context, child) {
+                  final dark = Theme.of(context).brightness == Brightness.dark;
+                  final base = dark
+                      ? SystemUiOverlayStyle.light
+                      : SystemUiOverlayStyle.dark;
+                  return AnnotatedRegion<SystemUiOverlayStyle>(
+                    value: base.copyWith(
+                      statusBarColor: Colors.transparent,
+                      systemNavigationBarColor: Colors.transparent,
+                      systemNavigationBarDividerColor: Colors.transparent,
+                      systemStatusBarContrastEnforced: false,
+                      systemNavigationBarContrastEnforced: false,
+                    ),
+                    child: child ?? const SizedBox.shrink(),
+                  );
+                },
+                home: _StartupGate(cityController: _cityController),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -203,9 +228,8 @@ class _StartupGateState extends State<_StartupGate> {
       return _SiponShell(onLogoutSucceeded: _onLogoutSucceeded);
     }
 
-    return const Scaffold(
-      backgroundColor: Colors.white,
-      body: Center(
+    return Scaffold(
+      body: const Center(
         child: CircularProgressIndicator(
           strokeWidth: 2,
           color: Color(0xFF9A3D78),
@@ -228,4 +252,3 @@ double _bottomBarBottomGapFor(double safeBottom) {
   }
   return math.max(safeBottom + 2, 12);
 }
-

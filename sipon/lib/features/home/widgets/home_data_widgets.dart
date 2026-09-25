@@ -78,8 +78,8 @@ class _HomeDataStatus extends StatelessWidget {
       message,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: const TextStyle(
-        color: HomePage.muted,
+      style: TextStyle(
+        color: HomePage.mutedOf(context),
         fontSize: 11,
         fontWeight: FontWeight.w600,
         letterSpacing: 0,
@@ -239,8 +239,8 @@ class _DrinkProductCard extends StatelessWidget {
                       text.t(product.title),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: HomePage.ink,
+                      style: TextStyle(
+                        color: HomePage.inkOf(context),
                         fontSize: 19,
                         height: 1,
                         fontWeight: FontWeight.w800,
@@ -282,7 +282,7 @@ class _DrinkProductCard extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: const Color(0xFFF2F2F3),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(10),
         boxShadow: selected
             ? const [
@@ -598,8 +598,8 @@ class _SectionHeader extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: const TextStyle(
-              color: HomePage.ink,
+            style: TextStyle(
+              color: HomePage.inkOf(context),
               fontSize: 20,
               fontWeight: FontWeight.w900,
               letterSpacing: 0,
@@ -609,7 +609,7 @@ class _SectionHeader extends StatelessWidget {
         TextButton(
           onPressed: onMorePressed ?? () {},
           style: TextButton.styleFrom(
-            foregroundColor: HomePage.muted,
+            foregroundColor: HomePage.mutedOf(context),
             padding: EdgeInsets.zero,
             minimumSize: const Size(56, 34),
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -646,9 +646,9 @@ class _FeaturedBarCard extends StatelessWidget {
       onTap: onTap,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: const Color(0xFFF7F7F7),
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: HomePage.line),
+          border: Border.all(color: HomePage.lineOf(context)),
           boxShadow: const [
             BoxShadow(
               color: Color(0x1F000000),
@@ -699,8 +699,8 @@ class _FeaturedBarCard extends StatelessWidget {
                             text.t(bar.name),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: HomePage.ink,
+                            style: TextStyle(
+                              color: HomePage.inkOf(context),
                               fontSize: 16,
                               fontWeight: FontWeight.w900,
                               letterSpacing: 0,
@@ -742,9 +742,9 @@ class _FeaturedBarCard extends StatelessWidget {
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.location_on_outlined,
-                          color: HomePage.muted,
+                          color: HomePage.mutedOf(context),
                           size: 16,
                         ),
                         const SizedBox(width: 3),
@@ -753,8 +753,8 @@ class _FeaturedBarCard extends StatelessWidget {
                             text.t(bar.address),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: HomePage.muted,
+                            style: TextStyle(
+                              color: HomePage.mutedOf(context),
                               fontSize: 12,
                               letterSpacing: 0,
                             ),
@@ -762,8 +762,8 @@ class _FeaturedBarCard extends StatelessWidget {
                         ),
                         Text(
                           text.t(bar.distance),
-                          style: const TextStyle(
-                            color: HomePage.muted,
+                          style: TextStyle(
+                            color: HomePage.mutedOf(context),
                             fontSize: 12,
                             letterSpacing: 0,
                           ),
@@ -818,7 +818,7 @@ class _LightTag extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: const Color(0xFFFFE8F6),
+        color: HomePage.chipBgOf(context),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Padding(
