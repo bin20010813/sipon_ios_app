@@ -65,7 +65,10 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(tester.widget<VenueSheetSurface>(find.byType(VenueSheetSurface)).venue, venue);
+    expect(
+      tester.widget<VenueSheetSurface>(find.byType(VenueSheetSurface)).venue,
+      venue,
+    );
 
     final host = _Host();
     final map = tester.widget<SiponMapWidget>(find.byType(SiponMapWidget));
@@ -76,8 +79,24 @@ void main() {
     expect(host.calls[SiponMapCommands.flyToCity], isNull);
     await city.selectCity('深圳');
     await tester.pump();
-    expect(tester.widget<VenueSheetSurface>(find.byType(VenueSheetSurface)).venue, venue);
+    expect(
+      tester.widget<VenueSheetSurface>(find.byType(VenueSheetSurface)).venue,
+      venue,
+    );
     expect(host.calls[SiponMapCommands.flyToCity], isNull);
+    final expandButton = find.byKey(const ValueKey('expand-venue-map'));
+    expect(find.byKey(const ValueKey('venue-sheet-drag-handle')), findsNothing);
+    expect(expandButton.hitTestable(), findsOneWidget);
+    expect(
+      tester.getTopLeft(expandButton).dy,
+      lessThan(tester.getTopLeft(find.byType(VenueSheetSurface)).dy),
+    );
+    await tester.drag(
+      find.byType(CustomScrollView).first,
+      const Offset(0, -500),
+    );
+    await tester.pumpAndSettle();
+    expect(expandButton.hitTestable(), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 }

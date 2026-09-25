@@ -34,7 +34,7 @@ class VenueSheetSurface extends StatelessWidget {
     required this.collapsedBottomGap,
     required this.bottomOverlayInset,
     required this.onExpand,
-    this.onExpandMap,
+    this.showDragHandle = true,
     required this.onCollapse,
   });
 
@@ -58,7 +58,7 @@ class VenueSheetSurface extends StatelessWidget {
   final double collapsedBottomGap;
   final double bottomOverlayInset;
   final VoidCallback onExpand;
-  final VoidCallback? onExpandMap;
+  final bool showDragHandle;
   final VoidCallback onCollapse;
 
   @override
@@ -116,7 +116,6 @@ class VenueSheetSurface extends StatelessWidget {
                     topInset: topInset,
                     bottomOverlayInset: bottomOverlayInset,
                     onClose: onCollapse,
-                    onExpandMap: fullscreenProgress < 0.5 ? onExpandMap : null,
                     repository: _venueDetailRepository,
                   ),
             // 收起态内容钉在面板顶部，不随内部滚动移动，因此不受滚动偏移影响。
@@ -134,14 +133,15 @@ class VenueSheetSurface extends StatelessWidget {
                 ),
               ),
             // 唯一的拖拽手柄，两个状态共享，避免交叉淡化时闪一下。
-            Positioned(
-              top: topInset + 8,
-              left: 0,
-              right: 0,
-              child: const IgnorePointer(
-                child: Center(child: _VenueSheetDragHandle()),
+            if (showDragHandle)
+              Positioned(
+                top: topInset + 8,
+                left: 0,
+                right: 0,
+                child: const IgnorePointer(
+                  child: Center(child: _VenueSheetDragHandle()),
+                ),
               ),
-            ),
             // 收起态下整块卡片都能点开。translucent 的意思是"我要参与手势竞技场，
             // 但不吞掉命中结果"：这一层拿到 tap，同时下面的滚动视图照样收到事件，
             // 所以静止点击走 onExpand，手指一移动就由 sheet 的拖拽识别器接管。
@@ -194,6 +194,7 @@ class _VenueSheetDragHandle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      key: const ValueKey('venue-sheet-drag-handle'),
       width: 40,
       height: 5,
       decoration: BoxDecoration(

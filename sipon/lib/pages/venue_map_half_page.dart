@@ -30,6 +30,7 @@ class VenueMapHalfPage extends StatelessWidget {
       initialVenue: venue,
       initialSheetStage: VenueSheetStage.half,
       showMapControls: false,
+      showSheetDragHandle: false,
       allowSheetCollapse: false,
       onMapTapped: openFullscreenMap,
       onExpandMap: openFullscreenMap,

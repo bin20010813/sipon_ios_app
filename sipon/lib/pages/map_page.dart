@@ -33,6 +33,7 @@ class MapPage extends StatefulWidget {
     this.requestedVenue,
     this.initialSheetStage = VenueSheetStage.collapsed,
     this.showMapControls = true,
+    this.showSheetDragHandle = true,
     this.active = true,
     this.allowSheetCollapse = true,
     this.onMapTapped,
@@ -48,6 +49,7 @@ class MapPage extends StatefulWidget {
   final MapVenue? requestedVenue;
   final VenueSheetStage initialSheetStage;
   final bool showMapControls;
+  final bool showSheetDragHandle;
 
   /// IndexedStack 中只有地图 Tab 可见时才请求一次当前位置。
   final bool active;
@@ -498,6 +500,8 @@ class _MapPageState extends State<MapPage> {
               ),
               if (widget.showMapControls) _buildTopControls(),
 
+              if (widget.onExpandMap != null) _buildExpandMapButton(),
+
               if (widget.showMapControls)
                 _buildLocateButton(
                   collapsedExtent: collapsedExtent,
@@ -550,6 +554,55 @@ class _MapPageState extends State<MapPage> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildExpandMapButton() {
+    return Positioned(
+      top: MediaQuery.paddingOf(context).top + 12,
+      right: 16,
+      child: ValueListenableBuilder<double>(
+        valueListenable: _sheet.extent,
+        builder: (context, rawExtent, child) {
+          final extent = rawExtent <= 0 ? _sheet.currentExtent : rawExtent;
+          final progress = _sheet.fullscreenProgressFor(extent);
+          return IgnorePointer(
+            ignoring: progress >= 0.5,
+            child: Opacity(
+              opacity: 1 - progress,
+              child: Transform.translate(
+                offset: Offset(0, -16 * progress),
+                child: child,
+              ),
+            ),
+          );
+        },
+        child: Material(
+          color: Colors.white,
+          elevation: 2,
+          borderRadius: BorderRadius.circular(20),
+          child: InkWell(
+            key: const ValueKey('expand-venue-map'),
+            borderRadius: BorderRadius.circular(20),
+            onTap: widget.onExpandMap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.open_in_full_rounded, size: 16),
+                  const SizedBox(width: 5),
+                  Text(
+                    SiponLanguageScope.languageOf(context) == SiponLanguage.zh
+                        ? '放大地图'
+                        : 'Expand map',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -631,7 +684,7 @@ class _MapPageState extends State<MapPage> {
                         _sheet.progressFor(extent),
                       ),
                       onExpand: _sheet.expand,
-                      onExpandMap: widget.onExpandMap,
+                      showDragHandle: widget.showSheetDragHandle,
                       onCollapse: widget.onVenueClose ?? _sheet.collapse,
                     );
                   },
