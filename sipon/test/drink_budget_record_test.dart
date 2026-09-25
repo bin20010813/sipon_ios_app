@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sipon/services/drink_budget_store.dart';
+import 'package:sipon/features/drinks/records/data/drink_budget_store.dart';
 
 void main() {
   group('DrinkBudgetRecord sticker metadata', () {

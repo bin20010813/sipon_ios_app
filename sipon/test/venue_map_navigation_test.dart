@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sipon/pages/language_transform.dart';
-import 'package:sipon/pages/venue_map_half_page.dart';
-import 'package:sipon/services/map/map_models.dart';
-import 'package:sipon/services/map/sipon_map_host.dart';
-import 'package:sipon/services/map/sipon_map_protocol.dart';
-import 'package:sipon/services/map/sipon_map_widget.dart';
-import 'package:sipon/services/sipon_city_controller.dart';
-import 'package:sipon/widgets/map/venue_sheet.dart';
-import 'package:sipon/widgets/sipon_city_picker.dart';
+import 'package:sipon/shared/localization/language_transform.dart';
+import 'package:sipon/features/map/pages/venue_map_half_page.dart';
+import 'package:sipon/features/map/models/map_models.dart';
+import 'package:sipon/features/map/platform/sipon_map_host.dart';
+import 'package:sipon/features/map/platform/sipon_map_protocol.dart';
+import 'package:sipon/features/map/widgets/sipon_map_widget.dart';
+import 'package:sipon/shared/services/sipon_city_controller.dart';
+import 'package:sipon/features/map/widgets/venue_sheet.dart';
+import 'package:sipon/shared/widgets/sipon_city_picker.dart';
 
 class _Host implements SiponMapHost {
   late void Function(String, Object?) handler;

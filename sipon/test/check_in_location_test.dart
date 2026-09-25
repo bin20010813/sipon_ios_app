@@ -7,15 +7,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sipon/pages/check_in_page.dart';
-import 'package:sipon/services/map/sipon_map_host.dart';
-import 'package:sipon/services/map/sipon_map_protocol.dart';
-import 'package:sipon/services/map/sipon_map_widget.dart';
-import 'package:sipon/services/sipon_api_client.dart';
-import 'package:sipon/services/sipon_api_config.dart';
-import 'package:sipon/services/sipon_api_service.dart';
-import 'package:sipon/services/sipon_city_controller.dart';
-import 'package:sipon/widgets/sipon_city_picker.dart';
+import 'package:sipon/features/reviews/pages/check_in_page.dart';
+import 'package:sipon/features/map/platform/sipon_map_host.dart';
+import 'package:sipon/features/map/platform/sipon_map_protocol.dart';
+import 'package:sipon/features/map/widgets/sipon_map_widget.dart';
+import 'package:sipon/shared/services/sipon_api_client.dart';
+import 'package:sipon/shared/services/sipon_api_config.dart';
+import 'package:sipon/shared/services/sipon_api_service.dart';
+import 'package:sipon/shared/services/sipon_city_controller.dart';
+import 'package:sipon/shared/widgets/sipon_city_picker.dart';
 
 class _LocatedCity extends SiponCityController {
   _LocatedCity() : super(initialCity: '郑州', initialProvince: '河南省');

@@ -1,0 +1,223 @@
+/// Dart ⇄ 原生（MapKit）MethodChannel 协议的编解码。
+///
+/// 通道名、方法名、载荷形状集中在这一个文件里（原指南 §3），
+/// 全部是纯函数：不碰 Flutter 绑定，可被纯 Dart 测试直接构造与回放。
+library;
+
+import '../models/map_display_options.dart';
+import '../models/map_models.dart';
+import '../controllers/map_scene_controller.dart';
+import '../models/map_viewport.dart';
+
+/// PlatformView 注册用的 viewType，同时也是原生 factory 的注册名。
+const String kSiponMapViewType = 'sipon/mapkit';
+
+/// 每个平台视图实例独享一条通道，避免多实例串台。
+String siponMapChannelName(int viewId) => 'sipon/mapkit_$viewId';
+
+/// Dart → 原生的方法名。
+abstract final class SiponMapCommands {
+  static const String setup = 'setup';
+  static const String setStyle = 'setStyle';
+  static const String setGestures = 'setGestures';
+  static const String readViewport = 'readViewport';
+  static const String flyToCity = 'flyToCity';
+  static const String focusOn = 'focusOn';
+  static const String applyStage = 'applyStage';
+  static const String renderFrame = 'renderFrame';
+  static const String registerAssets = 'registerAssets';
+  static const String drawRoute = 'drawRoute';
+  static const String clearRoute = 'clearRoute';
+  static const String dispose = 'dispose';
+}
+
+/// 原生 → Dart 的方法名。
+abstract final class SiponMapEvents {
+  static const String onMapReady = 'onMapReady';
+  static const String onViewportSettled = 'onViewportSettled';
+  static const String onVenueTapped = 'onVenueTapped';
+  static const String onBlankTapped = 'onBlankTapped';
+
+  /// 预留的样式加载事件；MapKit 当前不会发送。
+  static const String onStyleLoaded = 'onStyleLoaded';
+}
+
+// --------------------------------------------------------------------- 载荷
+
+/// `setup` 载荷。原生在收到它之后才装配地图并回报 [SiponMapEvents.onMapReady]，
+/// 于是天然不存在「事件早于监听」的竞态。
+Map<String, Object?> encodeSetup({
+  required String city,
+  required MapBaseStyle style,
+  MapLatLng? initialCenter,
+}) => {
+  'city': city,
+  'styleId': style.id,
+  if (initialCenter != null) ...{
+    'lng': initialCenter.longitude,
+    'lat': initialCenter.latitude,
+  },
+};
+
+Map<String, Object?> encodeStyle(String styleId) => {'styleId': styleId};
+
+/// `drawRoute` 载荷：按站点顺序传入经纬度数组，原生先直连再尝试道路规划。
+Map<String, Object?> encodeRoutePoints(List<MapLatLng> points) => {
+  'points': [
+    for (final point in points) {'lat': point.latitude, 'lng': point.longitude},
+  ],
+};
+
+Map<String, Object?> encodeGestures() => <String, Object?>{
+  // 保留旋转/缩放/平移，只关闭会把地图重新倾斜成 3D 的俯仰手势。
+  'rotateEnabled': true,
+  'zoomEnabled': true,
+  'panEnabled': true,
+  'pitchEnabled': false,
+};
+
+/// 相机指令共用参数。[bottomPadding] 让目标点出现在「去掉底部面板后的区域」
+/// 中心。
+Map<String, Object?> encodeCameraMove({
+  required double longitude,
+  required double latitude,
+  required double zoom,
+  required double pitch,
+  required double bearing,
+  required double bottomPadding,
+}) => {
+  'lng': longitude,
+  'lat': latitude,
+  'zoom': zoom,
+  'pitch': pitch,
+  'bearing': bearing,
+  'bottomPadding': bottomPadding,
+};
+
+Map<String, Object?> encodeApplyStage({
+  required double bottomPadding,
+  MapLatLng? focus,
+}) => {
+  'bottomPadding': bottomPadding,
+  if (focus != null) ...{'lng': focus.longitude, 'lat': focus.latitude},
+};
+
+/// marker 图标资产表：kind.id → Flutter 资产 key。
+/// 控制器用 AssetBundle 加载，注册时发送 Uint8List，原生缓存解码结果。
+Map<String, Object?> encodeMarkerAssets() => {
+  'assets': {for (final kind in MapVenueKind.values) kind.id: kind.iconAsset},
+};
+
+/// [SiponMapCommands.renderFrame] 载荷（对应 [MapSceneFrame]）。
+///
+/// 约定：列表传全量，原生按 id diff；Dart 侧五套指纹保证没变的帧根本
+/// 不会发出这条消息（见基类 [MapSceneController.render]）。
+/// [zoom] 是最近一次视野上报的缩放，用来算圆点淡入透明度。
+Map<String, Object?> encodeRenderFrame(
+  MapSceneFrame frame, {
+  required double zoom,
+}) {
+  return {
+    'circles': [
+      for (final point in frame.circlePoints)
+        {
+          'id': point.id,
+          'lat': point.latitude,
+          'lng': point.longitude,
+          'category': point.iconCategory ?? point.kind.id,
+          if (point.venueId != null) 'venueId': point.venueId,
+        },
+    ],
+    'markers': [
+      for (final marker in frame.markers)
+        {
+          'venueId': marker.venueId,
+          'label': marker.label,
+          'lat': marker.latitude,
+          'lng': marker.longitude,
+          'category': marker.iconCategory ?? marker.kind.id,
+          if (marker.sequence == null &&
+              marker.rating != null &&
+              marker.rating!.isFinite)
+            'rating': marker.rating,
+          if (marker.sequence != null) 'sequence': marker.sequence,
+        },
+    ],
+    'selected': frame.selected == null
+        ? null
+        : {
+            'id': frame.selected!.id,
+            'lat': frame.selected!.latitude,
+            'lng': frame.selected!.longitude,
+            'category': frame.selected!.iconCategory ?? frame.selected!.kind.id,
+            if (frame.selected!.venueId != null)
+              'venueId': frame.selected!.venueId,
+          },
+  };
+}
+
+// ------------------------------------------------------------------- 解析端
+
+/// `readViewport` / `onViewportSettled` 共用的返回形状。
+class SiponViewportPayload {
+  const SiponViewportPayload({
+    required this.west,
+    required this.south,
+    required this.east,
+    required this.north,
+    required this.zoom,
+  });
+
+  final double west;
+  final double south;
+  final double east;
+  final double north;
+  final double zoom;
+
+  bool get isValid =>
+      west.isFinite &&
+      south.isFinite &&
+      east.isFinite &&
+      north.isFinite &&
+      zoom.isFinite &&
+      east > west &&
+      north > south;
+}
+
+/// 解析原生组装的视野载荷；给不出合法数字就返回 null（调用方兜底）。
+SiponViewportPayload? parseViewportPayload(Object? arguments) {
+  if (arguments is! Map) {
+    return null;
+  }
+
+  double read(String key) {
+    final value = arguments[key];
+    if (value is num) {
+      return value.toDouble();
+    }
+    return double.tryParse('$value') ?? double.nan;
+  }
+
+  final payload = SiponViewportPayload(
+    west: read('west'),
+    south: read('south'),
+    east: read('east'),
+    north: read('north'),
+    zoom: read('zoom'),
+  );
+
+  return payload.isValid ? payload : null;
+}
+
+/// 解析点选事件的 venueId；空白点击没有这个字段。
+String? parseVenueTapped(Object? arguments) {
+  if (arguments is! Map) {
+    return null;
+  }
+  final venueId = arguments['venueId'];
+  if (venueId is String && venueId.isNotEmpty) {
+    return venueId;
+  }
+
+  return null;
+}

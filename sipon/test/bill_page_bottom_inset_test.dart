@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sipon/pages/language_transform.dart';
-import 'package:sipon/pages/profile_page.dart';
-import 'package:sipon/services/drink_budget_store.dart';
-import 'package:sipon/widgets/drink_sticker.dart';
+import 'package:sipon/shared/localization/language_transform.dart';
+import 'package:sipon/features/profile/pages/profile_page.dart';
+import 'package:sipon/features/drinks/records/data/drink_budget_store.dart';
+import 'package:sipon/features/drinks/records/widgets/drink_sticker.dart';
 
 // 账单页(统计)底部安全区回归测试：页面曾在 SafeArea 下被截断，
 // 底部小白条区域成为一条不参与滚动的白边，内容无法延伸到屏幕底部。

@@ -4,11 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sipon/services/sipon_api_client.dart';
-import 'package:sipon/services/sipon_api_config.dart';
-import 'package:sipon/services/sipon_api_service.dart';
-import 'package:sipon/services/virtual_drinking_local_store.dart';
-import 'package:sipon/services/virtual_drinking_models.dart';
+import 'package:sipon/shared/services/sipon_api_client.dart';
+import 'package:sipon/shared/services/sipon_api_config.dart';
+import 'package:sipon/shared/services/sipon_api_service.dart';
+import 'package:sipon/features/drinks/virtual_drinking/data/virtual_drinking_local_store.dart';
+import 'package:sipon/features/drinks/virtual_drinking/models/virtual_drinking_models.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sipon/pages/review_detail_page.dart';
-import 'package:sipon/services/map/map_models.dart';
-import 'package:sipon/services/sipon_api_service.dart';
-import 'package:sipon/services/user_profile_data.dart';
+import 'package:sipon/features/reviews/pages/review_detail_page.dart';
+import 'package:sipon/features/map/models/map_models.dart';
+import 'package:sipon/shared/services/sipon_api_service.dart';
+import 'package:sipon/features/profile/data/user_profile_data.dart';
 
 class _Api extends SiponApiService {
   @override

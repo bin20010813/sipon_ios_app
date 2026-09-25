@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sipon/services/map/checkin_pin_icon.dart';
-import 'package:sipon/services/map/map_display_options.dart';
-import 'package:sipon/services/map/map_models.dart';
-import 'package:sipon/services/map/map_scene_controller.dart';
-import 'package:sipon/services/map/map_viewport.dart';
-import 'package:sipon/services/map/sipon_map_protocol.dart';
+import 'package:sipon/features/map/widgets/checkin_pin_icon.dart';
+import 'package:sipon/features/map/models/map_display_options.dart';
+import 'package:sipon/features/map/models/map_models.dart';
+import 'package:sipon/features/map/controllers/map_scene_controller.dart';
+import 'package:sipon/features/map/models/map_viewport.dart';
+import 'package:sipon/features/map/platform/sipon_map_protocol.dart';
 
 /// 构造一个点位，避免每个用例都手写一长串 [MapPoint]。
 MapPoint _point({

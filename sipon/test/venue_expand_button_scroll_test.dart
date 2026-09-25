@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sipon/pages/language_transform.dart';
-import 'package:sipon/services/map/map_models.dart';
-import 'package:sipon/widgets/map/venue_detail_view.dart';
+import 'package:sipon/shared/localization/language_transform.dart';
+import 'package:sipon/features/map/models/map_models.dart';
+import 'package:sipon/features/map/widgets/venue_detail_view.dart';
 
 void main() {
   testWidgets('expand map button scrolls away with venue details', (

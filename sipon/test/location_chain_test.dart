@@ -4,13 +4,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sipon/services/map/map_data_controller.dart';
-import 'package:sipon/services/map/map_venue_repository.dart';
-import 'package:sipon/services/sipon_api_client.dart';
-import 'package:sipon/services/sipon_api_config.dart';
-import 'package:sipon/services/sipon_api_service.dart';
-import 'package:sipon/services/sipon_city_controller.dart';
-import 'package:sipon/services/sipon_data_repository.dart';
+import 'package:sipon/features/map/controllers/map_data_controller.dart';
+import 'package:sipon/features/map/data/map_venue_repository.dart';
+import 'package:sipon/shared/services/sipon_api_client.dart';
+import 'package:sipon/shared/services/sipon_api_config.dart';
+import 'package:sipon/shared/services/sipon_api_service.dart';
+import 'package:sipon/shared/services/sipon_city_controller.dart';
+import 'package:sipon/shared/services/sipon_data_repository.dart';
 
 void main() {
   const config = SiponApiConfig(baseUrl: 'https://api.example.test');

@@ -3,11 +3,11 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sipon/services/map/checkin_pin_icon.dart';
-import 'package:sipon/services/map/map_models.dart';
-import 'package:sipon/services/map/mapkit_scene_controller.dart';
-import 'package:sipon/services/map/sipon_map_host.dart';
-import 'package:sipon/services/map/sipon_map_protocol.dart';
+import 'package:sipon/features/map/widgets/checkin_pin_icon.dart';
+import 'package:sipon/features/map/models/map_models.dart';
+import 'package:sipon/features/map/controllers/mapkit_scene_controller.dart';
+import 'package:sipon/features/map/platform/sipon_map_host.dart';
+import 'package:sipon/features/map/platform/sipon_map_protocol.dart';
 
 class _Host implements SiponMapHost {
   late void Function(String, Object?) handler;

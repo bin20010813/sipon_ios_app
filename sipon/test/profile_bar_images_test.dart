@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sipon/services/profile_bar_images.dart';
-import 'package:sipon/services/sipon_api_service.dart';
+import 'package:sipon/features/profile/data/profile_bar_images.dart';
+import 'package:sipon/shared/services/sipon_api_service.dart';
 
 class _BarApi extends SiponApiService {
   final requestedIds = <int>[];

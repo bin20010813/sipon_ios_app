@@ -3,10 +3,10 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:sipon/services/map/map_viewport.dart';
-import 'package:sipon/services/sipon_api_client.dart';
-import 'package:sipon/services/sipon_region_data.dart';
-import 'package:sipon/services/sipon_region_repository.dart';
+import 'package:sipon/features/map/models/map_viewport.dart';
+import 'package:sipon/shared/services/sipon_api_client.dart';
+import 'package:sipon/shared/services/sipon_region_data.dart';
+import 'package:sipon/shared/services/sipon_region_repository.dart';
 
 void main() {
   group('省市内置数据', () {

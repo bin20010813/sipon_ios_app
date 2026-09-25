@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:sipon/services/sipon_api_client.dart';
-import 'package:sipon/services/sipon_api_config.dart';
+import 'package:sipon/shared/services/sipon_api_client.dart';
+import 'package:sipon/shared/services/sipon_api_config.dart';
 
 void main() {
   const config = SiponApiConfig(baseUrl: 'https://api.example.test');

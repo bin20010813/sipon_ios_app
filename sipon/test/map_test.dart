@@ -1,14 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sipon/services/sipon_api_models.dart';
-import 'package:sipon/services/map/map_data_controller.dart';
-import 'package:sipon/services/map/map_display_options.dart';
-import 'package:sipon/services/map/map_models.dart';
-import 'package:sipon/services/map/map_venue_repository.dart';
-import 'package:sipon/services/map/map_viewport.dart';
-import 'package:sipon/services/map/mock_map_venue_repository.dart';
-import 'package:sipon/services/map/venue_sheet_controller.dart';
+import 'package:sipon/shared/services/sipon_api_models.dart';
+import 'package:sipon/features/map/controllers/map_data_controller.dart';
+import 'package:sipon/features/map/models/map_display_options.dart';
+import 'package:sipon/features/map/models/map_models.dart';
+import 'package:sipon/features/map/data/map_venue_repository.dart';
+import 'package:sipon/features/map/models/map_viewport.dart';
+import 'package:sipon/features/map/data/mock_map_venue_repository.dart';
+import 'package:sipon/features/map/controllers/venue_sheet_controller.dart';
 
 /// 上海市中心一块典型视野：经度跨 0.12°，纬度跨 0.09°。
 const MapViewport _shanghaiViewport = MapViewport(

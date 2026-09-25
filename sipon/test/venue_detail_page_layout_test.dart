@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sipon/pages/language_transform.dart';
-import 'package:sipon/services/map/map_models.dart';
-import 'package:sipon/widgets/map/venue_detail_page.dart';
-import 'package:sipon/pages/venue_fullscreen_map_page.dart';
+import 'package:sipon/shared/localization/language_transform.dart';
+import 'package:sipon/features/map/models/map_models.dart';
+import 'package:sipon/features/map/pages/venue_detail_page.dart';
+import 'package:sipon/features/map/pages/venue_fullscreen_map_page.dart';
 
 void main() {
   testWidgets('详情页初始布局:内容应铺满全屏宽度', (tester) async {

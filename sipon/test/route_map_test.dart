@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sipon/pages/route_detail_map_page.dart';
-import 'package:sipon/services/map/map_models.dart';
+import 'package:sipon/features/routes/pages/route_detail_map_page.dart';
+import 'package:sipon/features/map/models/map_models.dart';
 
 void main() {
   test('路线站点解析保留原始顺序、分类与评分', () {

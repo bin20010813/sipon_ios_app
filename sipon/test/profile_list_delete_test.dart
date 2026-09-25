@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sipon/pages/profile_page.dart';
-import 'package:sipon/services/sipon_api_service.dart';
-import 'package:sipon/widgets/sipon_network_image.dart';
+import 'package:sipon/features/profile/pages/profile_page.dart';
+import 'package:sipon/shared/services/sipon_api_service.dart';
+import 'package:sipon/shared/widgets/sipon_network_image.dart';
 
 class _Api extends SiponApiService {
   final deleted = <int>[];

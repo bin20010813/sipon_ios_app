@@ -3,16 +3,16 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sipon/main.dart';
-import 'package:sipon/pages/language_transform.dart';
-import 'package:sipon/pages/profile_page.dart';
-import 'package:sipon/services/sipon_api_config.dart';
-import 'package:sipon/services/sipon_api_models.dart';
-import 'package:sipon/services/sipon_api_service.dart';
-import 'package:sipon/services/map/api_venue_detail_repository.dart';
-import 'package:sipon/services/map/map_models.dart';
-import 'package:sipon/services/map/venue_detail_models.dart';
-import 'package:sipon/widgets/map/venue_common.dart';
-import 'package:sipon/widgets/map/venue_detail_view.dart';
+import 'package:sipon/shared/localization/language_transform.dart';
+import 'package:sipon/features/profile/pages/profile_page.dart';
+import 'package:sipon/shared/services/sipon_api_config.dart';
+import 'package:sipon/shared/services/sipon_api_models.dart';
+import 'package:sipon/shared/services/sipon_api_service.dart';
+import 'package:sipon/features/map/data/api_venue_detail_repository.dart';
+import 'package:sipon/features/map/models/map_models.dart';
+import 'package:sipon/features/map/models/venue_detail_models.dart';
+import 'package:sipon/features/map/widgets/venue_common.dart';
+import 'package:sipon/features/map/widgets/venue_detail_view.dart';
 
 void main() {
   testWidgets('Sipon app can be constructed', (WidgetTester tester) async {

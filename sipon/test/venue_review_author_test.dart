@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sipon/services/map/api_venue_detail_repository.dart';
-import 'package:sipon/services/map/map_models.dart';
-import 'package:sipon/services/sipon_api_service.dart';
+import 'package:sipon/features/map/data/api_venue_detail_repository.dart';
+import 'package:sipon/features/map/models/map_models.dart';
+import 'package:sipon/shared/services/sipon_api_service.dart';
 
 const venue = MapVenue(
   id: '42',
