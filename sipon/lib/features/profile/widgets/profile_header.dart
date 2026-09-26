@@ -418,6 +418,10 @@ class _QuickEntryItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // PNG 原图主色为深灰 #2D3436、点缀为暗粉 #8B3A6D：浅色卡片上对比充足，
+    // 但深色卡片底 (#2C252D) 上两者对比度都不足 2:1。深色下整体提亮为
+    // 浅色单色，保证 WCAG 对比度；浅色仍用原图保留双色设计。
+    final isDark = theme.brightness == Brightness.dark;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -426,9 +430,13 @@ class _QuickEntryItem extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 内容图保持原图：多彩 PNG 不做主题着色，承载卡片底已随主题适配；
-            // 深色变体资源待设计补齐后可再替换 asset。
-            Image.asset(assetPath, width: 32, height: 32),
+            Image.asset(
+              assetPath,
+              width: 32,
+              height: 32,
+              color: isDark ? const Color(0xFFF2E9EF) : null,
+              colorBlendMode: isDark ? BlendMode.srcIn : null,
+            ),
             const SizedBox(height: 5),
             Text(
               label,

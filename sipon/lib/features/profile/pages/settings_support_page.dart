@@ -19,8 +19,6 @@ class SettingsSupportPage extends StatelessWidget {
 
   final VoidCallback? onLogoutSucceeded;
 
-  static const String _settingsAsset = 'assest/我的/设置@3x.png';
-
   void _showMessage(BuildContext context, String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -76,7 +74,6 @@ class SettingsSupportPage extends StatelessWidget {
                         _SettingsCard(
                           rows: [
                             _LanguageRow(
-                              assetPath: _settingsAsset,
                               title: text.languageTransformEntry,
                               text: text,
                               language: languageController.language,
@@ -1917,16 +1914,19 @@ class _SettingsRow extends StatelessWidget {
   }
 }
 
+/// 语言 / 外观两行右侧胶囊共用固定宽度，保证左右边缘对齐。
+/// 取贴合内容的紧凑值（语言双 pill 固有宽 ≈102，外观单 pill 带图标 ≈102），
+/// 外观内 pill 拉伸填满，内容居中。
+const double _kSettingsTrailingWidth = 108;
+
 class _LanguageRow extends StatelessWidget {
   const _LanguageRow({
-    required this.assetPath,
     required this.title,
     required this.text,
     required this.language,
     required this.onChanged,
   });
 
-  final String assetPath;
   final String title;
   final SiponAppText text;
   final SiponLanguage language;
@@ -1940,7 +1940,7 @@ class _LanguageRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 14),
       child: Row(
         children: [
-          Image.asset(assetPath, width: 26, height: 26),
+          Icon(Icons.translate_outlined, color: scheme.primary, size: 25),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -1955,28 +1955,33 @@ class _LanguageRow extends StatelessWidget {
               ),
             ),
           ),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: colors.brandSurface,
-              borderRadius: BorderRadius.circular(15),
-              border: Border.all(color: scheme.outlineVariant),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(2),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _LanguageOption(
-                    label: text.languageChinese,
-                    selected: language == SiponLanguage.zh,
-                    onTap: () => onChanged(SiponLanguage.zh),
-                  ),
-                  _LanguageOption(
-                    label: text.languageEnglish,
-                    selected: language == SiponLanguage.en,
-                    onTap: () => onChanged(SiponLanguage.en),
-                  ),
-                ],
+          // 右侧胶囊与外观行同宽，贴合内容、靠右对齐。
+          SizedBox(
+            width: _kSettingsTrailingWidth,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: colors.brandSurface,
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: scheme.outlineVariant),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(2),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _LanguageOption(
+                      label: text.languageChinese,
+                      selected: language == SiponLanguage.zh,
+                      onTap: () => onChanged(SiponLanguage.zh),
+                    ),
+                    _LanguageOption(
+                      label: text.languageEnglish,
+                      selected: language == SiponLanguage.en,
+                      onTap: () => onChanged(SiponLanguage.en),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -2005,11 +2010,19 @@ class _AppearanceRow extends StatelessWidget {
     ThemeMode.dark => text.appearanceDark,
   };
 
+  IconData _modeIcon(ThemeMode value) => switch (value) {
+    ThemeMode.system => Icons.brightness_auto_outlined,
+    ThemeMode.light => Icons.light_mode_outlined,
+    ThemeMode.dark => Icons.dark_mode_outlined,
+  };
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final colors = context.siponColors;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
+      // 与语言行相同的行高，让两行胶囊上下对齐。
+      padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 14),
       child: Row(
         children: [
           Icon(Icons.brightness_6_outlined, color: scheme.primary, size: 25),
@@ -2024,59 +2037,115 @@ class _AppearanceRow extends StatelessWidget {
               ),
             ),
           ),
-          PopupMenuButton<ThemeMode>(
-            initialValue: mode,
-            tooltip: title,
-            onSelected: onChanged,
-            itemBuilder: (context) => [
-              for (final value in ThemeMode.values)
-                PopupMenuItem<ThemeMode>(
-                  value: value,
-                  child: Row(
-                    children: [
-                      if (value == mode)
-                        Icon(
-                          Icons.check_rounded,
-                          size: 18,
-                          color: scheme.primary,
-                        )
-                      else
-                        const SizedBox(width: 18),
-                      const SizedBox(width: 8),
-                      Text(_label(value)),
-                    ],
-                  ),
-                ),
-            ],
+          // 外层胶囊与语言行同宽同规格：brandSurface 底 + 圆角 15 +
+          // 内边距 2，内 pill 拉伸填满、内容居中。
+          SizedBox(
+            width: _kSettingsTrailingWidth,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: context.siponColors.brandSurface,
-                borderRadius: BorderRadius.circular(14),
+                color: colors.brandSurface,
+                borderRadius: BorderRadius.circular(15),
                 border: Border.all(color: scheme.outlineVariant),
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 7,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _label(mode),
-                      style: TextStyle(
-                        color: scheme.onSurface,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
+                padding: const EdgeInsets.all(2),
+                child: PopupMenuButton<ThemeMode>(
+                  initialValue: mode,
+                  tooltip: title,
+                  offset: const Offset(0, 8),
+                  // 展开菜单与按钮同底色、同圆角，保持一致。
+                  color: colors.brandSurface,
+                  elevation: 8,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                    side: BorderSide(color: scheme.outlineVariant),
+                  ),
+                  padding: EdgeInsets.zero,
+                  onSelected: onChanged,
+                  itemBuilder: (context) => [
+                    for (final value in ThemeMode.values)
+                      PopupMenuItem<ThemeMode>(
+                        value: value,
+                        height: 40,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _modeIcon(value),
+                              size: 18,
+                              color: value == mode
+                                  ? scheme.primary
+                                  : scheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _label(value),
+                              style: TextStyle(
+                                color: value == mode
+                                    ? scheme.primary
+                                    : scheme.onSurface,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                            const Spacer(),
+                            if (value == mode)
+                              Icon(
+                                Icons.check_rounded,
+                                size: 16,
+                                color: scheme.primary,
+                              )
+                            else
+                              const SizedBox(width: 16),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 3),
-                    Icon(
-                      Icons.expand_more_rounded,
-                      size: 18,
-                      color: scheme.onSurfaceVariant,
-                    ),
                   ],
+                  // 触发器 pill 与语言选中项同规格：primary 底 + 圆角 13 +
+                  // 水平 9 垂直 6 + 11 号字；拉伸填满固定宽度，内容居中，
+                  // 前面带当前模式图标，与展开菜单对应。
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: scheme.primary,
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.max,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          _modeIcon(mode),
+                          size: 14,
+                          color: scheme.onPrimary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _label(mode),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: scheme.onPrimary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                        const SizedBox(width: 2),
+                        Icon(
+                          Icons.expand_more_rounded,
+                          size: 14,
+                          color: scheme.onPrimary,
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -2123,7 +2192,7 @@ class _LanguageOption extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: selected ? scheme.onPrimary : scheme.onSurfaceVariant,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,
               ),

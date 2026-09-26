@@ -698,19 +698,21 @@ class _TextInputTile extends StatelessWidget {
             child: TextField(
               controller: controller,
               textAlign: TextAlign.end,
+              cursorColor: Theme.of(context).colorScheme.primary,
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 14,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
                 letterSpacing: 0,
               ),
               decoration: InputDecoration(
                 hintText: hintText,
                 hintStyle: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 12,
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
+                filled: false,
                 border: InputBorder.none,
                 isCollapsed: true,
                 contentPadding: EdgeInsets.zero,
@@ -797,7 +799,9 @@ class _DrinkChip extends StatelessWidget {
             border: Border.all(
               color: selected
                   ? Theme.of(context).colorScheme.primary
-                  : const Color(0x229A3D78),
+                  : Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.25),
             ),
           ),
           child: Row(
@@ -806,13 +810,17 @@ class _DrinkChip extends StatelessWidget {
               Icon(
                 icon,
                 size: 17,
-                color: selected ? Colors.white : Theme.of(context).colorScheme.primary,
+                color: selected
+                    ? Theme.of(context).colorScheme.onPrimary
+                    : Theme.of(context).colorScheme.primary,
               ),
               const SizedBox(width: 6),
               Text(
                 label,
                 style: TextStyle(
-                  color: selected ? Colors.white : const Color(0xFF342C34),
+                  color: selected
+                      ? Theme.of(context).colorScheme.onPrimary
+                      : Theme.of(context).colorScheme.onSurface,
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0,
@@ -888,7 +896,7 @@ class _FieldTile extends StatelessWidget {
               const SizedBox(width: 4),
               Icon(
                 Icons.chevron_right_rounded,
-                color: const Color(0xFFC7C1C6),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 size: 20,
               ),
             ],
@@ -951,18 +959,21 @@ class _AmountTile extends StatelessWidget {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
+              cursorColor: Theme.of(context).colorScheme.primary,
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onSurface,
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
                 letterSpacing: 0,
               ),
               decoration: InputDecoration(
                 hintText: '0.00',
                 hintStyle: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
                 ),
+                filled: false,
                 border: InputBorder.none,
                 isCollapsed: true,
                 contentPadding: EdgeInsets.zero,
@@ -1078,7 +1089,9 @@ class _StepperButton extends StatelessWidget {
     final enabled = onPressed != null;
 
     return Material(
-      color: enabled ? Theme.of(context).colorScheme.primary : Color(0xFFE6DDE3),
+      color: enabled
+          ? Theme.of(context).colorScheme.primary
+          : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.12),
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onPressed,
@@ -1088,7 +1101,9 @@ class _StepperButton extends StatelessWidget {
           height: 30,
           child: Icon(
             icon,
-            color: enabled ? Colors.white : const Color(0xFFB4ABB1),
+            color: enabled
+                ? Theme.of(context).colorScheme.onPrimary
+                : Theme.of(context).colorScheme.onSurfaceVariant,
             size: 18,
           ),
         ),
@@ -1146,8 +1161,8 @@ class _RatingTile extends StatelessWidget {
                           ? Icons.star_rounded
                           : Icons.star_outline_rounded,
                       color: index <= rating
-                          ? const Color(0xFFFFB23C)
-                          : const Color(0xFFCBC4C9),
+                          ? context.siponColors.starRating
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
                       size: 24,
                     ),
                   ),
@@ -1203,9 +1218,10 @@ class _NoteTile extends StatelessWidget {
             controller: controller,
             maxLines: 3,
             minLines: 1,
+            cursorColor: Theme.of(context).colorScheme.primary,
             style: TextStyle(
               color: Theme.of(context).colorScheme.onSurface,
-              fontSize: 13,
+              fontSize: 14,
               height: 1.4,
               fontWeight: FontWeight.w600,
               letterSpacing: 0,
@@ -1214,8 +1230,10 @@ class _NoteTile extends StatelessWidget {
               hintText: text.t('添加备注'),
               hintStyle: TextStyle(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
+              filled: false,
               border: InputBorder.none,
               isCollapsed: true,
               contentPadding: EdgeInsets.zero,
@@ -1318,6 +1336,13 @@ class _PlacePickerSheetState extends State<_PlacePickerSheet> {
           content: TextField(
             controller: customController,
             autofocus: true,
+            cursorColor: Theme.of(context).colorScheme.primary,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0,
+            ),
             decoration: InputDecoration(
               hintText: text.t('输入自定义地点'),
               hintStyle: TextStyle(
@@ -1413,6 +1438,7 @@ class _PlacePickerSheetState extends State<_PlacePickerSheet> {
                     child: TextField(
                       controller: _searchController,
                       onChanged: (_) => setState(() {}),
+                      cursorColor: Theme.of(context).colorScheme.primary,
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.onSurface,
                         fontSize: 14,
@@ -1422,8 +1448,10 @@ class _PlacePickerSheetState extends State<_PlacePickerSheet> {
                         hintText: text.t('搜索酒吧'),
                         hintStyle: TextStyle(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontSize: 14,
                           fontWeight: FontWeight.w600,
                         ),
+                        filled: false,
                         border: InputBorder.none,
                         isCollapsed: true,
                         contentPadding: EdgeInsets.zero,
@@ -1501,7 +1529,9 @@ class _PlaceTile extends StatelessWidget {
           height: 50,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: selected ? const Color(0xFFFFF1F8) : Colors.transparent,
+            color: selected
+                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(

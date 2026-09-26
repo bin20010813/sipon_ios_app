@@ -206,8 +206,8 @@ class SiponAppText {
   String get languageChanged => t('语言已切换');
   String get appearance => t('外观');
   String get appearanceSystem => t('跟随系统');
-  String get appearanceLight => t('浅色');
-  String get appearanceDark => t('深色');
+  String get appearanceLight => t('浅色模式');
+  String get appearanceDark => t('深色模式');
   String get appearanceChanged => t('外观已切换');
   String get appearanceSaveFailed => t('外观已切换，但未能保存');
   String get feedbackBoardTitle => t('用户反馈板');
@@ -242,7 +242,7 @@ class SiponAppText {
 const Map<String, String> _englishText = {
   '外观': 'Appearance',
   '跟随系统': 'System',
-  '深色': 'Dark',
+  '深色模式': 'Dark Mode',
   '外观已切换': 'Appearance updated',
   '外观已切换，但未能保存': 'Appearance changed, but could not be saved',
   '虚拟小酌': 'Virtual Sips',
@@ -695,7 +695,7 @@ const Map<String, String> _englishText = {
   '地图数据已加载': 'Map data loaded',
   '当前视野暂无可展示酒吧': 'No bars in this area yet',
   '试着缩小地图或者换个分类看看': 'Try zooming out or picking another category',
-  '浅色': 'Light',
+  '浅色模式': 'Light Mode',
   '标准': 'Standard',
   '街道': 'Streets',
   '卫星': 'Satellite',
