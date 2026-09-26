@@ -58,6 +58,10 @@ final class SiponMapView: NSObject, FlutterPlatformView {
         self.engine.planRoute(arguments: call.arguments, result: result)
         return
       }
+      if call.method == SiponMapProtocol.Command.searchPlaces {
+        self.engine.searchPlaces(arguments: call.arguments, result: result)
+        return
+      }
       result(self.engine.handle(method: call.method, arguments: call.arguments))
     }
   }
@@ -241,6 +245,46 @@ final class SiponMapEngine: NSObject {
       return nil
     default:
       return nil
+    }
+  }
+
+  // MapKit searches system places and addresses; app bar records are not involved.
+  func searchPlaces(arguments: Any?, result: @escaping FlutterResult) {
+    guard alive, configured,
+          let args = SiponMapProtocol.dict(arguments),
+          let query = SiponMapProtocol.string(args, "query")?.trimmingCharacters(in: .whitespacesAndNewlines),
+          !query.isEmpty else {
+      result([])
+      return
+    }
+
+    let request = MKLocalSearch.Request()
+    request.naturalLanguageQuery = query
+    request.region = mapView.region
+    request.resultTypes = [.address, .pointOfInterest]
+    MKLocalSearch(request: request).start { [weak self] response, error in
+      DispatchQueue.main.async {
+        guard let self = self, self.alive else {
+          result([])
+          return
+        }
+        if let error = error {
+          result(FlutterError(code: "sipon_place_search", message: error.localizedDescription, details: nil))
+          return
+        }
+        let places: [[String: Any]] = (response?.mapItems ?? []).prefix(8).compactMap { item in
+          let coordinate = item.placemark.coordinate
+          guard CLLocationCoordinate2DIsValid(coordinate) else { return nil }
+          return [
+            "name": item.name ?? item.placemark.title ?? query,
+            "address": item.placemark.title ?? "",
+            "city": item.placemark.locality ?? "",
+            "lat": coordinate.latitude,
+            "lng": coordinate.longitude,
+          ]
+        }
+        result(places)
+      }
     }
   }
 

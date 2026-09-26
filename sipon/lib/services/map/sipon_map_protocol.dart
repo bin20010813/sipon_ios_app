@@ -23,6 +23,7 @@ abstract final class SiponMapCommands {
   static const String readViewport = 'readViewport';
   static const String flyToCity = 'flyToCity';
   static const String focusOn = 'focusOn';
+  static const String searchPlaces = 'searchPlaces';
   static const String applyStage = 'applyStage';
   static const String renderFrame = 'renderFrame';
   static const String registerAssets = 'registerAssets';

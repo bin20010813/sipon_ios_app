@@ -8,6 +8,7 @@ import '../services/map/map_scene_controller.dart';
 import '../services/map/map_viewport.dart';
 import '../services/map/sipon_map_host.dart';
 import '../services/map/sipon_map_widget.dart';
+import '../services/sipon_api_client.dart';
 import '../services/sipon_api_service.dart';
 import '../services/sipon_city_controller.dart';
 import '../services/sipon_search_preferences.dart';
@@ -486,12 +487,14 @@ class CheckInCommentPage extends StatefulWidget {
     required this.venueName,
     required this.venueAddress,
     this.returnToVenue = false,
+    this.apiService,
   });
 
   final int? barId;
   final String venueName;
   final String venueAddress;
   final bool returnToVenue;
+  final SiponApiService? apiService;
 
   @override
   State<CheckInCommentPage> createState() => _CheckInCommentPageState();
@@ -501,10 +504,17 @@ class _CheckInCommentPageState extends State<CheckInCommentPage> {
   static const int _maxUploadBytes = 10 * 1024 * 1024;
 
   final _controller = TextEditingController();
-  final SiponApiService _api = SiponApiService();
+  late final SiponApiService _api;
   final List<XFile> _images = <XFile>[];
   int _rating = 0;
+  ReviewAspectRatings _aspectRatings = const ReviewAspectRatings();
   bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _api = widget.apiService ?? SiponApiService();
+  }
 
   @override
   void dispose() {
@@ -581,15 +591,31 @@ class _CheckInCommentPageState extends State<CheckInCommentPage> {
     FocusScope.of(context).unfocus();
     try {
       final mediaIds = await _uploadImages();
-      await _api.createCheckIn({
+      final ratingDetails = _aspectRatings.toPayload();
+      final content = _aspectRatings.prependToContent(_controller.text);
+      final body = <String, Object?>{
         'barId': barId,
         'rating': _rating,
-        if (_controller.text.trim().isNotEmpty)
-          'content': _controller.text.trim(),
+        if (content.isNotEmpty) 'content': content,
         'visibility': 'public',
         'visitedAt': DateTime.now().toUtc().toIso8601String(),
         if (mediaIds.isNotEmpty) 'mediaIds': mediaIds,
-      });
+        ...ratingDetails,
+      };
+      try {
+        await _api.createCheckIn(body);
+      } on SiponApiException catch (error) {
+        // Older servers may reject the new fields. The readable score summary
+        // in content still preserves every selected rating on retry.
+        if (ratingDetails.isEmpty ||
+            (error.statusCode != 400 && error.statusCode != 422)) {
+          rethrow;
+        }
+        for (final key in ratingDetails.keys) {
+          body.remove(key);
+        }
+        await _api.createCheckIn(body);
+      }
       if (!mounted) return;
       _showMessage('打卡成功');
       if (widget.returnToVenue) {
@@ -609,6 +635,7 @@ class _CheckInCommentPageState extends State<CheckInCommentPage> {
 
   Future<void> _submitDraft(ReviewDraft draft) async {
     _rating = draft.rating;
+    _aspectRatings = draft.aspectRatings;
     _controller.text = draft.content;
     _images
       ..clear()

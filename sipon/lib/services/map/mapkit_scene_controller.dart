@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'checkin_pin_icon.dart';
 import 'map_display_options.dart';
+import 'map_place_result.dart';
 import 'map_scene_controller.dart';
 import 'map_viewport.dart';
 import 'sipon_map_host.dart';
@@ -279,6 +280,20 @@ class MapkitSceneController extends MapSceneController {
         bottomPadding: cameraBottomPadding,
       )..['durationMs'] = MapSceneController.focusDuration.inMilliseconds,
     );
+  }
+
+  @override
+  Future<List<MapPlaceResult>> searchPlaces(String query) async {
+    final host = _host;
+    if (host == null || !_ready || query.trim().isEmpty) return const [];
+    final raw = await host.invoke(SiponMapCommands.searchPlaces, {
+      'query': query.trim(),
+    });
+    if (raw is! List) return const [];
+    return raw
+        .map(MapPlaceResult.fromPayload)
+        .whereType<MapPlaceResult>()
+        .toList();
   }
 
   @override

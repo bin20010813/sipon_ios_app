@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import '../pages/language_transform.dart';
 import '../services/map/checkin_pin_icon.dart';
 import '../services/map/map_display_options.dart';
 import '../services/map/map_models.dart';
+import '../services/map/map_place_result.dart';
 import '../services/map/map_scene_controller.dart';
 import '../services/map/map_viewport.dart';
 import '../services/map/sipon_map_host.dart';
@@ -14,7 +16,6 @@ import '../services/map/sipon_map_widget.dart';
 import '../services/sipon_api_client.dart';
 import '../services/sipon_api_service.dart';
 import '../widgets/map/map_theme.dart';
-import '../widgets/map/venue_common.dart';
 import '../widgets/sipon_city_picker.dart';
 
 class AddVenuePage extends StatefulWidget {
@@ -38,16 +39,19 @@ class _AddVenuePageState extends State<AddVenuePage> {
   final _openingHoursController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _picker = ImagePicker();
-  final _storefrontImages = <XFile>[];
-  final _menuImages = <XFile>[];
+  final _photos = <XFile>[];
 
   late final MapSceneController _scene;
   MapVenueKind _kind = MapVenueKind.pub;
   bool _submitting = false;
   bool _cityInitialized = false;
   bool _mapReady = false;
-
-  int get _imageCount => _storefrontImages.length + _menuImages.length;
+  Timer? _addressSearchTimer;
+  int _addressSearchRevision = 0;
+  List<MapPlaceResult> _addressSuggestions = const [];
+  bool _addressSearching = false;
+  bool _addressSearchFailed = false;
+  bool _addressResolved = false;
 
   @override
   void initState() {
@@ -69,6 +73,7 @@ class _AddVenuePageState extends State<AddVenuePage> {
 
   @override
   void dispose() {
+    _addressSearchTimer?.cancel();
     _nameController.dispose();
     _addressController.dispose();
     _cityController.dispose();
@@ -95,6 +100,9 @@ class _AddVenuePageState extends State<AddVenuePage> {
     if (!mounted) return;
     _setSelectedLocation(viewport?.center ?? center);
     setState(() => _mapReady = true);
+    if (_addressController.text.trim().isNotEmpty && !_addressResolved) {
+      _handleAddressChanged(_addressController.text);
+    }
   }
 
   void _handleViewportSettled(MapViewport viewport) {
@@ -106,6 +114,88 @@ class _AddVenuePageState extends State<AddVenuePage> {
     _longitudeController.text = location.longitude.toStringAsFixed(6);
     _latitudeController.text = location.latitude.toStringAsFixed(6);
     if (mounted) setState(() {});
+  }
+
+  void _handleAddressChanged(String value) {
+    _addressSearchTimer?.cancel();
+    final query = value.trim();
+    final revision = ++_addressSearchRevision;
+    setState(() {
+      _addressSuggestions = const [];
+      _addressSearching = query.isNotEmpty;
+      _addressSearchFailed = false;
+      _addressResolved = false;
+    });
+    if (query.isEmpty || !_mapReady) return;
+    _addressSearchTimer = Timer(const Duration(milliseconds: 350), () {
+      unawaited(_searchAddress(query, revision));
+    });
+  }
+
+  void _handleAddressSubmitted(String value) {
+    final query = value.trim();
+    if (query.isEmpty) return;
+    if (_addressSuggestions.isNotEmpty) {
+      _selectAddress(_addressSuggestions.first);
+      return;
+    }
+    _addressSearchTimer?.cancel();
+    final revision = ++_addressSearchRevision;
+    setState(() {
+      _addressSearching = true;
+      _addressSearchFailed = false;
+      _addressResolved = false;
+    });
+    unawaited(_searchAddress(query, revision, selectFirst: true));
+  }
+
+  Future<void> _searchAddress(
+    String query,
+    int revision, {
+    bool selectFirst = false,
+  }) async {
+    try {
+      final results = await _scene.searchPlaces(query);
+      if (!mounted || revision != _addressSearchRevision) return;
+      if (selectFirst && results.isNotEmpty) {
+        _selectAddress(results.first);
+        return;
+      }
+      setState(() {
+        _addressSuggestions = results;
+        _addressSearching = false;
+      });
+    } on Exception {
+      if (!mounted || revision != _addressSearchRevision) return;
+      setState(() {
+        _addressSuggestions = const [];
+        _addressSearching = false;
+        _addressSearchFailed = true;
+      });
+    }
+  }
+
+  void _selectAddress(MapPlaceResult place) {
+    _addressSearchTimer?.cancel();
+    _addressSearchRevision++;
+    _addressController.text = place.address.isEmpty
+        ? place.name
+        : place.address;
+    if (place.city.isNotEmpty) _cityController.text = place.city;
+    _setSelectedLocation(place.location);
+    setState(() {
+      _addressSuggestions = const [];
+      _addressSearching = false;
+      _addressSearchFailed = false;
+      _addressResolved = true;
+    });
+    FocusManager.instance.primaryFocus?.unfocus();
+    unawaited(
+      _scene.focusOn(
+        longitude: place.location.longitude,
+        latitude: place.location.latitude,
+      ),
+    );
   }
 
   Future<void> _submit() async {
@@ -121,24 +211,17 @@ class _AddVenuePageState extends State<AddVenuePage> {
 
     setState(() => _submitting = true);
     try {
-      final storefrontMediaUrls = await _uploadImages(
-        _storefrontImages,
-        purpose: 'poi_storefront',
-      );
-      final menuMediaUrls = await _uploadImages(
-        _menuImages,
-        purpose: 'poi_menu',
-      );
+      final mediaUrls = await _uploadImages(_photos, purpose: 'poi_storefront');
+      // One photo gallery in the UI; retain the legacy field for API compatibility.
       final body = <String, Object?>{
         'name': _nameController.text.trim(),
         'longitude': longitude,
         'latitude': latitude,
         'subtypeCode': _kind.id,
-        if (storefrontMediaUrls.isNotEmpty)
-          'storefrontMediaUrls': storefrontMediaUrls,
-        if (menuMediaUrls.isNotEmpty) 'menuMediaUrls': menuMediaUrls,
-        if (storefrontMediaUrls.isNotEmpty || menuMediaUrls.isNotEmpty)
-          'mediaUrls': [...storefrontMediaUrls, ...menuMediaUrls],
+        if (mediaUrls.isNotEmpty) ...{
+          'storefrontMediaUrls': mediaUrls,
+          'mediaUrls': mediaUrls,
+        },
       };
       _addOptional(body, 'address', _emptyToNull(_addressController));
       _addOptional(body, 'city', _emptyToNull(_cityController));
@@ -168,8 +251,8 @@ class _AddVenuePageState extends State<AddVenuePage> {
 
   double? _parseCoordinate(String value) => double.tryParse(value.trim());
 
-  Future<void> _pickImages(List<XFile> target) async {
-    if (_imageCount >= _maxImageCount) {
+  Future<void> _pickImages() async {
+    if (_photos.length >= _maxImageCount) {
       _showMessage('最多上传 3 张图片');
       return;
     }
@@ -213,7 +296,7 @@ class _AddVenuePageState extends State<AddVenuePage> {
         imageQuality: 85,
       );
       if (image == null || !mounted) return;
-      setState(() => target.add(image));
+      setState(() => _photos.add(image));
     } on Exception {
       _showMessage('图片选择失败，请重试');
     }
@@ -324,6 +407,35 @@ class _AddVenuePageState extends State<AddVenuePage> {
                         onChanged: (_) => setState(() {}),
                       ),
 
+                      const SizedBox(height: 12),
+                      _VenueTextField(
+                        controller: _addressController,
+                        label: text.t('酒馆地址'),
+                        hint: text.t('输入地址或地点名称'),
+                        icon: Icons.place_outlined,
+                        textInputAction: TextInputAction.search,
+                        onChanged: _handleAddressChanged,
+                        onFieldSubmitted: _handleAddressSubmitted,
+                      ),
+                      if (_addressController.text.trim().isNotEmpty &&
+                          !_addressResolved) ...[
+                        const SizedBox(height: 6),
+                        _AddressSearchResults(
+                          results: _addressSuggestions,
+                          searching: _addressSearching,
+                          failed: _addressSearchFailed,
+                          onSelected: _selectAddress,
+                        ),
+                      ],
+                      const SizedBox(height: 6),
+                      Text(
+                        text.t('选择搜索结果可自动定位地图，也可拖动地图微调'),
+                        style: const TextStyle(
+                          color: MapDesign.muted,
+                          fontSize: 11,
+                        ),
+                      ),
+
                       const SizedBox(height: 18),
                       _FieldLabel(text.t('地点类型')),
                       const SizedBox(height: 10),
@@ -347,49 +459,13 @@ class _AddVenuePageState extends State<AddVenuePage> {
                         icon: Icons.schedule_rounded,
                       ),
                       const SizedBox(height: 12),
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final totalGap = 18.0;
-                          final storefrontWidth =
-                              (constraints.maxWidth - totalGap) * 0.62;
-                          final menuWidth =
-                              constraints.maxWidth - totalGap - storefrontWidth;
-
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              SizedBox(
-                                width: storefrontWidth,
-                                child: ClipRect(
-                                  child: _VenueImageSection(
-                                    title: text.t('店面照片'),
-                                    images: _storefrontImages,
-                                    canAdd: _imageCount < _maxImageCount,
-                                    onAdd: () => _pickImages(_storefrontImages),
-                                    onRemove: (index) => setState(
-                                      () => _storefrontImages.removeAt(index),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 18),
-                              SizedBox(
-                                width: menuWidth,
-                                child: ClipRect(
-                                  child: _VenueImageSection(
-                                    title: text.t('菜单照片'),
-                                    images: _menuImages,
-                                    canAdd: _imageCount < _maxImageCount,
-                                    onAdd: () => _pickImages(_menuImages),
-                                    onRemove: (index) => setState(
-                                      () => _menuImages.removeAt(index),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          );
-                        },
+                      _VenueImageSection(
+                        title: text.t('照片'),
+                        images: _photos,
+                        canAdd: _photos.length < _maxImageCount,
+                        onAdd: _pickImages,
+                        onRemove: (index) =>
+                            setState(() => _photos.removeAt(index)),
                       ),
 
                       const SizedBox(height: 18),
@@ -633,6 +709,8 @@ class _VenueTextField extends StatelessWidget {
     this.minLines = 1,
     this.maxLines = 1,
     this.onChanged,
+    this.onFieldSubmitted,
+    this.textInputAction,
   });
 
   final TextEditingController controller;
@@ -644,6 +722,8 @@ class _VenueTextField extends StatelessWidget {
   final int minLines;
   final int maxLines;
   final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onFieldSubmitted;
+  final TextInputAction? textInputAction;
 
   @override
   Widget build(BuildContext context) {
@@ -654,9 +734,10 @@ class _VenueTextField extends StatelessWidget {
       maxLines: maxLines,
       validator: validator,
       onChanged: onChanged,
-      textInputAction: maxLines == 1
-          ? TextInputAction.next
-          : TextInputAction.newline,
+      onFieldSubmitted: onFieldSubmitted,
+      textInputAction:
+          textInputAction ??
+          (maxLines == 1 ? TextInputAction.next : TextInputAction.newline),
       decoration: InputDecoration(
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(
@@ -690,6 +771,74 @@ class _VenueTextField extends StatelessWidget {
           letterSpacing: 0,
         ),
         hintStyle: const TextStyle(color: Color(0x998F8790), letterSpacing: 0),
+      ),
+    );
+  }
+}
+
+class _AddressSearchResults extends StatelessWidget {
+  const _AddressSearchResults({
+    required this.results,
+    required this.searching,
+    required this.failed,
+    required this.onSelected,
+  });
+
+  final List<MapPlaceResult> results;
+  final bool searching;
+  final bool failed;
+  final ValueChanged<MapPlaceResult> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = SiponLanguageScope.textOf(context);
+    if (results.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Text(
+          text.t(
+            searching
+                ? '正在搜索地点…'
+                : failed
+                ? '地点搜索失败，请重试'
+                : '未找到地点',
+          ),
+          style: const TextStyle(color: MapDesign.muted, fontSize: 12),
+        ),
+      );
+    }
+
+    final visible = results.take(5).toList();
+    return Material(
+      color: Colors.white,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: Color(0xFFE6E3E5)),
+      ),
+      child: Column(
+        children: [
+          for (var index = 0; index < visible.length; index++) ...[
+            if (index > 0) const Divider(height: 1),
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.place_outlined, color: MapDesign.brand),
+              title: Text(
+                visible[index].name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: visible[index].address.isEmpty
+                  ? null
+                  : Text(
+                      visible[index].address,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+              onTap: () => onSelected(visible[index]),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -779,7 +928,7 @@ class _VenueImageSection extends StatelessWidget {
               physics: const ClampingScrollPhysics(),
               clipBehavior: Clip.hardEdge,
               itemCount: slots.length,
-              separatorBuilder: (_, __) => const SizedBox(width: gap),
+              separatorBuilder: (_, _) => const SizedBox(width: gap),
               itemBuilder: (_, index) => SizedBox(
                 width: slotSize,
                 height: slotSize,

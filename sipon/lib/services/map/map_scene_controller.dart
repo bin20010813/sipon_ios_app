@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import 'map_display_options.dart';
 import 'map_models.dart';
+import 'map_place_result.dart';
 import 'map_viewport.dart';
 import 'mapkit_scene_controller.dart';
 import 'sipon_map_host.dart';
@@ -195,6 +196,9 @@ abstract class MapSceneController {
 
   /// 把某个坐标居中（附带聚焦缩放/俯仰/朝向）。
   Future<void> focusOn({required double longitude, required double latitude});
+
+  /// Search Apple Maps addresses and places around the current map region.
+  Future<List<MapPlaceResult>> searchPlaces(String query);
 
   Future<void> flyToCity(String city, {required double zoom});
 

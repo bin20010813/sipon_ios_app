@@ -18,6 +18,7 @@ enum SiponMapProtocol {
     static let readViewport = "readViewport"
     static let flyToCity = "flyToCity"
     static let focusOn = "focusOn"
+    static let searchPlaces = "searchPlaces"
     static let applyStage = "applyStage"
     static let renderFrame = "renderFrame"
     static let registerAssets = "registerAssets"

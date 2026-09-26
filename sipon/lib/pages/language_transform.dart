@@ -613,6 +613,7 @@ const Map<String, String> _englishText = {
   '例如：021-12345678': 'e.g. 021-1234-5678',
   '店面照片': 'Storefront Photos',
   '菜单照片': 'Menu Photos',
+  '照片': 'Photos',
   '酒馆介绍': 'Description',
   '氛围、酒单特色、适合什么场景': 'Vibe, drinks, best occasions',
   '提交后会进入审核，通过后展示在地图酒吧地点中。':
@@ -641,6 +642,13 @@ const Map<String, String> _englishText = {
   '点击导航': 'Tap to navigate',
   '点击拨打': 'Tap to call',
   '搜索喜欢的酒或者酒吧...': 'Search drinks or bars...',
+  '酒馆地址': 'Bar address',
+  '输入地址或地点名称': 'Enter an address or place',
+  '选择搜索结果可自动定位地图，也可拖动地图微调':
+      'Select a result to locate it on the map, then drag to fine-tune',
+  '正在搜索地点…': 'Searching places…',
+  '地点搜索失败，请重试': 'Place search failed. Try again.',
+  '未找到地点': 'No places found',
   '记录每一次微醺': 'Record every tipsy moment',
   '正在整理你的饮酒记录...': 'Preparing your drinking records...',
   '载入完成': 'Ready',
