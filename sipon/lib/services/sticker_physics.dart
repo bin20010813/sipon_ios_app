@@ -75,10 +75,12 @@ class StickerPhysics {
     final drag = math.pow(damping, clamped * 60).toDouble();
 
     for (final body in bodies) {
+      if (body.floating) continue;
       body.velocity += gravity * clamped;
       body.velocity *= drag;
       body.position += body.velocity * clamped;
       body.angle += body.angularVelocity * clamped;
+      body.angularVelocity *= drag;
     }
 
     _clampToBounds(bounds);
@@ -88,6 +90,7 @@ class StickerPhysics {
 
   void _clampToBounds(Size bounds) {
     for (final body in bodies) {
+      if (body.floating) continue;
       final half = body.size / 2;
       final minX = half;
       final maxX = math.max(half, bounds.width - half);
@@ -136,6 +139,7 @@ class StickerPhysics {
   }
 
   void _resolveCollision(StickerBody a, StickerBody b) {
+    if (a.floating || b.floating) return;
     final minDist = (a.size + b.size) / 2;
     final dx = b.position.dx - a.position.dx;
     final dy = b.position.dy - a.position.dy;
@@ -181,6 +185,7 @@ class StickerPhysics {
   void _updateSleep() {
     var moving = false;
     for (final body in bodies) {
+      if (body.floating) continue;
       if (body.velocity.distanceSquared > 0.5 ||
           body.angularVelocity.abs() > 0.02) {
         moving = true;
@@ -213,6 +218,7 @@ class StickerBody {
     required this.size,
     this.angle = 0,
     this.angularVelocity = 0,
+    this.floating = false,
   });
 
   /// 圆心位置（贴纸池坐标系，原点在池子左上角）。
@@ -229,4 +235,7 @@ class StickerBody {
 
   /// 角速度（弧度/秒）。
   double angularVelocity;
+
+  /// Until popped, the sticker stays at its floating anchor outside physics.
+  bool floating;
 }

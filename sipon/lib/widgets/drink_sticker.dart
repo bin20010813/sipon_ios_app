@@ -306,8 +306,11 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
   late final Ticker _ticker;
 
   StreamSubscription<dynamic>? _subscription;
+  Timer? _detailTimer;
   Offset _filtered = Offset.zero;
   Duration? _last;
+  double _floatTime = 0;
+  final Map<int, double> _bursts = {};
 
   List<DrinkBudgetRecord> _records = const [];
   Size _bounds = Size.zero;
@@ -333,6 +336,9 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
     if (_idsChanged(oldWidget.records, widget.records)) {
       _initialized = false;
       _bounds = Size.zero;
+      _bursts.clear();
+      _floatTime = 0;
+      _detailTimer?.cancel();
       if (widget.records.isEmpty) {
         _ticker.stop();
         _last = null;
@@ -361,6 +367,7 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
     WidgetsBinding.instance.removeObserver(this);
     _subscription?.cancel();
     _subscription = null;
+    _detailTimer?.cancel();
     _ticker
       ..stop()
       ..dispose();
@@ -426,13 +433,19 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
     final dt = (elapsed - last).inMicroseconds / 1e6;
     if (dt <= 0) return;
 
+    _floatTime += dt;
+    _bursts.updateAll((_, age) => age + dt);
+    _bursts.removeWhere((_, age) => age >= 0.38);
+
     // 两个原步长的子步实现两倍播放速度，并保持碰撞模拟的稳定性。
     for (var step = 0; step < 2; step++) {
       _physics.step(dt, _bounds);
       if (_physics.sleeping) break;
     }
 
-    if (_physics.sleeping) {
+    if (_physics.sleeping &&
+        _bursts.isEmpty &&
+        !_physics.bodies.any((body) => body.floating)) {
       _ticker.stop();
       _last = null;
     } else {
@@ -448,46 +461,89 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
     final visible = widget.records.take(36).toList();
     _records = visible;
     final scale = _poolScale(visible.length, size);
-    final random = math.Random(visible.length * 19 + 7);
+    final columns = _floatColumns(visible.length, size);
+    final rows = (visible.length / columns).ceil();
+    final maxBubble = 52 * scale * 1.25;
+    final rowPitch = math.min((size.height - 54) / rows, maxBubble + 8);
 
     _physics.reset([
       for (var index = 0; index < visible.length; index++)
-        _createBody(visible[index], scale, random, size),
+        _createBody(visible[index], index, scale, columns, rowPitch, size),
     ]);
     _wake();
   }
 
   StickerBody _createBody(
     DrinkBudgetRecord record,
+    int index,
     double scale,
-    math.Random random,
+    int columns,
+    double rowPitch,
     Size bounds,
   ) {
     final diameter = stickerSizeForAmount(record.amount) * scale;
-    final left = diameter / 2;
-    final right = math.max(left, bounds.width - diameter / 2);
+    final row = index ~/ columns;
+    final countInRow = math.min(columns, _records.length - row * columns);
+    final column = index % columns;
     return StickerBody(
       position: Offset(
-        left + random.nextDouble() * (right - left),
-        -diameter - random.nextDouble() * 140,
+        bounds.width * (column + 0.5) / countInRow,
+        48 + rowPitch * (row + 0.5),
       ),
-      velocity: Offset(
-        -30 + random.nextDouble() * 60,
-        -20 + random.nextDouble() * 40,
-      ),
+      velocity: Offset.zero,
       size: diameter,
-      angle: -0.25 + random.nextDouble() * 0.5,
-      angularVelocity: -0.4 + random.nextDouble() * 0.8,
+      angle: 0,
+      floating: true,
     );
   }
 
-  double _poolScale(int count, Size bounds) {
+  int _floatColumns(int count, Size bounds) {
     if (count <= 1) return 1;
-    final area = math.max(1.0, bounds.width * bounds.height);
-    final need = count * 46.0 * 46.0;
-    final ratio = area * 0.78 / need;
-    if (ratio >= 1) return 1;
-    return math.sqrt(ratio).clamp(0.5, 1.0);
+    final usableHeight = math.max(1.0, bounds.height - 54);
+    return math
+        .sqrt(count * bounds.width / usableHeight)
+        .ceil()
+        .clamp(1, count);
+  }
+
+  double _poolScale(int count, Size bounds) {
+    if (count == 0) return 1;
+    final columns = _floatColumns(count, bounds);
+    final rows = (count / columns).ceil();
+    final cellWidth = bounds.width / columns;
+    final cellHeight = (bounds.height - 54) / rows;
+    return (math.min(cellWidth, cellHeight) - 6).clamp(18.0, 66.0) /
+        (52 * 1.25);
+  }
+
+  void _popBubble(int index) {
+    final body = _physics.bodies[index];
+    final record = _records[index];
+    if (!body.floating) {
+      _detailTimer?.cancel();
+      widget.onStickerTap?.call(record);
+      return;
+    }
+
+    final phase = _floatTime * 1.7 + index * 1.9;
+    body.position += Offset(math.sin(phase) * 2, math.cos(phase) * 4);
+    body.floating = false;
+    body.velocity = const Offset(0, 28);
+    body.angularVelocity = index.isEven ? 0.32 : -0.32;
+    _bursts[index] = 0;
+    _wake();
+    setState(() {});
+
+    if (widget.onStickerTap != null) {
+      _detailTimer?.cancel();
+      _detailTimer = Timer(const Duration(milliseconds: 850), () {
+        if (mounted &&
+            index < _records.length &&
+            _records[index].id == record.id) {
+          widget.onStickerTap?.call(record);
+        }
+      });
+    }
   }
 
   @override
@@ -558,22 +614,133 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
   Widget _buildSticker(int index) {
     final body = _physics.bodies[index];
     final record = _records[index];
+    final floating = body.floating;
+    final burstAge = _bursts[index];
+    final bubbleSize = body.size * 1.25;
+    final visualSize = floating
+        ? bubbleSize
+        : burstAge != null
+        ? bubbleSize * 1.6
+        : body.size;
+    final phase = _floatTime * 1.7 + index * 1.9;
+    final bob = floating
+        ? Offset(math.sin(phase) * 2, math.cos(phase) * 4)
+        : Offset.zero;
 
     return Positioned(
-      left: body.position.dx - body.size / 2,
-      top: body.position.dy - body.size / 2,
+      left: body.position.dx + bob.dx - visualSize / 2,
+      top: body.position.dy + bob.dy - visualSize / 2,
       child: Transform.rotate(
         angle: body.angle,
         child: RepaintBoundary(
-          child: DrinkSticker(
-            record: record,
-            size: body.size,
-            onTap: widget.onStickerTap == null
-                ? null
-                : () => widget.onStickerTap!(record),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => _popBubble(index),
+            child: CustomPaint(
+              painter: _StickerBubblePainter(
+                floating: floating,
+                bubbleRadius: bubbleSize * 0.48,
+                burstProgress: burstAge == null ? null : burstAge / 0.38,
+              ),
+              child: SizedBox.square(
+                dimension: visualSize,
+                child: Center(
+                  child: DrinkSticker(
+                    record: record,
+                    size: floating ? body.size * 0.78 : body.size,
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+class _StickerBubblePainter extends CustomPainter {
+  const _StickerBubblePainter({
+    required this.floating,
+    required this.bubbleRadius,
+    this.burstProgress,
+  });
+
+  final bool floating;
+  final double bubbleRadius;
+  final double? burstProgress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (!floating && burstProgress == null) return;
+    final center = size.center(Offset.zero);
+    final radius = bubbleRadius;
+
+    if (floating) {
+      canvas.drawCircle(
+        center,
+        radius,
+        Paint()
+          ..shader = RadialGradient(
+            center: const Alignment(-0.45, -0.5),
+            radius: 0.95,
+            colors: [
+              Colors.white.withValues(alpha: 0.32),
+              const Color(0xFFBDEDEB).withValues(alpha: 0.16),
+              const Color(0xFFD8B1EA).withValues(alpha: 0.24),
+            ],
+          ).createShader(Offset.zero & size),
+      );
+      canvas.drawCircle(
+        center,
+        radius,
+        Paint()
+          ..color = const Color(0xFFC9E9F0).withValues(alpha: 0.9)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.7,
+      );
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius - 3),
+        -2.75,
+        0.95,
+        false,
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.94)
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 3,
+      );
+      canvas.drawCircle(
+        center + Offset(radius * 0.58, radius * 0.55),
+        radius * 0.065,
+        Paint()..color = Colors.white.withValues(alpha: 0.9),
+      );
+    }
+
+    final progress = burstProgress;
+    if (progress != null) {
+      final alpha = (1 - progress).clamp(0.0, 1.0);
+      final burstRadius = radius * (1 + progress * 0.5);
+      final paint = Paint()
+        ..color = const Color(0xFFB8DBE7).withValues(alpha: alpha)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2 * alpha;
+      canvas.drawCircle(center, burstRadius, paint);
+      for (var i = 0; i < 8; i++) {
+        final angle = i * math.pi / 4;
+        final direction = Offset(math.cos(angle), math.sin(angle));
+        canvas.drawLine(
+          center + direction * (burstRadius + 2),
+          center + direction * (burstRadius + 7 + progress * 8),
+          paint,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _StickerBubblePainter oldDelegate) =>
+      oldDelegate.floating != floating ||
+      oldDelegate.bubbleRadius != bubbleRadius ||
+      oldDelegate.burstProgress != burstProgress;
 }
