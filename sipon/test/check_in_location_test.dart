@@ -25,10 +25,14 @@ class _LocatedCity extends SiponCityController {
         position: SiponLocationPoint(113.8, 34.8),
       );
   int locationRequests = 0;
+  SiponLocationPurpose? lastPurpose;
 
   @override
-  Future<SiponLocateResult> locateCurrentCity() {
+  Future<SiponLocateResult> locateCurrentCity({
+    SiponLocationPurpose purpose = SiponLocationPurpose.citySuggestion,
+  }) {
     locationRequests++;
+    lastPurpose = purpose;
     return locate();
   }
 }
@@ -139,6 +143,7 @@ void main() {
     await tester.pump();
     expect(requests, hasLength(1));
     expect(city.locationRequests, 1);
+    expect(city.lastPurpose, SiponLocationPurpose.checkIn);
     expect(host.calls[SiponMapCommands.flyToCity], isNull);
     expect(host.calls[SiponMapCommands.focusOn], isNull);
     expect(tester.takeException(), isNull);

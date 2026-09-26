@@ -10,6 +10,7 @@ import 'package:sipon/features/map/models/map_models.dart';
 import 'package:sipon/features/map/controllers/map_scene_controller.dart';
 import 'package:sipon/features/map/models/map_viewport.dart';
 import 'package:sipon/features/map/platform/sipon_map_host.dart';
+import 'package:sipon/features/map/platform/map_engine.dart';
 import 'package:sipon/features/map/widgets/sipon_map_widget.dart';
 import 'package:sipon/shared/services/sipon_api_client.dart';
 import 'package:sipon/shared/services/sipon_api_service.dart';
@@ -92,11 +93,21 @@ class _AddVenuePageState extends State<AddVenuePage> {
     );
     final viewport = await _scene.readViewport();
     if (!mounted) return;
+    // Android must report the actual screen center after its coordinate
+    // adapter. A bounds midpoint is not accurate enough for a submission.
+    if (selectMapEngine() == MapEngine.tianditu &&
+        viewport?.screenCenter == null) {
+      return;
+    }
     _setSelectedLocation(viewport?.center ?? center);
     setState(() => _mapReady = true);
   }
 
   void _handleViewportSettled(MapViewport viewport) {
+    if (selectMapEngine() == MapEngine.tianditu &&
+        viewport.screenCenter == null) {
+      return;
+    }
     _setSelectedLocation(viewport.center);
   }
 
@@ -109,6 +120,18 @@ class _AddVenuePageState extends State<AddVenuePage> {
 
   Future<void> _submit() async {
     if (_submitting || !_formKey.currentState!.validate()) return;
+
+    // The Android display adapter currently uses an unverified
+    // WGS-84/CGCS2000 approximation. Keep precise coordinate submissions
+    // closed until surveyed control points confirm the required accuracy.
+    const androidCoordinateVerified = bool.fromEnvironment(
+      'SIPON_ANDROID_COORDINATE_VERIFIED',
+      defaultValue: false,
+    );
+    if (selectMapEngine() == MapEngine.tianditu && !androidCoordinateVerified) {
+      _showMessage('地点坐标仍在校验，暂不能提交');
+      return;
+    }
 
     if (!_mapReady) {
       _showMessage('地图还在加载，请稍候再提交');
@@ -612,9 +635,7 @@ class _KindSelector extends StatelessWidget {
                 selectedColor: scheme.primary.withValues(alpha: 0.12),
                 backgroundColor: siponColors.subtleSurface,
                 side: BorderSide(
-                  color: selected == kind
-                      ? scheme.primary
-                      : Colors.transparent,
+                  color: selected == kind ? scheme.primary : Colors.transparent,
                 ),
                 labelStyle: TextStyle(
                   color: selected == kind ? scheme.primary : scheme.onSurface,
@@ -827,9 +848,7 @@ class _AddImageSlot extends StatelessWidget {
         decoration: BoxDecoration(
           color: siponColors.subtleSurface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: scheme.primary.withValues(alpha: 0.1),
-          ),
+          border: Border.all(color: scheme.primary.withValues(alpha: 0.1)),
         ),
         child: Icon(Icons.add_a_photo_outlined, color: scheme.primary),
       ),

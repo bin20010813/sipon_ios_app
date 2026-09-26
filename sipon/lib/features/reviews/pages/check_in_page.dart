@@ -91,7 +91,9 @@ class _CheckInPageState extends State<CheckInPage> {
       _loadingBars = true;
       _locationError = null;
     });
-    final location = await _cityController?.locateCurrentCity();
+    final location = await _cityController?.locateCurrentCity(
+      purpose: SiponLocationPurpose.checkIn,
+    );
     if (!mounted || version != _requestVersion) return;
     final anchor = location?.position;
     if (anchor == null) {

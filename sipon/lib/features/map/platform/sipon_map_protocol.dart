@@ -10,12 +10,23 @@ import '../models/map_display_options.dart';
 import '../models/map_models.dart';
 import '../controllers/map_scene_controller.dart';
 import '../models/map_viewport.dart';
+import 'map_engine.dart';
 
 /// PlatformView 注册用的 viewType，同时也是原生 factory 的注册名。
 const String kSiponMapViewType = 'sipon/mapkit';
+const String kSiponTiandituViewType = 'sipon/tianditu';
+
+String siponMapViewType(MapEngine engine) => switch (engine) {
+  MapEngine.mapKit => kSiponMapViewType,
+  MapEngine.tianditu => kSiponTiandituViewType,
+  MapEngine.unsupported => throw UnsupportedError('Map engine unavailable'),
+};
 
 /// 每个平台视图实例独享一条通道，避免多实例串台。
 String siponMapChannelName(int viewId) => 'sipon/mapkit_$viewId';
+
+String siponChannelName(MapEngine engine, int viewId) =>
+    '${siponMapViewType(engine)}_$viewId';
 
 /// Dart → 原生的方法名。
 abstract final class SiponMapCommands {
@@ -30,6 +41,7 @@ abstract final class SiponMapCommands {
   static const String renderFrame = 'renderFrame';
   static const String registerAssets = 'registerAssets';
   static const String drawRoute = 'drawRoute';
+  static const String setRouteGeometry = 'setRouteGeometry';
   static const String clearRoute = 'clearRoute';
   static const String dispose = 'dispose';
 }
@@ -43,6 +55,7 @@ abstract final class SiponMapEvents {
 
   /// 预留的样式加载事件；MapKit 当前不会发送。
   static const String onStyleLoaded = 'onStyleLoaded';
+  static const String onMapError = 'onMapError';
 }
 
 // --------------------------------------------------------------------- 载荷
@@ -69,10 +82,26 @@ Map<String, Object?> encodeAppearance(Brightness brightness) => {
   'brightness': brightness == Brightness.dark ? 'dark' : 'light',
 };
 
-/// `drawRoute` 载荷：按站点顺序传入经纬度数组，原生先直连再尝试道路规划。
+/// `drawRoute` 载荷：按站点顺序传入经纬度数组，iOS 原生逐段规划道路。
 Map<String, Object?> encodeRoutePoints(List<MapLatLng> points) => {
   'points': [
     for (final point in points) {'lat': point.latitude, 'lng': point.longitude},
+  ],
+};
+
+/// Android receives already planned WGS-84 road geometry, one leg per pair.
+Map<String, Object?> encodeRouteGeometry(
+  List<List<MapLatLng>> legs, {
+  required int revision,
+}) => {
+  'revision': revision,
+  'legs': [
+    for (final leg in legs)
+      {
+        'coordinates': [
+          for (final point in leg) [point.longitude, point.latitude],
+        ],
+      },
   ],
 };
 
@@ -174,6 +203,7 @@ class SiponViewportPayload {
     required this.east,
     required this.north,
     required this.zoom,
+    this.center,
   });
 
   final double west;
@@ -182,6 +212,9 @@ class SiponViewportPayload {
   final double north;
   final double zoom;
 
+  /// WGS-84 coordinate at the actual screen center, when supplied by native.
+  final MapLatLng? center;
+
   bool get isValid =>
       west.isFinite &&
       south.isFinite &&
@@ -189,7 +222,14 @@ class SiponViewportPayload {
       north.isFinite &&
       zoom.isFinite &&
       east > west &&
-      north > south;
+      north > south &&
+      (center == null ||
+          (center!.longitude.isFinite &&
+              center!.latitude.isFinite &&
+              center!.longitude >= -180 &&
+              center!.longitude <= 180 &&
+              center!.latitude >= -90 &&
+              center!.latitude <= 90));
 }
 
 /// 解析原生组装的视野载荷；给不出合法数字就返回 null（调用方兜底）。
@@ -212,6 +252,9 @@ SiponViewportPayload? parseViewportPayload(Object? arguments) {
     east: read('east'),
     north: read('north'),
     zoom: read('zoom'),
+    center: arguments['centerLng'] == null || arguments['centerLat'] == null
+        ? null
+        : MapLatLng(longitude: read('centerLng'), latitude: read('centerLat')),
   );
 
   return payload.isValid ? payload : null;

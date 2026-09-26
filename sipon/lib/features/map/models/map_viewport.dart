@@ -99,7 +99,11 @@ class MapBoundsBox {
 /// flyTo」的做法：是否重新取数由 [differsMateriallyFrom] 这个纯函数说了算，
 /// 于是程序化移动和用户手势走同一条判定，不需要任何一次性标志位。
 class MapViewport {
-  const MapViewport({required this.bounds, required this.zoom});
+  const MapViewport({
+    required this.bounds,
+    required this.zoom,
+    this.screenCenter,
+  });
 
   /// 跨过这个缩放差就重新取数：marker 抽样上限是分档的，跨档了得重算。
   static const double zoomEpsilon = 0.35;
@@ -110,7 +114,10 @@ class MapViewport {
   final MapBoundsBox bounds;
   final double zoom;
 
-  MapLatLng get center => bounds.center;
+  /// WGS-84 center sampled by the native map. Bounds midpoint is only a fallback.
+  final MapLatLng? screenCenter;
+
+  MapLatLng get center => screenCenter ?? bounds.center;
 
   /// 实际请求用的范围（比屏幕可见范围大一圈）。
   MapBoundsBox get fetchBounds => bounds.inflated(prefetchRatio);

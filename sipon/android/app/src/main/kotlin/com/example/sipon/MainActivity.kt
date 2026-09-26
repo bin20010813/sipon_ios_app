@@ -2,6 +2,8 @@ package com.example.sipon
 
 import android.graphics.Bitmap
 import android.net.Uri
+import com.example.sipon.map.SiponTiandituFactory
+import com.example.sipon.map.SiponTiandituView
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.segmentation.subject.SubjectSegmentation
 import com.google.mlkit.vision.segmentation.subject.SubjectSegmenterOptions
@@ -13,12 +15,21 @@ import java.io.FileOutputStream
 import java.util.UUID
 
 class MainActivity : FlutterActivity() {
+    private val mapViews = mutableSetOf<SiponTiandituView>()
     companion object {
         private const val CHANNEL = "sipon/sticker_cutout"
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        flutterEngine.platformViewsController.registry.registerViewFactory(
+            "sipon/tianditu",
+            SiponTiandituFactory(
+                flutterEngine.dartExecutor.binaryMessenger,
+                { mapViews.add(it) },
+                { mapViews.remove(it) },
+            ),
+        )
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             CHANNEL,
@@ -34,6 +45,36 @@ class MainActivity : FlutterActivity() {
             }
             generateSticker(sourcePath, result)
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        mapViews.toList().forEach { it.onActivityStart() }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        mapViews.toList().forEach { it.onActivityResume() }
+    }
+
+    override fun onPause() {
+        mapViews.toList().forEach { it.onActivityPause() }
+        super.onPause()
+    }
+
+    override fun onStop() {
+        mapViews.toList().forEach { it.onActivityStop() }
+        super.onStop()
+    }
+
+    override fun onLowMemory() {
+        mapViews.toList().forEach { it.onLowMemory() }
+        super.onLowMemory()
+    }
+
+    override fun onDestroy() {
+        mapViews.toList().forEach { it.dispose() }
+        super.onDestroy()
     }
 
     private fun generateSticker(sourcePath: String, channelResult: MethodChannel.Result) {

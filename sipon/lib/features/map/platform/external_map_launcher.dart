@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// 可从地点详情页唤起的外部地图 App。
@@ -37,15 +38,40 @@ class ExternalMapLaunchResult {
 class ExternalMapLauncher {
   const ExternalMapLauncher._();
 
+  // 腾讯地图 URI 要求 referer 为开发者 Key，不能用应用名称代替。
+  static const String _tencentMapKey = String.fromEnvironment(
+    'SIPON_TENCENT_MAP_KEY',
+  );
+
+  static bool get _isMobile =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+
+  static bool _isSupported(ExternalMapApp app) {
+    if (!_isMobile) return false;
+    if (app == ExternalMapApp.apple) {
+      return defaultTargetPlatform == TargetPlatform.iOS;
+    }
+    if (app == ExternalMapApp.tencent && _tencentMapKey.trim().isEmpty) {
+      return false;
+    }
+    return true;
+  }
+
   static Future<List<ExternalMapApp>> availableNavigationApps() async {
-    final apps = <ExternalMapApp>[ExternalMapApp.apple];
+    final apps = <ExternalMapApp>[];
     for (final app in const [
+      ExternalMapApp.apple,
       ExternalMapApp.amap,
       ExternalMapApp.baidu,
       ExternalMapApp.tencent,
     ]) {
-      if (await canLaunchUrl(_probeUri(app))) {
+      if (!_isSupported(app)) continue;
+      try {
+        if (!await canLaunchUrl(_probeUri(app))) continue;
         apps.add(app);
+      } catch (_) {
+        // 某些系统对未安装的自定义 scheme 抛异常；其余地图仍可继续探测。
       }
     }
     return apps;
@@ -57,7 +83,13 @@ class ExternalMapLauncher {
     required double longitude,
     required double latitude,
   }) async {
-    if (!longitude.isFinite || !latitude.isFinite) {
+    if (!_isSupported(app) ||
+        !longitude.isFinite ||
+        !latitude.isFinite ||
+        longitude < -180 ||
+        longitude > 180 ||
+        latitude < -90 ||
+        latitude > 90) {
       return ExternalMapLaunchResult.unavailable(app);
     }
 
@@ -69,22 +101,29 @@ class ExternalMapLauncher {
       latitude: latitude,
     );
 
-    if (!await canLaunchUrl(uri)) {
+    try {
+      if (!await canLaunchUrl(uri)) {
+        return ExternalMapLaunchResult.unavailable(app);
+      }
+
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      return opened
+          ? ExternalMapLaunchResult.success(app)
+          : ExternalMapLaunchResult.unavailable(app);
+    } catch (_) {
       return ExternalMapLaunchResult.unavailable(app);
     }
-
-    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    return opened
-        ? ExternalMapLaunchResult.success(app)
-        : ExternalMapLaunchResult.unavailable(app);
   }
 
   static Uri _probeUri(ExternalMapApp app) {
     return switch (app) {
       ExternalMapApp.apple => Uri.parse('http://maps.apple.com/'),
-      ExternalMapApp.amap => Uri.parse('iosamap://'),
-      ExternalMapApp.baidu => Uri.parse('baidumap://'),
-      ExternalMapApp.tencent => Uri.parse('qqmap://'),
+      ExternalMapApp.amap =>
+        defaultTargetPlatform == TargetPlatform.android
+            ? Uri.parse('amapuri://route/plan')
+            : Uri.parse('iosamap://path'),
+      ExternalMapApp.baidu => Uri.parse('baidumap://map/direction'),
+      ExternalMapApp.tencent => Uri.parse('qqmap://map/routeplan'),
     };
   }
 
@@ -93,6 +132,7 @@ class ExternalMapLauncher {
   /// - 高德：`path` 路线规划，`dev=1` 表示传入 WGS-84 坐标，由高德纠偏；
   /// - 百度：`direction` 路线规划，`coord_type=wgs84` 由百度纠偏；
   /// - 腾讯：`routeplan` 路线规划，`coord_type=1` 表示 GPS(WGS-84) 坐标。
+  /// 自定义 scheme 使用百分号编码，避免中文或空格被编码为 `+`。
   static Uri _routeUri({
     required ExternalMapApp app,
     required String name,
@@ -106,10 +146,15 @@ class ExternalMapLauncher {
       ExternalMapApp.apple => Uri.https('maps.apple.com', '/', {
         'daddr': '$lat,$lng',
       }),
-      ExternalMapApp.amap => Uri(
-        scheme: 'iosamap',
-        host: 'path',
-        queryParameters: {
+      ExternalMapApp.amap => _customUri(
+        scheme: defaultTargetPlatform == TargetPlatform.android
+            ? 'amapuri'
+            : 'iosamap',
+        host: defaultTargetPlatform == TargetPlatform.android
+            ? 'route'
+            : 'path',
+        path: defaultTargetPlatform == TargetPlatform.android ? '/plan' : '',
+        parameters: {
           'sourceApplication': 'Sipon',
           'dname': name,
           'dlat': lat,
@@ -118,29 +163,46 @@ class ExternalMapLauncher {
           't': '0',
         },
       ),
-      ExternalMapApp.baidu => Uri(
+      ExternalMapApp.baidu => _customUri(
         scheme: 'baidumap',
         host: 'map',
         path: '/direction',
-        queryParameters: {
-          'destination': '$lat,$lng',
+        parameters: {
+          'origin': '我的位置',
+          'destination': 'name:$name|latlng:$lat,$lng',
           'mode': 'driving',
           'coord_type': 'wgs84',
-          'src': 'Sipon',
+          'src': 'sipon',
         },
       ),
-      ExternalMapApp.tencent => Uri(
+      ExternalMapApp.tencent => _customUri(
         scheme: 'qqmap',
         host: 'map',
         path: '/routeplan',
-        queryParameters: {
+        parameters: {
           'type': 'drive',
+          'fromcoord': 'CurrentLocation',
           'to': name,
           'tocoord': '$lat,$lng',
           'coord_type': '1',
-          'referer': 'Sipon',
+          'referer': _tencentMapKey,
         },
       ),
     };
+  }
+
+  static Uri _customUri({
+    required String scheme,
+    required String host,
+    String path = '',
+    required Map<String, String> parameters,
+  }) {
+    final query = parameters.entries
+        .map(
+          (entry) =>
+              '${Uri.encodeQueryComponent(entry.key)}=${Uri.encodeComponent(entry.value)}',
+        )
+        .join('&');
+    return Uri(scheme: scheme, host: host, path: path, query: query);
   }
 }

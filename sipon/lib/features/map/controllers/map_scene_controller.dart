@@ -7,6 +7,8 @@ import '../models/map_display_options.dart';
 import '../models/map_models.dart';
 import '../models/map_viewport.dart';
 import 'mapkit_scene_controller.dart';
+import 'tianditu_scene_controller.dart';
+import '../platform/map_engine.dart';
 import '../platform/sipon_map_host.dart';
 
 /// 一帧要画到地图上的全部内容。
@@ -88,12 +90,25 @@ abstract class MapSceneController {
     required void Function(MapViewport viewport) onViewportSettled,
     required void Function(String venueId) onVenueTapped,
     required VoidCallback onBlankTapped,
+    MapEngine? engine,
   }) {
-    return MapkitSceneController(
-      onViewportSettled: onViewportSettled,
-      onVenueTapped: onVenueTapped,
-      onBlankTapped: onBlankTapped,
-    );
+    return switch (engine ?? selectMapEngine()) {
+      MapEngine.mapKit => MapkitSceneController(
+        onViewportSettled: onViewportSettled,
+        onVenueTapped: onVenueTapped,
+        onBlankTapped: onBlankTapped,
+      ),
+      MapEngine.tianditu => TiandituSceneController(
+        onViewportSettled: onViewportSettled,
+        onVenueTapped: onVenueTapped,
+        onBlankTapped: onBlankTapped,
+      ),
+      MapEngine.unsupported => UnsupportedMapSceneController(
+        onViewportSettled: onViewportSettled,
+        onVenueTapped: onVenueTapped,
+        onBlankTapped: onBlankTapped,
+      ),
+    };
   }
 
   /// 相机停下后再等这么久才回调。一次飞行会连着抛好几个 idle，
@@ -287,4 +302,48 @@ abstract class MapSceneController {
     lastFrame = null;
     frameSignature = null;
   }
+}
+
+/// A non-mobile platform reports an explicit unsupported state.
+class UnsupportedMapSceneController extends MapSceneController {
+  UnsupportedMapSceneController({
+    required super.onViewportSettled,
+    required super.onVenueTapped,
+    required super.onBlankTapped,
+  });
+
+  @override
+  bool get isAttached => false;
+  @override
+  Future<void> attach(
+    SiponMapHost host, {
+    required String city,
+    MapBaseStyle style = MapBaseStyle.standard,
+    MapLatLng? initialCenter,
+  }) async => throw UnsupportedError('Maps are available on iOS and Android');
+  @override
+  void detach() => detachCommon();
+  @override
+  Future<void> setStyle(MapBaseStyle style) async {}
+  @override
+  Future<MapViewport?> readViewport() async => null;
+  @override
+  Future<void> focusOn({
+    required double longitude,
+    required double latitude,
+  }) async {}
+  @override
+  Future<void> flyToCity(String city, {required double zoom}) async {}
+  @override
+  Future<bool> planRoute({required List<MapLatLng> points}) async => false;
+  @override
+  void clearRoute() {}
+  @override
+  void handleNativeEvent(String method, Object? arguments) {}
+  @override
+  Future<void> performRender(MapSceneFrame frame) async {}
+  @override
+  Future<void> easeForPaddingOnly() async {}
+  @override
+  Future<void> performSheetFollow(MapLatLng focus) async {}
 }

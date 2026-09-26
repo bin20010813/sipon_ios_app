@@ -1,4 +1,8 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sipon/shared/localization/language_transform.dart';
@@ -37,6 +41,20 @@ class _Host implements SiponMapHost {
 }
 
 void main() {
+  setUp(() {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform_views, (call) async {
+          if (call.method == 'create') return Completer<Object?>().future;
+          return null;
+        });
+  });
+  tearDown(() {
+    debugDefaultTargetPlatformOverride = null;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform_views, null);
+  });
+
   testWidgets('非默认城市打开酒吧地图，首帧定位目标且全局选城不覆盖目标', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final city = SiponCityController(initialCity: '北京');
@@ -98,5 +116,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(expandButton.hitTestable(), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 9));
+    debugDefaultTargetPlatformOverride = null;
   });
 }

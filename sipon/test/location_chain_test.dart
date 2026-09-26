@@ -68,6 +68,7 @@ void main() {
                     'id': 7,
                     'name': '北京精酿',
                     'barSubtype': 'craft',
+                    'hasImage': true,
                     'longitude': 116.40,
                     'latitude': 39.90,
                   },
