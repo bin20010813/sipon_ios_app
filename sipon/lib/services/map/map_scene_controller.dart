@@ -197,6 +197,13 @@ abstract class MapSceneController {
   /// 把某个坐标居中（附带聚焦缩放/俯仰/朝向）。
   Future<void> focusOn({required double longitude, required double latitude});
 
+  /// 定位按钮专用：以地图实际显示的个人点为视图中心。
+  /// 传入坐标只在原生位置尚未就绪时作为兜底。
+  Future<void> centerOnUser({
+    required double longitude,
+    required double latitude,
+  });
+
   /// Search Apple Maps addresses and places around the current map region.
   Future<List<MapPlaceResult>> searchPlaces(String query);
 

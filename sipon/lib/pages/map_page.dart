@@ -82,6 +82,7 @@ class _MapPageState extends State<MapPage> {
   bool _sheetCameraUpdateScheduled = false;
   MapLatLng? _pendingLocatedCenter;
   int _locationRequest = 0;
+  bool _userCenterPinned = false;
 
   void _logMapMotion(String event, String details) {
     if (!kDebugMode) return;
@@ -146,6 +147,7 @@ class _MapPageState extends State<MapPage> {
         (!oldWidget.active ||
             !identical(widget.requestedVenue, oldWidget.requestedVenue))) {
       _locationRequest++;
+      _userCenterPinned = false;
       _pendingLocatedCenter = null;
       _data.focusVenueFromPage(widget.requestedVenue!);
       _sheet.collapse();
@@ -198,16 +200,18 @@ class _MapPageState extends State<MapPage> {
         widget.requestedVenue == null;
     if (movingToLocation) {
       _pendingLocatedCenter = null;
-      await _scene.focusOn(
-        longitude: locatedCenter.longitude,
-        latitude: locatedCenter.latitude,
-      );
     }
     await _applyStage(
       focusSelection:
           widget.initialVenue != null || widget.requestedVenue != null,
       reason: 'mapReady',
     );
+    if (movingToLocation) {
+      await _scene.centerOnUser(
+        longitude: locatedCenter.longitude,
+        latitude: locatedCenter.latitude,
+      );
+    }
 
     // 原「styleLoaded 回调」的职责（重下发帧 + 按当前视野补一次取数）已并入
     // 控制器；页面只需要在 attach 完成后把首帧交给它，并补齐首次取数。
@@ -250,6 +254,7 @@ class _MapPageState extends State<MapPage> {
     if (!mounted || !_scene.isAttached) return;
     _logMapMotion('SHEET_STAGE', 'from=${_lastLoggedStage?.name ?? "initial"}');
     _lastLoggedStage = _sheet.stage;
+    if (_userCenterPinned) return;
     unawaited(_applyStage(reason: 'sheetStage'));
   }
 
@@ -272,12 +277,17 @@ class _MapPageState extends State<MapPage> {
   /// DraggableScrollableSheet 可能在一帧里连续发多次通知。这里合并到帧末，
   /// 既让相机逐帧跟住面板，又避免平台通道堆积重复的中间值。
   void _scheduleSheetCameraFollow() {
-    if (_sheetCameraUpdateScheduled || !mounted || !_scene.isAttached) return;
+    if (_sheetCameraUpdateScheduled ||
+        !mounted ||
+        !_scene.isAttached ||
+        _userCenterPinned) {
+      return;
+    }
     _sheetCameraUpdateScheduled = true;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _sheetCameraUpdateScheduled = false;
-      if (!mounted || !_scene.isAttached) return;
+      if (!mounted || !_scene.isAttached || _userCenterPinned) return;
 
       final venue = _data.selectedVenue;
       if (venue == null) return;
@@ -340,7 +350,7 @@ class _MapPageState extends State<MapPage> {
       ornamentBottomMargin: _sheet.ornamentBottomMargin(
         _collapsedOrnamentMargin + widget.bottomOverlayInset,
       ),
-      focus: focusSelection && venue != null
+      focus: focusSelection && !_userCenterPinned && venue != null
           ? MapLatLng(longitude: venue.longitude, latitude: venue.latitude)
           : null,
     );
@@ -352,6 +362,7 @@ class _MapPageState extends State<MapPage> {
       widget.onMapTapped!();
       return;
     }
+    _userCenterPinned = false;
     if (_data.isSelected(venueId)) {
       // 已经选中的点再点一次 = 打开详情。
       _sheet.expand();
@@ -371,6 +382,7 @@ class _MapPageState extends State<MapPage> {
       return;
     }
 
+    _userCenterPinned = false;
     _data.setCity(city);
     unawaited(_scene.flyToCity(city, zoom: MapSceneController.cityZoom));
   }
@@ -384,6 +396,7 @@ class _MapPageState extends State<MapPage> {
     if (!mounted || !widget.active || request != _locationRequest) return;
     final position = result.position;
     if (position == null) return;
+    _userCenterPinned = true;
     if (result.city != null && result.city!.name != _data.city) {
       _data.setCity(result.city!.name);
     }
@@ -395,7 +408,7 @@ class _MapPageState extends State<MapPage> {
       _pendingLocatedCenter = center;
       return;
     }
-    await _scene.focusOn(
+    await _scene.centerOnUser(
       longitude: center.longitude,
       latitude: center.latitude,
     );
@@ -422,6 +435,7 @@ class _MapPageState extends State<MapPage> {
   /// 不合并的话详情卡片会空窗），再把搜索词对齐成酒吧名，让顶部输入框
   /// 通过 initialValue 联动回显；相机聚焦由 [_applyStage] 按选中点完成。
   void _handleSearchVenueSelected(MapVenue venue) {
+    _userCenterPinned = false;
     _data.adoptSearchedVenue(venue);
     _data.setSearchQuery(venue.name);
     unawaited(_applyStage());
@@ -437,6 +451,7 @@ class _MapPageState extends State<MapPage> {
     _data.applyPoiFilter(filter);
     if (_data.selectedVenue != null &&
         _data.selectedVenue?.id != previousSelection) {
+      _userCenterPinned = false;
       unawaited(_applyStage(reason: 'poiFilter'));
     }
   }
@@ -493,6 +508,7 @@ class _MapPageState extends State<MapPage> {
               SiponMapWidget(
                 key: const ValueKey('sipon_map_widget'),
                 initialStyleId: _data.style.id,
+                showsUserHeading: true,
                 compassTopInset:
                     MediaQuery.paddingOf(context).top +
                     (widget.showMapControls ? 130 : 12),
@@ -541,7 +557,7 @@ class _MapPageState extends State<MapPage> {
                       poiFilter: _data.poiFilter,
                       status: _data.status,
                       searchQuery: _data.searchQuery,
-                      suggestions: _data.visibleVenues,
+                      suggestions: _data.searchSuggestions,
                       onCategoryToggled: _data.toggleCategory,
                       onFilterPressed: _showPoiFilters,
                       onSearchChanged: _data.setSearchQuery,
@@ -683,7 +699,10 @@ class _MapPageState extends State<MapPage> {
                         MediaQuery.paddingOf(context).bottom,
                         _sheet.progressFor(extent),
                       ),
-                      onExpand: _sheet.expand,
+                      onExpand: () {
+                        _userCenterPinned = false;
+                        _sheet.expand();
+                      },
                       showDragHandle: widget.showSheetDragHandle,
                       onCollapse: widget.onVenueClose ?? _sheet.collapse,
                     );

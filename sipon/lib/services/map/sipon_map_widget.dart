@@ -55,6 +55,7 @@ class SiponMapWidget extends StatefulWidget {
     required this.initialStyleId,
     required this.onHostReady,
     this.compassTopInset,
+    this.showsUserHeading = false,
   });
 
   /// 初始底图档位（`MapBaseStyle.id`）。Kit 版等 attach 后由 setup 下发；
@@ -63,6 +64,9 @@ class SiponMapWidget extends StatefulWidget {
 
   /// 原生指北针距地图顶部的距离；null 表示不显示（用于小地图）。
   final double? compassTopInset;
+
+  /// 主地图显示带朝向的个人位置点；小地图沿用 MapKit 系统位置点。
+  final bool showsUserHeading;
 
   /// 平台视图就绪时回调一次，附上引擎宿主。页面在回调里执行 attach。
   final void Function(SiponMapHost host) onHostReady;
@@ -93,7 +97,10 @@ class _SiponMapWidgetState extends State<SiponMapWidget> {
   Widget build(BuildContext context) {
     final map = UiKitView(
       viewType: kSiponMapViewType,
-      creationParams: {'compassTopInset': widget.compassTopInset},
+      creationParams: {
+        'compassTopInset': widget.compassTopInset,
+        'showsUserHeading': widget.showsUserHeading,
+      },
       creationParamsCodec: const StandardMessageCodec(),
       // opaque：空白像素区域也算命中平台视图。它只管「命中」，不管手势归属；
       // 手势竞争由下面的 Eager 识别器解决——没有它，平台视图在竞技场里从不

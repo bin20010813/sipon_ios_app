@@ -111,7 +111,7 @@ class _CheckInPageState extends State<CheckInPage> {
     final anchorChanged = _loadedAnchor != anchor;
     setState(() => _loadedAnchor = anchor);
     if (_scene.isAttached && anchorChanged) {
-      await _scene.focusOn(
+      await _scene.centerOnUser(
         longitude: anchor.longitude,
         latitude: anchor.latitude,
       );
@@ -157,10 +157,10 @@ class _CheckInPageState extends State<CheckInPage> {
       ),
     );
     if (!mounted) return;
-    // 地图准备期间若重新获取了定位，使用最新设备坐标。
+    // 地图准备后以实际显示的个人点居中；MapKit 定位未就绪时使用设备坐标。
     final anchor = _loadedAnchor;
-    if (anchor != null && anchor != initialAnchor) {
-      await _scene.focusOn(
+    if (anchor != null) {
+      await _scene.centerOnUser(
         longitude: anchor.longitude,
         latitude: anchor.latitude,
       );

@@ -19,11 +19,13 @@ final class SiponMapFactory: NSObject, FlutterPlatformViewFactory {
   ) -> FlutterPlatformView {
     let params = arguments as? [String: Any]
     let compassTopInset = (params?["compassTopInset"] as? NSNumber)?.doubleValue
+    let showsUserHeading = (params?["showsUserHeading"] as? Bool) ?? false
     return SiponMapView(
       frame: frame,
       viewId: viewId,
       messenger: messenger,
-      compassTopInset: compassTopInset
+      compassTopInset: compassTopInset,
+      showsUserHeading: showsUserHeading
     )
   }
 

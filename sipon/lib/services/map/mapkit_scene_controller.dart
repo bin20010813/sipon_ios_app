@@ -283,6 +283,24 @@ class MapkitSceneController extends MapSceneController {
   }
 
   @override
+  Future<void> centerOnUser({
+    required double longitude,
+    required double latitude,
+  }) {
+    return _invokeIfReady(
+      SiponMapCommands.centerOnUser,
+      encodeCameraMove(
+        longitude: longitude,
+        latitude: latitude,
+        zoom: MapSceneController.focusZoom,
+        pitch: MapSceneController.focusPitch,
+        bearing: MapSceneController.focusBearing,
+        bottomPadding: 0,
+      ),
+    );
+  }
+
+  @override
   Future<List<MapPlaceResult>> searchPlaces(String query) async {
     final host = _host;
     if (host == null || !_ready || query.trim().isEmpty) return const [];

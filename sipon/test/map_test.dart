@@ -371,6 +371,38 @@ void main() {
       expect(controller.visibleVenues, hasLength(2));
     });
 
+    test('字母搜索只显示名称前缀命中，并按名称排序候选', () async {
+      final controller = MapDataController(
+        repository: _StubRepository([
+          _venue('ONCE Bistro'),
+          _venue('Companion Wine'),
+          _venue('Phoenix Bar'),
+          _venue('Night Bar', longitude: 121.4712, latitude: 31.2227),
+          _venue('Nectar', longitude: 121.50, latitude: 31.2227),
+          _venue('霓虹酒吧'),
+        ]),
+        city: '上海',
+      );
+      addTearDown(controller.dispose);
+      await controller.syncViewport(_shanghaiViewport);
+
+      controller.setSearchQuery('N');
+      expect(controller.visibleVenues.map((venue) => venue.name), [
+        'Night Bar',
+        'Nectar',
+      ]);
+      expect(controller.searchSuggestions.map((venue) => venue.name), [
+        'Nectar',
+        'Night Bar',
+      ]);
+
+      controller.setSearchQuery('ni');
+      expect(controller.searchSuggestions.single.name, 'Night Bar');
+
+      controller.setSearchQuery('虹');
+      expect(controller.searchSuggestions.single.name, '霓虹酒吧');
+    });
+
     test('点击搜索候选并入数据集并选中，视野外的候选也一样', () async {
       final controller = MapDataController(
         repository: _StubRepository([_venue('pub-1')]),
@@ -443,7 +475,7 @@ void main() {
       expect(repository.callCount, 2);
     });
 
-    test('选中的酒吧还在就留着，消失了退回最近的一家', () async {
+    test('手动点选的 POI 滑出视野后信息板不切换，再点其他 POI 才切换', () async {
       final repository = _StubRepository([_venue('a'), _venue('b')]);
       final controller = MapDataController(repository: repository, city: '上海');
       addTearDown(controller.dispose);
@@ -456,7 +488,26 @@ void main() {
       expect(controller.selectedVenue?.id, 'b');
       repository.venues = [_venue('c'), _venue('d')];
       await controller.syncViewport(_shifted(0.12));
+      expect(controller.visibleVenues.map((venue) => venue.id), ['c', 'd']);
+      expect(controller.selectedVenue?.id, 'b');
+      expect(controller.selectedPoint?.venueId, 'b');
+
+      controller.selectVenue('c');
       expect(controller.selectedVenue?.id, 'c');
+    });
+
+    test('点击当前自动选中的 POI 也会锁定信息板', () async {
+      final repository = _StubRepository([_venue('a')]);
+      final controller = MapDataController(repository: repository, city: '上海');
+      addTearDown(controller.dispose);
+
+      await controller.syncViewport(_shanghaiViewport);
+      expect(controller.selectedVenue?.id, 'a');
+      controller.selectVenue('a');
+
+      repository.venues = [_venue('c')];
+      await controller.syncViewport(_shifted(0.06));
+      expect(controller.selectedVenue?.id, 'a');
     });
 
     test('A 已加载，B 请求未完成时回到 A，B 返回不覆盖 A', () async {

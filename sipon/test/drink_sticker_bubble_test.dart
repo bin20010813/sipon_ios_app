@@ -4,7 +4,7 @@ import 'package:sipon/services/drink_budget_store.dart';
 import 'package:sipon/widgets/drink_sticker.dart';
 
 void main() {
-  testWidgets('sticker floats until its bubble is tapped, then falls', (
+  testWidgets('first tap only pops the bubble; a later tap opens detail', (
     tester,
   ) async {
     final record = DrinkBudgetRecord(
@@ -41,6 +41,7 @@ void main() {
     expect(tester.getTopLeft(sticker).dy, closeTo(initialTop, 5));
 
     await tester.tapAt(tester.getCenter(sticker));
+    expect(detailOpens, 0);
     await tester.pump();
     for (var frame = 0; frame < 40; frame++) {
       await tester.pump(const Duration(milliseconds: 16));
@@ -49,6 +50,9 @@ void main() {
     expect(detailOpens, 0);
 
     await tester.pump(const Duration(milliseconds: 250));
+    expect(detailOpens, 0);
+
+    await tester.tapAt(tester.getCenter(sticker));
     expect(detailOpens, 1);
   });
 }

@@ -60,14 +60,11 @@ void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(
-          SystemChannels.platform_views,
-          (call) async {
-            // 测试手动注入地图宿主，不创建真正的 iOS 平台视图。
-            if (call.method == 'create') return Completer<Object?>().future;
-            return null;
-          },
-        );
+        .setMockMethodCallHandler(SystemChannels.platform_views, (call) async {
+          // 测试手动注入地图宿主，不创建真正的 iOS 平台视图。
+          if (call.method == 'create') return Completer<Object?>().future;
+          return null;
+        });
   });
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -135,6 +132,8 @@ void main() {
     });
     expect(host.calls[SiponMapCommands.setup]!['lng'], 113.8);
     expect(host.calls[SiponMapCommands.setup]!['lat'], 34.8);
+    expect(host.calls[SiponMapCommands.centerOnUser]!['lng'], 113.8);
+    expect(host.calls[SiponMapCommands.centerOnUser]!['lat'], 34.8);
     await city.selectCity('北京');
     await tester.pump();
     expect(requests, hasLength(1));

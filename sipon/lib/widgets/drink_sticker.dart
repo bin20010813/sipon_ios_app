@@ -306,7 +306,6 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
   late final Ticker _ticker;
 
   StreamSubscription<dynamic>? _subscription;
-  Timer? _detailTimer;
   Offset _filtered = Offset.zero;
   Duration? _last;
   double _floatTime = 0;
@@ -338,7 +337,6 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
       _bounds = Size.zero;
       _bursts.clear();
       _floatTime = 0;
-      _detailTimer?.cancel();
       if (widget.records.isEmpty) {
         _ticker.stop();
         _last = null;
@@ -367,7 +365,6 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
     WidgetsBinding.instance.removeObserver(this);
     _subscription?.cancel();
     _subscription = null;
-    _detailTimer?.cancel();
     _ticker
       ..stop()
       ..dispose();
@@ -520,7 +517,6 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
     final body = _physics.bodies[index];
     final record = _records[index];
     if (!body.floating) {
-      _detailTimer?.cancel();
       widget.onStickerTap?.call(record);
       return;
     }
@@ -533,17 +529,6 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
     _bursts[index] = 0;
     _wake();
     setState(() {});
-
-    if (widget.onStickerTap != null) {
-      _detailTimer?.cancel();
-      _detailTimer = Timer(const Duration(milliseconds: 850), () {
-        if (mounted &&
-            index < _records.length &&
-            _records[index].id == record.id) {
-          widget.onStickerTap?.call(record);
-        }
-      });
-    }
   }
 
   @override
