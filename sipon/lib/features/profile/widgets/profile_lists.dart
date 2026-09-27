@@ -86,6 +86,7 @@ Future<void> showProfileList(
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
+    useRootNavigator: true,
     backgroundColor: Colors.transparent,
     builder: (_) => _ProfileListSheet(
       title: title,
@@ -814,6 +815,7 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final siponColors = context.siponColors;
+    final bottomSafeInset = MediaQuery.viewPaddingOf(context).bottom;
     // 固定弹窗高度：让加载/空态/列表态高度一致，避免数据返回时 bottom sheet
     // 因内容高度变化而重新调整自身尺寸，出现“抖动/跳动”。
     final sheetHeight = math.min(
@@ -829,9 +831,12 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: SafeArea(
+          // 让弹窗背景和列表滚动视口延伸到系统导航区域，避免底部出现
+          // 不参与滚动的白边；Home Indicator 的空间由列表末尾 padding 预留。
           top: false,
+          bottom: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -878,7 +883,7 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
                       ),
                     ),
                   ),
-                Flexible(child: _buildBody()),
+                Flexible(child: _buildBody(bottomSafeInset: bottomSafeInset)),
               ],
             ),
           ),
@@ -887,7 +892,7 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody({required double bottomSafeInset}) {
     final scheme = Theme.of(context).colorScheme;
     if (_loading) {
       return Padding(
@@ -951,6 +956,7 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
     return ListView.separated(
       controller: _scrollController,
       shrinkWrap: true,
+      padding: EdgeInsets.only(bottom: 16 + bottomSafeInset),
       itemCount:
           _items.length + (!_selecting && (_hasMore || _loadingMore) ? 1 : 0),
       separatorBuilder: (_, _) => const SizedBox(height: 12),
