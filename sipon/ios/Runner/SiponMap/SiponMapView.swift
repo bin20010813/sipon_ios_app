@@ -1,6 +1,111 @@
 import Flutter
 import MapKit
 import UIKit
+import CoreMotion
+
+/// 位置中心固定，扇形按设备朝向减去地图方位角旋转。
+final class SiponUserLocationView: MKAnnotationView {
+  weak var mapView: MKMapView?
+  private let motion = CMMotionManager()
+  private var heading: Double?
+
+  override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
+    super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+    bounds = CGRect(x: 0, y: 0, width: 104, height: 104)
+    backgroundColor = .clear
+    isOpaque = false
+    isEnabled = false
+    displayPriority = .required
+    NotificationCenter.default.addObserver(self, selector: #selector(stopMotion),
+      name: UIApplication.didEnterBackgroundNotification, object: nil)
+    NotificationCenter.default.addObserver(self, selector: #selector(startMotion),
+      name: UIApplication.didBecomeActiveNotification, object: nil)
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  deinit {
+    motion.stopDeviceMotionUpdates()
+    NotificationCenter.default.removeObserver(self)
+  }
+
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    if window == nil { stopMotion() } else { startMotion() }
+  }
+
+  override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    super.traitCollectionDidChange(previousTraitCollection)
+    setNeedsDisplay()
+  }
+
+  @objc private func stopMotion() {
+    motion.stopDeviceMotionUpdates()
+    heading = nil
+    setNeedsDisplay()
+  }
+
+  @objc private func startMotion() {
+    guard window != nil, UIApplication.shared.applicationState == .active,
+      motion.isDeviceMotionAvailable, !motion.isDeviceMotionActive else { return }
+    let frames = CMMotionManager.availableAttitudeReferenceFrames()
+    let reference: CMAttitudeReferenceFrame = frames.contains(.xTrueNorthZVertical)
+      ? .xTrueNorthZVertical : .xMagneticNorthZVertical
+    guard frames.contains(reference) else { return }
+    motion.deviceMotionUpdateInterval = 1.0 / 30.0
+    motion.startDeviceMotionUpdates(using: reference, to: .main) { [weak self] data, error in
+      guard let self = self else { return }
+      guard error == nil, let data = data, data.heading.isFinite, data.heading >= 0 else {
+        self.heading = nil
+        self.setNeedsDisplay()
+        return
+      }
+      let orientation = self.window?.windowScene?.interfaceOrientation
+      let offset: Double
+      switch orientation {
+      case .landscapeLeft: offset = 90
+      case .landscapeRight: offset = -90
+      case .portraitUpsideDown: offset = 180
+      default: offset = 0
+      }
+      let angle = (data.heading + offset + 360).truncatingRemainder(dividingBy: 360)
+      if let previous = self.heading {
+        let delta = (angle - previous + 540).truncatingRemainder(dividingBy: 360) - 180
+        self.heading = (previous + delta * 0.25 + 360).truncatingRemainder(dividingBy: 360)
+      } else { self.heading = angle }
+      self.setNeedsDisplay()
+    }
+  }
+
+  override func draw(_ rect: CGRect) {
+    guard let context = UIGraphicsGetCurrentContext() else { return }
+    let color = traitCollection.userInterfaceStyle == .dark
+      ? UIColor(red: 232/255, green: 160/255, blue: 204/255, alpha: 1)
+      : UIColor(red: 154/255, green: 61/255, blue: 120/255, alpha: 1)
+    let center = CGPoint(x: bounds.midX, y: bounds.midY)
+    if let heading = heading {
+      context.saveGState()
+      context.translateBy(x: center.x, y: center.y)
+      context.rotate(by: CGFloat((heading - (mapView?.camera.heading ?? 0)) * .pi / 180))
+      context.move(to: .zero)
+      context.addArc(center: .zero, radius: 48, startAngle: -.pi / 2 - .pi / 5,
+        endAngle: -.pi / 2 + .pi / 5, clockwise: false)
+      context.closePath()
+      context.clip()
+      if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+        colors: [color.withAlphaComponent(0.55).cgColor, color.withAlphaComponent(0).cgColor] as CFArray,
+        locations: [0, 1]) {
+        context.drawRadialGradient(gradient, startCenter: .zero, startRadius: 5,
+          endCenter: .zero, endRadius: 48, options: [])
+      }
+      context.restoreGState()
+    }
+    context.setFillColor(UIColor.white.cgColor)
+    context.fillEllipse(in: CGRect(x: center.x - 9, y: center.y - 9, width: 18, height: 18))
+    context.setFillColor(color.cgColor)
+    context.fillEllipse(in: CGRect(x: center.x - 6, y: center.y - 6, width: 12, height: 12))
+  }
+}
 
 // =============================================================================
 // SiponMapView —— PlatformView 薄壳。
@@ -472,10 +577,7 @@ final class SiponMapEngine: NSObject {
     // MapKit 没有 logo / attribution，整段装饰物边距逻辑天然消失。
     mapView.showsCompass = false
     mapView.showsScale = false
-    // Let MapKit render the system user-location indicator (blue dot). The
-    // Flutter side still obtains the coordinate through geolocator so it can
-    // position the initial camera and load nearby venues; this flag keeps the
-    // user's position visible on the map after the initial camera move.
+    // 坐标由 MapKit 更新，圆点和朝向由自定义 annotation 绘制。
     mapView.showsUserLocation = true
     mapView.isRotateEnabled = true
     mapView.isPitchEnabled = false
@@ -892,6 +994,7 @@ final class SiponMapEngine: NSObject {
 
   private func resetPools() {
     alive = false
+    mapView.showsUserLocation = false
     mapView.removeGestureRecognizer(proxy.blankTapRecognizer)
     mapView.delegate = nil
     cancelRoutePlanning()
@@ -978,6 +1081,14 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
 
   func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
     switch annotation {
+    case is MKUserLocation:
+      let identifier = "sipon.userLocation"
+      let view = (mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
+        as? SiponUserLocationView)
+        ?? SiponUserLocationView(annotation: annotation, reuseIdentifier: identifier)
+      view.annotation = annotation
+      view.mapView = mapView
+      return view
     case let circle as CirclePointAnnotation:
       let identifier = "sipon.venueIcon.\(circle.category)"
       let view = (mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
@@ -1050,6 +1161,10 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
 
   func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
     engine.traceRegion("REGION_BEGIN", animated: animated)
+  }
+
+  func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {
+    (mapView.view(for: mapView.userLocation) as? SiponUserLocationView)?.setNeedsDisplay()
   }
 
   func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {

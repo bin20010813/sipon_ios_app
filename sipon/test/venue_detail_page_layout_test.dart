@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sipon/shared/localization/language_transform.dart';
 import 'package:sipon/features/map/models/map_models.dart';
 import 'package:sipon/features/map/pages/venue_detail_page.dart';
 import 'package:sipon/features/map/pages/venue_fullscreen_map_page.dart';
+import 'package:sipon/features/map/widgets/sipon_map_widget.dart';
 
 void main() {
   testWidgets('详情页初始布局:内容应铺满全屏宽度', (tester) async {
@@ -35,6 +37,7 @@ void main() {
   });
 
   testWidgets('详情页半屏地图可放大并返回', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
     const venue = MapVenue(
       id: 'map-preview',
       name: '测试酒吧',
@@ -61,6 +64,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 450));
     await tester.pump(const Duration(milliseconds: 450));
+    expect(find.byType(SiponMapWidget), findsOneWidget);
+    expect(find.text('地图暂只支持 iOS 设备'), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('expand-venue-map')));
     await tester.pumpAndSettle();
@@ -70,9 +75,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(VenueFullscreenMapPage), findsNothing);
     expect(find.byKey(const ValueKey('expand-venue-map')), findsOneWidget);
-
-    await tester.tapAt(const Offset(400, 100));
-    await tester.pumpAndSettle();
-    expect(find.byType(VenueFullscreenMapPage), findsOneWidget);
+    expect(find.byType(SiponMapWidget), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 9));
+    debugDefaultTargetPlatformOverride = null;
   });
 }

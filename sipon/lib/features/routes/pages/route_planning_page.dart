@@ -41,6 +41,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
   /// 站点编辑区的滚动控制器；供 Scrollbar 滑块联动。
   final ScrollController _routeListController = ScrollController();
   late final MapSceneController _scene;
+  int _previewRevision = 0;
 
   @override
   void initState() {
@@ -143,7 +144,12 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
 
   Future<void> _renderMap() async {
     if (!_scene.isAttached) return;
+    final revision = ++_previewRevision;
     final places = [_start, ..._stops, _end].whereType<_BarPlace>().toList();
+    final points = [
+      for (final place in places)
+        MapLatLng(longitude: place.longitude, latitude: place.latitude),
+    ];
     await _scene.render(
       MapSceneFrame(
         circlePoints: const [],
@@ -161,6 +167,9 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
         ],
       ),
     );
+    if (mounted && revision == _previewRevision && !_planned) {
+      await _scene.fitRouteStops(points);
+    }
   }
 
   void _select(_RouteStopType type, _BarPlace selected, {int? stopIndex}) {
@@ -283,7 +292,9 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
       if (!mounted || revision != _routeRevision) return;
 
       setState(() => _planned = ok);
-      _showMessage(ok ? '路线已规划，可以保存为我的路线了' : '有路段无法规划导航路线，请检查站点或稍后重试');
+      _showMessage(ok
+          ? '路线已规划，可以保存为我的路线了'
+          : _scene.routeErrorMessage ?? '路线规划失败，请检查站点或稍后重试');
       if (ok) {
         // 折线绘制后再重画一次点位，保证编号 marker 落在折线上层。
         unawaited(_renderMap());

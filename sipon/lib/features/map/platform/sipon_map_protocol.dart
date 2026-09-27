@@ -41,6 +41,8 @@ abstract final class SiponMapCommands {
   static const String renderFrame = 'renderFrame';
   static const String registerAssets = 'registerAssets';
   static const String drawRoute = 'drawRoute';
+  static const String planRoadRoute = 'planRoadRoute';
+  static const String fitRouteStops = 'fitRouteStops';
   static const String setRouteGeometry = 'setRouteGeometry';
   static const String clearRoute = 'clearRoute';
   static const String dispose = 'dispose';
@@ -89,7 +91,7 @@ Map<String, Object?> encodeRoutePoints(List<MapLatLng> points) => {
   ],
 };
 
-/// Android receives already planned WGS-84 road geometry, one leg per pair.
+/// Android receives road geometry as one or more continuous lines.
 Map<String, Object?> encodeRouteGeometry(
   List<List<MapLatLng>> legs, {
   required int revision,

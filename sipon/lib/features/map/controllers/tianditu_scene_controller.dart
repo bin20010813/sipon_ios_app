@@ -20,10 +20,10 @@ class TiandituSceneController extends MapSceneController {
     AssetBundle? assetBundle,
     RoutePlanner? routePlanner,
   }) : _assetBundle = assetBundle ?? rootBundle,
-       _routePlanner = routePlanner ?? RoutePlanner();
+       _routePlanner = routePlanner;
 
   final AssetBundle _assetBundle;
-  final RoutePlanner _routePlanner;
+  final RoutePlanner? _routePlanner;
   SiponMapHost? _host;
   Completer<void>? _readyCompleter;
   Timer? _settleTimer;
@@ -36,6 +36,8 @@ class TiandituSceneController extends MapSceneController {
   MapBaseStyle _style = MapBaseStyle.standard;
   List<List<MapLatLng>>? _routeLegs;
   String? lastMapError;
+  @override
+  String? routeErrorMessage;
 
   @override
   bool get isAttached => _ready && _host != null;
@@ -275,15 +277,46 @@ class TiandituSceneController extends MapSceneController {
   }
 
   @override
+  Future<void> fitRouteStops(List<MapLatLng> points) => _invokeIfReady(
+    SiponMapCommands.fitRouteStops,
+    encodeRoutePoints(points),
+  );
+
+  @override
   Future<bool> planRoute({required List<MapLatLng> points}) async {
     final host = _host;
-    if (host == null || !_ready || points.length < 2) return false;
+    routeErrorMessage = null;
+    if (host == null || !_ready) {
+      routeErrorMessage = '地图尚未准备好，请稍后重试';
+      return false;
+    }
+    if (points.length < 2) {
+      routeErrorMessage = '请至少选择两个地点';
+      return false;
+    }
     final revision = ++_routeRevision;
     try {
-      final legs = await _routePlanner.plan(
-        points: points,
-        requestId: 'android-$revision-${DateTime.now().microsecondsSinceEpoch}',
-      );
+      final planner = _routePlanner;
+      final List<RouteLeg> legs;
+      if (planner != null) {
+        legs = await planner.plan(
+          points: points,
+          requestId:
+              'android-$revision-${DateTime.now().microsecondsSinceEpoch}',
+        );
+      } else {
+        final response = await host.invoke(
+          SiponMapCommands.planRoadRoute,
+          encodeRoutePoints(points),
+        );
+        if (response is! Map || response['crs'] != 'CGCS2000') {
+          throw const FormatException('Unexpected Tianditu route coordinates');
+        }
+        legs = RoutePlanner.parseLegs(
+          response['legs'],
+          expectedLegs: 1,
+        );
+      }
       if (!_isRouteCurrent(host, revision)) return false;
       final geometry = [for (final leg in legs) leg.coordinates];
       final result = await host.invoke(
@@ -292,6 +325,7 @@ class TiandituSceneController extends MapSceneController {
       );
       if (!_isRouteCurrent(host, revision)) return false;
       if (result != true) {
+        routeErrorMessage = '地图绘制路线失败，请重试';
         clearRoute();
         return false;
       }
@@ -299,9 +333,39 @@ class TiandituSceneController extends MapSceneController {
       return true;
     } catch (error) {
       debugPrint('SiponMap: Android road route failed: $error');
-      if (_isRouteCurrent(host, revision)) clearRoute();
+      if (_isRouteCurrent(host, revision)) {
+        routeErrorMessage = _describeRouteError(error);
+        clearRoute();
+      }
       return false;
     }
+  }
+
+  String _describeRouteError(Object error) {
+    final message = error is PlatformException ? error.message ?? '' : '$error';
+    if (message.contains('TDT_ROUTE_KEY is missing')) {
+      return '未配置天地图 Key（TDT_KEY 或 TDT_ROUTE_KEY）';
+    }
+    if (message.contains('301012')) {
+      return '天地图 Key 权限类型错误，请配置可调用路线服务的 Key';
+    }
+    if (message.contains('301018')) {
+      return '天地图路线接口不支持当前 Key 类型（301018），请在天地图控制台核对驾车规划 Web 服务的 Key 类型';
+    }
+    if (message.contains('301020')) {
+      return '天地图路线服务安全密钥错误，请检查 TDT_SK 或 TDT_ROUTE_SK';
+    }
+    if (message.contains('301001') || message.contains('HTTP 401') ||
+        message.contains('HTTP 403')) {
+      return '天地图路线服务鉴权失败，请检查路线 Key 和服务权限';
+    }
+    if (message.contains('timeout') || message.contains('timed out')) {
+      return '天地图路线请求超时，请稍后重试';
+    }
+    if (error is FormatException || message.contains('Invalid driving')) {
+      return '天地图路线数据格式异常，请稍后重试';
+    }
+    return '天地图路线请求失败，请检查网络或稍后重试';
   }
 
   bool _isRouteCurrent(SiponMapHost host, int revision) =>

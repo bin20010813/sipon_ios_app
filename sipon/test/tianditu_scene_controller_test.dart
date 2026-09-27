@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:sipon/features/map/controllers/tianditu_scene_controller.dart';
 import 'package:sipon/features/map/data/route_planner.dart';
 import 'package:sipon/features/map/models/map_display_options.dart';
@@ -13,6 +14,18 @@ class _Host implements SiponMapHost {
   final calls = <String>[];
   final arguments = <String, Map<String, Object?>>{};
   Object? routeResult = true;
+  Object? plannedRoute = {
+    'crs': 'CGCS2000',
+    'legs': [
+      {
+        'coordinates': [
+          [121.1, 31.1],
+          [121.15, 31.15],
+          [121.2, 31.2],
+        ],
+      },
+    ],
+  };
 
   @override
   void onNativeCall(void Function(String, Object?) handler) {
@@ -30,6 +43,10 @@ class _Host implements SiponMapHost {
       scheduleMicrotask(() => handler?.call(SiponMapEvents.onMapReady, null));
     }
     if (method == SiponMapCommands.setRouteGeometry) return routeResult;
+    if (method == SiponMapCommands.planRoadRoute) {
+      if (plannedRoute is PlatformException) throw plannedRoute!;
+      return plannedRoute;
+    }
     return null;
   }
 }
@@ -98,6 +115,110 @@ void main() {
       expect(host.calls, contains(SiponMapCommands.clearRoute));
     },
   );
+
+  test('default Android route uses Tianditu driving service', () async {
+    final host = _Host();
+    const viaPoints = [
+      MapLatLng(longitude: 121.1, latitude: 31.1),
+      MapLatLng(longitude: 121.15, latitude: 31.15),
+      MapLatLng(longitude: 121.18, latitude: 31.18),
+      MapLatLng(longitude: 121.2, latitude: 31.2),
+    ];
+    host.plannedRoute = {
+      'crs': 'CGCS2000',
+      'legs': [
+        {
+          'coordinates': [
+            [121.1, 31.1],
+            [121.15, 31.15],
+            [121.18, 31.18],
+            [121.2, 31.2],
+          ],
+        },
+      ],
+    };
+    final controller = TiandituSceneController(
+      onViewportSettled: (_) {},
+      onVenueTapped: (_) {},
+      onBlankTapped: () {},
+    );
+    addTearDown(controller.detach);
+    await controller.attach(host, city: '上海');
+
+    expect(await controller.planRoute(points: viaPoints), isTrue);
+    expect(host.arguments[SiponMapCommands.planRoadRoute], {
+      'points': [
+        {'lat': 31.1, 'lng': 121.1},
+        {'lat': 31.15, 'lng': 121.15},
+        {'lat': 31.18, 'lng': 121.18},
+        {'lat': 31.2, 'lng': 121.2},
+      ],
+    });
+    expect(host.calls, contains(SiponMapCommands.setRouteGeometry));
+    expect(
+      (host.arguments[SiponMapCommands.setRouteGeometry]!['legs'] as List),
+      hasLength(1),
+    );
+
+    host.plannedRoute = {'crs': 'CGCS2000', 'legs': []};
+    expect(await controller.planRoute(points: viaPoints), isFalse);
+    expect(host.calls, contains(SiponMapCommands.clearRoute));
+  });
+
+  test('route preview fits every selected stop in order', () async {
+    final host = _Host();
+    final controller = TiandituSceneController(
+      onViewportSettled: (_) {},
+      onVenueTapped: (_) {},
+      onBlankTapped: () {},
+    );
+    addTearDown(controller.detach);
+    await controller.attach(host, city: '上海');
+
+    await controller.fitRouteStops([
+      ...points,
+      const MapLatLng(longitude: 121.3, latitude: 31.3),
+    ]);
+    expect(host.arguments[SiponMapCommands.fitRouteStops], {
+      'points': [
+        {'lat': 31.1, 'lng': 121.1},
+        {'lat': 31.2, 'lng': 121.2},
+        {'lat': 31.3, 'lng': 121.3},
+      ],
+    });
+  });
+
+  test('route key failures are explained instead of reported as bad legs', () async {
+    final host = _Host();
+    final controller = TiandituSceneController(
+      onViewportSettled: (_) {},
+      onVenueTapped: (_) {},
+      onBlankTapped: () {},
+    );
+    addTearDown(controller.detach);
+    await controller.attach(host, city: '上海');
+
+    host.plannedRoute = PlatformException(
+      code: 'route_service',
+      message: 'TDT_ROUTE_KEY is missing',
+    );
+    expect(await controller.planRoute(points: points), isFalse);
+    expect(controller.routeErrorMessage, contains('TDT_ROUTE_KEY'));
+
+    host.plannedRoute = PlatformException(
+      code: 'route_service',
+      message: 'Tianditu driving HTTP 403: 301012: 权限类型错误',
+    );
+    expect(await controller.planRoute(points: points), isFalse);
+    expect(controller.routeErrorMessage, contains('权限类型错误'));
+
+    host.plannedRoute = PlatformException(
+      code: 'route_service',
+      message: 'Tianditu driving HTTP 403: 301018: 不支持的key类型',
+    );
+    expect(await controller.planRoute(points: points), isFalse);
+    expect(controller.routeErrorMessage, contains('301018'));
+  });
 
   test(
     'late native ready after detach cannot reattach a disposed scene',

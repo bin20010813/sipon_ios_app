@@ -13,6 +13,14 @@ val tiandituSecret = providers.gradleProperty("TDT_SK")
     .orElse(providers.environmentVariable("TDT_SK"))
     .orElse("")
     .get()
+val tiandituRouteKey = providers.gradleProperty("TDT_ROUTE_KEY")
+    .orElse(providers.environmentVariable("TDT_ROUTE_KEY"))
+    .orElse(tiandituKey)
+    .get()
+val tiandituRouteSecret = providers.gradleProperty("TDT_ROUTE_SK")
+    .orElse(providers.environmentVariable("TDT_ROUTE_SK"))
+    .orElse(tiandituSecret)
+    .get()
 fun quotedBuildConfig(value: String): String =
     "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
@@ -43,6 +51,8 @@ android {
         versionName = flutter.versionName
         buildConfigField("String", "TDT_KEY", quotedBuildConfig(tiandituKey))
         buildConfigField("String", "TDT_SK", quotedBuildConfig(tiandituSecret))
+        buildConfigField("String", "TDT_ROUTE_KEY", quotedBuildConfig(tiandituRouteKey))
+        buildConfigField("String", "TDT_ROUTE_SK", quotedBuildConfig(tiandituRouteSecret))
     }
 
     buildTypes {

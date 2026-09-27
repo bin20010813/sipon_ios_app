@@ -123,7 +123,7 @@ class SiponCityController extends ChangeNotifier {
   }
 
   /// 供位置选择器进入时自动定位：返回带状态的结果，UI 据此提示手动选择。
-  /// 打卡需要更准确且更耐心地等待实际设备位置；不使用城市中心代替。
+  /// 打卡优先复用近期且精度合格的设备位置；不使用城市中心代替。
   Future<SiponLocateResult> locateCurrentCity({
     SiponLocationPurpose purpose = SiponLocationPurpose.citySuggestion,
   }) async {
@@ -153,11 +153,33 @@ class SiponCityController extends ChangeNotifier {
         );
       }
 
+      Position? recentPosition;
+      if (purpose == SiponLocationPurpose.checkIn) {
+        try {
+          final cached = await Geolocator.getLastKnownPosition().timeout(
+            const Duration(milliseconds: 500),
+          );
+          if (cached != null) {
+            final age = DateTime.now().difference(cached.timestamp);
+            if (!age.isNegative &&
+                age <= const Duration(minutes: 2) &&
+                cached.accuracy.isFinite &&
+                cached.accuracy > 0 &&
+                cached.accuracy <= 100 &&
+                _validCoordinates(cached)) {
+              recentPosition = cached;
+            }
+          }
+        } catch (_) {
+          // 缓存不支持或读取超时时，继续获取实时定位。
+        }
+      }
+
       final accuracy = purpose == SiponLocationPurpose.checkIn
           ? LocationAccuracy.high
           : LocationAccuracy.low;
       final timeLimit = purpose == SiponLocationPurpose.checkIn
-          ? const Duration(seconds: 15)
+          ? const Duration(seconds: 5)
           : const Duration(seconds: 3);
       final settings = defaultTargetPlatform == TargetPlatform.android
           ? AndroidSettings(accuracy: accuracy, timeLimit: timeLimit)
@@ -165,9 +187,9 @@ class SiponCityController extends ChangeNotifier {
 
       Position position;
       try {
-        position = await Geolocator.getCurrentPosition(
-          locationSettings: settings,
-        );
+        position =
+            recentPosition ??
+            await Geolocator.getCurrentPosition(locationSettings: settings);
       } catch (_) {
         if (defaultTargetPlatform != TargetPlatform.android ||
             !await Geolocator.isLocationServiceEnabled() ||
@@ -178,20 +200,13 @@ class SiponCityController extends ChangeNotifier {
         position = await Geolocator.getCurrentPosition(
           locationSettings: AndroidSettings(
             accuracy: accuracy,
-            timeLimit: purpose == SiponLocationPurpose.checkIn
-                ? const Duration(seconds: 8)
-                : const Duration(seconds: 3),
+            timeLimit: const Duration(seconds: 3),
             forceLocationManager: true,
           ),
         );
       }
 
-      if (!position.longitude.isFinite ||
-          !position.latitude.isFinite ||
-          position.longitude < -180 ||
-          position.longitude > 180 ||
-          position.latitude < -90 ||
-          position.latitude > 90) {
+      if (!_validCoordinates(position)) {
         return const SiponLocateResult(status: SiponLocateStatus.failed);
       }
 
@@ -220,6 +235,14 @@ class SiponCityController extends ChangeNotifier {
     return permission == LocationPermission.always ||
         permission == LocationPermission.whileInUse;
   }
+
+  bool _validCoordinates(Position position) =>
+      position.longitude.isFinite &&
+      position.latitude.isFinite &&
+      position.longitude >= -180 &&
+      position.longitude <= 180 &&
+      position.latitude >= -90 &&
+      position.latitude <= 90;
 
   SiponCityEntry? _nearestKnownCity(double latitude, double longitude) {
     SiponCityEntry? nearestCity;

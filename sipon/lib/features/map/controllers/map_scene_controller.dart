@@ -159,6 +159,9 @@ abstract class MapSceneController {
 
   bool get isAttached;
 
+  /// User-facing explanation for the latest route planning failure, if available.
+  String? get routeErrorMessage => null;
+
   Future<void> attach(
     SiponMapHost host, {
     required String city,
@@ -213,7 +216,10 @@ abstract class MapSceneController {
 
   Future<void> flyToCity(String city, {required double zoom});
 
-  /// 按 [points] 顺序规划每对相邻站点的道路路线；全部成功后才绘制。
+  /// Keep selected route stops visible while the route is being edited.
+  Future<void> fitRouteStops(List<MapLatLng> points) async {}
+
+  /// 按 [points] 顺序规划经过所有站点的道路路线；成功后才绘制。
   /// 任一路段失败、点位不足或引擎未就绪时返回 false。
   Future<bool> planRoute({required List<MapLatLng> points});
 

@@ -395,7 +395,9 @@ class _RouteDetailMapPageState extends State<RouteDetailMapPage> {
       final planned = await _scene.planRoute(points: navigationPoints);
       if (!mounted || revision != _routeRenderRevision) return;
       setState(() {
-        _routeError = planned ? null : '有路段无法规划导航路线，请稍后重试';
+        _routeError = planned
+            ? null
+            : _scene.routeErrorMessage ?? '路线规划失败，请稍后重试';
       });
     } else {
       _scene.clearRoute();

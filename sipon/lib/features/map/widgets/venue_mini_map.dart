@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../shared/localization/language_transform.dart';
@@ -111,24 +110,6 @@ class _VenueMiniMapState extends State<VenueMiniMap> {
 
   @override
   Widget build(BuildContext context) {
-    // Darwin 平台视图只在 iOS 存在：其他平台创建 UiKitView 会抛
-    // PlatformException 并把整页拖垮。守卫后显示占位，详情下沉交互
-    // 在 Android 调试时依然可用，地图本体等真机 iOS 验证。
-    if (defaultTargetPlatform != TargetPlatform.iOS) {
-      return GestureDetector(
-        onTap: widget.onMapTapped,
-        child: const ColoredBox(
-          color: Color(0xFFF3F0F2),
-          child: Center(
-            child: Text(
-              '地图暂只支持 iOS 设备',
-              style: TextStyle(color: Color(0xFF8E8790), fontSize: 13),
-            ),
-          ),
-        ),
-      );
-    }
-
     return SiponMapWidget(
       initialStyleId: MapBaseStyle.standard.id,
       onHostReady: _handleHostReady,

@@ -1,7 +1,7 @@
 import '../../../shared/services/sipon_api_client.dart';
 import '../models/map_viewport.dart';
 
-/// A road route returned by Sipon's proxy. All coordinates are WGS-84.
+/// A road leg in the coordinate system declared by its provider.
 class RouteLeg {
   const RouteLeg(this.coordinates);
 
@@ -45,9 +45,16 @@ class RoutePlanner {
     if (response is! Map || response['crs'] != 'WGS84') {
       throw const FormatException('Route proxy did not return WGS-84');
     }
-    final rawLegs = response['legs'];
-    if (rawLegs is! List || rawLegs.length != points.length - 1) {
-      throw const FormatException('Route proxy returned incomplete legs');
+    return parseLegs(response['legs'], expectedLegs: points.length - 1);
+  }
+
+  /// Validates the native Tianditu response before it reaches the map layer.
+  static List<RouteLeg> parseLegs(
+    Object? rawLegs, {
+    required int expectedLegs,
+  }) {
+    if (rawLegs is! List || rawLegs.length != expectedLegs) {
+      throw const FormatException('Route service returned incomplete legs');
     }
 
     return [for (final rawLeg in rawLegs) _parseLeg(rawLeg)];

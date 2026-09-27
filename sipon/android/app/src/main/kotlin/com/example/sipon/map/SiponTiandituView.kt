@@ -7,9 +7,16 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PointF
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
 import android.graphics.RectF
 import android.os.Bundle
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextPaint
+import android.text.TextUtils
 import android.view.View
+import android.widget.FrameLayout
 import com.example.sipon.BuildConfig
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
@@ -37,7 +44,13 @@ import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.android.style.sources.GeoJsonOptions
 import java.net.URLEncoder
+import kotlin.math.ceil
 import kotlin.math.max
+
+private const val TIANDITU_ANNOTATION_MIN_ZOOM = 13
+private const val TIANDITU_ANNOTATION_OPACITY = 0.88f
+private const val TIANDITU_MAX_TILE_ZOOM = 18
+private val POI_THEME_COLOR = Color.rgb(154, 61, 120)
 
 /** One Flutter PlatformView owns one MapView, channel, style and business frame. */
 internal class SiponTiandituView(
@@ -47,6 +60,8 @@ internal class SiponTiandituView(
     private val onDisposed: (SiponTiandituView) -> Unit,
 ) : PlatformView, MethodChannel.MethodCallHandler {
     private val mapView: MapView
+    private val container = FrameLayout(context)
+    private val userLocation = SiponUserLocationView(context)
     private val channel = MethodChannel(messenger, "sipon/tianditu_$viewId")
     private val density = context.resources.displayMetrics.density
     private var map: MapLibreMap? = null
@@ -63,6 +78,7 @@ internal class SiponTiandituView(
     private var bottomPaddingDp = 0.0
     private var frame: Map<*, *>? = null
     private var route: JSONArray? = null
+    private val drivingService = TiandituDrivingService()
     private val assets = mutableMapOf<String, Bitmap>()
     private val markerImages = mutableSetOf<String>()
     private data class MarkerCandidate(
@@ -71,6 +87,7 @@ internal class SiponTiandituView(
         val width: Int,
         val height: Int,
         val selected: Boolean,
+        val routeStop: Boolean,
     )
     private var markerCandidates = emptyList<MarkerCandidate>()
     private var circleCandidates = emptyList<JSONObject>()
@@ -93,7 +110,10 @@ internal class SiponTiandituView(
             if (feature.hasProperty("venueId")) feature.getStringProperty("venueId").takeIf { it.isNotBlank() } else null
         }
         if (venueId == null && hits.any { it.hasProperty("point_count") }) {
-            current.animateCamera(CameraUpdateFactory.newLatLngZoom(point, (current.cameraPosition.zoom + 1.5).coerceAtMost(20.0)))
+            current.animateCamera(CameraUpdateFactory.newLatLngZoom(
+                point,
+                (current.cameraPosition.zoom + 1.5).coerceAtMost(CameraZoomAdapter.toNative(TIANDITU_MAX_TILE_ZOOM.toDouble())),
+            ))
         } else if (venueId == null) send("onBlankTapped", null)
         else send("onVenueTapped", mapOf("venueId" to venueId))
         true
@@ -135,6 +155,8 @@ internal class SiponTiandituView(
         MapLibre.getInstance(context)
         installTileHttpClient()
         mapView = MapView(context)
+        container.addView(mapView, FrameLayout.LayoutParams(-1, -1))
+        container.addView(userLocation, FrameLayout.LayoutParams(-1, -1))
         mapView.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
             if (ready && (right - left != oldRight - oldLeft || bottom - top != oldBottom - oldTop)) {
                 updateMarkerVisibility()
@@ -147,16 +169,22 @@ internal class SiponTiandituView(
         mapView.getMapAsync { loaded ->
             if (!alive) return@getMapAsync
             map = loaded
+            userLocation.pause()
+            userLocation.map = loaded
+            userLocation.resume()
+            // The 256 px WMTS tiles use the business zoom scale (native zoom + 1).
+            loaded.setMaxZoomPreference(CameraZoomAdapter.toNative(TIANDITU_MAX_TILE_ZOOM.toDouble()))
             loaded.addOnCameraIdleListener(cameraIdle)
             loaded.addOnMapClickListener(mapClick)
             loaded.uiSettings.isTiltGesturesEnabled = false
             loaded.uiSettings.isCompassEnabled = false
-            loaded.uiSettings.isAttributionEnabled = true
+            loaded.uiSettings.isLogoEnabled = false
+            loaded.uiSettings.isAttributionEnabled = false
             if (setupRequested) loadStyle()
         }
     }
 
-    override fun getView(): View = mapView
+    override fun getView(): View = container
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         if (!alive) {
@@ -164,6 +192,8 @@ internal class SiponTiandituView(
             return
         }
         val args = call.arguments as? Map<*, *> ?: emptyMap<Any, Any>()
+        // 定位授权可能在地图创建后才完成；后续地图指令会重试订阅。
+        userLocation.refreshPermission()
         try {
             when (call.method) {
                 "setup" -> {
@@ -191,6 +221,8 @@ internal class SiponTiandituView(
                 "setAppearance" -> {
                     val changed = dark != (args["brightness"] == "dark")
                     dark = args["brightness"] == "dark"
+                    userLocation.dark = useDarkPalette
+                    userLocation.invalidate()
                     if (ready && changed) {
                         applyRasterAppearance()
                         renderFrame()
@@ -230,6 +262,37 @@ internal class SiponTiandituView(
                     if (ready) applyStage(args)
                     result.success(null)
                 }
+                "fitRouteStops" -> {
+                    val rawPoints = args["points"] as? List<*>
+                    val points = rawPoints?.mapNotNull { raw ->
+                        (raw as? Map<*, *>)?.let(::point)
+                    }
+                    if (rawPoints == null || points == null || points.size != rawPoints.size) {
+                        result.error("route_input", "Invalid route stops", null)
+                    } else {
+                        if (ready) fitRouteStops(points)
+                        result.success(null)
+                    }
+                }
+                "planRoadRoute" -> {
+                    val rawPoints = args["points"] as? List<*>
+                    val stops = rawPoints?.mapNotNull { raw ->
+                        val point = raw as? Map<*, *> ?: return@mapNotNull null
+                        val lng = (point["lng"] as? Number)?.toDouble()
+                        val lat = (point["lat"] as? Number)?.toDouble()
+                        if (lng == null || lat == null || !lng.isFinite() || !lat.isFinite() ||
+                            lng !in -180.0..180.0 || lat !in -90.0..90.0
+                        ) null else lng to lat
+                    }
+                    if (rawPoints == null || stops == null || stops.size != rawPoints.size || stops.size !in 2..12) {
+                        result.error("route_input", "Invalid route stops", null)
+                    } else {
+                        drivingService.plan(stops) { legs, error ->
+                            if (error != null) result.error("route_service", error, null)
+                            else result.success(mapOf("crs" to "CGCS2000", "legs" to legs))
+                        }
+                    }
+                }
                 "setRouteGeometry" -> {
                     val revision = (args["revision"] as? Number)?.toLong() ?: routeRevision + 1
                     if (revision < routeRevision) {
@@ -250,6 +313,7 @@ internal class SiponTiandituView(
                     }
                 }
                 "clearRoute" -> {
+                    drivingService.cancel()
                     routeRevision++
                     route = null
                     if (ready) renderRoute()
@@ -266,6 +330,8 @@ internal class SiponTiandituView(
     }
 
     private fun loadStyle() {
+        userLocation.dark = useDarkPalette
+        userLocation.invalidate()
         val current = map ?: return
         if (BuildConfig.TDT_KEY.isBlank()) {
             ready = false
@@ -275,8 +341,8 @@ internal class SiponTiandituView(
         ready = false
         val revision = ++styleRevision
         val base = if (styleId == "satellite") "img" else "vec"
-        val labels = if (styleId == "satellite") "cia" else "cva"
-        current.setStyle(Style.Builder().fromJson(styleJson(base, labels))) { style ->
+        val annotations = if (styleId == "satellite") "cia" else "cva"
+        current.setStyle(Style.Builder().fromJson(styleJson(base, annotations))) { style ->
             if (!alive || revision != styleRevision) return@setStyle
             try {
                 installBusinessLayers(style)
@@ -299,26 +365,30 @@ internal class SiponTiandituView(
         }
     }
 
-    private fun styleJson(base: String, labels: String): String {
+    private fun styleJson(base: String, annotations: String): String {
         val root = JSONObject().put("version", 8).put("name", "Sipon Tianditu")
         val sources = JSONObject()
         val layers = JSONArray()
         layers.put(JSONObject().put("id", "map-background").put("type", "background")
             .put("paint", JSONObject().put("background-color", "#F8F5F8")))
-        for ((id, layer) in listOf("base" to base, "labels" to labels)) {
-            val source = JSONObject()
-                .put("type", "raster")
-                .put("tiles", JSONArray().put(tileUrl(layer)))
-                .put("tileSize", 256)
-                .put("minzoom", 1)
-                .put("maxzoom", 18)
-                .put("attribution", "© 天地图")
-            sources.put(id, source)
-            // WMTS annotations are already baked into images; individual names
-            // cannot participate in symbol collision. Reduce their low-zoom density.
-            layers.put(JSONObject().put("id", id).put("type", "raster").put("source", id)
-                .put("minzoom", if (id == "labels") 12 else 0))
-        }
+        sources.put("base", JSONObject()
+            .put("type", "raster")
+            .put("tiles", JSONArray().put(tileUrl(base)))
+            .put("tileSize", 256)
+            .put("minzoom", 1)
+            .put("maxzoom", TIANDITU_MAX_TILE_ZOOM)
+            .put("attribution", "© 天地图"))
+        sources.put("annotations", JSONObject()
+            .put("type", "raster")
+            .put("tiles", JSONArray().put(tileUrl(annotations)))
+            .put("tileSize", 256)
+            .put("minzoom", 1)
+            .put("maxzoom", TIANDITU_MAX_TILE_ZOOM)
+            .put("attribution", "© 天地图"))
+        layers.put(JSONObject().put("id", "base").put("type", "raster").put("source", "base")
+            .put("minzoom", 0))
+        layers.put(JSONObject().put("id", "annotations").put("type", "raster").put("source", "annotations")
+            .put("minzoom", TIANDITU_ANNOTATION_MIN_ZOOM))
         return root.put("sources", sources).put("layers", layers).toString()
     }
 
@@ -335,10 +405,10 @@ internal class SiponTiandituView(
     private fun applyRasterAppearance() {
         val style = map?.style ?: return
         val base = style.getLayer("base") as? RasterLayer ?: return
-        val labels = style.getLayer("labels") as? RasterLayer ?: return
+        val annotations = style.getLayer("annotations") as? RasterLayer ?: return
+        annotations.setProperties(rasterOpacity(TIANDITU_ANNOTATION_OPACITY))
         if (useDarkPalette) {
-            // WMTS base and annotations are separate raster layers. Grade each
-            // layer in MapLibre so transparent annotation pixels stay transparent.
+            // Keep annotations independent so their visibility and opacity can be tuned.
             val satellite = styleId == "satellite"
             style.getLayer("map-background")?.setProperties(backgroundColor(Color.rgb(38, 32, 43)))
             base.setProperties(
@@ -348,13 +418,6 @@ internal class SiponTiandituView(
                 rasterContrast(if (satellite) 0.08f else 0.16f),
                 rasterOpacity(if (satellite) 0.95f else 0.82f),
             )
-            labels.setProperties(
-                rasterBrightnessMin(0.78f),
-                rasterBrightnessMax(1f),
-                rasterSaturation(-0.65f),
-                rasterContrast(0.10f),
-                rasterOpacity(0.86f),
-            )
         } else {
             style.getLayer("map-background")?.setProperties(backgroundColor(Color.rgb(248, 245, 248)))
             val satellite = styleId == "satellite"
@@ -362,12 +425,6 @@ internal class SiponTiandituView(
                 rasterBrightnessMin(0f), rasterBrightnessMax(1f),
                 rasterSaturation(if (satellite) 0f else -0.55f),
                 rasterContrast(if (satellite) 0f else -0.06f),
-                rasterOpacity(if (satellite) 1f else 0.82f),
-            )
-            labels.setProperties(
-                rasterBrightnessMin(0f), rasterBrightnessMax(1f),
-                rasterSaturation(if (satellite) 0f else -0.40f),
-                rasterContrast(0f),
                 rasterOpacity(if (satellite) 1f else 0.82f),
             )
         }
@@ -384,20 +441,20 @@ internal class SiponTiandituView(
             lineColor(Color.rgb(247, 82, 78)), lineWidth(5f), lineOpacity(0.88f),
         ))
         style.addLayer(CircleLayer("sipon-clusters", "sipon-circles").withProperties(
-            circleColor(Color.rgb(227, 74, 67)), circleRadius(16f),
-            circleStrokeColor(Color.WHITE), circleStrokeWidth(2f),
+            circleColor(POI_THEME_COLOR), circleRadius(13f),
+            circleStrokeColor(Color.WHITE), circleStrokeWidth(1.5f),
         ).apply { setFilter(Expression.has("point_count")) })
         style.addLayer(SymbolLayer("sipon-cluster-count", "sipon-circles").withProperties(
             textField("{point_count_abbreviated}"), textSize(12f), textColor(Color.WHITE),
             textAllowOverlap(true), textIgnorePlacement(true),
         ).apply { setFilter(Expression.has("point_count")) })
         style.addLayer(CircleLayer("sipon-circles", "sipon-circles").withProperties(
-            circleColor(Color.rgb(231, 74, 74)), circleRadius(7f),
-            circleStrokeColor(Color.WHITE), circleStrokeWidth(2f),
+            circleColor(POI_THEME_COLOR), circleRadius(3.5f),
+            circleStrokeColor(Color.WHITE), circleStrokeWidth(1f),
         ).apply { setFilter(Expression.not(Expression.has("point_count"))) })
         style.addLayer(CircleLayer("sipon-selected", "sipon-selected").withProperties(
-            circleColor(Color.argb(90, 242, 74, 71)), circleRadius(18f),
-            circleStrokeColor(Color.rgb(238, 68, 65)), circleStrokeWidth(3f),
+            circleColor(POI_THEME_COLOR), circleRadius(3.5f),
+            circleStrokeColor(Color.WHITE), circleStrokeWidth(1f),
         ))
         // Ordinary capsules use symbol collision; the selected capsule is on a
         // separate layer so it remains visible even in a crowded viewport.
@@ -407,7 +464,13 @@ internal class SiponTiandituView(
             iconIgnorePlacement(false),
             iconPadding(4f),
             symbolSortKey(Expression.get("sortKey")),
-        ).apply { setFilter(Expression.not(Expression.get("selected"))) })
+        ).apply { setFilter(Expression.all(
+            Expression.not(Expression.get("selected")),
+            Expression.not(Expression.has("sequence")),
+        )) })
+        style.addLayer(SymbolLayer("sipon-route-stops", "sipon-markers").withProperties(
+            iconImage("{image}"), iconAllowOverlap(true), iconIgnorePlacement(true),
+        ).apply { setFilter(Expression.has("sequence")) })
         style.addLayer(SymbolLayer("sipon-selected-label", "sipon-markers").withProperties(
             iconImage("{image}"), iconAllowOverlap(true), iconIgnorePlacement(true),
         ).apply { setFilter(Expression.get("selected")) })
@@ -433,16 +496,17 @@ internal class SiponTiandituView(
             val item = raw as? Map<*, *> ?: return@forEachIndexed
             val data = feature(item) ?: return@forEachIndexed
             val imageId = "marker-$index"
-            val bitmap = makeMarkerBitmap(item)
+            val isSelected = selectedVenueId != null && item["venueId"] == selectedVenueId
+            val bitmap = makeMarkerBitmap(item, isSelected)
             style.addImage(imageId, bitmap)
             markerImages.add(imageId)
             val properties = data.getJSONObject("properties")
             properties.put("image", imageId)
-            properties.put("selected", selectedVenueId != null && item["venueId"] == selectedVenueId)
+            properties.put("selected", isSelected)
             properties.put(
                 "sortKey",
                 when {
-                    selectedVenueId != null && item["venueId"] == selectedVenueId -> -2.0
+                    isSelected -> -2.0
                     item["sequence"] != null -> -1.0
                     else -> 0.0
                 },
@@ -450,7 +514,7 @@ internal class SiponTiandituView(
             val coordinates = data.getJSONObject("geometry").getJSONArray("coordinates")
             candidates.add(MarkerCandidate(
                 data, LatLng(coordinates.getDouble(1), coordinates.getDouble(0)),
-                bitmap.width, bitmap.height, properties.getBoolean("selected"),
+                bitmap.width, bitmap.height, properties.getBoolean("selected"), item["sequence"] != null,
             ))
         }
         markerCandidates = candidates
@@ -481,13 +545,13 @@ internal class SiponTiandituView(
         val ordered = markerCandidates.sortedByDescending { it.selected }
         for (candidate in ordered) {
             val pixel = current.projection.toScreenLocation(candidate.location)
-            if (!candidate.selected && (pixel.x < 0 || pixel.x > width ||
+            if (!candidate.selected && !candidate.routeStop && (pixel.x < 0 || pixel.x > width ||
                     pixel.y < topInset || pixel.y > height - bottomInset)) continue
             val halfWidth = candidate.width / 2f + 12f * density
             val halfHeight = candidate.height / 2f + 14f * density
             val bounds = RectF(pixel.x - halfWidth, pixel.y - halfHeight,
                 pixel.x + halfWidth, pixel.y + halfHeight)
-            if (!candidate.selected && (visible.length() >= maxLabels ||
+            if (!candidate.selected && !candidate.routeStop && (visible.length() >= maxLabels ||
                     occupied.any { RectF.intersects(it, bounds) })) continue
             visible.put(candidate.feature)
             candidate.feature.getJSONObject("properties").optString("venueId")
@@ -503,32 +567,68 @@ internal class SiponTiandituView(
         source(style, "circles")?.setGeoJson(collection(circles))
     }
 
-    private fun makeMarkerBitmap(item: Map<*, *>): Bitmap {
-        val label = ((item["sequence"] as? Number)?.toInt()?.toString() ?: item["label"] as? String ?: "").take(28)
-        val rating = (item["rating"] as? Number)?.toDouble()?.takeIf { it.isFinite() }?.let { "  ★ %.1f".format(it) } ?: ""
-        val message = "$label$rating"
-        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = if (useDarkPalette) Color.WHITE else Color.rgb(42, 35, 33)
-            textSize = 13f * density
+    private fun makeMarkerBitmap(item: Map<*, *>, isSelected: Boolean): Bitmap {
+        val name = (item["sequence"] as? Number)?.toInt()?.toString() ?: item["label"] as? String ?: ""
+        val rating = (item["rating"] as? Number)?.toDouble()?.takeIf { it.isFinite() }?.let { "★ %.1f".format(it) } ?: ""
+        val namePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = if (useDarkPalette) Color.rgb(194, 182, 194) else Color.rgb(102, 108, 118)
+            textSize = 45f * density
+            setShadowLayer(2f * density, 0f, 0f, if (useDarkPalette) Color.BLACK else Color.WHITE)
+        }
+        val nameWidth = ceil(Layout.getDesiredWidth(name, namePaint).toDouble()).toInt()
+            .coerceIn(1, (128f * density).toInt().coerceAtLeast(1))
+        val nameLayout = StaticLayout.Builder.obtain(name, 0, name.length, namePaint, nameWidth)
+            .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+            .setIncludePad(false)
+            .setMaxLines(2)
+            .setEllipsize(TextUtils.TruncateAt.END)
+            .build()
+        val icon = assets[item["category"] as? String]
+        val iconSize = 16f * density
+        val ratingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = if (isSelected || useDarkPalette) Color.WHITE else Color.rgb(42, 35, 33)
+            textSize = 11f * density
             isFakeBoldText = true
         }
-        val icon = assets[item["category"] as? String]
-        val iconSize = 20f * density
-        val width = max(48, (textPaint.measureText(message) + 28f * density + if (icon != null) iconSize else 0f).toInt())
-        val height = (36f * density).toInt().coerceAtLeast(36)
+        val badgePadding = 7f * density
+        val badgeGap = if (icon != null && rating.isNotEmpty()) 4f * density else 0f
+        val badgeWidth = max(28f * density, badgePadding * 2 +
+            (if (icon != null) iconSize else 0f) + badgeGap + ratingPaint.measureText(rating))
+        val badgeHeight = 28f * density
+        val nameGap = 5f * density
+        val width = ceil((max(badgeWidth, nameWidth.toFloat()) + 4f * density).toDouble()).toInt()
+        val height = ceil((badgeHeight + nameGap + nameLayout.height + 3f * density).toDouble()).toInt()
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        val background = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (useDarkPalette) Color.rgb(48, 43, 42) else Color.WHITE }
-        canvas.drawRoundRect(1f, 1f, width - 1f, height - 1f, height / 2f, height / 2f, background)
-        val border = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(227, 74, 67); style = Paint.Style.STROKE; strokeWidth = density }
-        canvas.drawRoundRect(1f, 1f, width - 1f, height - 1f, height / 2f, height / 2f, border)
-        var x = 12f * density
-        if (icon != null) {
-            val top = (height - iconSize) / 2f
-            canvas.drawBitmap(icon, null, RectF(x, top, x + iconSize, top + iconSize), Paint(Paint.ANTI_ALIAS_FLAG))
-            x += iconSize + 5f * density
+        val background = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = if (isSelected) POI_THEME_COLOR else if (useDarkPalette) Color.rgb(48, 43, 42) else Color.WHITE
         }
-        canvas.drawText(message, x, (height - (textPaint.ascent() + textPaint.descent())) / 2f, textPaint)
+        val badgeLeft = (width - badgeWidth) / 2f
+        canvas.drawRoundRect(badgeLeft + 1f, 1f, badgeLeft + badgeWidth - 1f, badgeHeight - 1f,
+            badgeHeight / 2f, badgeHeight / 2f, background)
+        val border = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = POI_THEME_COLOR
+            style = Paint.Style.STROKE
+            strokeWidth = density
+        }
+        canvas.drawRoundRect(badgeLeft + 1f, 1f, badgeLeft + badgeWidth - 1f, badgeHeight - 1f,
+            badgeHeight / 2f, badgeHeight / 2f, border)
+        var x = badgeLeft + badgePadding
+        if (icon != null) {
+            val top = (badgeHeight - iconSize) / 2f
+            val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                if (isSelected) colorFilter = PorterDuffColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN)
+            }
+            canvas.drawBitmap(icon, null, RectF(x, top, x + iconSize, top + iconSize), iconPaint)
+            x += iconSize + badgeGap
+        }
+        if (rating.isNotEmpty()) {
+            canvas.drawText(rating, x, (badgeHeight - ratingPaint.ascent() - ratingPaint.descent()) / 2f, ratingPaint)
+        }
+        canvas.save()
+        canvas.translate((width - nameWidth) / 2f, badgeHeight + nameGap)
+        nameLayout.draw(canvas)
+        canvas.restore()
         return bitmap
     }
 
@@ -564,6 +664,28 @@ internal class SiponTiandituView(
             bounds.build(),
             (60 * density).toInt(), (90 * density).toInt(),
             (60 * density).toInt(), (max(140.0, bottomPaddingDp + 40.0) * density).toInt(),
+        ))
+    }
+
+    private fun fitRouteStops(points: List<Wgs84Point>) {
+        val current = map ?: return
+        if (points.isEmpty()) return
+        if (mapView.width <= 0 || mapView.height <= 0) {
+            mapView.post { if (alive && ready) fitRouteStops(points) }
+            return
+        }
+        val display = points.map(MapCoordinateAdapter::toDisplay)
+        if (display.map { it.lng to it.lat }.toSet().size == 1) {
+            val point = display.first()
+            current.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(point.lat, point.lng), 15.0))
+            return
+        }
+        val bounds = LatLngBounds.Builder()
+        display.forEach { bounds.include(LatLng(it.lat, it.lng)) }
+        current.moveCamera(CameraUpdateFactory.newLatLngBounds(
+            bounds.build(),
+            (48 * density).toInt(), (60 * density).toInt(),
+            (48 * density).toInt(), (60 * density).toInt(),
         ))
     }
 
@@ -615,7 +737,8 @@ internal class SiponTiandituView(
         bottomPaddingDp = (args["bottomPadding"] as? Number)?.toDouble()?.coerceAtLeast(0.0) ?: bottomPaddingDp
         updateAttribution()
         val display = MapCoordinateAdapter.toDisplay(target)
-        val zoom = ((args["zoom"] as? Number)?.toDouble() ?: 15.0).coerceIn(1.0, 20.0)
+        val zoom = ((args["zoom"] as? Number)?.toDouble() ?: 15.0)
+            .coerceIn(1.0, TIANDITU_MAX_TILE_ZOOM.toDouble())
         val camera = CameraPosition.Builder()
             .target(LatLng(display.lat, display.lng))
             .zoom(CameraZoomAdapter.toNative(zoom))
@@ -670,14 +793,16 @@ internal class SiponTiandituView(
         send("onMapError", mapOf("code" to code, "message" to message))
 
     fun onActivityStart() { if (alive) mapView.onStart() }
-    fun onActivityResume() { if (alive) mapView.onResume() }
-    fun onActivityPause() { if (alive) mapView.onPause() }
+    fun onActivityResume() { if (alive) { mapView.onResume(); userLocation.resume() } }
+    fun onActivityPause() { if (alive) { userLocation.pause(); mapView.onPause() } }
     fun onActivityStop() { if (alive) mapView.onStop() }
     fun onLowMemory() { if (alive) mapView.onLowMemory() }
 
     override fun dispose() {
         if (!alive) return
         alive = false
+        userLocation.pause()
+        drivingService.dispose()
         ready = false
         styleRevision++
         map?.removeOnCameraIdleListener(cameraIdle)
