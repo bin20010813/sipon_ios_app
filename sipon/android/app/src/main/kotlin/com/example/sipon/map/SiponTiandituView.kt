@@ -32,6 +32,7 @@ import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.module.http.HttpRequestUtil
@@ -154,7 +155,10 @@ internal class SiponTiandituView(
         // 必须先 MapLibre.getInstance 再注入自定义 OkHttpClient，否则抛 MapLibreConfigurationException。
         MapLibre.getInstance(context)
         installTileHttpClient()
-        mapView = MapView(context)
+        // SurfaceView forces Flutter's platform view into hybrid composition and can
+        // outlive the route's visual transition. Keep the map in the texture-backed
+        // composition path so predictive back transforms the map with the page.
+        mapView = MapView(context, MapLibreMapOptions.createFromAttributes(context).textureMode(true))
         container.addView(mapView, FrameLayout.LayoutParams(-1, -1))
         container.addView(userLocation, FrameLayout.LayoutParams(-1, -1))
         mapView.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->

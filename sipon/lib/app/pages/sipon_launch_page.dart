@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:sipon/app/theme/sipon_theme_colors.dart';
 
@@ -71,78 +72,87 @@ class _SiponLaunchPageState extends State<SiponLaunchPage> {
 
     return Scaffold(
       backgroundColor: context.siponColors.elevatedSurface,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Center(
-              child: Transform.translate(
-                offset: const Offset(0, -34),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    widget.animateLogoToLogin
-                        ? logo
-                        : AnimatedOpacity(
-                            opacity: _leaving ? 0 : 1,
-                            duration: const Duration(milliseconds: 220),
-                            child: logo,
+      body: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: !kIsWeb && defaultTargetPlatform == TargetPlatform.android
+            ? const Duration(milliseconds: 220)
+            : Duration.zero,
+        curve: Curves.easeOut,
+        builder: (context, opacity, child) =>
+            Opacity(opacity: opacity, child: child),
+        child: SafeArea(
+          child: Stack(
+            children: [
+              Center(
+                child: Transform.translate(
+                  offset: const Offset(0, -34),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      widget.animateLogoToLogin
+                          ? logo
+                          : AnimatedOpacity(
+                              opacity: _leaving ? 0 : 1,
+                              duration: const Duration(milliseconds: 220),
+                              child: logo,
+                            ),
+                      const SizedBox(height: 24),
+                      AnimatedOpacity(
+                        opacity: _leaving ? 0 : 1,
+                        duration: const Duration(milliseconds: 220),
+                        child: Text(
+                          'Sip’On',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontFamily: 'Dubai',
+                            fontSize: 42,
+                            fontWeight: FontWeight.w700,
+                            height: 1,
                           ),
-                    const SizedBox(height: 24),
-                    AnimatedOpacity(
-                      opacity: _leaving ? 0 : 1,
-                      duration: const Duration(milliseconds: 220),
-                      child: Text(
-                        'Sip’On',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.primary,
-                          fontFamily: 'Dubai',
-                          fontSize: 42,
-                          fontWeight: FontWeight.w700,
-                          height: 1,
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    AnimatedOpacity(
-                      opacity: _leaving ? 0 : 1,
-                      duration: const Duration(milliseconds: 220),
-                      child: Text(
-                        '酒吧地图',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.primary,
-                          fontFamily: 'Microsoft YaHei',
-                          fontSize: 26,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 2.5,
-                          height: 1.1,
+                      const SizedBox(height: 14),
+                      AnimatedOpacity(
+                        opacity: _leaving ? 0 : 1,
+                        duration: const Duration(milliseconds: 220),
+                        child: Text(
+                          '酒吧地图',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontFamily: 'Microsoft YaHei',
+                            fontSize: 26,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 2.5,
+                            height: 1.1,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Positioned(
-              left: 24,
-              right: 24,
-              bottom: 34,
-              child: AnimatedOpacity(
-                opacity: _leaving ? 0 : 1,
-                duration: const Duration(milliseconds: 220),
-                child: Text(
-                  '杭州探极科技有限公司',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.primary,
-                    fontFamily: 'Microsoft YaHei',
-                    fontSize: 13,
-                    fontWeight: FontWeight.w400,
-                    letterSpacing: 0.4,
+                    ],
                   ),
                 ),
               ),
-            ),
-          ],
+              Positioned(
+                left: 24,
+                right: 24,
+                bottom: 34,
+                child: AnimatedOpacity(
+                  opacity: _leaving ? 0 : 1,
+                  duration: const Duration(milliseconds: 220),
+                  child: Text(
+                    '杭州探极科技有限公司',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontFamily: 'Microsoft YaHei',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w400,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

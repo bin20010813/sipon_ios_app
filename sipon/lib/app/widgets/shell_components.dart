@@ -512,7 +512,7 @@ class _SiponPlusActionCard extends StatelessWidget {
             Future<void>.delayed(Duration.zero, onTap);
           },
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
             decoration: BoxDecoration(
               color: scheme.surface,
               borderRadius: BorderRadius.circular(20),
@@ -528,15 +528,21 @@ class _SiponPlusActionCard extends StatelessWidget {
             child: Row(
               children: [
                 _PlusIconBubble(icon: icon, color: accent),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      color: scheme.onSurface,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: TextStyle(
+                        color: scheme.onSurface,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
+                      ),
                     ),
                   ),
                 ),

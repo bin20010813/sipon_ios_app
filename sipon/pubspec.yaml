@@ -159,9 +159,9 @@ flutter:
 
 flutter_native_splash:
   color: "#ffffff"
-  image_android: "assest/logo.png"
+  # Android launch themes are maintained in android/app/src/main/res so the
+  # system splash hands off to SiponLaunchPage without a duplicate app icon.
+  android: false
   image_ios: "assest/logo.png"
-  android_12:
-    color: "#ffffff"
   ios: true
   web: false
