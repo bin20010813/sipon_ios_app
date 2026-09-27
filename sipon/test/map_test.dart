@@ -249,8 +249,9 @@ void main() {
         _venue('closest', longitude: 121.5312, latitude: 31.2227),
       ];
       await controller.syncViewport(_shifted(0.06));
-      expect(controller.selectedVenue?.id, 'closest');
-      expect(controller.selectedPoint?.venueId, 'closest');
+      expect(controller.visibleVenues.map((v) => v.id), ['closest', 'distant']);
+      expect(controller.selectedVenue?.id, 'near');
+      expect(controller.selectedPoint?.venueId, 'near');
     });
 
     test('分类 pill 真的过滤点位，再点一次取消', () async {
@@ -443,7 +444,7 @@ void main() {
       expect(repository.callCount, 2);
     });
 
-    test('选中的酒吧还在就留着，消失了退回最近的一家', () async {
+    test('移动地图后选中酒吧离开结果集，面板仍保持直到点击其他 POI', () async {
       final repository = _StubRepository([_venue('a'), _venue('b')]);
       final controller = MapDataController(repository: repository, city: '上海');
       addTearDown(controller.dispose);
@@ -456,7 +457,25 @@ void main() {
       expect(controller.selectedVenue?.id, 'b');
       repository.venues = [_venue('c'), _venue('d')];
       await controller.syncViewport(_shifted(0.12));
-      expect(controller.selectedVenue?.id, 'c');
+      expect(controller.visibleVenues.map((v) => v.id), ['c', 'd']);
+      expect(controller.selectedVenue?.id, 'b');
+      expect(controller.selectedPoint?.venueId, 'b');
+
+      controller.selectVenue('d');
+      expect(controller.selectedVenue?.id, 'd');
+
+      repository.venues = [];
+      await controller.syncViewport(_shifted(0.18));
+      expect(controller.visibleVenues, isEmpty);
+      expect(controller.selectedVenue?.id, 'd');
+      expect(controller.selectedPoint?.venueId, 'd');
+
+      await controller.syncViewport(_shifted(0.24));
+      expect(controller.selectedVenue?.id, 'd');
+
+      controller.setCity('北京');
+      expect(controller.selectedVenue, isNull);
+      expect(controller.selectedPoint, isNull);
     });
 
     test('A 已加载，B 请求未完成时回到 A，B 返回不覆盖 A', () async {

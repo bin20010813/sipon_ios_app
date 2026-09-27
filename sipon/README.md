@@ -16,6 +16,17 @@ For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
 
+## iOS 路径插件兼容性
+
+`pubspec.yaml` 将 `path_provider_foundation` 固定为 `2.5.1`，使用原生插件实现。
+`2.6.0` 改为 FFI 后，在当前 iOS 调试环境中出现 `DOBJC_initializeApi` /
+`objective_c.framework/objective_c` 加载失败，图片缓存等间接调用路径插件的功能会受影响。
+上游问题：https://github.com/flutter/flutter/issues/186794 。
+待验证上游修复后再解除版本固定。
+
+切换此依赖后，需要停止旧的 Flutter 调试会话，在 `sipon` 目录执行
+`flutter pub get` 和 `flutter run`，让原生插件重新构建、安装；仅热重载或热重启不足以应用变更。
+
 ## 地图半屏 / 全屏移动诊断
 
 Debug 构建启用 `[SiponMapMotion]` 日志。修改了原生 Swift 日志后，需停止 App 并重新 `flutter run`；热重载不能更新原生代码。

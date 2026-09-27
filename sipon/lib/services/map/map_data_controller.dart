@@ -42,6 +42,8 @@ class MapDataController extends ChangeNotifier {
   final MapVenueSearchRepository? _searchRepository;
 
   MapVenue? _pinnedVenue;
+  // 视野取数可以替换地图点位，但不能因此替换当前信息面板。
+  MapVenue? _selectedVenueSnapshot;
 
   String _city;
   List<MapVenue> _venues;
@@ -175,7 +177,7 @@ class MapDataController extends ChangeNotifier {
       }
     }
 
-    return null;
+    return _selectedVenueSnapshot?.id == id ? _selectedVenueSnapshot : null;
   }
 
   List<MapPoint> get circlePoints => [
@@ -300,6 +302,8 @@ class MapDataController extends ChangeNotifier {
 
   void _applyVenues(List<MapVenue> venues, MapViewport viewport) {
     final pinned = _pinnedVenue;
+    final selection = selectedVenue;
+    _selectedVenueSnapshot = selection;
 
     _venues = pinned == null || venues.any((venue) => venue.id == pinned.id)
         ? venues
@@ -308,7 +312,9 @@ class MapDataController extends ChangeNotifier {
     _zoom = viewport.zoom;
     _status = venues.isEmpty ? MapDataStatus.empty : MapDataStatus.ready;
     _failureDetail = null;
-    _reconcileSelection();
+    if (selection == null) {
+      _reconcileSelection();
+    }
     _notify();
   }
 
@@ -318,7 +324,7 @@ class MapDataController extends ChangeNotifier {
     _notify();
   }
 
-  /// 新数据到达或筛选变化后对齐选中态：原来选的还在就留着，否则退回第一个
+  /// 初次选取或筛选变化后对齐选中态：原来选的还在就留着，否则退回第一个
   /// （visibleVenues 按距当前视野中心排序），空列表则清空选中。
   void _reconcileSelection() {
     final candidates = visibleVenues;
@@ -477,6 +483,7 @@ class MapDataController extends ChangeNotifier {
     _searchGeneration++;
     _venues = const [];
     _selectedVenueId = null;
+    _selectedVenueSnapshot = null;
     _status = MapDataStatus.loading;
     _failureDetail = null;
     _notify();
