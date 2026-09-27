@@ -1419,6 +1419,8 @@ final class MarkerAnnotationView: MKAnnotationView {
   private let iconCircle = UIView(frame: .zero)
   private let iconView = UIImageView(frame: .zero)
   private let ratingLabel = UILabel(frame: .zero)
+  private let selectionHalo = UIView(frame: .zero)
+  private let selectionCheck = UIImageView(image: UIImage(systemName: "checkmark.circle.fill"))
   private let sequenceBadge = UILabel(frame: .zero)
   private let label = UILabel(frame: .zero)
   private var sourceIcon: UIImage?
@@ -1432,12 +1434,28 @@ final class MarkerAnnotationView: MKAnnotationView {
     addSubview(capsuleTail)
     addSubview(capsule)
     addSubview(iconCircle)
+    addSubview(selectionHalo)
     addSubview(iconView)
+    addSubview(selectionCheck)
     addSubview(ratingLabel)
     addSubview(sequenceBadge)
     addSubview(label)
 
     capsule.backgroundColor = .white
+    let selectionColor = UIColor(red: 0x9A / 255, green: 0x3D / 255, blue: 0x78 / 255, alpha: 1)
+    selectionHalo.backgroundColor = .white
+    selectionHalo.layer.borderColor = selectionColor.cgColor
+    selectionHalo.layer.borderWidth = 3
+    selectionHalo.layer.cornerRadius = 22
+    selectionHalo.isUserInteractionEnabled = false
+    selectionHalo.isHidden = true
+    selectionCheck.tintColor = selectionColor
+    selectionCheck.backgroundColor = .white
+    selectionCheck.layer.cornerRadius = 9
+    selectionCheck.layer.masksToBounds = true
+    selectionCheck.contentMode = .scaleAspectFit
+    selectionCheck.isUserInteractionEnabled = false
+    selectionCheck.isHidden = true
     capsule.isUserInteractionEnabled = false
     capsule.layer.cornerRadius = Metrics.capsuleCornerRadius
     capsuleTail.backgroundColor = .white
@@ -1541,7 +1559,7 @@ final class MarkerAnnotationView: MKAnnotationView {
     setNeedsLayout()
   }
 
-  /// 选中时切换为单独的分类图标，不显示胶囊和评分。
+  /// 选中时展示分类图标、品牌色圆环和勾选标记，明确反馈当前选择。
   func setHighlighted(_ highlighted: Bool) {
     guard isPoiHighlighted != highlighted else { return }
     isPoiHighlighted = highlighted
@@ -1571,7 +1589,7 @@ final class MarkerAnnotationView: MKAnnotationView {
     if isRouteMarker {
       accessibilityLabel = "第\(sequenceBadge.text ?? "-")站，\(currentLabel)"
     } else if isPoiHighlighted {
-      accessibilityLabel = currentLabel
+      accessibilityLabel = "已选中，\(currentLabel)"
     } else if currentLabel.isEmpty {
       accessibilityLabel = "评分 \(currentRatingText)"
     } else {
@@ -1581,6 +1599,8 @@ final class MarkerAnnotationView: MKAnnotationView {
 
   override func layoutSubviews() {
     super.layoutSubviews()
+    selectionHalo.isHidden = !isPoiHighlighted || isRouteMarker
+    selectionCheck.isHidden = !isPoiHighlighted || isRouteMarker
     if isRouteMarker {
       layoutRouteMarker()
     } else if isPoiHighlighted {
@@ -1598,15 +1618,25 @@ final class MarkerAnnotationView: MKAnnotationView {
     sequenceBadge.isHidden = true
     label.isHidden = true
     iconView.isHidden = false
-    layer.shadowPath = nil
-    layer.shadowOpacity = 0
+    layer.shadowColor = UIColor(red: 0x9A / 255, green: 0x3D / 255, blue: 0x78 / 255, alpha: 1).cgColor
+    layer.shadowOpacity = 0.3
+    layer.shadowRadius = 7
+    layer.shadowOffset = CGSize(width: 0, height: 2)
 
-    let size = Metrics.selectedIconSize
+    let size = CGSize(width: 48, height: 48)
     if bounds.size != size {
       bounds = CGRect(origin: .zero, size: size)
     }
     UIView.performWithoutAnimation {
-      iconView.frame = bounds
+      selectionHalo.frame = CGRect(x: 2, y: 2, width: 44, height: 44)
+      iconView.frame = CGRect(
+        x: (size.width - Metrics.selectedIconSize.width) / 2,
+        y: (size.height - Metrics.selectedIconSize.height) / 2,
+        width: Metrics.selectedIconSize.width,
+        height: Metrics.selectedIconSize.height
+      )
+      selectionCheck.frame = CGRect(x: 30, y: 0, width: 18, height: 18)
+      layer.shadowPath = UIBezierPath(ovalIn: selectionHalo.frame).cgPath
       centerOffset = CGPoint(x: 0, y: -size.height / 2)
     }
   }

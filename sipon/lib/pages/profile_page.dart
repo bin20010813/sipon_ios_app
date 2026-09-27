@@ -1595,7 +1595,13 @@ class _MembershipSheetState extends State<_MembershipSheet> {
         if (entry.value != null &&
             entry.value is! Map &&
             entry.value is! List &&
-            !{'level', 'userLevel', 'levelName'}.contains(entry.key))
+            !{
+              'level',
+              'userLevel',
+              'levelName',
+              'tier',
+              'active',
+            }.contains(entry.key))
           entry,
     ];
     if (entries.isEmpty) return const SizedBox.shrink();
