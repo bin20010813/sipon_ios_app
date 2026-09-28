@@ -13,12 +13,15 @@ double stickerSizeForAmount(double amount) {
 /// 贴纸池物理引擎。
 ///
 /// 负责贴纸的位置、速度、圆形碰撞、边界限制与静止休眠：
-/// - 每个贴纸对应一个 [StickerBody]，受重力、空气阻尼、池壁与池底约束；
+/// - 气泡持续受浮力向上，点破后贴纸持续受重力向下；两者共用碰撞与池壁约束；
 /// - 连续多帧速度与角速度都低于阈值后进入 [sleeping]，由调用方停止逐帧刷新；
 /// - 重力方向改变或外部扰动时调用 [wake] 重新唤醒。
 class StickerPhysics {
   StickerPhysics({
     this.gravity = const Offset(0, 825),
+    this.buoyancy = 300,
+    this.bubbleTiltFactor = 0.22,
+    this.bubbleSpeedLimit = 85,
     this.damping = 0.86,
     this.wallRestitution = 0.34,
     this.floorRestitution = 0.26,
@@ -27,6 +30,15 @@ class StickerPhysics {
 
   /// 当前重力（像素/秒²，屏幕坐标：y 向下为正）。
   Offset gravity;
+
+  /// 气泡始终向上的加速度。
+  final double buoyancy;
+
+  /// 气泡横向响应与重力贴纸相反，且更慢。
+  final double bubbleTiltFactor;
+
+  /// 气泡横向最高速度，避免大幅倾斜时冲到池壁。
+  final double bubbleSpeedLimit;
 
   /// 每帧速度衰减系数（0~1），模拟空气阻力。
   final double damping;
@@ -75,23 +87,34 @@ class StickerPhysics {
     final drag = math.pow(damping, clamped * 60).toDouble();
 
     for (final body in bodies) {
-      if (body.floating) continue;
-      body.velocity += gravity * clamped;
+      final acceleration = body.floating
+          ? Offset(-gravity.dx * bubbleTiltFactor, -buoyancy)
+          : Offset(gravity.dx, math.max(300, gravity.dy));
+      body.velocity += acceleration * clamped;
       body.velocity *= drag;
+      if (body.floating) {
+        body.velocity = Offset(
+          body.velocity.dx.clamp(-bubbleSpeedLimit, bubbleSpeedLimit),
+          body.velocity.dy,
+        );
+      }
       body.position += body.velocity * clamped;
       body.angle += body.angularVelocity * clamped;
       body.angularVelocity *= drag;
     }
 
+    // 密集的上下两层需要多次分离；每次分离后重新限制池壁。
+    for (var iteration = 0; iteration < 8; iteration++) {
+      _clampToBounds(bounds);
+      _resolvePairCollisions();
+    }
     _clampToBounds(bounds);
-    _resolvePairCollisions();
     _updateSleep();
   }
 
   void _clampToBounds(Size bounds) {
     for (final body in bodies) {
-      if (body.floating) continue;
-      final half = body.size / 2;
+      final half = body.collisionSize / 2;
       final minX = half;
       final maxX = math.max(half, bounds.width - half);
       final minY = half;
@@ -100,13 +123,13 @@ class StickerPhysics {
       if (body.position.dx < minX) {
         body.position = Offset(minX, body.position.dy);
         body.velocity = Offset(
-          -body.velocity.dx * wallRestitution,
+          body.velocity.dx.abs() < 15 ? 0 : -body.velocity.dx * wallRestitution,
           body.velocity.dy,
         );
       } else if (body.position.dx > maxX) {
         body.position = Offset(maxX, body.position.dy);
         body.velocity = Offset(
-          -body.velocity.dx * wallRestitution,
+          body.velocity.dx.abs() < 15 ? 0 : -body.velocity.dx * wallRestitution,
           body.velocity.dy,
         );
       }
@@ -115,7 +138,7 @@ class StickerPhysics {
         body.position = Offset(body.position.dx, minY);
         body.velocity = Offset(
           body.velocity.dx,
-          -body.velocity.dy * wallRestitution,
+          body.floating ? 0 : -body.velocity.dy * wallRestitution,
         );
       } else if (body.position.dy > maxY) {
         body.position = Offset(body.position.dx, maxY);
@@ -139,17 +162,15 @@ class StickerPhysics {
   }
 
   void _resolveCollision(StickerBody a, StickerBody b) {
-    if (a.floating || b.floating) return;
-    final minDist = (a.size + b.size) / 2;
+    final minDist = (a.collisionSize + b.collisionSize) / 2;
     final dx = b.position.dx - a.position.dx;
     final dy = b.position.dy - a.position.dy;
     final dist = math.sqrt(dx * dx + dy * dy);
-    if (dist >= minDist || dist <= 0.001) {
-      return;
-    }
+    if (dist >= minDist) return;
 
-    final nx = dx / dist;
-    final ny = dy / dist;
+    // 完全重合时也要给出确定的分离方向。
+    final nx = dist < 0.001 ? 1.0 : dx / dist;
+    final ny = dist < 0.001 ? 0.0 : dy / dist;
 
     // 位置分离，消除重叠。
     final overlap = minDist - dist;
@@ -185,7 +206,6 @@ class StickerPhysics {
   void _updateSleep() {
     var moving = false;
     for (final body in bodies) {
-      if (body.floating) continue;
       if (body.velocity.distanceSquared > 0.5 ||
           body.angularVelocity.abs() > 0.02) {
         moving = true;
@@ -236,6 +256,9 @@ class StickerBody {
   /// 角速度（弧度/秒）。
   double angularVelocity;
 
-  /// Until popped, the sticker stays at its floating anchor outside physics.
+  /// 点破前受浮力，点破后受重力。
   bool floating;
+
+  /// 气泡外圈也参与碰撞，避免与其他气泡或下落贴纸重叠。
+  double get collisionSize => floating ? size * 1.25 : size;
 }

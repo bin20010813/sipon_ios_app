@@ -105,6 +105,29 @@ class SiponApiService {
 
   Future<List<dynamic>> getCities() => _getList('/api/cities');
 
+  Future<List<dynamic>> getBarSubtypes() => _getList('/api/bar-subtypes');
+
+  /// Public, moderated check-in feed. A signed-in request also returns the
+  /// current viewer's reaction on each item.
+  Future<dynamic> getCheckInFeed({
+    String? city,
+    String? keyword,
+    String? barSubtype,
+    String scope = 'all',
+    String sort = 'latest',
+    SiponPage page = const SiponPage(),
+  }) => _get(
+    '/api/feed/check-ins',
+    queryParameters: {
+      'city': city,
+      'keyword': keyword,
+      'barSubtype': barSubtype,
+      'scope': scope,
+      'sort': sort,
+      ...page.queryParameters,
+    },
+  );
+
   Future<List<dynamic>> searchBars({
     String? city,
     String? keyword,
@@ -186,6 +209,23 @@ class SiponApiService {
       _postJson('/api/check-ins', body: body);
 
   Future<dynamic> getCheckIn(int id) => _get('/api/check-ins/$id');
+
+  Future<dynamic> getCheckInComments(
+    int checkInId, {
+    SiponPage page = const SiponPage(),
+  }) => _get(
+    '/api/check-ins/$checkInId/comments',
+    queryParameters: page.queryParameters,
+  );
+
+  Future<dynamic> createCheckInComment(int checkInId, String content) =>
+      _postJson(
+        '/api/check-ins/$checkInId/comments',
+        body: {'content': content},
+      );
+
+  Future<void> deleteCheckInComment(int checkInId, int commentId) =>
+      _deleteEmpty('/api/check-ins/$checkInId/comments/$commentId');
 
   Future<dynamic> updateCheckIn(int id, Map<String, Object?> body) =>
       _patchJson('/api/check-ins/$id', body: body);

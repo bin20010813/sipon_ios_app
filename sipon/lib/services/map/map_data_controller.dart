@@ -44,8 +44,6 @@ class MapDataController extends ChangeNotifier {
   final MapVenueSearchRepository? _searchRepository;
 
   MapVenue? _pinnedVenue;
-  // 视野取数可以替换地图点位，但不能因此替换当前信息面板。
-  MapVenue? _selectedVenueSnapshot;
 
   String _city;
   List<MapVenue> _venues;
@@ -54,7 +52,8 @@ class MapDataController extends ChangeNotifier {
   String _searchQuery = '';
   String? _selectedVenueId;
 
-  /// 用户主动点选后保留该 POI；视野取数会整体替换 [_venues]。
+  /// 用户主动点选后保留该 POI；视野取数会整体替换 [_venues]，
+  /// 但不能因此替换当前信息面板。
   MapVenue? _selectedVenueSnapshot;
   bool _selectionLocked;
   MapDataStatus _status = MapDataStatus.idle;

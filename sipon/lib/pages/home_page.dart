@@ -10,6 +10,7 @@ import '../services/sipon_api_service.dart';
 import '../services/sipon_city_controller.dart';
 import '../services/sipon_data_repository.dart';
 import '../widgets/bottom_clamping_bouncing_scroll_physics.dart';
+import '../widgets/home_moments_section.dart';
 import '../widgets/map/venue_detail_page.dart';
 import '../widgets/sipon_city_picker.dart';
 import '../widgets/sipon_network_image.dart';
@@ -24,12 +25,14 @@ class HomePage extends StatefulWidget {
     super.key,
     this.bottomOverlayInset = 0,
     this.onRecordPressed,
+    this.onCheckInPressed,
     this.onVenueMapRequested,
     this.searchExpanded,
   });
 
   final double bottomOverlayInset;
   final VoidCallback? onRecordPressed;
+  final Future<void> Function()? onCheckInPressed;
   final ValueChanged<MapVenue>? onVenueMapRequested;
 
   /// 外部共享的搜索展开状态（壳层用它在遮罩出现时同步隐藏底栏）；
@@ -70,6 +73,9 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   late final PageController _drinkController;
+  final ScrollController _homeScrollController = ScrollController();
+  final GlobalKey<HomeMomentsSectionState> _homeMomentsKey =
+      GlobalKey<HomeMomentsSectionState>();
   late Future<_HomeBarsData> _homeBarsFuture;
   SiponCityController? _cityController;
   String? _loadedCity;
@@ -87,6 +93,7 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _searchExpanded = widget.searchExpanded ?? ValueNotifier<bool>(false);
     _drinkController = PageController(initialPage: 1, viewportFraction: 0.52);
+    _homeScrollController.addListener(_onHomeScrolled);
   }
 
   @override
@@ -108,7 +115,26 @@ class _HomePageState extends State<HomePage> {
       _searchExpanded.dispose();
     }
     _drinkController.dispose();
+    _homeScrollController.dispose();
     super.dispose();
+  }
+
+  void _onHomeScrolled() {
+    if (!_homeScrollController.hasClients) return;
+    final position = _homeScrollController.position;
+    if (position.pixels >= position.maxScrollExtent - 500) {
+      _homeMomentsKey.currentState?.loadMore();
+    }
+  }
+
+  Future<void> _refreshHome() async {
+    final city = _cityController?.city ?? SiponCityController.defaultCity;
+    final bars = _loadHomeBars(city);
+    setState(() => _homeBarsFuture = bars);
+    await Future.wait([
+      bars,
+      _homeMomentsKey.currentState?.refresh() ?? Future<void>.value(),
+    ]);
   }
 
   void _refreshHomeBarsForCity() {
@@ -182,91 +208,109 @@ class _HomePageState extends State<HomePage> {
             constraints: const BoxConstraints(maxWidth: 430),
             child: Stack(
               children: [
-                CustomScrollView(
-                  physics: const BottomClampingBouncingScrollPhysics(),
-                  slivers: [
-                    SliverPadding(
-                      padding: EdgeInsets.fromLTRB(
-                        23,
-                        16,
-                        0,
-                        24 + widget.bottomOverlayInset,
-                      ),
-                      sliver: SliverList.list(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(right: 22),
-                            child: ValueListenableBuilder<bool>(
-                              valueListenable: _searchExpanded,
-                              builder: (context, searchExpanded, _) =>
-                                  searchExpanded
-                                  ? const SizedBox(height: 52)
-                                  : _HomeTopBar(
-                                      key: _homeTopBarKey,
-                                      expanded: false,
-                                      onExpandedChanged: _setSearchExpanded,
-                                    ),
+                RefreshIndicator(
+                  onRefresh: _refreshHome,
+                  child: CustomScrollView(
+                    controller: _homeScrollController,
+                    physics: const BottomClampingBouncingScrollPhysics(),
+                    slivers: [
+                      SliverPadding(
+                        padding: EdgeInsets.fromLTRB(
+                          23,
+                          16,
+                          0,
+                          24 + widget.bottomOverlayInset,
+                        ),
+                        sliver: SliverList.list(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(right: 22),
+                              child: ValueListenableBuilder<bool>(
+                                valueListenable: _searchExpanded,
+                                builder: (context, searchExpanded, _) =>
+                                    searchExpanded
+                                    ? const SizedBox(height: 52)
+                                    : _HomeTopBar(
+                                        key: _homeTopBarKey,
+                                        expanded: false,
+                                        onExpandedChanged: _setSearchExpanded,
+                                      ),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 16),
-                          // TODO: 首页 _DrinkProduct / _DrinkCarousel 功能待定，暂时注释隐藏。
-                          // 恢复时取消下面注释即可。
-                          // _DrinkCarousel(
-                          //   controller: _drinkController,
-                          //   currentIndex: _currentDrink,
-                          //   onPageChanged: (index) {
-                          //     setState(() => _currentDrink = index);
-                          //   },
-                          // ),
-                          // const SizedBox(height: 18),
-                          Padding(
-                            padding: const EdgeInsets.only(right: 23),
-                            child: _SectionHeader(
-                              title: text.t('鸡尾酒推荐'),
-                              onMorePressed: () => _pushCocktailList(context),
+                            const SizedBox(height: 16),
+                            // TODO: 首页 _DrinkProduct / _DrinkCarousel 功能待定，暂时注释隐藏。
+                            // 恢复时取消下面注释即可。
+                            // _DrinkCarousel(
+                            //   controller: _drinkController,
+                            //   currentIndex: _currentDrink,
+                            //   onPageChanged: (index) {
+                            //     setState(() => _currentDrink = index);
+                            //   },
+                            // ),
+                            // const SizedBox(height: 18),
+                            Padding(
+                              padding: const EdgeInsets.only(right: 23),
+                              child: _SectionHeader(
+                                title: text.t('鸡尾酒推荐'),
+                                onMorePressed: () => _pushCocktailList(context),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 14),
-                          const _CocktailScroller(),
-                          const SizedBox(height: 18),
-                          Padding(
-                            padding: const EdgeInsets.only(right: 23),
-                            child: _VirtualDrinkingPrompt(
-                              onPressed: () => Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => const VirtualDrinkingPage(),
+                            const SizedBox(height: 14),
+                            const _CocktailScroller(),
+                            const SizedBox(height: 18),
+                            Padding(
+                              padding: const EdgeInsets.only(right: 23),
+                              child: _VirtualDrinkingPrompt(
+                                onPressed: () => Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => const VirtualDrinkingPage(),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 18),
-                          Padding(
-                            padding: const EdgeInsets.only(right: 23),
-                            child: _HomeRecordPrompt(
-                              onPressed: widget.onRecordPressed,
+                            const SizedBox(height: 18),
+                            Padding(
+                              padding: const EdgeInsets.only(right: 23),
+                              child: _HomeRecordPrompt(
+                                onPressed: widget.onRecordPressed,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 24),
-                          FutureBuilder<_HomeBarsData>(
-                            future: _homeBarsFuture,
-                            builder: (context, snapshot) {
-                              final data =
-                                  snapshot.data ??
-                                  const _HomeBarsData(
-                                    bars: [],
-                                    statusMessage: '正在加载接口数据...',
-                                  );
+                            const SizedBox(height: 24),
+                            FutureBuilder<_HomeBarsData>(
+                              future: _homeBarsFuture,
+                              builder: (context, snapshot) {
+                                final data =
+                                    snapshot.connectionState ==
+                                        ConnectionState.waiting
+                                    ? const _HomeBarsData(
+                                        bars: [],
+                                        statusMessage: '正在加载接口数据...',
+                                      )
+                                    : snapshot.data ??
+                                          const _HomeBarsData(
+                                            bars: [],
+                                            statusMessage: '正在加载接口数据...',
+                                          );
 
-                              return _HomeDataSections(
-                                data: data,
-                                onVenueMapRequested: widget.onVenueMapRequested,
-                              );
-                            },
-                          ),
-                        ],
+                                return _HomeDataSections(
+                                  data: data,
+                                  onVenueMapRequested:
+                                      widget.onVenueMapRequested,
+                                );
+                              },
+                            ),
+                            HomeMomentsSection(
+                              key: _homeMomentsKey,
+                              city:
+                                  _loadedCity ??
+                                  SiponCityController.defaultCity,
+                              onCheckInPressed: widget.onCheckInPressed,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 ValueListenableBuilder<bool>(
                   valueListenable: _searchExpanded,

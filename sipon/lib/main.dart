@@ -414,6 +414,7 @@ class _SiponShellState extends State<_SiponShell> {
               HomePage(
                 bottomOverlayInset: _effectiveNavigationReserveHeight,
                 onRecordPressed: _openDrinkRecord,
+                onCheckInPressed: _openCheckIn,
                 onVenueMapRequested: _showVenueOnMap,
                 searchExpanded: _homeSearchExpanded,
               ),

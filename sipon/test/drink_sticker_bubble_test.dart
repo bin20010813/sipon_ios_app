@@ -38,7 +38,8 @@ void main() {
     for (var frame = 0; frame < 25; frame++) {
       await tester.pump(const Duration(milliseconds: 16));
     }
-    expect(tester.getTopLeft(sticker).dy, closeTo(initialTop, 5));
+    final floatedTop = tester.getTopLeft(sticker).dy;
+    expect(floatedTop, lessThan(initialTop - 5));
 
     await tester.tapAt(tester.getCenter(sticker));
     expect(detailOpens, 0);
@@ -46,7 +47,7 @@ void main() {
     for (var frame = 0; frame < 40; frame++) {
       await tester.pump(const Duration(milliseconds: 16));
     }
-    expect(tester.getTopLeft(sticker).dy, greaterThan(initialTop + 30));
+    expect(tester.getTopLeft(sticker).dy, greaterThan(floatedTop + 30));
     expect(detailOpens, 0);
 
     await tester.pump(const Duration(milliseconds: 250));

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -46,6 +48,12 @@ class _CheckInPageState extends State<CheckInPage> {
 
   /// 附近酒吧列表的滚动控制器。
   final ScrollController _barsController = ScrollController();
+  final TextEditingController _barSearchController = TextEditingController();
+  Timer? _barSearchDebounce;
+  int _barSearchVersion = 0;
+  List<_BarSearchResult> _barSearchResults = const [];
+  bool _searchingBars = false;
+  bool _barSearchFailed = false;
 
   late final MapSceneController _scene;
 
@@ -77,6 +85,8 @@ class _CheckInPageState extends State<CheckInPage> {
     _requestVersion++;
     SiponSearchPreferences.instance.removeListener(_handleRadiusChanged);
     _barsController.dispose();
+    _barSearchDebounce?.cancel();
+    _barSearchController.dispose();
     _scene.detach();
     super.dispose();
   }
@@ -84,6 +94,52 @@ class _CheckInPageState extends State<CheckInPage> {
   void _handleRadiusChanged() {
     if (!mounted) return;
     _loadNearbyBars();
+  }
+
+  void _onBarSearchChanged(String value) {
+    _barSearchDebounce?.cancel();
+    final version = ++_barSearchVersion;
+    final keyword = value.trim();
+    if (keyword.isEmpty) {
+      setState(() {
+        _barSearchResults = const [];
+        _searchingBars = false;
+        _barSearchFailed = false;
+      });
+      return;
+    }
+    setState(() {
+      _searchingBars = true;
+      _barSearchFailed = false;
+    });
+    _barSearchDebounce = Timer(const Duration(milliseconds: 300), () async {
+      try {
+        final matches = await _api.searchBars(
+          city: _cityController?.city,
+          keyword: keyword,
+          page: const SiponPage(limit: 20),
+        );
+        if (!mounted || version != _barSearchVersion) return;
+        setState(() {
+          _barSearchResults = matches
+              .whereType<Map>()
+              .map(
+                (item) =>
+                    _BarSearchResult.tryParse(item.cast<String, dynamic>()),
+              )
+              .whereType<_BarSearchResult>()
+              .toList(growable: false);
+          _searchingBars = false;
+        });
+      } on Exception {
+        if (!mounted || version != _barSearchVersion) return;
+        setState(() {
+          _barSearchResults = const [];
+          _searchingBars = false;
+          _barSearchFailed = true;
+        });
+      }
+    });
   }
 
   /// 每次打开或重试获取实际定位，以同一坐标查询偏好半径内的酒吧。
@@ -281,11 +337,41 @@ class _CheckInPageState extends State<CheckInPage> {
                       ),
               ),
               Padding(
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
+                child: TextField(
+                  controller: _barSearchController,
+                  onChanged: _onBarSearchChanged,
+                  decoration: InputDecoration(
+                    hintText: '搜索当前城市的酒吧',
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    suffixIcon: _barSearchController.text.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: '清除搜索',
+                            icon: const Icon(Icons.close_rounded),
+                            onPressed: () {
+                              _barSearchController.clear();
+                              _onBarSearchChanged('');
+                            },
+                          ),
+                    isDense: true,
+                    filled: true,
+                    fillColor: const Color(0xFFF8F3F6),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
                 padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
                 child: Row(
                   children: [
-                    const Text(
-                      '你附近的酒吧',
+                    Text(
+                      _barSearchController.text.trim().isEmpty
+                          ? '你附近的酒吧'
+                          : '搜索结果',
                       style: TextStyle(
                         color: Color(0xFF252229),
                         fontSize: 17,
@@ -294,7 +380,13 @@ class _CheckInPageState extends State<CheckInPage> {
                     ),
                     const Spacer(),
                     Text(
-                      _loadingBars
+                      _barSearchController.text.trim().isNotEmpty
+                          ? _searchingBars
+                                ? '正在搜索…'
+                                : _barSearchFailed
+                                ? '搜索失败，请重试'
+                                : '${_barSearchResults.length} 家可打卡'
+                          : _loadingBars
                           ? '正在加载附近酒吧…'
                           : _locationError != null
                           ? '等待定位'
@@ -308,14 +400,37 @@ class _CheckInPageState extends State<CheckInPage> {
                 ),
               ),
               Expanded(
-                child: ListView.builder(
-                  controller: _barsController,
-                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 20),
-                  itemCount: _bars.length,
-                  itemBuilder: (context, index) {
-                    return _NearbyBarTile(bar: _bars[index], brand: _brand);
-                  },
-                ),
+                child: _barSearchController.text.trim().isNotEmpty
+                    ? _searchingBars
+                          ? const Center(child: CircularProgressIndicator())
+                          : _barSearchFailed
+                          ? Center(
+                              child: TextButton(
+                                onPressed: () => _onBarSearchChanged(
+                                  _barSearchController.text,
+                                ),
+                                child: const Text('重试搜索'),
+                              ),
+                            )
+                          : _barSearchResults.isEmpty
+                          ? const Center(child: Text('没有找到匹配的酒吧'))
+                          : ListView.builder(
+                              controller: _barsController,
+                              padding: const EdgeInsets.fromLTRB(18, 0, 18, 20),
+                              itemCount: _barSearchResults.length,
+                              itemBuilder: (context, index) =>
+                                  _BarSearchResultTile(
+                                    bar: _barSearchResults[index],
+                                    brand: _brand,
+                                  ),
+                            )
+                    : ListView.builder(
+                        controller: _barsController,
+                        padding: const EdgeInsets.fromLTRB(18, 0, 18, 20),
+                        itemCount: _bars.length,
+                        itemBuilder: (context, index) =>
+                            _NearbyBarTile(bar: _bars[index], brand: _brand),
+                      ),
               ),
             ],
           ),
@@ -323,6 +438,58 @@ class _CheckInPageState extends State<CheckInPage> {
       ),
     );
   }
+}
+
+class _BarSearchResult {
+  const _BarSearchResult({
+    required this.id,
+    required this.name,
+    required this.address,
+  });
+
+  final int id;
+  final String name;
+  final String address;
+
+  static _BarSearchResult? tryParse(Map<String, dynamic> map) {
+    final rawId = map['id'] ?? map['barId'];
+    final id = rawId is num ? rawId.toInt() : int.tryParse('$rawId');
+    final name = (map['name'] ?? map['barName'])?.toString().trim();
+    if (id == null || name == null || name.isEmpty) return null;
+    return _BarSearchResult(
+      id: id,
+      name: name,
+      address: map['address']?.toString().trim() ?? '',
+    );
+  }
+}
+
+class _BarSearchResultTile extends StatelessWidget {
+  const _BarSearchResultTile({required this.bar, required this.brand});
+
+  final _BarSearchResult bar;
+  final Color brand;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    title: Text(bar.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+    subtitle: bar.address.isEmpty
+        ? null
+        : Text(bar.address, maxLines: 1, overflow: TextOverflow.ellipsis),
+    trailing: FilledButton(
+      style: FilledButton.styleFrom(backgroundColor: brand),
+      onPressed: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => CheckInCommentPage(
+            barId: bar.id,
+            venueName: bar.name,
+            venueAddress: bar.address,
+          ),
+        ),
+      ),
+      child: const Text('打卡'),
+    ),
+  );
 }
 
 class _NearbyBar {
@@ -555,8 +722,8 @@ class _CheckInCommentPageState extends State<CheckInCommentPage> {
   String? _extractMediaId(dynamic response) {
     if (response is! Map) return null;
     final raw =
-        response['mediaId'] ??
         response['id'] ??
+        response['mediaId'] ??
         (response['data'] is Map ? response['data']['mediaId'] : null);
     final id = raw?.toString().trim();
     return (id == null || id.isEmpty) ? null : id;
@@ -590,9 +757,13 @@ class _CheckInCommentPageState extends State<CheckInCommentPage> {
     setState(() => _submitting = true);
     FocusScope.of(context).unfocus();
     try {
-      final mediaIds = await _uploadImages();
       final ratingDetails = _aspectRatings.toPayload();
       final content = _aspectRatings.prependToContent(_controller.text);
+      if (content.length > 2000) {
+        _showMessage('评价内容不能超过 2000 字');
+        return;
+      }
+      final mediaIds = await _uploadImages();
       final body = <String, Object?>{
         'barId': barId,
         'rating': _rating,
@@ -617,7 +788,7 @@ class _CheckInCommentPageState extends State<CheckInCommentPage> {
         await _api.createCheckIn(body);
       }
       if (!mounted) return;
-      _showMessage('打卡成功');
+      _showMessage('打卡已提交，审核通过后展示在动态中');
       if (widget.returnToVenue) {
         Navigator.of(context).pop(true);
       } else {

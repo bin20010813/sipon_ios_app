@@ -306,9 +306,8 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
   late final Ticker _ticker;
 
   StreamSubscription<dynamic>? _subscription;
-  Offset _filtered = Offset.zero;
+  Offset _filtered = const Offset(0, 825);
   Duration? _last;
-  double _floatTime = 0;
   final Map<int, double> _bursts = {};
 
   List<DrinkBudgetRecord> _records = const [];
@@ -336,7 +335,6 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
       _initialized = false;
       _bounds = Size.zero;
       _bursts.clear();
-      _floatTime = 0;
       if (widget.records.isEmpty) {
         _ticker.stop();
         _last = null;
@@ -398,12 +396,9 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
   void _onMotionEvent(dynamic event) {
     if (!mounted || event is! List || event.length < 2) return;
     final x = (event[0] as num).toDouble();
-    final y = (event[1] as num).toDouble();
 
-    final target = Offset(
-      x.abs() < .04 ? 0 : x * 1100,
-      y.abs() < .08 ? 825 : y * 1100,
-    );
+    // 横向沿用原重力方向；纵向由各贴纸自身的重力或浮力决定。
+    final target = Offset(x.abs() < .04 ? 0 : x * 1100, 825);
 
     _filtered = Offset.lerp(_filtered, target, .18)!;
 
@@ -430,19 +425,12 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
     final dt = (elapsed - last).inMicroseconds / 1e6;
     if (dt <= 0) return;
 
-    _floatTime += dt;
     _bursts.updateAll((_, age) => age + dt);
     _bursts.removeWhere((_, age) => age >= 0.38);
 
-    // 两个原步长的子步实现两倍播放速度，并保持碰撞模拟的稳定性。
-    for (var step = 0; step < 2; step++) {
-      _physics.step(dt, _bounds);
-      if (_physics.sleeping) break;
-    }
+    _physics.step(dt, _bounds);
 
-    if (_physics.sleeping &&
-        _bursts.isEmpty &&
-        !_physics.bodies.any((body) => body.floating)) {
+    if (_physics.sleeping && _bursts.isEmpty) {
       _ticker.stop();
       _last = null;
     } else {
@@ -521,8 +509,6 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
       return;
     }
 
-    final phase = _floatTime * 1.7 + index * 1.9;
-    body.position += Offset(math.sin(phase) * 2, math.cos(phase) * 4);
     body.floating = false;
     body.velocity = const Offset(0, 28);
     body.angularVelocity = index.isEven ? 0.32 : -0.32;
@@ -607,14 +593,9 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
         : burstAge != null
         ? bubbleSize * 1.6
         : body.size;
-    final phase = _floatTime * 1.7 + index * 1.9;
-    final bob = floating
-        ? Offset(math.sin(phase) * 2, math.cos(phase) * 4)
-        : Offset.zero;
-
     return Positioned(
-      left: body.position.dx + bob.dx - visualSize / 2,
-      top: body.position.dy + bob.dy - visualSize / 2,
+      left: body.position.dx - visualSize / 2,
+      top: body.position.dy - visualSize / 2,
       child: Transform.rotate(
         angle: body.angle,
         child: RepaintBoundary(
