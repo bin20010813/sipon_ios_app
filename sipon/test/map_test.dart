@@ -1,6 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:sipon/services/sipon_api_client.dart';
+import 'package:sipon/services/sipon_api_config.dart';
+import 'package:sipon/services/sipon_data_repository.dart';
 import 'package:sipon/services/sipon_api_models.dart';
 import 'package:sipon/services/map/map_data_controller.dart';
 import 'package:sipon/services/map/map_display_options.dart';
@@ -340,6 +346,78 @@ void main() {
 
       controller.clearPoiFilter();
       expect(controller.visibleVenues, hasLength(3));
+    });
+
+    test('价格与评分从地图接口解析到 POI，包含边界并排除缺失值', () async {
+      var requests = 0;
+      final repository = SiponApiMapVenueRepository(
+        repository: SiponDataRepository(
+          apiClient: SiponApiClient(
+            config: const SiponApiConfig(baseUrl: 'https://api.example.test'),
+            httpClient: MockClient((request) async {
+              requests++;
+              expect(request.url.path, '/api/bars/map');
+              final rows = [
+                {'id': 'boundary', 'averageRating': 4.5, 'averagePrice': 100},
+                {'id': 'cheap', 'score': '4.8', 'perCapita': '¥88/人'},
+                {'id': 'expensive', 'rating': 4.9, 'averagePrice': 101},
+                {'id': 'low-rating', 'rating': 4.4, 'averagePrice': 80},
+                {'id': 'no-rating', 'averagePrice': 80},
+                {'id': 'no-price', 'rating': 4.8},
+                {'id': 'invalid', 'rating': 0, 'averagePrice': -1},
+              ];
+              return http.Response.bytes(
+                utf8.encode(
+                  jsonEncode([
+                    for (final row in rows)
+                      {'name': row['id'], 'lng': 121.47, 'lat': 31.22, ...row},
+                  ]),
+                ),
+                200,
+              );
+            }),
+          ),
+        ),
+      );
+      final controller = MapDataController(repository: repository, city: '上海');
+      addTearDown(controller.dispose);
+      await controller.syncViewport(_shanghaiViewport);
+      expect(controller.visibleVenues, hasLength(7));
+
+      controller.applyPoiFilter(const MapPoiFilter(minimumRating: 4.5));
+      expect(
+        controller.visibleVenues.map((v) => v.id),
+        unorderedEquals(['boundary', 'cheap', 'expensive', 'no-price']),
+      );
+
+      controller.applyPoiFilter(const MapPoiFilter(maxAveragePrice: 100));
+      expect(
+        controller.visibleVenues.map((v) => v.id),
+        unorderedEquals(['boundary', 'cheap', 'low-rating', 'no-rating']),
+      );
+
+      controller.selectVenue('low-rating');
+      controller.applyPoiFilter(
+        const MapPoiFilter(maxAveragePrice: 100, minimumRating: 4.5),
+      );
+      expect(controller.visibleVenues.map((v) => v.id), ['boundary', 'cheap']);
+      expect(controller.circlePoints.map((p) => p.venueId), [
+        'boundary',
+        'cheap',
+      ]);
+      expect(controller.markerVenues.map((v) => v.id), ['boundary', 'cheap']);
+      expect(controller.selectedVenue?.id, 'boundary');
+      expect(controller.selectedPoint?.venueId, 'boundary');
+
+      controller.selectVenue('cheap');
+      controller.applyPoiFilter(const MapPoiFilter(maxAveragePrice: 20));
+      expect(controller.visibleVenues, isEmpty);
+      expect(controller.selectedVenue, isNull);
+      expect(controller.selectedPoint, isNull);
+
+      controller.clearPoiFilter();
+      expect(controller.visibleVenues, hasLength(7));
+      expect(requests, 1, reason: '筛选在已加载的视野数据中本地执行');
     });
 
     test('搜索按名称、地址和标签过滤，清空后恢复全部', () async {

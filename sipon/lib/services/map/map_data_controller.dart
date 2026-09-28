@@ -366,11 +366,17 @@ class MapDataController extends ChangeNotifier {
 
   /// 初次选取或筛选变化后对齐选中态：原来选的还在就留着，否则退回第一个
   /// （visibleVenues 按距当前视野中心排序），空列表则清空选中。
-  void _reconcileSelection() {
-    if (_selectionLocked && _selectedVenueSnapshot != null) return;
+  void _reconcileSelection({bool preserveLockedSelection = true}) {
+    if (preserveLockedSelection &&
+        _selectionLocked &&
+        _selectedVenueSnapshot != null) {
+      return;
+    }
     final candidates = visibleVenues;
     if (candidates.isEmpty) {
       _selectedVenueId = null;
+      _selectedVenueSnapshot = null;
+      _selectionLocked = false;
       return;
     }
 
@@ -381,6 +387,8 @@ class MapDataController extends ChangeNotifier {
     }
 
     _selectedVenueId = candidates.first.id;
+    _selectedVenueSnapshot = null;
+    _selectionLocked = false;
   }
 
   void selectVenue(String? venueId) {
@@ -418,7 +426,8 @@ class MapDataController extends ChangeNotifier {
     }
 
     _poiFilter = filter;
-    _reconcileSelection();
+    // 用户主动筛选时，面板也必须符合新条件；仅移动地图仍保留原选择。
+    _reconcileSelection(preserveLockedSelection: false);
     _notify();
   }
 
