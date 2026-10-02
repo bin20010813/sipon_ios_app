@@ -1,5 +1,6 @@
 import '../../features/map/models/map_models.dart';
 import 'sipon_api_service.dart';
+import 'sipon_api_models.dart';
 import '../../features/profile/data/user_profile_data.dart';
 
 class HomeFeedQuery {
@@ -182,6 +183,17 @@ class HomeMoment {
             .where((url) => url.isNotEmpty)
             .toList(growable: false);
     final barId = _integer(entry, ['barId']);
+    final bar = _map(entry['bar']) ?? _map(entry['venue']);
+    final imageUrl =
+        _string(entry, [
+          'barThumbnailUrl',
+          'barMediumImageUrl',
+          'barImageUrl',
+          'barCoverUrl',
+        ]) ??
+        (bar == null
+            ? null
+            : SiponBarMapItem.fromJson(bar).resolvedThumbnailUrl);
     final barSubtype = _string(entry, ['barSubtype']);
     final barCategory = _string(entry, ['barCategory']);
     final address = _string(entry, ['address']);
@@ -202,6 +214,7 @@ class HomeMoment {
         distance: '',
         tags: barCategory == null ? const [] : [barCategory],
         imageAsset: 'assest/首页/图片素材/酒吧1.png',
+        imageUrl: imageUrl,
       ),
       author: author,
       city: _string(entry, ['city']),
@@ -226,17 +239,51 @@ class HomeMomentsRepository {
     : _api = api ?? SiponApiService();
 
   final SiponApiService _api;
+  final _barRequests = <int, Future<Map<String, dynamic>?>>{};
 
-  Future<HomeFeedPage> load(HomeFeedQuery query) async => HomeFeedPage.fromJson(
-    await _api.getCheckInFeed(
-      city: query.city,
-      keyword: query.keyword,
-      barSubtype: query.barSubtype,
-      scope: query.scope,
-      sort: query.sort,
-      page: SiponPage(limit: query.limit, offset: query.offset),
-    ),
-  );
+  Future<HomeFeedPage> load(HomeFeedQuery query) async {
+    final page = HomeFeedPage.fromJson(
+      await _api.getCheckInFeed(
+        city: query.city,
+        keyword: query.keyword,
+        barSubtype: query.barSubtype,
+        scope: query.scope,
+        sort: query.sort,
+        page: SiponPage(limit: query.limit, offset: query.offset),
+      ),
+    );
+    final items = await Future.wait(
+      page.items.map((moment) async {
+        if (moment.venue.imageUrl != null) return moment;
+        final barId = int.tryParse(moment.venue.id);
+        if (barId == null || barId <= 0) return moment;
+        final bar = await _barRequests.putIfAbsent(
+          barId,
+          () => _loadBar(barId),
+        );
+        if (bar == null) return moment;
+        return HomeMoment.fromJson({...moment.entry, 'bar': bar});
+      }),
+    );
+    return HomeFeedPage(
+      items: items,
+      limit: page.limit,
+      offset: page.offset,
+      hasMore: page.hasMore,
+    );
+  }
+
+  Future<Map<String, dynamic>?> _loadBar(int id) async {
+    try {
+      final result = _map(await _api.getBarById(id));
+      if (result == null) _barRequests.remove(id);
+      return result;
+    } on Exception {
+      // A missing cover must not prevent the public feed from loading.
+      _barRequests.remove(id);
+      return null;
+    }
+  }
 
   Future<List<BarSubtypeOption>> loadBarSubtypes() async =>
       (await _api.getBarSubtypes())
