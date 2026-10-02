@@ -5,7 +5,7 @@ import 'package:sipon/services/home_moments_repository.dart';
 import 'package:sipon/widgets/home_moments_section.dart';
 
 void main() {
-  testWidgets('feed uses server offset, deduplicates and resets on search', (
+  testWidgets('feed uses server offset, deduplicates and resets on filtering', (
     tester,
   ) async {
     final repository = _FakeFeedRepository();
@@ -35,21 +35,13 @@ void main() {
     expect(find.text('第二条'), findsOneWidget);
     expect(find.text('第三条'), findsOneWidget);
 
-    await tester.ensureVisible(find.byType(TextField).first);
-    await tester.enterText(find.byType(TextField).first, '特调');
-    await tester.pump(const Duration(milliseconds: 350));
-    await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsNothing);
+    expect(repository.queries.last.keyword, isNull);
 
-    expect(repository.queries.last.offset, 0);
-    expect(repository.queries.last.keyword, '特调');
+    expect(find.text('全部品类'), findsNothing);
+    expect(repository.queries.last.barSubtype, isNull);
 
-    await tester.tap(find.text('全部品类'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('鸡尾酒吧').last);
-    await tester.pumpAndSettle();
-    expect(repository.queries.last.barSubtype, 'cocktail_bar');
-    expect(repository.queries.last.offset, 0);
-
+    await tester.ensureVisible(find.text('最新优先'));
     await tester.tap(find.text('最新优先'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('热门优先').last);

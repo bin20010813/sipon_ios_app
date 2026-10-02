@@ -1,4 +1,5 @@
-﻿import 'dart:math' as math;
+import 'pages/moments_page.dart';
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
@@ -269,6 +270,8 @@ class _SiponShellState extends State<_SiponShell> {
   final GlobalKey<ProfilePageState> _profilePageKey =
       GlobalKey<ProfilePageState>();
 
+  final _momentsPageKey = GlobalKey<MomentsPageState>();
+  bool _momentsVisited = false;
   int _currentIndex = 0;
   MapVenue? _mapRequestedVenue;
   bool _recordRouteOpening = false;
@@ -291,8 +294,9 @@ class _SiponShellState extends State<_SiponShell> {
 
   void _selectTab(int index) {
     if (index == _currentIndex) {
+      if (index == 2) _momentsPageKey.currentState?.refresh();
       // 閲嶅鐐瑰嚮褰撳墠 tab锛氳涓烘墜鍔ㄥ埛鏂般€?
-      if (index == 2) {
+      if (index == 3) {
         _profilePageKey.currentState?.refreshProfile();
         _profilePageKey.currentState?.refreshCounts();
       }
@@ -301,9 +305,10 @@ class _SiponShellState extends State<_SiponShell> {
 
     setState(() {
       _currentIndex = index;
+      if (index == 2) _momentsVisited = true;
       _mapRequestedVenue = null;
     });
-    if (index == 2) {
+    if (index == 3) {
       _profilePageKey.currentState?.refreshProfile();
       _profilePageKey.currentState?.refreshCounts();
     }
@@ -395,6 +400,7 @@ class _SiponShellState extends State<_SiponShell> {
       builder: (_) => const CheckInPage(),
     );
     _profilePageKey.currentState?.refreshCounts();
+    _momentsPageKey.currentState?.refresh();
   }
 
   @override
@@ -414,7 +420,6 @@ class _SiponShellState extends State<_SiponShell> {
               HomePage(
                 bottomOverlayInset: _effectiveNavigationReserveHeight,
                 onRecordPressed: _openDrinkRecord,
-                onCheckInPressed: _openCheckIn,
                 onVenueMapRequested: _showVenueOnMap,
                 searchExpanded: _homeSearchExpanded,
               ),
@@ -424,8 +429,15 @@ class _SiponShellState extends State<_SiponShell> {
                 requestedVenue: _mapRequestedVenue,
                 onSheetProgressChanged: _handleMapSheetProgress,
               ),
+              _momentsVisited
+                  ? MomentsPage(
+                      key: _momentsPageKey,
+                      bottomOverlayInset: _effectiveNavigationReserveHeight,
+                      onCheckInPressed: _openCheckIn,
+                    )
+                  : const SizedBox.shrink(),
               TickerMode(
-                enabled: _currentIndex == 2,
+                enabled: _currentIndex == 3,
                 child: ProfilePage(
                   key: _profilePageKey,
                   bottomOverlayInset: _effectiveNavigationReserveHeight,
@@ -501,7 +513,7 @@ class _ShellBottomBar extends StatelessWidget {
                     child: Opacity(
                       opacity: 1 - progress,
                       child: Padding(
-                        padding: EdgeInsets.fromLTRB(34, 0, 34, bottomGap),
+                        padding: EdgeInsets.fromLTRB(16, 0, 16, bottomGap),
                         child: _SiponBottomJumpBar(
                           currentIndex: currentIndex,
                           onTabSelected: onTabSelected,
@@ -579,12 +591,20 @@ class _SiponBottomJumpBar extends StatelessWidget {
                       onPressed: () => onTabSelected(1),
                     ),
                     _SiponBottomJumpItem(
-                      tooltip: text.profileTab,
-                      icon: Icons.person_rounded,
+                      tooltip: text.t('动态'),
+                      icon: Icons.forum_outlined,
                       selected: currentIndex == 2,
                       activeColor: _activeColor,
                       inactiveColor: _inactiveColor,
                       onPressed: () => onTabSelected(2),
+                    ),
+                    _SiponBottomJumpItem(
+                      tooltip: text.profileTab,
+                      icon: Icons.person_rounded,
+                      selected: currentIndex == 3,
+                      activeColor: _activeColor,
+                      inactiveColor: _inactiveColor,
+                      onPressed: () => onTabSelected(3),
                     ),
                   ],
                 ),
@@ -660,32 +680,34 @@ class _SiponBottomJumpItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: Semantics(
-        button: true,
-        selected: selected,
-        label: tooltip,
-        child: IconButton(
-          onPressed: onPressed,
-          style: IconButton.styleFrom(
-            fixedSize: const Size(70, 52),
-            backgroundColor: Colors.transparent,
-            foregroundColor: selected ? Colors.white : inactiveColor,
-            padding: EdgeInsets.zero,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(22),
+    return Expanded(
+      child: Tooltip(
+        message: tooltip,
+        child: Semantics(
+          button: true,
+          selected: selected,
+          label: tooltip,
+          child: IconButton(
+            onPressed: onPressed,
+            style: IconButton.styleFrom(
+              minimumSize: const Size(44, 52),
+              backgroundColor: Colors.transparent,
+              foregroundColor: selected ? Colors.white : inactiveColor,
+              padding: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22),
+              ),
             ),
-          ),
-          icon: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            width: 58,
-            height: 44,
-            decoration: BoxDecoration(
-              color: selected ? activeColor : Colors.transparent,
-              borderRadius: BorderRadius.circular(22),
+            icon: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 58,
+              height: 44,
+              decoration: BoxDecoration(
+                color: selected ? activeColor : Colors.transparent,
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: Center(child: Icon(icon, size: 28)),
             ),
-            child: Center(child: Icon(icon, size: 28)),
           ),
         ),
       ),

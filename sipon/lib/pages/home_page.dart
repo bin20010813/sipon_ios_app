@@ -10,7 +10,6 @@ import '../services/sipon_api_service.dart';
 import '../services/sipon_city_controller.dart';
 import '../services/sipon_data_repository.dart';
 import '../widgets/bottom_clamping_bouncing_scroll_physics.dart';
-import '../widgets/home_moments_section.dart';
 import '../widgets/map/venue_detail_page.dart';
 import '../widgets/sipon_city_picker.dart';
 import '../widgets/sipon_network_image.dart';
@@ -18,21 +17,18 @@ import 'cocktail_detail_page.dart';
 import 'cocktail_list_page.dart';
 import 'ingredient_list_page.dart';
 import 'language_transform.dart';
-import 'virtual_drinking_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({
     super.key,
     this.bottomOverlayInset = 0,
     this.onRecordPressed,
-    this.onCheckInPressed,
     this.onVenueMapRequested,
     this.searchExpanded,
   });
 
   final double bottomOverlayInset;
   final VoidCallback? onRecordPressed;
-  final Future<void> Function()? onCheckInPressed;
   final ValueChanged<MapVenue>? onVenueMapRequested;
 
   /// 外部共享的搜索展开状态（壳层用它在遮罩出现时同步隐藏底栏）；
@@ -74,8 +70,6 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   late final PageController _drinkController;
   final ScrollController _homeScrollController = ScrollController();
-  final GlobalKey<HomeMomentsSectionState> _homeMomentsKey =
-      GlobalKey<HomeMomentsSectionState>();
   late Future<_HomeBarsData> _homeBarsFuture;
   SiponCityController? _cityController;
   String? _loadedCity;
@@ -93,7 +87,6 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _searchExpanded = widget.searchExpanded ?? ValueNotifier<bool>(false);
     _drinkController = PageController(initialPage: 1, viewportFraction: 0.52);
-    _homeScrollController.addListener(_onHomeScrolled);
   }
 
   @override
@@ -119,22 +112,11 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  void _onHomeScrolled() {
-    if (!_homeScrollController.hasClients) return;
-    final position = _homeScrollController.position;
-    if (position.pixels >= position.maxScrollExtent - 500) {
-      _homeMomentsKey.currentState?.loadMore();
-    }
-  }
-
   Future<void> _refreshHome() async {
     final city = _cityController?.city ?? SiponCityController.defaultCity;
     final bars = _loadHomeBars(city);
     setState(() => _homeBarsFuture = bars);
-    await Future.wait([
-      bars,
-      _homeMomentsKey.currentState?.refresh() ?? Future<void>.value(),
-    ]);
+    await bars;
   }
 
   void _refreshHomeBarsForCity() {
@@ -257,24 +239,6 @@ class _HomePageState extends State<HomePage> {
                             ),
                             const SizedBox(height: 14),
                             const _CocktailScroller(),
-                            const SizedBox(height: 18),
-                            Padding(
-                              padding: const EdgeInsets.only(right: 23),
-                              child: _VirtualDrinkingPrompt(
-                                onPressed: () => Navigator.of(context).push(
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => const VirtualDrinkingPage(),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            Padding(
-                              padding: const EdgeInsets.only(right: 23),
-                              child: _HomeRecordPrompt(
-                                onPressed: widget.onRecordPressed,
-                              ),
-                            ),
                             const SizedBox(height: 24),
                             FutureBuilder<_HomeBarsData>(
                               future: _homeBarsFuture,
@@ -298,13 +262,6 @@ class _HomePageState extends State<HomePage> {
                                       widget.onVenueMapRequested,
                                 );
                               },
-                            ),
-                            HomeMomentsSection(
-                              key: _homeMomentsKey,
-                              city:
-                                  _loadedCity ??
-                                  SiponCityController.defaultCity,
-                              onCheckInPressed: widget.onCheckInPressed,
                             ),
                           ],
                         ),
@@ -683,160 +640,6 @@ class _CocktailSuggestions extends StatelessWidget {
                   ),
               ],
             ),
-    );
-  }
-}
-
-final _homePromptDecoration = BoxDecoration(
-  color: const Color(0xFFFFF7FC),
-  borderRadius: BorderRadius.circular(16),
-  border: Border.all(color: const Color(0x1F9A3D78)),
-  boxShadow: const [
-    BoxShadow(color: Color(0x109A3D78), blurRadius: 18, offset: Offset(0, 8)),
-  ],
-);
-
-class _VirtualDrinkingPrompt extends StatelessWidget {
-  const _VirtualDrinkingPrompt({required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = SiponLanguageScope.textOf(context);
-    return Container(
-      decoration: _homePromptDecoration,
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.nightlife_rounded,
-                  color: HomePage.brand,
-                  size: 28,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        text.t('虚拟小酌'),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: HomePage.ink,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        text.t('选一杯酒，走进属于你的场景'),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: HomePage.muted,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                const SizedBox(
-                  height: 44,
-                  child: Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    color: HomePage.brand,
-                    size: 17,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _HomeRecordPrompt extends StatelessWidget {
-  const _HomeRecordPrompt({required this.onPressed});
-
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = SiponLanguageScope.textOf(context);
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
-      decoration: _homePromptDecoration,
-      child: Row(
-        children: [
-          const Icon(Icons.auto_graph_rounded, color: HomePage.brand, size: 28),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  text.t('看见你的饮酒习惯'),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: HomePage.ink,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  text.t('少一点模糊印象，多一点清楚记录'),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: HomePage.muted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          FilledButton(
-            onPressed: onPressed,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(82, 44),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              backgroundColor: HomePage.brand,
-              foregroundColor: Colors.white,
-              textStyle: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-            child: Text(text.t('记一笔')),
-          ),
-        ],
-      ),
     );
   }
 }

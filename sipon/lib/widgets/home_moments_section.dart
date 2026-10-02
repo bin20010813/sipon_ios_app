@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../pages/language_transform.dart';
@@ -44,14 +42,11 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
   late final HomeMomentsRepository _repository =
       widget.repository ?? HomeMomentsRepository();
   late final SiponApiService _api = widget.apiService ?? SiponApiService();
-  final _searchController = TextEditingController();
   final List<HomeMoment> _moments = [];
   final Set<int> _reacting = {};
   final Set<int> _following = {};
   int? _viewerId;
-  Timer? _searchDebounce;
   List<BarSubtypeOption> _subtypes = const [];
-  String? _subtype;
   String _scope = 'all';
   String _sort = 'latest';
   bool _allCities = false;
@@ -112,8 +107,6 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
   @override
   void dispose() {
     _generation++;
-    _searchDebounce?.cancel();
-    _searchController.dispose();
     super.dispose();
   }
 
@@ -153,10 +146,6 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
     final offset = replace ? 0 : _nextOffset;
     final query = HomeFeedQuery(
       city: _allCities ? null : widget.city,
-      keyword: _searchController.text.trim().isEmpty
-          ? null
-          : _searchController.text.trim(),
-      barSubtype: _subtype,
       scope: _scope,
       sort: _sort,
       limit: _pageSize,
@@ -190,13 +179,6 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
     }
   }
 
-  void _onKeywordChanged(String _) {
-    _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
-      if (mounted) refresh(clear: true);
-    });
-  }
-
   Future<bool> _ensureLogin({bool force = false}) async {
     if (!force && _signedIn) return true;
     final loggedIn = await Navigator.of(context).push<bool>(
@@ -222,6 +204,17 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
   }
 
   Future<void> _toggleLike(HomeMoment moment) async {
+    if (moment.entry['preview'] == true) {
+      final index = _moments.indexWhere((item) => item.id == moment.id);
+      if (index >= 0) {
+        setState(
+          () => _moments[index] = moment.withReaction(
+            moment.myReaction == 'like' ? null : 'like',
+          ),
+        );
+      }
+      return;
+    }
     if (_reacting.contains(moment.id)) return;
     if (!await _ensureLogin() || !mounted) return;
     final index = _moments.indexWhere((item) => item.id == moment.id);
@@ -251,6 +244,10 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
   }
 
   Future<void> _toggleFollow(HomeMoment moment) async {
+    if (moment.entry['preview'] == true) {
+      _showPreviewNotice();
+      return;
+    }
     final authorId = moment.author.id;
     if (authorId == null ||
         authorId == _viewerId ||
@@ -291,6 +288,10 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
   }
 
   Future<void> _openComments(HomeMoment moment) async {
+    if (moment.entry['preview'] == true) {
+      _showPreviewNotice();
+      return;
+    }
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -315,7 +316,43 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
     );
   }
 
+  void _showPreviewNotice() {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('模拟动态，仅供预览展示')));
+  }
+
   void _openMoment(HomeMoment moment) {
+    if (moment.entry['preview'] == true) {
+      showDialog<void>(
+        context: context,
+        builder: (context) => Dialog(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AspectRatio(
+                aspectRatio: 1,
+                child: PageView(
+                  children: [
+                    for (final photo in moment.photos)
+                      Image.asset(photo, fit: BoxFit.contain),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  moment.entry['previewDuration'] != null
+                      ? '模拟视频封面 · 暂不支持播放'
+                      : '模拟照片动态 · 左右滑动查看',
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => _ActivityCheckInDetailPage(moment: moment, api: _api),
@@ -324,6 +361,10 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
   }
 
   void _openVenue(HomeMoment moment) {
+    if (moment.entry['preview'] == true) {
+      _showPreviewNotice();
+      return;
+    }
     if (moment.venue.id.isEmpty) return;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -380,42 +421,13 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
                     if (mounted) await refresh();
                   },
                   icon: const Icon(Icons.add_rounded, size: 18),
-                  label: Text(text.t('发布打卡')),
+                  label: Text(text.t('发布动态')),
                 ),
             ],
           ),
           Text(
             text.t(_allCities ? '全部城市的公开打卡' : '当前城市的公开打卡'),
             style: const TextStyle(color: _muted, fontSize: 12),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _searchController,
-            onChanged: _onKeywordChanged,
-            maxLength: 100,
-            decoration: InputDecoration(
-              hintText: text.t('搜索酒吧或动态内容'),
-              prefixIcon: const Icon(Icons.search_rounded, size: 20),
-              suffixIcon: _searchController.text.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: text.t('清除搜索'),
-                      icon: const Icon(Icons.close_rounded, size: 18),
-                      onPressed: () {
-                        _searchDebounce?.cancel();
-                        _searchController.clear();
-                        refresh(clear: true);
-                      },
-                    ),
-              counterText: '',
-              isDense: true,
-              filled: true,
-              fillColor: const Color(0xFFF8F5F7),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
-              ),
-            ),
           ),
           const SizedBox(height: 12),
           Wrap(
@@ -432,26 +444,6 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
                 text.t('关注'),
                 _scope == 'following',
                 () => _changeScope('following'),
-              ),
-              PopupMenuButton<String?>(
-                tooltip: text.t('品类'),
-                onSelected: (value) {
-                  if (_subtype == value) return;
-                  setState(() => _subtype = value);
-                  refresh(clear: true);
-                },
-                itemBuilder: (_) => [
-                  PopupMenuItem<String?>(
-                    value: null,
-                    child: Text(text.t('全部品类')),
-                  ),
-                  for (final option in _subtypes)
-                    PopupMenuItem<String?>(
-                      value: option.code,
-                      child: Text(text.t(option.name)),
-                    ),
-                ],
-                child: _filterLabel(text.t(subtypeName[_subtype] ?? '全部品类')),
               ),
               PopupMenuButton<String>(
                 tooltip: text.t('排序'),
@@ -550,7 +542,7 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
               followingBusy: _following.contains(moment.author.id),
               onComments: () => _openComments(moment),
             ),
-            const SizedBox(height: 12),
+            const Divider(height: 6, thickness: 6, color: Color(0xFFF8F8F8)),
           ],
           if (_loading)
             const Center(
@@ -677,27 +669,18 @@ class _MomentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
-    final date = moment.createdAt;
-    final dateLabel = date == null
-        ? ''
-        : '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}';
+    final category = subtypeName ?? moment.barCategory ?? moment.barSubtype;
     final location = [
       moment.city,
       moment.address,
-    ].whereType<String>().where((value) => value.isNotEmpty).join(' · ');
-    final category = subtypeName ?? moment.barCategory ?? moment.barSubtype;
+      moment.priceRange,
+    ].whereType<String>().where((value) => value.isNotEmpty).join(' | ');
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onOpen,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.all(13),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFF2EDF1)),
-          ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -708,12 +691,12 @@ class _MomentCard extends StatelessWidget {
                     customBorder: const CircleBorder(),
                     child: ClipOval(
                       child: SizedBox(
-                        width: 30,
-                        height: 30,
+                        width: 24,
+                        height: 24,
                         child: moment.author.avatarUrl == null
                             ? const ColoredBox(
                                 color: Color(0xFFF8E7F7),
-                                child: Icon(Icons.person_rounded, size: 18),
+                                child: Icon(Icons.person_rounded, size: 16),
                               )
                             : SiponNetworkImage(
                                 url: moment.author.avatarUrl!,
@@ -723,7 +706,7 @@ class _MomentCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Expanded(
+                  Flexible(
                     child: InkWell(
                       onTap: onOpenAuthor,
                       child: Text(
@@ -737,20 +720,21 @@ class _MomentCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Text(
-                    dateLabel,
+                    text.t('分享'),
                     style: const TextStyle(
+                      fontSize: 12,
                       color: Color(0xFF9B939B),
-                      fontSize: 11,
                     ),
                   ),
-                  if (onFollow != null) ...[
-                    const SizedBox(width: 5),
+                  const Spacer(),
+                  if (onFollow != null)
                     TextButton(
                       onPressed: followingBusy ? null : onFollow,
                       style: TextButton.styleFrom(
-                        minimumSize: const Size(48, 30),
-                        padding: const EdgeInsets.symmetric(horizontal: 5),
+                        minimumSize: const Size(44, 32),
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
                       ),
                       child: Text(
                         text.t(
@@ -758,149 +742,207 @@ class _MomentCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                  ],
                 ],
               ),
-              if (moment.author.checkInCount != null) ...[
-                const SizedBox(height: 3),
-                Text(
-                  '${moment.author.checkInCount} ${text.t('条公开评价')}',
-                  style: const TextStyle(
-                    color: Color(0xFF9B939B),
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-              if (moment.content.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Text(
-                  moment.content,
-                  maxLines: 5,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFF514A52),
-                    fontSize: 13,
-                    height: 1.45,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 11),
+              const SizedBox(height: 14),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: SizedBox(
-                      width: 104,
-                      height: 104,
-                      child: moment.photos.isEmpty
-                          ? const ColoredBox(
-                              color: Color(0xFFF3EEF1),
-                              child: Icon(
-                                Icons.local_bar_outlined,
-                                color: Color(0xFFB6ABB2),
-                                size: 32,
-                              ),
-                            )
-                          : PageView.builder(
-                              key: ValueKey('moment-photos-${moment.id}'),
-                              itemCount: moment.photos.length,
-                              itemBuilder: (_, index) => SiponNetworkImage(
-                                url: moment.photos[index],
-                                fallbackWidget: const ColoredBox(
-                                  color: Color(0xFFF3EEF1),
-                                  child: Icon(Icons.image_outlined),
+                  if (moment.photos.isNotEmpty) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: SizedBox(
+                        width: 104,
+                        height: 104,
+                        child: moment.photos.isEmpty
+                            ? const ColoredBox(
+                                color: Color(0xFFF3EEF1),
+                                child: Icon(
+                                  Icons.local_bar_outlined,
+                                  color: Color(0xFFB6ABB2),
+                                  size: 32,
                                 ),
+                              )
+                            : PageView.builder(
+                                key: ValueKey('moment-photos-${moment.id}'),
+                                itemCount: moment.photos.length,
+                                itemBuilder: (_, index) =>
+                                    moment.entry['preview'] == true
+                                    ? Stack(
+                                        fit: StackFit.expand,
+                                        children: [
+                                          Image.asset(
+                                            moment.photos[index],
+                                            fit: BoxFit.cover,
+                                          ),
+                                          if (moment.entry['previewDuration'] !=
+                                              null)
+                                            const Center(
+                                              child: Icon(
+                                                Icons.play_circle_fill_rounded,
+                                                color: Colors.white,
+                                                size: 38,
+                                              ),
+                                            ),
+                                          Positioned(
+                                            right: 4,
+                                            bottom: 4,
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 5,
+                                                    vertical: 2,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.black54,
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                moment.entry['previewDuration']
+                                                        as String? ??
+                                                    '${index + 1}/${moment.photos.length}',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 10,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    : SiponNetworkImage(
+                                        url: moment.photos[index],
+                                        fallbackWidget: const ColoredBox(
+                                          color: Color(0xFFF3EEF1),
+                                          child: Icon(Icons.image_outlined),
+                                        ),
+                                      ),
                               ),
-                            ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
+                    const SizedBox(width: 12),
+                  ],
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        InkWell(
-                          onTap: onOpenVenue,
-                          child: Text(
-                            moment.venue.name,
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: InkWell(
+                                onTap: onOpenVenue,
+                                child: Text(
+                                  moment.venue.name,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF252229),
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            SizedBox(
+                              width: 32,
+                              child: InkWell(
+                                onTap: onLike,
+                                borderRadius: BorderRadius.circular(8),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 2,
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Icon(
+                                        moment.myReaction == 'like'
+                                            ? Icons.favorite_rounded
+                                            : Icons.favorite_border_rounded,
+                                        size: 21,
+                                        color: moment.myReaction == 'like'
+                                            ? const Color(0xFF9A3D78)
+                                            : const Color(0xFF514A52),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '${moment.likeCount}',
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          color: Color(0xFF9B939B),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (location.isNotEmpty) ...[
+                          const SizedBox(height: 5),
+                          Text(
+                            location,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              color: Color(0xFF252229),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                        if (location.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            location,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                              fontSize: 11,
                               color: Color(0xFF9B939B),
-                              fontSize: 11,
+                              height: 1.4,
                             ),
                           ),
                         ],
-                        if (category != null || moment.priceRange != null) ...[
-                          const SizedBox(height: 5),
-                          Text(
-                            [
-                              if (category != null) text.t(category),
-                              if (moment.priceRange != null) moment.priceRange!,
-                            ].join(' · '),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Color(0xFF9A3D78),
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                        if (moment.rating != null) ...[
-                          const SizedBox(height: 5),
-                          Row(
+                        if (category != null || moment.rating != null) ...[
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 5,
+                            runSpacing: 5,
                             children: [
-                              const Icon(
-                                Icons.star_rounded,
-                                color: Color(0xFFFFAC46),
-                                size: 15,
-                              ),
-                              Text(
-                                '${moment.rating}/5',
-                                style: const TextStyle(
-                                  color: Color(0xFF9A3D78),
-                                  fontSize: 12,
-                                ),
-                              ),
+                              if (moment.rating != null)
+                                _tag('★ ${moment.rating}/5', highlighted: true),
+                              if (category != null) _tag(text.t(category)),
                             ],
                           ),
                         ],
+                        if (moment.content.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            moment.content,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              height: 1.6,
+                              color: Color(0xFF9B939B),
+                            ),
+                          ),
+                        ],
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: onComments,
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFF9B939B),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
+                              minimumSize: const Size(44, 32),
+                            ),
+                            icon: const Icon(
+                              Icons.mode_comment_outlined,
+                              size: 15,
+                            ),
+                            label: Text(
+                              '${moment.commentCount}',
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
-                  ),
-                ],
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton.icon(
-                    onPressed: onLike,
-                    icon: Icon(
-                      moment.myReaction == 'like'
-                          ? Icons.favorite_rounded
-                          : Icons.favorite_border_rounded,
-                      size: 18,
-                    ),
-                    label: Text('${moment.likeCount}'),
-                  ),
-                  TextButton.icon(
-                    onPressed: onComments,
-                    icon: const Icon(Icons.mode_comment_outlined, size: 18),
-                    label: Text('${moment.commentCount}'),
                   ),
                 ],
               ),
@@ -910,4 +952,21 @@ class _MomentCard extends StatelessWidget {
       ),
     );
   }
+
+  Widget _tag(String label, {bool highlighted = false}) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+    decoration: BoxDecoration(
+      color: highlighted ? const Color(0xFFF8E7F7) : const Color(0xFFF5F4F6),
+      borderRadius: BorderRadius.circular(5),
+    ),
+    child: Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 10,
+        color: highlighted ? const Color(0xFF9A3D78) : const Color(0xFF9B939B),
+      ),
+    ),
+  );
 }
