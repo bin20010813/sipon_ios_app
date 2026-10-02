@@ -761,6 +761,7 @@ class IngredientInfo {
     this.code,
     this.name,
     this.nameEn,
+    this.description,
     this.category,
     this.imageUrl,
     this.baseSpirit,
@@ -773,6 +774,7 @@ class IngredientInfo {
       code: _readString(map, ['code']),
       name: _readString(map, ['name']),
       nameEn: _readString(map, ['nameEn']),
+      description: _readString(map, ['description']),
       category: _readString(map, ['category']),
       imageUrl: _readString(map, ['imageUrl', 'image']),
       baseSpirit: _readBool(map, ['baseSpirit', 'isBaseSpirit']),
@@ -792,6 +794,7 @@ class IngredientInfo {
   final String? code;
   final String? name;
   final String? nameEn;
+  final String? description;
   final String? category;
   final String? imageUrl;
   final bool? baseSpirit;

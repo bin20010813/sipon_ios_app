@@ -463,6 +463,7 @@ const Map<String, String> _englishText = {
   '评分已提交': 'Rating submitted',
   '未评分': 'Not rated',
   '搜索': 'Search',
+  '搜索配料': 'Search ingredients',
   '更多': 'More',
   '酒吧推荐': 'Bars of the day',
   '酒友动态': 'Community check-ins',

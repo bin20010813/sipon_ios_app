@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/sipon_theme_colors.dart';
@@ -8,20 +7,13 @@ import '../../../../shared/services/sipon_api_service.dart';
 import '../../virtual_drinking/models/virtual_drinking_models.dart';
 import '../../../../shared/localization/language_transform.dart';
 import '../../virtual_drinking/pages/virtual_drinking_page.dart';
+import '../widgets/drink_detail_cover.dart';
 
-/// 封面显示尺寸（逻辑像素）；预取与展示共用，保证解码缓存键一致。
-const double kCocktailDetailCoverWidth = 260.0;
-const double kCocktailDetailCoverHeight = 347.0;
-
-/// 详情封面的图片 Provider：按封面显示尺寸（260×347 × dpr）解码。
-/// 首页/列表预取与详情页展示必须共用同一 Provider（同一缓存键），
-/// 预取后点进详情才能直接命中内存缓存；磁盘缓存由 CachedNetworkImageProvider 提供。
-ImageProvider cocktailDetailCoverImageProvider(String url, double dpr) =>
-    ResizeImage(
-      CachedNetworkImageProvider(url),
-      width: (kCocktailDetailCoverWidth * dpr).round(),
-      height: (kCocktailDetailCoverHeight * dpr).round(),
-    );
+export '../widgets/drink_detail_cover.dart'
+    show
+        kCocktailDetailCoverWidth,
+        kCocktailDetailCoverHeight,
+        cocktailDetailCoverImageProvider;
 
 /// 鸡尾酒百科——详情页（GET /api/cocktails/{id}）。
 class CocktailDetailPage extends StatefulWidget {
@@ -211,7 +203,7 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Center(
-                      child: _DetailCover(
+                      child: DrinkDetailCover(
                         imageUrl: imageUrl,
                         fallbackAsset: _fallbackAsset,
                       ),
@@ -316,6 +308,22 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
                 ),
                 const SizedBox(height: 12),
               ],
+              // 背后的故事。
+              if (detail.story != null && detail.story!.isNotEmpty) ...[
+                _SectionBlock(
+                  title: text.t('背后的故事'),
+                  child: Text(
+                    detail.story!,
+                    style: TextStyle(
+                      color: scheme.onSurface,
+                      fontSize: 16,
+                      height: 1.5,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               // 用料清单。
               _SectionBlock(
                 title: text.t('用料'),
@@ -342,175 +350,10 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
                         ],
                       ),
               ),
-              // 背后的故事。
-              if (detail.story != null && detail.story!.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                _SectionBlock(
-                  title: text.t('背后的故事'),
-                  child: Text(
-                    detail.story!,
-                    style: TextStyle(
-                      color: scheme.onSurface,
-                      fontSize: 16,
-                      height: 1.5,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ),
-              ],
             ],
           ),
         ),
       ],
-    );
-  }
-}
-
-/// 居中大图封面。
-class _DetailCover extends StatelessWidget {
-  const _DetailCover({this.imageUrl, required this.fallbackAsset});
-
-  final String? imageUrl;
-  final String fallbackAsset;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    const coverWidth = 260.0;
-    const coverHeight = 347.0;
-    const radius = 24.0;
-    final url = imageUrl;
-
-    Widget image() {
-      if (url != null && url.isNotEmpty) {
-        return Container(
-          // 加载中/淡入前的占位底色，跟随主题占位色，深色下不再闪白。
-          color: context.siponColors.skeleton,
-          child: Image(
-            image: cocktailDetailCoverImageProvider(
-              url,
-              MediaQuery.devicePixelRatioOf(context),
-            ),
-            width: coverWidth,
-            height: coverHeight,
-            fit: BoxFit.cover,
-            filterQuality: FilterQuality.low,
-            frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-              if (wasSynchronouslyLoaded) return child;
-              return AnimatedOpacity(
-                opacity: frame == null ? 0 : 1,
-                duration: const Duration(milliseconds: 200),
-                child: child,
-              );
-            },
-            errorBuilder: (_, _, _) => Image.asset(
-              fallbackAsset,
-              width: coverWidth,
-              height: coverHeight,
-              fit: BoxFit.cover,
-            ),
-          ),
-        );
-      }
-      return Image.asset(
-        fallbackAsset,
-        width: coverWidth,
-        height: coverHeight,
-        fit: BoxFit.cover,
-      );
-    }
-
-    return SizedBox(
-      width: coverWidth,
-      height: coverHeight + 27,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(radius),
-              boxShadow: [
-                // 封面投影与高光都随主题，深色下不再出现白色亮边。
-                BoxShadow(
-                  color: context.siponColors.shadow,
-                  blurRadius: 18,
-                  spreadRadius: 2,
-                  offset: const Offset(0, 9),
-                ),
-                BoxShadow(
-                  color: scheme.surface.withValues(alpha: 0.7),
-                  blurRadius: 6,
-                  spreadRadius: -2,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(radius),
-              child: Stack(
-                children: [
-                  image(),
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    height: 36,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        // 封面底部渐隐到页面表面色，深色下不再出现白色亮带。
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            scheme.surface.withValues(alpha: 0),
-                            scheme.surface.withValues(alpha: 0.22),
-                            scheme.surface.withValues(alpha: 0.3),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
-            left: 8,
-            right: 8,
-            top: coverHeight + 1,
-            height: 36,
-            child: ShaderMask(
-              blendMode: BlendMode.dstIn,
-              // dstIn 蒙版语义：白色代表保留、透明代表擦除，与主题无关，保留常量。
-              shaderCallback: (bounds) => const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Colors.white, Colors.transparent],
-              ).createShader(bounds),
-              child: ClipRect(
-                child: Opacity(
-                  opacity: 0.25,
-                  child: OverflowBox(
-                    alignment: Alignment.topCenter,
-                    minWidth: coverWidth - 16,
-                    maxWidth: coverWidth - 16,
-                    minHeight: coverHeight,
-                    maxHeight: coverHeight,
-                    child: Transform(
-                      alignment: Alignment.center,
-                      transform: Matrix4.identity()..scale(1.0, -1.0),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(radius),
-                        child: image(),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

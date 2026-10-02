@@ -4,7 +4,7 @@ import '../../../../app/theme/sipon_theme_colors.dart';
 import '../../../../shared/services/sipon_api_client.dart';
 import '../../../../shared/services/sipon_api_models.dart';
 import '../../../../shared/services/sipon_api_service.dart';
-import '../../../../shared/widgets/sipon_network_image.dart';
+import '../widgets/drink_detail_cover.dart';
 import 'cocktail_detail_page.dart';
 import '../../../../shared/localization/language_transform.dart';
 
@@ -190,20 +190,65 @@ class _IngredientDetailPageState extends State<IngredientDetailPage> {
       physics: const BouncingScrollPhysics(),
       slivers: [
         SliverToBoxAdapter(
-          child: Stack(
-            children: [
-              // 顶部大图。
-              _IngredientHero(
-                imageUrl: ingredient.resolvedImageUrl(),
-                fallbackAsset: _fallbackAsset,
-              ),
-              // 悬浮返回按钮。
-              Positioned(
-                top: 10,
-                left: 22,
-                child: _IngredientBackButton(back: text.back),
-              ),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _IngredientBackButton(back: text.back),
+                const SizedBox(height: 16),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Center(
+                      child: DrinkDetailCover(
+                        imageUrl: ingredient.resolvedImageUrl(),
+                        fallbackAsset: _fallbackAsset,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: scheme.onSurface,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    if (ingredient.nameEn != null &&
+                        ingredient.nameEn!.isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        ingredient.nameEn!,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
+                          fontSize: 13,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        if (ingredient.category != null &&
+                            ingredient.category!.isNotEmpty)
+                          _IngredientTag(label: ingredient.category!),
+                        if (ingredient.baseSpirit == true)
+                          _IngredientTag(label: text.t('基酒')),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
         SliverPadding(
@@ -216,66 +261,25 @@ class _IngredientDetailPageState extends State<IngredientDetailPage> {
           ),
           sliver: SliverList.list(
             children: [
-              // 名称与分类信息。
-              Text(
-                name,
-                style: TextStyle(
-                  color: scheme.onSurface,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0,
-                ),
-              ),
-              if (ingredient.nameEn != null &&
-                  ingredient.nameEn!.isNotEmpty) ...[
-                const SizedBox(height: 2),
-                Text(
-                  ingredient.nameEn!,
-                  style: TextStyle(
-                    color: scheme.onSurfaceVariant,
-                    fontSize: 13,
-                    letterSpacing: 0,
+              if (ingredient.description != null &&
+                  ingredient.description!.isNotEmpty) ...[
+                _IngredientSectionBlock(
+                  title: text.t('简介'),
+                  child: Text(
+                    ingredient.description!,
+                    style: TextStyle(
+                      color: scheme.onSurface,
+                      fontSize: 16,
+                      height: 1.5,
+                      letterSpacing: 0,
+                    ),
                   ),
                 ),
+                const SizedBox(height: 12),
               ],
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  if (ingredient.category != null &&
-                      ingredient.category!.isNotEmpty)
-                    _IngredientTag(label: ingredient.category!),
-                  if (ingredient.baseSpirit == true) ...[
-                    const SizedBox(width: 8),
-                    const _IngredientTag(label: '基酒'),
-                  ],
-                ],
-              ),
-              // 相关鸡尾酒区块。
-              const SizedBox(height: 18),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: scheme.surface.withValues(alpha: 0.97),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        text.t('可用此配料调制的鸡尾酒'),
-                        style: TextStyle(
-                          color: scheme.onSurface,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      _buildCocktailList(text),
-                    ],
-                  ),
-                ),
+              _IngredientSectionBlock(
+                title: text.t('可用此配料调制的鸡尾酒'),
+                child: _buildCocktailList(text),
               ),
             ],
           ),
@@ -338,31 +342,7 @@ class _IngredientDetailPageState extends State<IngredientDetailPage> {
   }
 }
 
-/// 顶部大图：网络图 + 本地素材回退。
-class _IngredientHero extends StatelessWidget {
-  const _IngredientHero({this.imageUrl, required this.fallbackAsset});
-
-  final String? imageUrl;
-  final String fallbackAsset;
-
-  @override
-  Widget build(BuildContext context) {
-    const height = 240.0;
-    final url = imageUrl;
-    if (url != null && url.isNotEmpty) {
-      return SizedBox(
-        height: height,
-        child: SiponNetworkImage(url: url, fallbackAsset: fallbackAsset),
-      );
-    }
-    return SizedBox(
-      height: height,
-      child: Image.asset(fallbackAsset, fit: BoxFit.cover),
-    );
-  }
-}
-
-/// 悬浮的圆形返回按钮。
+/// 顶部圆形返回按钮。
 class _IngredientBackButton extends StatelessWidget {
   const _IngredientBackButton({required this.back});
 
@@ -412,6 +392,44 @@ class _IngredientTag extends StatelessWidget {
             fontWeight: FontWeight.w600,
             letterSpacing: 0,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 与鸡尾酒详情一致的圆角内容区块。
+class _IngredientSectionBlock extends StatelessWidget {
+  const _IngredientSectionBlock({required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.surface.withValues(alpha: 0.97),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                color: scheme.onSurface,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+            const SizedBox(height: 12),
+            child,
+          ],
         ),
       ),
     );
