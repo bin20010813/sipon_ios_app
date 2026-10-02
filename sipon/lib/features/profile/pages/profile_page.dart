@@ -337,7 +337,10 @@ class ProfilePageState extends State<ProfilePage> {
                         const SizedBox(height: 18),
                         _BudgetCard(onRecordPressed: onRecordPressed),
                         const SizedBox(height: 22),
-                        _SectionTitle(text.benefits),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 16),
+                          child: _SectionTitle(text.benefits),
+                        ),
                         const SizedBox(height: 12),
                         _ProfileListCard(
                           rows: [
