@@ -48,7 +48,7 @@ import java.net.URLEncoder
 import kotlin.math.ceil
 import kotlin.math.max
 
-private const val TIANDITU_ANNOTATION_MIN_ZOOM = 13
+private const val TIANDITU_MIN_TILE_ZOOM = 1
 private const val TIANDITU_ANNOTATION_OPACITY = 0.88f
 private const val TIANDITU_MAX_TILE_ZOOM = 18
 private val POI_THEME_COLOR = Color.rgb(154, 61, 120)
@@ -63,8 +63,8 @@ internal class SiponTiandituView(
     private val mapView: MapView
     private val container = FrameLayout(context)
     private val userLocation = SiponUserLocationView(context)
-    private val channel = MethodChannel(messenger, "sipon/tianditu_$viewId")
     private val density = context.resources.displayMetrics.density
+    private val channel = MethodChannel(messenger, "sipon/tianditu_$viewId")
     private var map: MapLibreMap? = null
     private var alive = true
     private var ready = false
@@ -178,9 +178,11 @@ internal class SiponTiandituView(
             userLocation.resume()
             // The 256 px WMTS tiles use the business zoom scale (native zoom + 1).
             loaded.setMaxZoomPreference(CameraZoomAdapter.toNative(TIANDITU_MAX_TILE_ZOOM.toDouble()))
+            loaded.setMinZoomPreference(TIANDITU_MIN_TILE_ZOOM.toDouble())
             loaded.addOnCameraIdleListener(cameraIdle)
             loaded.addOnMapClickListener(mapClick)
             loaded.uiSettings.isTiltGesturesEnabled = false
+            loaded.uiSettings.isRotateGesturesEnabled = false
             loaded.uiSettings.isCompassEnabled = false
             loaded.uiSettings.isLogoEnabled = false
             loaded.uiSettings.isAttributionEnabled = false
@@ -249,7 +251,7 @@ internal class SiponTiandituView(
                 }
                 "setGestures" -> {
                     map?.uiSettings?.apply {
-                        isRotateGesturesEnabled = args["rotateEnabled"] != false
+                        isRotateGesturesEnabled = false
                         isZoomGesturesEnabled = args["zoomEnabled"] != false
                         isScrollGesturesEnabled = args["panEnabled"] != false
                         isTiltGesturesEnabled = false
@@ -391,8 +393,11 @@ internal class SiponTiandituView(
             .put("attribution", "© 天地图"))
         layers.put(JSONObject().put("id", "base").put("type", "raster").put("source", "base")
             .put("minzoom", 0))
-        layers.put(JSONObject().put("id", "annotations").put("type", "raster").put("source", "annotations")
-            .put("minzoom", TIANDITU_ANNOTATION_MIN_ZOOM))
+        layers.put(JSONObject().put("id", "annotations-min").put("type", "raster").put("source", "annotations")
+            .put("minzoom", TIANDITU_MIN_TILE_ZOOM)
+            .put("maxzoom", CameraZoomAdapter.toNative(8.0)))
+        layers.put(JSONObject().put("id", "annotations-max").put("type", "raster").put("source", "annotations")
+            .put("minzoom", CameraZoomAdapter.toNative(15.0)))
         return root.put("sources", sources).put("layers", layers).toString()
     }
 
@@ -409,8 +414,9 @@ internal class SiponTiandituView(
     private fun applyRasterAppearance() {
         val style = map?.style ?: return
         val base = style.getLayer("base") as? RasterLayer ?: return
-        val annotations = style.getLayer("annotations") as? RasterLayer ?: return
-        annotations.setProperties(rasterOpacity(TIANDITU_ANNOTATION_OPACITY))
+        for (id in listOf("annotations-min", "annotations-max")) {
+            (style.getLayer(id) as? RasterLayer)?.setProperties(rasterOpacity(TIANDITU_ANNOTATION_OPACITY))
+        }
         if (useDarkPalette) {
             // Keep annotations independent so their visibility and opacity can be tuned.
             val satellite = styleId == "satellite"
@@ -671,7 +677,7 @@ internal class SiponTiandituView(
         ))
     }
 
-    private fun fitRouteStops(points: List<Wgs84Point>) {
+    private fun fitRouteStops(points: List<Gcj02Point>) {
         val current = map ?: return
         if (points.isEmpty()) return
         if (mapView.width <= 0 || mapView.height <= 0) {
@@ -707,7 +713,7 @@ internal class SiponTiandituView(
                 val lng = (pair[0] as? Number)?.toDouble() ?: return null
                 val lat = (pair[1] as? Number)?.toDouble() ?: return null
                 if (!MapCoordinateAdapter.valid(lng, lat)) return null
-                val display = MapCoordinateAdapter.toDisplay(Wgs84Point(lng, lat))
+                val display = MapCoordinateAdapter.toDisplay(Gcj02Point(lng, lat))
                 output.put(JSONArray().put(display.lng).put(display.lat))
             }
             result.put(output)
@@ -729,10 +735,10 @@ internal class SiponTiandituView(
             .put("properties", props)
     }
 
-    private fun point(args: Map<*, *>): Wgs84Point? {
+    private fun point(args: Map<*, *>): Gcj02Point? {
         val lng = (args["lng"] as? Number)?.toDouble() ?: return null
         val lat = (args["lat"] as? Number)?.toDouble() ?: return null
-        return if (MapCoordinateAdapter.valid(lng, lat)) Wgs84Point(lng, lat) else null
+        return if (MapCoordinateAdapter.valid(lng, lat)) Gcj02Point(lng, lat) else null
     }
 
     private fun moveCamera(args: Map<*, *>) {
@@ -750,7 +756,10 @@ internal class SiponTiandituView(
             .tilt(0.0)
             .padding(0.0, 0.0, 0.0, bottomPaddingDp * density)
             .build()
-        current.moveCamera(CameraUpdateFactory.newCameraPosition(camera))
+        val update = CameraUpdateFactory.newCameraPosition(camera)
+        val durationMs = (args["durationMs"] as? Number)?.toInt()?.coerceIn(0, 5000) ?: 0
+        if (durationMs > 0 && ready) current.animateCamera(update, durationMs)
+        else current.moveCamera(update)
     }
 
     private fun applyStage(args: Map<*, *>) {
@@ -824,12 +833,12 @@ internal class SiponTiandituView(
     private fun collection(features: JSONArray) = JSONObject().put("type", "FeatureCollection").put("features", features).toString()
     private fun emptyCollection() = collection(JSONArray())
 
-    private fun cityCenter(city: String): Wgs84Point = when (city) {
-        "北京" -> Wgs84Point(116.4074, 39.9042)
-        "广州" -> Wgs84Point(113.2644, 23.1291)
-        "深圳" -> Wgs84Point(114.0579, 22.5431)
-        "杭州" -> Wgs84Point(120.1551, 30.2741)
-        "成都" -> Wgs84Point(104.0665, 30.5723)
-        else -> Wgs84Point(121.4712, 31.2227)
+    private fun cityCenter(city: String): Gcj02Point = when (city) {
+        "北京" -> Gcj02Point(116.4074, 39.9042)
+        "广州" -> Gcj02Point(113.2644, 23.1291)
+        "深圳" -> Gcj02Point(114.0579, 22.5431)
+        "杭州" -> Gcj02Point(120.1551, 30.2741)
+        "成都" -> Gcj02Point(104.0665, 30.5723)
+        else -> Gcj02Point(121.4712, 31.2227)
     }
 }

@@ -11,7 +11,8 @@ import '../platform/sipon_map_protocol.dart';
 import '../widgets/checkin_pin_icon.dart';
 import 'map_scene_controller.dart';
 
-/// Android map scene. Business coordinates remain WGS-84 at this boundary.
+/// Android map scene. The current diagnostic build treats business coordinates
+/// as GCJ-02; the native adapter converts them at the Tianditu boundary.
 class TiandituSceneController extends MapSceneController {
   TiandituSceneController({
     required super.onViewportSettled,
@@ -250,7 +251,7 @@ class TiandituSceneController extends MapSceneController {
         ...encodeCameraMove(
           longitude: longitude,
           latitude: latitude,
-          zoom: MapSceneController.focusZoom,
+          zoom: 18.0, // Tianditu's maximum business zoom.
           pitch: MapSceneController.focusPitch,
           bearing: MapSceneController.focusBearing,
           bottomPadding: cameraBottomPadding,
@@ -277,10 +278,8 @@ class TiandituSceneController extends MapSceneController {
   }
 
   @override
-  Future<void> fitRouteStops(List<MapLatLng> points) => _invokeIfReady(
-    SiponMapCommands.fitRouteStops,
-    encodeRoutePoints(points),
-  );
+  Future<void> fitRouteStops(List<MapLatLng> points) =>
+      _invokeIfReady(SiponMapCommands.fitRouteStops, encodeRoutePoints(points));
 
   @override
   Future<bool> planRoute({required List<MapLatLng> points}) async {
@@ -312,10 +311,7 @@ class TiandituSceneController extends MapSceneController {
         if (response is! Map || response['crs'] != 'CGCS2000') {
           throw const FormatException('Unexpected Tianditu route coordinates');
         }
-        legs = RoutePlanner.parseLegs(
-          response['legs'],
-          expectedLegs: 1,
-        );
+        legs = RoutePlanner.parseLegs(response['legs'], expectedLegs: 1);
       }
       if (!_isRouteCurrent(host, revision)) return false;
       final geometry = [for (final leg in legs) leg.coordinates];
@@ -355,7 +351,8 @@ class TiandituSceneController extends MapSceneController {
     if (message.contains('301020')) {
       return '天地图路线服务安全密钥错误，请检查 TDT_SK 或 TDT_ROUTE_SK';
     }
-    if (message.contains('301001') || message.contains('HTTP 401') ||
+    if (message.contains('301001') ||
+        message.contains('HTTP 401') ||
         message.contains('HTTP 403')) {
       return '天地图路线服务鉴权失败，请检查路线 Key 和服务权限';
     }
