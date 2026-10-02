@@ -721,6 +721,7 @@ class RecipeLine {
     this.code,
     this.name,
     this.nameEn,
+    this.imageUrl,
     this.amountText,
     this.sortOrder,
   });
@@ -728,10 +729,11 @@ class RecipeLine {
   factory RecipeLine.fromJson(dynamic value) {
     final map = _asMap(value);
     return RecipeLine(
-      id: _readInt(map, ['id']),
+      id: _readInt(map, ['ingredientId', 'id']),
       code: _readString(map, ['code']),
       name: _readString(map, ['name']),
       nameEn: _readString(map, ['nameEn']),
+      imageUrl: _readString(map, ['imageUrl', 'image']),
       amountText: _readString(map, ['amountText', 'amount', 'text']),
       sortOrder: _readInt(map, ['sortOrder', 'order']),
     );
@@ -750,6 +752,7 @@ class RecipeLine {
   final String? code;
   final String? name;
   final String? nameEn;
+  final String? imageUrl;
   final String? amountText;
   final int? sortOrder;
 }

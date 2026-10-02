@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/sipon_theme_colors.dart';
@@ -7,7 +9,10 @@ import '../../../../shared/services/sipon_api_service.dart';
 import '../../virtual_drinking/models/virtual_drinking_models.dart';
 import '../../../../shared/localization/language_transform.dart';
 import '../../virtual_drinking/pages/virtual_drinking_page.dart';
+import '../data/recipe_ingredient_repository.dart';
 import '../widgets/drink_detail_cover.dart';
+import '../widgets/recipe_ingredient_fan.dart';
+import 'ingredient_detail_page.dart';
 
 export '../widgets/drink_detail_cover.dart'
     show
@@ -21,6 +26,7 @@ class CocktailDetailPage extends StatefulWidget {
     super.key,
     required this.cocktailId,
     this.initialSummary,
+    this.apiService,
   });
 
   final int cocktailId;
@@ -28,6 +34,7 @@ class CocktailDetailPage extends StatefulWidget {
   /// 上游列表页已拿到的摘要；先渲染封面与名称，详情接口后台补齐用料与故事，
   /// 避免封面等接口返回后才开始下载图片。
   final CocktailInfo? initialSummary;
+  final SiponApiService? apiService;
 
   @override
   State<CocktailDetailPage> createState() => _CocktailDetailPageState();
@@ -38,10 +45,12 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
   // （scheme.primary / scheme.onSurface / scheme.onSurfaceVariant）。
   static const String _fallbackAsset = 'assest/首页/图片素材/鸡尾酒系列1.png';
 
-  final SiponApiService _api = SiponApiService();
+  late final SiponApiService _api = widget.apiService ?? SiponApiService();
   late final Future<String?> _virtualDrinkCode = _findVirtualDrinkCode();
 
   CocktailDetailInfo? _detail;
+  List<RecipeIngredient> _recipeIngredients = const [];
+  bool _recipeImagesLoading = false;
   bool _loading = false;
   String? _error;
 
@@ -65,9 +74,14 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
     try {
       final json = await _api.getCocktailDetail(widget.cocktailId);
       if (!mounted) return;
+      final detail = CocktailDetailInfo.fromJson(json);
+      final lines = detail.sortedIngredients;
       setState(() {
-        _detail = CocktailDetailInfo.fromJson(json);
+        _detail = detail;
+        _recipeIngredients = lines.map(RecipeIngredient.fromLine).toList();
+        _recipeImagesLoading = lines.isNotEmpty;
       });
+      if (lines.isNotEmpty) unawaited(_loadRecipeImages(lines));
     } on Exception catch (error) {
       if (!mounted) return;
       setState(() => _error = _describeError(error));
@@ -76,6 +90,25 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
         setState(() => _loading = false);
       }
     }
+  }
+
+  Future<void> _loadRecipeImages(List<RecipeLine> lines) async {
+    final items = await RecipeIngredientRepository(_api).resolve(lines);
+    if (!mounted) return;
+    setState(() {
+      _recipeIngredients = items;
+      _recipeImagesLoading = false;
+    });
+  }
+
+  void _openIngredient(IngredientInfo ingredient) {
+    final id = ingredient.id;
+    if (id == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => IngredientDetailPage(ingredientId: id),
+      ),
+    );
   }
 
   Future<String?> _findVirtualDrinkCode() async {
@@ -336,18 +369,11 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
                           letterSpacing: 0,
                         ),
                       )
-                    : Column(
-                        children: [
-                          for (
-                            var index = 0;
-                            index < ingredients.length;
-                            index++
-                          )
-                            _RecipeLineTile(
-                              index: index,
-                              line: ingredients[index],
-                            ),
-                        ],
+                    : RecipeIngredientFan(
+                        key: ValueKey(widget.cocktailId),
+                        items: _recipeIngredients,
+                        loading: _recipeImagesLoading,
+                        onIngredientTap: _openIngredient,
                       ),
               ),
             ],
@@ -488,79 +514,6 @@ class _SectionBlock extends StatelessWidget {
             child,
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// 单行用料：序号 + 用量文本。
-class _RecipeLineTile extends StatelessWidget {
-  const _RecipeLineTile({required this.index, required this.line});
-
-  final int index;
-  final RecipeLine line;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final ingredientName = line.name ?? line.nameEn ?? line.code;
-    final amount = line.amountText;
-    if ((ingredientName == null || ingredientName.isEmpty) &&
-        (amount == null || amount.isEmpty)) {
-      return const SizedBox.shrink();
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 22,
-            height: 22,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: context.siponColors.brandSurface,
-              shape: BoxShape.circle,
-            ),
-            child: Text(
-              '${index + 1}',
-              style: TextStyle(
-                color: scheme.primary,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: RichText(
-              text: TextSpan(
-                style: TextStyle(
-                  color: scheme.onSurface,
-                  fontSize: 16,
-                  height: 1.4,
-                  letterSpacing: 0,
-                ),
-                children: [
-                  if (ingredientName != null && ingredientName.isNotEmpty)
-                    TextSpan(
-                      text: ingredientName,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                  if (ingredientName != null &&
-                      ingredientName.isNotEmpty &&
-                      amount != null &&
-                      amount.isNotEmpty)
-                    const TextSpan(text: '  '),
-                  if (amount != null && amount.isNotEmpty)
-                    TextSpan(text: amount),
-                ],
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
