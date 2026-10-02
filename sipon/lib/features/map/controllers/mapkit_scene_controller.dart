@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'package:sipon/shared/services/map/map_place_result.dart';
+
 import '../widgets/checkin_pin_icon.dart';
 import '../models/map_display_options.dart';
 import 'map_scene_controller.dart';
@@ -279,6 +281,38 @@ class MapkitSceneController extends MapSceneController {
         bottomPadding: cameraBottomPadding,
       )..['durationMs'] = MapSceneController.focusDuration.inMilliseconds,
     );
+  }
+
+  @override
+  Future<void> centerOnUser({
+    required double longitude,
+    required double latitude,
+  }) {
+    return _invokeIfReady(
+      SiponMapCommands.centerOnUser,
+      encodeCameraMove(
+        longitude: longitude,
+        latitude: latitude,
+        zoom: MapSceneController.focusZoom,
+        pitch: MapSceneController.focusPitch,
+        bearing: MapSceneController.focusBearing,
+        bottomPadding: 0,
+      ),
+    );
+  }
+
+  @override
+  Future<List<MapPlaceResult>> searchPlaces(String query) async {
+    final host = _host;
+    if (host == null || !_ready || query.trim().isEmpty) return const [];
+    final raw = await host.invoke(SiponMapCommands.searchPlaces, {
+      'query': query.trim(),
+    });
+    if (raw is! List) return const [];
+    return raw
+        .map(MapPlaceResult.fromPayload)
+        .whereType<MapPlaceResult>()
+        .toList();
   }
 
   @override

@@ -15,7 +15,9 @@ import '../../../app/theme/sipon_theme_colors.dart';
 
 
 class RoutePlanningPage extends StatefulWidget {
-  const RoutePlanningPage({super.key});
+  const RoutePlanningPage({super.key, this.apiService});
+
+  final SiponApiService? apiService;
 
   @override
   State<RoutePlanningPage> createState() => _RoutePlanningPageState();
@@ -24,13 +26,16 @@ class RoutePlanningPage extends StatefulWidget {
 class _RoutePlanningPageState extends State<RoutePlanningPage> {
         static const _maxStops = 8;
 
-  final SiponApiService _api = SiponApiService();
+  late final SiponApiService _api;
 
   List<_BarPlace> _nearbyBars = [];
   SiponCityController? _cityController;
   String? _loadedCity;
   SiponLocationPoint? _loadedAnchor;
   int _requestVersion = 0;
+  SiponLocationPoint? _mapLocation;
+  bool _mapLocationResolved = false;
+  int _locationRequestVersion = 0;
 
   _BarPlace? _start;
   _BarPlace? _end;
@@ -46,6 +51,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
   @override
   void initState() {
     super.initState();
+    _api = widget.apiService ?? SiponApiService();
     _scene = MapSceneController.create(
       onViewportSettled: (_) {},
       onVenueTapped: (_) {},
@@ -62,6 +68,7 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
     if (_cityController != controller) {
       _cityController?.removeListener(_handleCityChanged);
       _cityController = controller..addListener(_handleCityChanged);
+      _loadInitialMapLocation();
     }
     _handleCityChanged();
   }
@@ -83,15 +90,34 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
     }
     if (wasLoaded && mounted) setState(() {});
     _loadNearbyBars();
-    if (_scene.isAttached && anchor != null) {
-      _scene.flyToCity(city, zoom: MapSceneController.cityZoom);
-      _renderMap();
+    if (_scene.isAttached && _mapLocation == null && wasLoaded) {
+      unawaited(_scene.flyToCity(city, zoom: MapSceneController.cityZoom));
+    }
+    unawaited(_renderMap());
+  }
+
+  /// 地图首帧等待设备定位，避免先闪到城市中心再移动到用户位置。
+  Future<void> _loadInitialMapLocation() async {
+    final version = ++_locationRequestVersion;
+    final location = await _cityController?.locateCurrentCity();
+    if (!mounted || version != _locationRequestVersion) return;
+    final position = location?.position;
+    setState(() {
+      _mapLocation = position;
+      _mapLocationResolved = true;
+    });
+    if (_scene.isAttached && position != null && !_planned && !_planning) {
+      await _scene.centerOnUser(
+        longitude: position.longitude,
+        latitude: position.latitude,
+      );
     }
   }
 
   @override
   void dispose() {
     _requestVersion++;
+    _locationRequestVersion++;
     _cityController?.removeListener(_handleCityChanged);
     SiponSearchPreferences.instance.removeListener(_handleRadiusChanged);
     _routeRevision++;
@@ -110,7 +136,9 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
     final version = ++_requestVersion;
     final anchor = await _cityController?.resolveQueryAnchor();
     if (!mounted || version != _requestVersion || anchor == null) return;
-    if (_scene.isAttached && _cityController?.queryAnchor == null) {
+    if (_scene.isAttached &&
+        _mapLocation == null &&
+        _cityController?.queryAnchor == null) {
       await _scene.focusOn(
         longitude: anchor.longitude,
         latitude: anchor.latitude,
@@ -134,11 +162,26 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
   }
 
   Future<void> _handleMapCreated(SiponMapHost host) async {
+    final location = _mapLocation;
     await _scene.attach(
       host,
       city: _cityController?.city ?? SiponCityController.defaultCity,
       style: MapBaseStyle.standard,
+      initialCenter: location == null
+          ? null
+          : MapLatLng(
+              longitude: location.longitude,
+              latitude: location.latitude,
+            ),
     );
+    if (!mounted) return;
+    final latestLocation = _mapLocation;
+    if (latestLocation != null && !_planned && !_planning) {
+      await _scene.centerOnUser(
+        longitude: latestLocation.longitude,
+        latitude: latestLocation.latitude,
+      );
+    }
     await _renderMap();
   }
 
@@ -613,10 +656,21 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
-                            child: SiponMapWidget(
-                              initialStyleId: MapBaseStyle.standard.id,
-                              onHostReady: _handleMapCreated,
-                            ),
+                            child: _mapLocationResolved
+                                ? SiponMapWidget(
+                                    initialStyleId: MapBaseStyle.standard.id,
+                                    onHostReady: _handleMapCreated,
+                                  )
+                                : const Center(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        CircularProgressIndicator(),
+                                        SizedBox(height: 12),
+                                        Text('正在获取当前位置…'),
+                                      ],
+                                    ),
+                                  ),
                           ),
                         ),
                       ),

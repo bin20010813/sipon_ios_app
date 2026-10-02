@@ -877,6 +877,12 @@ class _MomentCard extends StatelessWidget {
 }
 
 /// 打卡卡：封面图（或渐变占位）+ 酒吧名 + 时间。
+String? _checkInModerationLabel(String? status) => switch (status) {
+  'pending' => '审核中',
+  'rejected' => '未通过',
+  _ => null,
+};
+
 class _CheckInBody extends StatelessWidget {
   const _CheckInBody({required this.moment});
 
@@ -886,6 +892,7 @@ class _CheckInBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final imageUrl = moment.imageUrl;
+    final moderationLabel = _checkInModerationLabel(moment.moderationStatus);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -901,6 +908,15 @@ class _CheckInBody extends StatelessWidget {
               top: 8,
               child: _MomentBadge(label: '打卡', color: scheme.primary),
             ),
+            if (moderationLabel != null)
+              Positioned(
+                right: 8,
+                top: 8,
+                child: _MomentBadge(
+                  label: moderationLabel,
+                  color: const Color(0xFF8E8790),
+                ),
+              ),
           ],
         ),
         Padding(
@@ -1127,6 +1143,7 @@ class _ReviewBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final moderationLabel = _checkInModerationLabel(moment.moderationStatus);
     return Container(
       color: context.siponColors.subtleSurface,
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
@@ -1138,12 +1155,18 @@ class _ReviewBody extends StatelessWidget {
               // 内容固有色保留：点评徽章铜，与时间线节点同色。
               const _MomentBadge(label: '点评', color: Color(0xFFC98A2D)),
               const Spacer(),
-              // 内容固有色保留：引用装饰符号。
-              const Icon(
-                Icons.format_quote_rounded,
-                size: 18,
-                color: Color(0xFFE7CFA8),
-              ),
+              if (moderationLabel != null)
+                _MomentBadge(
+                  label: moderationLabel,
+                  color: const Color(0xFF8E8790),
+                )
+              else
+                // 内容固有色保留：引用装饰符号。
+                const Icon(
+                  Icons.format_quote_rounded,
+                  size: 18,
+                  color: Color(0xFFE7CFA8),
+                ),
             ],
           ),
           const SizedBox(height: 10),
@@ -1349,6 +1372,7 @@ class _Moment {
     this.venue,
     this.routeId,
     this.reviewEntry,
+    this.moderationStatus,
     this.author,
     this.stops = const [],
     this.isPrivate = false,
@@ -1365,6 +1389,7 @@ class _Moment {
   final MapVenue? venue;
   final int? routeId;
   final Map<String, dynamic>? reviewEntry;
+  final String? moderationStatus;
   final UserProfileData? author;
   final List<RouteStop> stops;
   final bool isPrivate;
@@ -1398,6 +1423,7 @@ List<_Moment> _momentsFromCheckIn(
   final time = _parseTime(map, ['visitedAt', 'createdAt']);
   final city = _pickString(map, ['city']);
   final content = (_pickString(map, ['content']) ?? '').trim();
+  final moderationStatus = _pickString(map, ['moderationStatus']);
   final imageUrl =
       map['profileThumbnailUrl'] as String? ?? _pickCheckInImageUrl(map);
   final venue = _venueFromEntryMap(map, name: name, checkIn: true);
@@ -1407,6 +1433,7 @@ List<_Moment> _momentsFromCheckIn(
     _Moment(
       kind: _MomentKind.checkIn,
       reviewEntry: map,
+      moderationStatus: moderationStatus,
       author: author,
       title: name,
       time: time,
@@ -1418,6 +1445,7 @@ List<_Moment> _momentsFromCheckIn(
       _Moment(
         kind: _MomentKind.review,
         reviewEntry: map,
+        moderationStatus: moderationStatus,
         author: author,
         title: name,
         time: time,

@@ -10,6 +10,7 @@ import '../platform/sipon_map_host.dart';
 import '../platform/sipon_map_protocol.dart';
 import '../widgets/checkin_pin_icon.dart';
 import 'map_scene_controller.dart';
+import 'package:sipon/shared/services/map/map_place_result.dart';
 
 /// Android map scene. The current diagnostic build treats business coordinates
 /// as GCJ-02; the native adapter converts them at the Tianditu boundary.
@@ -259,6 +260,21 @@ class TiandituSceneController extends MapSceneController {
         'durationMs': MapSceneController.focusDuration.inMilliseconds,
         'ornamentBottomMargin': ornamentBottomMargin,
       });
+
+  @override
+  Future<void> centerOnUser({
+    required double longitude,
+    required double latitude,
+  }) {
+    // 天地图端尚无原生个人点跟随，退化为按兜底坐标聚焦。
+    return focusOn(longitude: longitude, latitude: latitude);
+  }
+
+  @override
+  Future<List<MapPlaceResult>> searchPlaces(String query) async {
+    // Apple Maps 地点搜索仅在 MapKit 引擎可用。
+    return const [];
+  }
 
   @override
   Future<void> flyToCity(String city, {required double zoom}) {

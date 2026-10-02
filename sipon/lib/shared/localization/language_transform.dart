@@ -125,6 +125,7 @@ class SiponAppText {
   String get appTitle => 'Sipon';
   String get homeTab => t('首页');
   String get mapTab => t('地图');
+  String get momentsTab => t('酒友动态');
   String get profileTab => t('我的');
 
   String get messages => t('消息');
@@ -464,6 +465,31 @@ const Map<String, String> _englishText = {
   '搜索': 'Search',
   '更多': 'More',
   '酒吧推荐': 'Bars of the day',
+  '酒友动态': 'Community check-ins',
+  '发布打卡': 'Post check-in',
+  '刷新动态': 'Refresh check-ins',
+  '当前城市的公开打卡': 'Public check-ins in this city',
+  '全部城市的公开打卡': 'Public check-ins from all cities',
+  '搜索酒吧或动态内容': 'Search bars or check-ins',
+  '清除搜索': 'Clear search',
+  '全部动态': 'All check-ins',
+  '关注': 'Following',
+  '品类': 'Category',
+  '全部品类': 'All categories',
+  '排序': 'Sort',
+  '最新优先': 'Newest first',
+  '热门优先': 'Most liked',
+  '这里还没有打卡动态': 'No check-ins here yet',
+  '还没有关注用户的公开动态': 'No public check-ins from followed users yet',
+  '查看全部城市': 'See all cities',
+  '返回当前城市': 'Back to this city',
+  '动态加载失败，请重试': 'Could not load check-ins. Try again',
+  '请登录后查看关注动态': 'Sign in to see followed users',
+  '请登录后重试动态': 'Sign in and retry check-ins',
+  '动态详情': 'Check-in details',
+  '动态不可用或已删除': 'This check-in is unavailable or deleted',
+  '操作失败，请重试': 'Action failed. Try again',
+  '查看更多动态': 'Load more check-ins',
   '调酒师故事': 'Bartender Stories',
   '鸡尾酒推荐': 'Cocktails of the day',
   '朗姆酒': 'Rum',
@@ -624,6 +650,7 @@ const Map<String, String> _englishText = {
   '例如：021-12345678': 'e.g. 021-1234-5678',
   '店面照片': 'Storefront Photos',
   '菜单照片': 'Menu Photos',
+  '照片': 'Photos',
   '酒馆介绍': 'Description',
   '氛围、酒单特色、适合什么场景': 'Vibe, drinks, best occasions',
   '提交后会进入审核，通过后展示在地图酒吧地点中。':
@@ -652,6 +679,13 @@ const Map<String, String> _englishText = {
   '点击导航': 'Tap to navigate',
   '点击拨打': 'Tap to call',
   '搜索喜欢的酒或者酒吧...': 'Search drinks or bars...',
+  '酒馆地址': 'Bar address',
+  '输入地址或地点名称': 'Enter an address or place',
+  '选择搜索结果可自动定位地图，也可拖动地图微调':
+      'Select a result to locate it on the map, then drag to fine-tune',
+  '正在搜索地点…': 'Searching places…',
+  '地点搜索失败，请重试': 'Place search failed. Try again.',
+  '未找到地点': 'No places found',
   '记录每一次微醺': 'Record every tipsy moment',
   '正在整理你的饮酒记录...': 'Preparing your drinking records...',
   '载入完成': 'Ready',

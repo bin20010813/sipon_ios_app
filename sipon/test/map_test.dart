@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sipon/shared/services/sipon_api_models.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:sipon/features/map/controllers/map_data_controller.dart';
 import 'package:sipon/features/map/models/map_display_options.dart';
 import 'package:sipon/features/map/models/map_models.dart';
@@ -9,6 +11,10 @@ import 'package:sipon/features/map/data/map_venue_repository.dart';
 import 'package:sipon/features/map/models/map_viewport.dart';
 import 'package:sipon/features/map/data/mock_map_venue_repository.dart';
 import 'package:sipon/features/map/controllers/venue_sheet_controller.dart';
+import 'package:sipon/shared/services/sipon_api_client.dart';
+import 'package:sipon/shared/services/sipon_api_config.dart';
+import 'package:sipon/shared/services/sipon_data_repository.dart';
+import 'package:sipon/shared/services/sipon_api_models.dart';
 
 /// 上海市中心一块典型视野：经度跨 0.12°，纬度跨 0.09°。
 const MapViewport _shanghaiViewport = MapViewport(
@@ -249,8 +255,9 @@ void main() {
         _venue('closest', longitude: 121.5312, latitude: 31.2227),
       ];
       await controller.syncViewport(_shifted(0.06));
-      expect(controller.selectedVenue?.id, 'closest');
-      expect(controller.selectedPoint?.venueId, 'closest');
+      expect(controller.visibleVenues.map((v) => v.id), ['closest', 'distant']);
+      expect(controller.selectedVenue?.id, 'near');
+      expect(controller.selectedPoint?.venueId, 'near');
     });
 
     test('分类 pill 真的过滤点位，再点一次取消', () async {
@@ -341,6 +348,78 @@ void main() {
       expect(controller.visibleVenues, hasLength(3));
     });
 
+    test('价格与评分从地图接口解析到 POI，包含边界并排除缺失值', () async {
+      var requests = 0;
+      final repository = SiponApiMapVenueRepository(
+        repository: SiponDataRepository(
+          apiClient: SiponApiClient(
+            config: const SiponApiConfig(baseUrl: 'https://api.example.test'),
+            httpClient: MockClient((request) async {
+              requests++;
+              expect(request.url.path, '/api/bars/map');
+              final rows = [
+                {'id': 'boundary', 'averageRating': 4.5, 'averagePrice': 100},
+                {'id': 'cheap', 'score': '4.8', 'perCapita': '¥88/人'},
+                {'id': 'expensive', 'rating': 4.9, 'averagePrice': 101},
+                {'id': 'low-rating', 'rating': 4.4, 'averagePrice': 80},
+                {'id': 'no-rating', 'averagePrice': 80},
+                {'id': 'no-price', 'rating': 4.8},
+                {'id': 'invalid', 'rating': 0, 'averagePrice': -1},
+              ];
+              return http.Response.bytes(
+                utf8.encode(
+                  jsonEncode([
+                    for (final row in rows)
+                      {'name': row['id'], 'lng': 121.47, 'lat': 31.22, ...row},
+                  ]),
+                ),
+                200,
+              );
+            }),
+          ),
+        ),
+      );
+      final controller = MapDataController(repository: repository, city: '上海');
+      addTearDown(controller.dispose);
+      await controller.syncViewport(_shanghaiViewport);
+      expect(controller.visibleVenues, hasLength(7));
+
+      controller.applyPoiFilter(const MapPoiFilter(minimumRating: 4.5));
+      expect(
+        controller.visibleVenues.map((v) => v.id),
+        unorderedEquals(['boundary', 'cheap', 'expensive', 'no-price']),
+      );
+
+      controller.applyPoiFilter(const MapPoiFilter(maxAveragePrice: 100));
+      expect(
+        controller.visibleVenues.map((v) => v.id),
+        unorderedEquals(['boundary', 'cheap', 'low-rating', 'no-rating']),
+      );
+
+      controller.selectVenue('low-rating');
+      controller.applyPoiFilter(
+        const MapPoiFilter(maxAveragePrice: 100, minimumRating: 4.5),
+      );
+      expect(controller.visibleVenues.map((v) => v.id), ['boundary', 'cheap']);
+      expect(controller.circlePoints.map((p) => p.venueId), [
+        'boundary',
+        'cheap',
+      ]);
+      expect(controller.markerVenues.map((v) => v.id), ['boundary', 'cheap']);
+      expect(controller.selectedVenue?.id, 'boundary');
+      expect(controller.selectedPoint?.venueId, 'boundary');
+
+      controller.selectVenue('cheap');
+      controller.applyPoiFilter(const MapPoiFilter(maxAveragePrice: 20));
+      expect(controller.visibleVenues, isEmpty);
+      expect(controller.selectedVenue, isNull);
+      expect(controller.selectedPoint, isNull);
+
+      controller.clearPoiFilter();
+      expect(controller.visibleVenues, hasLength(7));
+      expect(requests, 1, reason: '筛选在已加载的视野数据中本地执行');
+    });
+
     test('搜索按名称、地址和标签过滤，清空后恢复全部', () async {
       final controller = MapDataController(
         repository: _StubRepository([
@@ -369,6 +448,38 @@ void main() {
       expect(controller.visibleVenues.map((venue) => venue.id), ['craft-1']);
       controller.setSearchQuery('');
       expect(controller.visibleVenues, hasLength(2));
+    });
+
+    test('字母搜索只显示名称前缀命中，并按名称排序候选', () async {
+      final controller = MapDataController(
+        repository: _StubRepository([
+          _venue('ONCE Bistro'),
+          _venue('Companion Wine'),
+          _venue('Phoenix Bar'),
+          _venue('Night Bar', longitude: 121.4712, latitude: 31.2227),
+          _venue('Nectar', longitude: 121.50, latitude: 31.2227),
+          _venue('霓虹酒吧'),
+        ]),
+        city: '上海',
+      );
+      addTearDown(controller.dispose);
+      await controller.syncViewport(_shanghaiViewport);
+
+      controller.setSearchQuery('N');
+      expect(controller.visibleVenues.map((venue) => venue.name), [
+        'Night Bar',
+        'Nectar',
+      ]);
+      expect(controller.searchSuggestions.map((venue) => venue.name), [
+        'Nectar',
+        'Night Bar',
+      ]);
+
+      controller.setSearchQuery('ni');
+      expect(controller.searchSuggestions.single.name, 'Night Bar');
+
+      controller.setSearchQuery('虹');
+      expect(controller.searchSuggestions.single.name, '霓虹酒吧');
     });
 
     test('点击搜索候选并入数据集并选中，视野外的候选也一样', () async {
@@ -443,7 +554,7 @@ void main() {
       expect(repository.callCount, 2);
     });
 
-    test('选中的酒吧还在就留着，消失了退回最近的一家', () async {
+    test('移动地图后选中酒吧离开结果集，面板仍保持直到点击其他 POI', () async {
       final repository = _StubRepository([_venue('a'), _venue('b')]);
       final controller = MapDataController(repository: repository, city: '上海');
       addTearDown(controller.dispose);
@@ -456,7 +567,39 @@ void main() {
       expect(controller.selectedVenue?.id, 'b');
       repository.venues = [_venue('c'), _venue('d')];
       await controller.syncViewport(_shifted(0.12));
-      expect(controller.selectedVenue?.id, 'c');
+      expect(controller.visibleVenues.map((v) => v.id), ['c', 'd']);
+      expect(controller.selectedVenue?.id, 'b');
+      expect(controller.selectedPoint?.venueId, 'b');
+
+      controller.selectVenue('d');
+      expect(controller.selectedVenue?.id, 'd');
+
+      repository.venues = [];
+      await controller.syncViewport(_shifted(0.18));
+      expect(controller.visibleVenues, isEmpty);
+      expect(controller.selectedVenue?.id, 'd');
+      expect(controller.selectedPoint?.venueId, 'd');
+
+      await controller.syncViewport(_shifted(0.24));
+      expect(controller.selectedVenue?.id, 'd');
+
+      controller.setCity('北京');
+      expect(controller.selectedVenue, isNull);
+      expect(controller.selectedPoint, isNull);
+    });
+
+    test('点击当前自动选中的 POI 也会锁定信息板', () async {
+      final repository = _StubRepository([_venue('a')]);
+      final controller = MapDataController(repository: repository, city: '上海');
+      addTearDown(controller.dispose);
+
+      await controller.syncViewport(_shanghaiViewport);
+      expect(controller.selectedVenue?.id, 'a');
+      controller.selectVenue('a');
+
+      repository.venues = [_venue('c')];
+      await controller.syncViewport(_shifted(0.06));
+      expect(controller.selectedVenue?.id, 'a');
     });
 
     test('A 已加载，B 请求未完成时回到 A，B 返回不覆盖 A', () async {

@@ -58,6 +58,7 @@ class SiponMapWidget extends StatefulWidget {
     required this.initialStyleId,
     required this.onHostReady,
     this.compassTopInset,
+    this.showsUserHeading = false,
     this.engine,
   });
 
@@ -67,6 +68,10 @@ class SiponMapWidget extends StatefulWidget {
 
   /// 原生指北针距地图顶部的距离；null 表示不显示（用于小地图）。
   final double? compassTopInset;
+
+  /// 主地图显示带朝向的个人位置点；小地图沿用 MapKit 系统位置点。
+  final bool showsUserHeading;
+
   final MapEngine? engine;
 
   /// 平台视图就绪时回调一次，附上引擎宿主。页面在回调里执行 attach。
@@ -118,6 +123,7 @@ class _SiponMapWidgetState extends State<SiponMapWidget> {
     }
     final params = <String, Object?>{
       'compassTopInset': widget.compassTopInset,
+      'showsUserHeading': widget.showsUserHeading,
       ...encodeAppearance(brightness),
     };
     final gestures = <Factory<OneSequenceGestureRecognizer>>{

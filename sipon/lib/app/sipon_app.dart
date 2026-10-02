@@ -10,6 +10,7 @@ import 'package:sipon/features/drinks/records/pages/drink_record_page.dart';
 import 'package:sipon/features/home/pages/home_page.dart';
 import 'package:sipon/shared/localization/language_transform.dart';
 import 'package:sipon/features/map/pages/map_page.dart';
+import 'package:sipon/features/moments/pages/moments_page.dart';
 import 'package:sipon/features/reviews/pages/check_in_page.dart';
 import 'package:sipon/features/profile/pages/profile_page.dart';
 import 'package:sipon/features/routes/pages/route_planning_page.dart';

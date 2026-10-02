@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.4+8
+version: 1.0.6+1
 
 environment:
   sdk: ^3.11.0
@@ -41,6 +41,9 @@ dependencies:
   image_cropper: ^12.2.1
   url_launcher: ^6.3.2
   cached_network_image: ^3.4.1
+  # Keep the plugin implementation: 2.6.0's FFI loader fails on iOS with
+  # DOBJC_initializeApi (https://github.com/flutter/flutter/issues/186794).
+  path_provider_foundation: 2.5.1
   audioplayers: ^6.7.1
   sign_in_with_apple: ^6.1.0
   webview_flutter: ^4.14.1

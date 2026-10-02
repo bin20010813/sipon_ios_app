@@ -124,7 +124,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await _open(tester, _Api(), ProfileListType.wish);
-    await tester.longPress(find.text('Bar A'));
+    await tester.longPress(find.text('Bar A').first);
     await tester.pumpAndSettle();
     expect(find.byIcon(Icons.check_rounded), findsOneWidget);
     await tester.tap(find.text('删除 (1)'));
@@ -139,7 +139,7 @@ void main() {
   ) async {
     final api = _Api()..failSecond = true;
     await _open(tester, api, ProfileListType.drank);
-    await tester.longPress(find.text('Bar A'));
+    await tester.longPress(find.text('Bar A').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('全选已加载'));
     await tester.pump();
@@ -150,7 +150,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.deleted, [11]);
     expect(find.text('Bar A'), findsNothing);
-    expect(find.text('Bar B'), findsOneWidget);
+    expect(find.text('Bar B'), findsWidgets);
     expect(find.text('删除 (1)'), findsOneWidget);
     api.failSecond = false;
     await tester.tap(find.text('删除 (1)'));
@@ -166,7 +166,7 @@ void main() {
   ) async {
     final api = _Api();
     await _open(tester, api, ProfileListType.wish);
-    await tester.longPress(find.text('Bar A'));
+    await tester.longPress(find.text('Bar A').first);
     await tester.pump();
     await tester.tap(find.text('删除 (1)'));
     await tester.pumpAndSettle();

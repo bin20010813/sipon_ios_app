@@ -29,6 +29,9 @@ class _SiponShellState extends State<_SiponShell> {
   int _currentIndex = 0;
   MapVenue? _mapRequestedVenue;
   bool _recordRouteOpening = false;
+  // IndexedStack 会立即构建全部 children；动态流首帧要发网络请求，
+  // 首次切到该 tab 前先用占位，避免启动即请求（测试环境也会因此挂起）。
+  bool _momentsVisited = false;
   final ValueNotifier<double> _mapSheetProgress = ValueNotifier<double>(0);
   // 棣栭〉鎼滅储閬僵灞曞紑鐘舵€侊細娉ㄥ叆 HomePage锛屽苟鐢辨偓娴簳鏍忕洃鍚互鍚屾闅愯棌銆?
   final ValueNotifier<bool> _homeSearchExpanded = ValueNotifier<bool>(false);
@@ -49,7 +52,7 @@ class _SiponShellState extends State<_SiponShell> {
   void _selectTab(int index) {
     if (index == _currentIndex) {
       // 閲嶅鐐瑰嚮褰撳墠 tab锛氳涓烘墜鍔ㄥ埛鏂般€?
-      if (index == 2) {
+      if (index == 3) {
         _profilePageKey.currentState?.refreshProfile();
         _profilePageKey.currentState?.refreshCounts();
       }
@@ -59,8 +62,11 @@ class _SiponShellState extends State<_SiponShell> {
     setState(() {
       _currentIndex = index;
       _mapRequestedVenue = null;
+      if (index == 2) {
+        _momentsVisited = true;
+      }
     });
-    if (index == 2) {
+    if (index == 3) {
       _profilePageKey.currentState?.refreshProfile();
       _profilePageKey.currentState?.refreshCounts();
     }
@@ -182,6 +188,15 @@ class _SiponShellState extends State<_SiponShell> {
               ),
               TickerMode(
                 enabled: _currentIndex == 2,
+                child: _momentsVisited
+                    ? MomentsPage(
+                        bottomOverlayInset: _effectiveNavigationReserveHeight,
+                        onCheckInPressed: _openCheckIn,
+                      )
+                    : const SizedBox.shrink(),
+              ),
+              TickerMode(
+                enabled: _currentIndex == 3,
                 child: ProfilePage(
                   key: _profilePageKey,
                   bottomOverlayInset: _effectiveNavigationReserveHeight,

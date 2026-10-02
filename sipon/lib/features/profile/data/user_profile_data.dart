@@ -63,6 +63,7 @@ class UserProfileData {
         'following',
       ]),
       checkInCount: count(const [
+        'reviewCount',
         'checkInCount',
         'checkInsCount',
         'checkinsCount',

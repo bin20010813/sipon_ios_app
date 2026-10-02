@@ -1,4 +1,5 @@
 import Flutter
+import CoreLocation
 import MapKit
 import UIKit
 import CoreMotion
@@ -125,7 +126,8 @@ final class SiponMapView: NSObject, FlutterPlatformView {
     viewId: Int64,
     messenger: FlutterBinaryMessenger,
     compassTopInset: Double?,
-    appBrightness: String?
+    appBrightness: String?,
+    showsUserHeading: Bool
   ) {
     channel = FlutterMethodChannel(
       name: SiponMapProtocol.channelName(viewId: viewId),
@@ -135,6 +137,7 @@ final class SiponMapView: NSObject, FlutterPlatformView {
       mapView: mapView,
       diagnosticID: viewId,
       appBrightness: appBrightness,
+      showsUserHeading: showsUserHeading,
       sendEvent: { [weak channel] name, arguments in
         // Dart 侧宿主在注册监听前到达的事件由缓存补发机制兜住。
         channel?.invokeMethod(name, arguments: arguments)
@@ -170,6 +173,10 @@ final class SiponMapView: NSObject, FlutterPlatformView {
         self.engine.planRoute(arguments: call.arguments, result: result)
         return
       }
+      if call.method == SiponMapProtocol.Command.searchPlaces {
+        self.engine.searchPlaces(arguments: call.arguments, result: result)
+        return
+      }
       result(self.engine.handle(method: call.method, arguments: call.arguments))
     }
   }
@@ -191,6 +198,7 @@ final class SiponMapEngine: NSObject {
   /// 收到 setup 并完成初始配置之后才接受后续指令。
   private var configured = false
   private let diagnosticID: Int64
+  fileprivate let showsUserHeading: Bool
   #if DEBUG
   private var diagnosticCommand = "none"
   private var diagnosticCommandSequence = 0
@@ -241,6 +249,10 @@ final class SiponMapEngine: NSObject {
   private var selectionAnnotation: SelectionAnnotation?
   /// 选中态直接切换对应 marker 的视图，不再额外覆盖一枚 annotation。
   private var selectedVenueId: String?
+  /// 设备朝向单独采集，避免 followWithHeading 自动旋转/居中地图。
+  private let headingManager = CLLocationManager()
+  private var headingUpdatesRunning = false
+  private var userHeading: CLLocationDirection?
   /// 每对相邻站点各有一条道路折线；分开绘制，避免跨段出现直线连接。
   private var routeOverlays: [MKPolyline] = []
 
@@ -265,18 +277,36 @@ final class SiponMapEngine: NSObject {
     mapView: MKMapView,
     diagnosticID: Int64,
     appBrightness: String?,
+    showsUserHeading: Bool,
     sendEvent: @escaping (String, Any?) -> Void
   ) {
     self.mapView = mapView
     self.diagnosticID = diagnosticID
     self.appBrightness = appBrightness == "dark" ? .dark : .light
+    self.showsUserHeading = showsUserHeading
     self.sendEvent = sendEvent
     super.init()
     mapView.delegate = proxy
     applyEffectiveAppearance()
+    headingManager.delegate = self
+    headingManager.headingFilter = 3
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(appDidBecomeActive),
+      name: UIApplication.didBecomeActiveNotification,
+      object: nil
+    )
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(appDidEnterBackground),
+      name: UIApplication.didEnterBackgroundNotification,
+      object: nil
+    )
   }
 
   deinit {
+    NotificationCenter.default.removeObserver(self)
+    headingManager.stopUpdatingHeading()
     // 视图释放时兜底清理：只碰自己持有的资源，不碰 unowned mapView。
     let directions = activeDirections
     activeDirections = nil
@@ -291,7 +321,8 @@ final class SiponMapEngine: NSObject {
   func handle(method: String, arguments: Any?) -> Any? {
     #if DEBUG
     if [SiponMapProtocol.Command.setup, SiponMapProtocol.Command.applyStage,
-        SiponMapProtocol.Command.focusOn, SiponMapProtocol.Command.flyToCity,
+        SiponMapProtocol.Command.focusOn, SiponMapProtocol.Command.centerOnUser,
+        SiponMapProtocol.Command.flyToCity,
         SiponMapProtocol.Command.setStyle].contains(method) {
       diagnosticCommandSequence += 1
       diagnosticCommand = method
@@ -340,6 +371,18 @@ final class SiponMapEngine: NSObject {
         moveCamera(SiponMapProtocol.CameraMove(dict: args), animated: true)
       }
       return nil
+    case SiponMapProtocol.Command.centerOnUser:
+      if var args = SiponMapProtocol.dict(arguments) {
+        // 与屏幕上的个人点使用同一份 MapKit 定位；未就绪时用 Dart 坐标兜底。
+        if let location = mapView.userLocation.location,
+           CLLocationCoordinate2DIsValid(location.coordinate) {
+          args["lat"] = location.coordinate.latitude
+          args["lng"] = location.coordinate.longitude
+        }
+        args["bottomPadding"] = 0
+        moveCamera(SiponMapProtocol.CameraMove(dict: args), animated: true)
+      }
+      return nil
     case SiponMapProtocol.Command.applyStage:
       if let args = SiponMapProtocol.dict(arguments) {
         let latitude = SiponMapProtocol.double(args, "lat", fallback: .nan)
@@ -367,6 +410,46 @@ final class SiponMapEngine: NSObject {
       return nil
     default:
       return nil
+    }
+  }
+
+  // MapKit searches system places and addresses; app bar records are not involved.
+  func searchPlaces(arguments: Any?, result: @escaping FlutterResult) {
+    guard alive, configured,
+          let args = SiponMapProtocol.dict(arguments),
+          let query = SiponMapProtocol.string(args, "query")?.trimmingCharacters(in: .whitespacesAndNewlines),
+          !query.isEmpty else {
+      result([])
+      return
+    }
+
+    let request = MKLocalSearch.Request()
+    request.naturalLanguageQuery = query
+    request.region = mapView.region
+    request.resultTypes = [.address, .pointOfInterest]
+    MKLocalSearch(request: request).start { [weak self] response, error in
+      DispatchQueue.main.async {
+        guard let self = self, self.alive else {
+          result([])
+          return
+        }
+        if let error = error {
+          result(FlutterError(code: "sipon_place_search", message: error.localizedDescription, details: nil))
+          return
+        }
+        let places: [[String: Any]] = (response?.mapItems ?? []).prefix(8).compactMap { item in
+          let coordinate = item.placemark.coordinate
+          guard CLLocationCoordinate2DIsValid(coordinate) else { return nil }
+          return [
+            "name": item.name ?? item.placemark.title ?? query,
+            "address": item.placemark.title ?? "",
+            "city": item.placemark.locality ?? "",
+            "lat": coordinate.latitude,
+            "lng": coordinate.longitude,
+          ]
+        }
+        result(places)
+      }
     }
   }
 
@@ -577,8 +660,10 @@ final class SiponMapEngine: NSObject {
     // MapKit 没有 logo / attribution，整段装饰物边距逻辑天然消失。
     mapView.showsCompass = false
     mapView.showsScale = false
-    // 坐标由 MapKit 更新，圆点和朝向由自定义 annotation 绘制。
+    // MapKit 持续更新 MKUserLocation 的坐标；圆点与朝向由自定义 annotation
+    // 绘制（主地图为带朝向扇形的视图，小地图沿用系统样式替换）。
     mapView.showsUserLocation = true
+    if showsUserHeading { startHeadingUpdatesIfAuthorized() }
     mapView.isRotateEnabled = true
     mapView.isPitchEnabled = false
     mapView.isScrollEnabled = true
@@ -995,6 +1080,7 @@ final class SiponMapEngine: NSObject {
   private func resetPools() {
     alive = false
     mapView.showsUserLocation = false
+    stopHeadingUpdates()
     mapView.removeGestureRecognizer(proxy.blankTapRecognizer)
     mapView.delegate = nil
     cancelRoutePlanning()
@@ -1030,6 +1116,40 @@ final class SiponMapEngine: NSObject {
       ? UIColor(red: 0xE8 / 255, green: 0xA0 / 255, blue: 0xCC / 255, alpha: 1)
       : UIColor(red: 0x9A / 255, green: 0x3D / 255, blue: 0x78 / 255, alpha: 1)
   }
+  fileprivate var currentUserHeading: CLLocationDirection? { userHeading }
+
+  fileprivate func refreshUserDirection() {
+    guard showsUserHeading else { return }
+    (mapView.view(for: mapView.userLocation) as? UserDirectionAnnotationView)?
+      .setDirection(userHeading, mapHeading: mapView.camera.heading)
+  }
+
+  fileprivate func startHeadingUpdatesIfAuthorized() {
+    guard alive, showsUserHeading, !headingUpdatesRunning,
+          UIApplication.shared.applicationState == .active,
+          CLLocationManager.headingAvailable() else { return }
+    switch headingManager.authorizationStatus {
+    case .authorizedAlways, .authorizedWhenInUse:
+      headingUpdatesRunning = true
+      headingManager.startUpdatingHeading()
+    default:
+      break
+    }
+  }
+
+  private func stopHeadingUpdates() {
+    guard headingUpdatesRunning else { return }
+    headingManager.stopUpdatingHeading()
+    headingUpdatesRunning = false
+  }
+
+  @objc private func appDidBecomeActive() {
+    startHeadingUpdatesIfAuthorized()
+  }
+
+  @objc private func appDidEnterBackground() {
+    stopHeadingUpdates()
+  }
 
   fileprivate func icon(for category: String) -> UIImage? { markerIcons[category] }
 
@@ -1052,6 +1172,32 @@ final class SiponMapEngine: NSObject {
     DispatchQueue.main.async { [weak self] in
       self?.refreshDynamicStyling()
     }
+  }
+}
+// MARK: - 设备朝向
+
+extension SiponMapEngine: CLLocationManagerDelegate {
+  func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+    switch manager.authorizationStatus {
+    case .authorizedAlways, .authorizedWhenInUse:
+      startHeadingUpdatesIfAuthorized()
+    default:
+      stopHeadingUpdates()
+      userHeading = nil
+      refreshUserDirection()
+    }
+  }
+
+  func locationManager(_ manager: CLLocationManager, didUpdateHeading heading: CLHeading) {
+    guard heading.headingAccuracy >= 0 else {
+      userHeading = nil
+      refreshUserDirection()
+      return
+    }
+    let direction = heading.trueHeading >= 0 ? heading.trueHeading : heading.magneticHeading
+    guard direction.isFinite, direction >= 0 else { return }
+    userHeading = direction
+    refreshUserDirection()
   }
 }
 // =============================================================================
@@ -1082,6 +1228,17 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
   func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
     switch annotation {
     case is MKUserLocation:
+      if engine.showsUserHeading {
+        // 主地图：带个人标识和朝向扇形的定位视图。
+        let identifier = "sipon.userDirection"
+        let view = (mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
+          as? UserDirectionAnnotationView)
+          ?? UserDirectionAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+        view.annotation = annotation
+        view.setDirection(engine.currentUserHeading, mapHeading: mapView.camera.heading)
+        return view
+      }
+      // 小地图沿用深色模式适配过的自定义定位点。
       let identifier = "sipon.userLocation"
       let view = (mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
         as? SiponUserLocationView)
@@ -1165,12 +1322,19 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
 
   func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {
     (mapView.view(for: mapView.userLocation) as? SiponUserLocationView)?.setNeedsDisplay()
+    engine.refreshUserDirection()
   }
 
   func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
     engine.traceRegion("REGION_END", animated: animated)
+    engine.refreshUserDirection()
     guard engine.shouldProcessEvents else { return }
     engine.emitViewportSettled(region: mapView.region)
+  }
+
+  func mapView(_ mapView: MKMapView, didUpdate userLocation: MKUserLocation) {
+    engine.startHeadingUpdatesIfAuthorized()
+    engine.refreshUserDirection()
   }
 
   // MARK: 空白点击
@@ -1283,6 +1447,74 @@ final class SelectionAnnotation: NSObject, MKAnnotation, VenueSelecting {
 // 自绘 annotation 视图
 // =============================================================================
 
+/// 用户位置：中心是个人点位，半透明扇形指向设备朝向。
+/// 扇形与地图相机的 heading 相抵消，因此转动地图时仍指向真实方向。
+final class UserDirectionAnnotationView: MKAnnotationView {
+  private static let side: CGFloat = 72
+  private static let center = CGPoint(x: side / 2, y: side / 2)
+  private let directionLayer = CAShapeLayer()
+  private let dotView = UIView(frame: CGRect(x: 26, y: 26, width: 20, height: 20))
+  private let personView = UIImageView(image: UIImage(systemName: "person.fill"))
+
+  override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
+    super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+    bounds = CGRect(x: 0, y: 0, width: Self.side, height: Self.side)
+    centerOffset = .zero
+    displayPriority = .required
+    collisionMode = .circle
+    if #available(iOS 14.0, *) { zPriority = .max }
+    isAccessibilityElement = true
+    accessibilityLabel = "我的位置"
+
+    let fan = UIBezierPath()
+    fan.move(to: Self.center)
+    fan.addArc(
+      withCenter: Self.center,
+      radius: 34,
+      startAngle: -CGFloat.pi / 2 - CGFloat.pi / 7,
+      endAngle: -CGFloat.pi / 2 + CGFloat.pi / 7,
+      clockwise: false
+    )
+    fan.close()
+    directionLayer.frame = bounds
+    directionLayer.path = fan.cgPath
+    directionLayer.fillColor = UIColor(red: 0x9A / 255.0, green: 0x3D / 255.0, blue: 0x78 / 255.0, alpha: 0.25).cgColor
+    directionLayer.isHidden = true
+    layer.addSublayer(directionLayer)
+
+    dotView.backgroundColor = UIColor(red: 0x9A / 255.0, green: 0x3D / 255.0, blue: 0x78 / 255.0, alpha: 1)
+    dotView.layer.cornerRadius = 10
+    dotView.layer.borderWidth = 2.5
+    dotView.layer.borderColor = UIColor.white.cgColor
+    dotView.layer.shadowColor = UIColor.black.cgColor
+    dotView.layer.shadowOpacity = 0.22
+    dotView.layer.shadowRadius = 3
+    dotView.layer.shadowOffset = CGSize(width: 0, height: 1)
+    addSubview(dotView)
+
+    personView.frame = CGRect(x: 31, y: 31, width: 10, height: 10)
+    personView.contentMode = .scaleAspectFit
+    personView.tintColor = .white
+    addSubview(personView)
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { nil }
+
+  func setDirection(_ heading: CLLocationDirection?, mapHeading: CLLocationDirection) {
+    guard let heading = heading, heading.isFinite, mapHeading.isFinite else {
+      directionLayer.isHidden = true
+      return
+    }
+    let radians = CGFloat((heading - mapHeading) * .pi / 180)
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    directionLayer.isHidden = false
+    directionLayer.setAffineTransform(CGAffineTransform(rotationAngle: radians))
+    CATransaction.commit()
+  }
+}
+
 /// 普通点位与选中点位共用的图标视图：显示分类 PNG，图片底部对齐地图坐标。
 /// 普通态和选中态均按原尺寸的 2/3 显示。
 final class VenueIconAnnotationView: MKAnnotationView {
@@ -1350,6 +1582,8 @@ final class MarkerAnnotationView: MKAnnotationView {
   private let iconCircle = UIView(frame: .zero)
   private let iconView = UIImageView(frame: .zero)
   private let ratingLabel = UILabel(frame: .zero)
+  private let selectionHalo = UIView(frame: .zero)
+  private let selectionCheck = UIImageView(image: UIImage(systemName: "checkmark.circle.fill"))
   private let sequenceBadge = UILabel(frame: .zero)
   private let label = UILabel(frame: .zero)
   private var sourceIcon: UIImage?
@@ -1364,12 +1598,28 @@ final class MarkerAnnotationView: MKAnnotationView {
     addSubview(capsuleTail)
     addSubview(capsule)
     addSubview(iconCircle)
+    addSubview(selectionHalo)
     addSubview(iconView)
+    addSubview(selectionCheck)
     addSubview(ratingLabel)
     addSubview(sequenceBadge)
     addSubview(label)
 
     capsule.backgroundColor = .white
+    let selectionColor = UIColor(red: 0x9A / 255, green: 0x3D / 255, blue: 0x78 / 255, alpha: 1)
+    selectionHalo.backgroundColor = .white
+    selectionHalo.layer.borderColor = selectionColor.cgColor
+    selectionHalo.layer.borderWidth = 3
+    selectionHalo.layer.cornerRadius = 22
+    selectionHalo.isUserInteractionEnabled = false
+    selectionHalo.isHidden = true
+    selectionCheck.tintColor = selectionColor
+    selectionCheck.backgroundColor = .white
+    selectionCheck.layer.cornerRadius = 9
+    selectionCheck.layer.masksToBounds = true
+    selectionCheck.contentMode = .scaleAspectFit
+    selectionCheck.isUserInteractionEnabled = false
+    selectionCheck.isHidden = true
     capsule.isUserInteractionEnabled = false
     capsule.layer.cornerRadius = Metrics.capsuleCornerRadius
     capsuleTail.backgroundColor = .white
@@ -1509,7 +1759,7 @@ final class MarkerAnnotationView: MKAnnotationView {
     setNeedsLayout()
   }
 
-  /// 选中时切换为单独的分类图标，不显示胶囊和评分。
+  /// 选中时展示分类图标、品牌色圆环和勾选标记，明确反馈当前选择。
   func setHighlighted(_ highlighted: Bool) {
     guard isPoiHighlighted != highlighted else { return }
     isPoiHighlighted = highlighted
@@ -1539,7 +1789,7 @@ final class MarkerAnnotationView: MKAnnotationView {
     if isRouteMarker {
       accessibilityLabel = "第\(sequenceBadge.text ?? "-")站，\(currentLabel)"
     } else if isPoiHighlighted {
-      accessibilityLabel = currentLabel
+      accessibilityLabel = "已选中，\(currentLabel)"
     } else if currentLabel.isEmpty {
       accessibilityLabel = "评分 \(currentRatingText)"
     } else {
@@ -1549,6 +1799,8 @@ final class MarkerAnnotationView: MKAnnotationView {
 
   override func layoutSubviews() {
     super.layoutSubviews()
+    selectionHalo.isHidden = !isPoiHighlighted || isRouteMarker
+    selectionCheck.isHidden = !isPoiHighlighted || isRouteMarker
     if isRouteMarker {
       layoutRouteMarker()
     } else if isPoiHighlighted {
@@ -1566,15 +1818,25 @@ final class MarkerAnnotationView: MKAnnotationView {
     sequenceBadge.isHidden = true
     label.isHidden = true
     iconView.isHidden = false
-    layer.shadowPath = nil
-    layer.shadowOpacity = 0
+    layer.shadowColor = UIColor(red: 0x9A / 255, green: 0x3D / 255, blue: 0x78 / 255, alpha: 1).cgColor
+    layer.shadowOpacity = 0.3
+    layer.shadowRadius = 7
+    layer.shadowOffset = CGSize(width: 0, height: 2)
 
-    let size = Metrics.selectedIconSize
+    let size = CGSize(width: 48, height: 48)
     if bounds.size != size {
       bounds = CGRect(origin: .zero, size: size)
     }
     UIView.performWithoutAnimation {
-      iconView.frame = bounds
+      selectionHalo.frame = CGRect(x: 2, y: 2, width: 44, height: 44)
+      iconView.frame = CGRect(
+        x: (size.width - Metrics.selectedIconSize.width) / 2,
+        y: (size.height - Metrics.selectedIconSize.height) / 2,
+        width: Metrics.selectedIconSize.width,
+        height: Metrics.selectedIconSize.height
+      )
+      selectionCheck.frame = CGRect(x: 30, y: 0, width: 18, height: 18)
+      layer.shadowPath = UIBezierPath(ovalIn: selectionHalo.frame).cgPath
       centerOffset = CGPoint(x: 0, y: -size.height / 2)
     }
   }

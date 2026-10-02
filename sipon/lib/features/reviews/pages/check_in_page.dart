@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -9,6 +11,7 @@ import '../../map/controllers/map_scene_controller.dart';
 import '../../map/models/map_viewport.dart';
 import '../../map/platform/sipon_map_host.dart';
 import '../../map/widgets/sipon_map_widget.dart';
+import '../../../shared/services/sipon_api_client.dart';
 import '../../../shared/services/sipon_api_service.dart';
 import '../../../shared/services/sipon_city_controller.dart';
 import '../../../shared/services/sipon_search_preferences.dart';
@@ -44,6 +47,12 @@ class _CheckInPageState extends State<CheckInPage> {
 
   /// 附近酒吧列表的滚动控制器。
   final ScrollController _barsController = ScrollController();
+  final TextEditingController _barSearchController = TextEditingController();
+  Timer? _barSearchDebounce;
+  int _barSearchVersion = 0;
+  List<_BarSearchResult> _barSearchResults = const [];
+  bool _searchingBars = false;
+  bool _barSearchFailed = false;
 
   late final MapSceneController _scene;
 
@@ -75,6 +84,8 @@ class _CheckInPageState extends State<CheckInPage> {
     _requestVersion++;
     SiponSearchPreferences.instance.removeListener(_handleRadiusChanged);
     _barsController.dispose();
+    _barSearchDebounce?.cancel();
+    _barSearchController.dispose();
     _scene.detach();
     super.dispose();
   }
@@ -82,6 +93,52 @@ class _CheckInPageState extends State<CheckInPage> {
   void _handleRadiusChanged() {
     if (!mounted) return;
     _loadNearbyBars();
+  }
+
+  void _onBarSearchChanged(String value) {
+    _barSearchDebounce?.cancel();
+    final version = ++_barSearchVersion;
+    final keyword = value.trim();
+    if (keyword.isEmpty) {
+      setState(() {
+        _barSearchResults = const [];
+        _searchingBars = false;
+        _barSearchFailed = false;
+      });
+      return;
+    }
+    setState(() {
+      _searchingBars = true;
+      _barSearchFailed = false;
+    });
+    _barSearchDebounce = Timer(const Duration(milliseconds: 300), () async {
+      try {
+        final matches = await _api.searchBars(
+          city: _cityController?.city,
+          keyword: keyword,
+          page: const SiponPage(limit: 20),
+        );
+        if (!mounted || version != _barSearchVersion) return;
+        setState(() {
+          _barSearchResults = matches
+              .whereType<Map>()
+              .map(
+                (item) =>
+                    _BarSearchResult.tryParse(item.cast<String, dynamic>()),
+              )
+              .whereType<_BarSearchResult>()
+              .toList(growable: false);
+          _searchingBars = false;
+        });
+      } on Exception {
+        if (!mounted || version != _barSearchVersion) return;
+        setState(() {
+          _barSearchResults = const [];
+          _searchingBars = false;
+          _barSearchFailed = true;
+        });
+      }
+    });
   }
 
   /// 每次打开或重试获取实际定位，以同一坐标查询偏好半径内的酒吧。
@@ -111,7 +168,7 @@ class _CheckInPageState extends State<CheckInPage> {
     final anchorChanged = _loadedAnchor != anchor;
     setState(() => _loadedAnchor = anchor);
     if (_scene.isAttached && anchorChanged) {
-      await _scene.focusOn(
+      await _scene.centerOnUser(
         longitude: anchor.longitude,
         latitude: anchor.latitude,
       );
@@ -157,10 +214,10 @@ class _CheckInPageState extends State<CheckInPage> {
       ),
     );
     if (!mounted) return;
-    // 地图准备期间若重新获取了定位，使用最新设备坐标。
+    // 地图准备后以实际显示的个人点居中；MapKit 定位未就绪时使用设备坐标。
     final anchor = _loadedAnchor;
-    if (anchor != null && anchor != initialAnchor) {
-      await _scene.focusOn(
+    if (anchor != null) {
+      await _scene.centerOnUser(
         longitude: anchor.longitude,
         latitude: anchor.latitude,
       );
@@ -201,13 +258,92 @@ class _CheckInPageState extends State<CheckInPage> {
     );
   }
 
+  Widget _buildBarSearchResults(ColorScheme scheme) {
+    return Material(
+      color: context.siponColors.elevatedSurface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+            child: Row(
+              children: [
+                Text(
+                  '搜索结果',
+                  style: TextStyle(
+                    color: scheme.onSurface,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  _searchingBars
+                      ? '正在搜索…'
+                      : _barSearchFailed
+                      ? '搜索失败，请重试'
+                      : '${_barSearchResults.length} 家可打卡',
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Flexible(
+            child: _searchingBars
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : _barSearchFailed
+                ? Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: TextButton(
+                      onPressed: () =>
+                          _onBarSearchChanged(_barSearchController.text),
+                      child: const Text('重试搜索'),
+                    ),
+                  )
+                : _barSearchResults.isEmpty
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('没有找到匹配的酒吧'),
+                  )
+                : ListView.builder(
+                    primary: false,
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.only(bottom: 8),
+                    itemCount: _barSearchResults.length,
+                    itemBuilder: (context, index) => _BarSearchResultTile(
+                      bar: _barSearchResults[index],
+                      brand: scheme.primary,
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final height = MediaQuery.sizeOf(context).height * 0.78;
     final scheme = Theme.of(context).colorScheme;
+    final surface = context.siponColors.elevatedSurface;
     return Material(
       // 打卡面板是底部弹层，用主题浮层表面色（浅色下为白色）。
-      color: context.siponColors.elevatedSurface,
+      color: surface,
       borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       clipBehavior: Clip.antiAlias,
       child: SizedBox(
@@ -250,38 +386,103 @@ class _CheckInPageState extends State<CheckInPage> {
               ),
               SizedBox(
                 height: height * 0.28,
-                child: _loadedAnchor != null
-                    ? SiponMapWidget(
-                        initialStyleId: MapBaseStyle.standard.id,
-                        onHostReady: _handleMapCreated,
-                      )
-                    : Center(
-                        child: _locationError == null
-                            ? const Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  CircularProgressIndicator(),
-                                  SizedBox(height: 12),
-                                  Text('正在获取当前位置…'),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _loadedAnchor != null
+                        ? SiponMapWidget(
+                            initialStyleId: MapBaseStyle.standard.id,
+                            onHostReady: _handleMapCreated,
+                          )
+                        : Center(
+                            child: _locationError == null
+                                ? const Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      CircularProgressIndicator(),
+                                      SizedBox(height: 12),
+                                      Text('正在获取当前位置…'),
+                                    ],
+                                  )
+                                : Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          _locationError!,
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        TextButton(
+                                          onPressed: _loadNearbyBars,
+                                          child: const Text('重新定位'),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                          ),
+                    if (_loadedAnchor != null)
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: 130,
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  surface,
+                                  surface.withValues(alpha: 0.9),
+                                  surface.withValues(alpha: 0),
                                 ],
-                              )
-                            : Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      _locationError!,
-                                      textAlign: TextAlign.center,
-                                    ),
-                                    TextButton(
-                                      onPressed: _loadNearbyBars,
-                                      child: const Text('重新定位'),
-                                    ),
-                                  ],
-                                ),
+                                stops: const [0, .25, 1],
                               ),
+                            ),
+                          ),
+                        ),
                       ),
+                    // 结果浮层从搜索框上方展开，覆盖地图并独立滚动。
+                    if (_barSearchController.text.trim().isNotEmpty)
+                      Align(
+                        alignment: Alignment.bottomCenter,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 18),
+                          child: _buildBarSearchResults(scheme),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
+                child: TextField(
+                  controller: _barSearchController,
+                  onChanged: _onBarSearchChanged,
+                  decoration: InputDecoration(
+                    hintText: '搜索当前城市的酒吧',
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    suffixIcon: _barSearchController.text.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: '清除搜索',
+                            icon: const Icon(Icons.close_rounded),
+                            onPressed: () {
+                              _barSearchController.clear();
+                              _onBarSearchChanged('');
+                            },
+                          ),
+                    isDense: true,
+                    filled: true,
+                    fillColor: context.siponColors.subtleSurface,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
@@ -315,12 +516,8 @@ class _CheckInPageState extends State<CheckInPage> {
                   controller: _barsController,
                   padding: const EdgeInsets.fromLTRB(18, 0, 18, 20),
                   itemCount: _bars.length,
-                  itemBuilder: (context, index) {
-                    return _NearbyBarTile(
-                      bar: _bars[index],
-                      brand: scheme.primary,
-                    );
-                  },
+                  itemBuilder: (context, index) =>
+                      _NearbyBarTile(bar: _bars[index], brand: scheme.primary),
                 ),
               ),
             ],
@@ -329,6 +526,58 @@ class _CheckInPageState extends State<CheckInPage> {
       ),
     );
   }
+}
+
+class _BarSearchResult {
+  const _BarSearchResult({
+    required this.id,
+    required this.name,
+    required this.address,
+  });
+
+  final int id;
+  final String name;
+  final String address;
+
+  static _BarSearchResult? tryParse(Map<String, dynamic> map) {
+    final rawId = map['id'] ?? map['barId'];
+    final id = rawId is num ? rawId.toInt() : int.tryParse('$rawId');
+    final name = (map['name'] ?? map['barName'])?.toString().trim();
+    if (id == null || name == null || name.isEmpty) return null;
+    return _BarSearchResult(
+      id: id,
+      name: name,
+      address: map['address']?.toString().trim() ?? '',
+    );
+  }
+}
+
+class _BarSearchResultTile extends StatelessWidget {
+  const _BarSearchResultTile({required this.bar, required this.brand});
+
+  final _BarSearchResult bar;
+  final Color brand;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    title: Text(bar.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+    subtitle: bar.address.isEmpty
+        ? null
+        : Text(bar.address, maxLines: 1, overflow: TextOverflow.ellipsis),
+    trailing: FilledButton(
+      style: FilledButton.styleFrom(backgroundColor: brand),
+      onPressed: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => CheckInCommentPage(
+            barId: bar.id,
+            venueName: bar.name,
+            venueAddress: bar.address,
+          ),
+        ),
+      ),
+      child: const Text('打卡'),
+    ),
+  );
 }
 
 class _NearbyBar {
@@ -494,12 +743,14 @@ class CheckInCommentPage extends StatefulWidget {
     required this.venueName,
     required this.venueAddress,
     this.returnToVenue = false,
+    this.apiService,
   });
 
   final int? barId;
   final String venueName;
   final String venueAddress;
   final bool returnToVenue;
+  final SiponApiService? apiService;
 
   @override
   State<CheckInCommentPage> createState() => _CheckInCommentPageState();
@@ -509,10 +760,17 @@ class _CheckInCommentPageState extends State<CheckInCommentPage> {
   static const int _maxUploadBytes = 10 * 1024 * 1024;
 
   final _controller = TextEditingController();
-  final SiponApiService _api = SiponApiService();
+  late final SiponApiService _api;
   final List<XFile> _images = <XFile>[];
   int _rating = 0;
+  ReviewAspectRatings _aspectRatings = const ReviewAspectRatings();
   bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _api = widget.apiService ?? SiponApiService();
+  }
 
   @override
   void dispose() {
@@ -553,8 +811,8 @@ class _CheckInCommentPageState extends State<CheckInCommentPage> {
   String? _extractMediaId(dynamic response) {
     if (response is! Map) return null;
     final raw =
-        response['mediaId'] ??
         response['id'] ??
+        response['mediaId'] ??
         (response['data'] is Map ? response['data']['mediaId'] : null);
     final id = raw?.toString().trim();
     return (id == null || id.isEmpty) ? null : id;
@@ -588,18 +846,38 @@ class _CheckInCommentPageState extends State<CheckInCommentPage> {
     setState(() => _submitting = true);
     FocusScope.of(context).unfocus();
     try {
+      final ratingDetails = _aspectRatings.toPayload();
+      final content = _aspectRatings.prependToContent(_controller.text);
+      if (content.length > 2000) {
+        _showMessage('评价内容不能超过 2000 字');
+        return;
+      }
       final mediaIds = await _uploadImages();
-      await _api.createCheckIn({
+      final body = <String, Object?>{
         'barId': barId,
         'rating': _rating,
-        if (_controller.text.trim().isNotEmpty)
-          'content': _controller.text.trim(),
+        if (content.isNotEmpty) 'content': content,
         'visibility': 'public',
         'visitedAt': DateTime.now().toUtc().toIso8601String(),
         if (mediaIds.isNotEmpty) 'mediaIds': mediaIds,
-      });
+        ...ratingDetails,
+      };
+      try {
+        await _api.createCheckIn(body);
+      } on SiponApiException catch (error) {
+        // Older servers may reject the new fields. The readable score summary
+        // in content still preserves every selected rating on retry.
+        if (ratingDetails.isEmpty ||
+            (error.statusCode != 400 && error.statusCode != 422)) {
+          rethrow;
+        }
+        for (final key in ratingDetails.keys) {
+          body.remove(key);
+        }
+        await _api.createCheckIn(body);
+      }
       if (!mounted) return;
-      _showMessage('打卡成功');
+      _showMessage('打卡已提交，审核通过后展示在动态中');
       if (widget.returnToVenue) {
         Navigator.of(context).pop(true);
       } else {
@@ -617,6 +895,7 @@ class _CheckInCommentPageState extends State<CheckInCommentPage> {
 
   Future<void> _submitDraft(ReviewDraft draft) async {
     _rating = draft.rating;
+    _aspectRatings = draft.aspectRatings;
     _controller.text = draft.content;
     _images
       ..clear()

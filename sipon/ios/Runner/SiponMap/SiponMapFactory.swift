@@ -20,12 +20,14 @@ final class SiponMapFactory: NSObject, FlutterPlatformViewFactory {
     let params = arguments as? [String: Any]
     let compassTopInset = (params?["compassTopInset"] as? NSNumber)?.doubleValue
     let appBrightness = params?["brightness"] as? String
+    let showsUserHeading = (params?["showsUserHeading"] as? Bool) ?? false
     return SiponMapView(
       frame: frame,
       viewId: viewId,
       messenger: messenger,
       compassTopInset: compassTopInset,
-      appBrightness: appBrightness
+      appBrightness: appBrightness,
+      showsUserHeading: showsUserHeading
     )
   }
 

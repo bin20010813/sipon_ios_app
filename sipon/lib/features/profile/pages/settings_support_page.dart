@@ -2125,16 +2125,18 @@ class _AppearanceRow extends StatelessWidget {
                           color: scheme.onPrimary,
                         ),
                         const SizedBox(width: 4),
-                        Text(
-                          _label(mode),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: scheme.onPrimary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0,
+                        Expanded(
+                          child: Text(
+                            _label(mode),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: scheme.onPrimary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 2),

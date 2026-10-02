@@ -43,6 +43,9 @@ class HomePage extends StatefulWidget {
   /// 为空时由页面内部自建，页面可独立使用。
   final ValueNotifier<bool>? searchExpanded;
 
+  static const double contentMaxWidth = 430;
+  static const double contentHorizontalPadding = 23;
+
   static const Color brand = Color(0xFF9A3D78);
   static Color inkOf(BuildContext context) =>
       Theme.of(context).colorScheme.onSurface;
@@ -191,7 +194,9 @@ class _HomePageState extends State<HomePage> {
         bottom: false,
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 430),
+            constraints: const BoxConstraints(
+              maxWidth: HomePage.contentMaxWidth,
+            ),
             child: Stack(
               children: [
                 CustomScrollView(
@@ -199,7 +204,7 @@ class _HomePageState extends State<HomePage> {
                   slivers: [
                     SliverPadding(
                       padding: EdgeInsets.fromLTRB(
-                        23,
+                        HomePage.contentHorizontalPadding,
                         16,
                         0,
                         24 + widget.bottomOverlayInset,
@@ -232,7 +237,9 @@ class _HomePageState extends State<HomePage> {
                           // ),
                           // const SizedBox(height: 18),
                           Padding(
-                            padding: const EdgeInsets.only(right: 23),
+                            padding: const EdgeInsets.only(
+                              right: HomePage.contentHorizontalPadding,
+                            ),
                             child: _SectionHeader(
                               title: text.t('鸡尾酒推荐'),
                               onMorePressed: () => _pushCocktailList(context),
@@ -242,7 +249,9 @@ class _HomePageState extends State<HomePage> {
                           const _CocktailScroller(),
                           const SizedBox(height: 18),
                           Padding(
-                            padding: const EdgeInsets.only(right: 23),
+                            padding: const EdgeInsets.only(
+                              right: HomePage.contentHorizontalPadding,
+                            ),
                             child: _VirtualDrinkingPrompt(
                               onPressed: () => Navigator.of(context).push(
                                 MaterialPageRoute<void>(
@@ -253,7 +262,9 @@ class _HomePageState extends State<HomePage> {
                           ),
                           const SizedBox(height: 18),
                           Padding(
-                            padding: const EdgeInsets.only(right: 23),
+                            padding: const EdgeInsets.only(
+                              right: HomePage.contentHorizontalPadding,
+                            ),
                             child: _HomeRecordPrompt(
                               onPressed: widget.onRecordPressed,
                             ),
@@ -263,11 +274,17 @@ class _HomePageState extends State<HomePage> {
                             future: _homeBarsFuture,
                             builder: (context, snapshot) {
                               final data =
-                                  snapshot.data ??
-                                  const _HomeBarsData(
-                                    bars: [],
-                                    statusMessage: '正在加载接口数据...',
-                                  );
+                                  snapshot.connectionState ==
+                                      ConnectionState.waiting
+                                  ? const _HomeBarsData(
+                                      bars: [],
+                                      statusMessage: '正在加载接口数据...',
+                                    )
+                                  : snapshot.data ??
+                                        const _HomeBarsData(
+                                          bars: [],
+                                          statusMessage: '正在加载接口数据...',
+                                        );
 
                               return _HomeDataSections(
                                 data: data,

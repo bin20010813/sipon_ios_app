@@ -47,12 +47,26 @@ class _ShellBottomBar extends StatelessWidget {
                     offset: Offset(0, (reserveHeight + 12) * progress),
                     child: Opacity(
                       opacity: 1 - progress,
-                      child: Padding(
-                        padding: EdgeInsets.fromLTRB(34, 0, 34, bottomGap),
-                        child: _SiponBottomJumpBar(
-                          currentIndex: currentIndex,
-                          onTabSelected: onTabSelected,
-                          onPlusPressed: onPlusPressed,
+                      child: SafeArea(
+                        top: false,
+                        bottom: false,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(
+                            maxWidth: HomePage.contentMaxWidth,
+                          ),
+                          child: Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              HomePage.contentHorizontalPadding,
+                              0,
+                              HomePage.contentHorizontalPadding,
+                              bottomGap,
+                            ),
+                            child: _SiponBottomJumpBar(
+                              currentIndex: currentIndex,
+                              onTabSelected: onTabSelected,
+                              onPlusPressed: onPlusPressed,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -68,6 +82,13 @@ class _ShellBottomBar extends StatelessWidget {
 }
 
 class _SiponBottomJumpBar extends StatelessWidget {
+  static const double height = 62;
+  static const double contentInset = 9;
+  static const double itemCornerRadius = 30;
+  static const double cornerRadius = itemCornerRadius + contentInset;
+  static const double itemWidth = 60;
+  static const double itemHeight = height - contentInset * 2;
+
   const _SiponBottomJumpBar({
     required this.currentIndex,
     required this.onTabSelected,
@@ -83,29 +104,31 @@ class _SiponBottomJumpBar extends StatelessWidget {
     final text = SiponLanguageScope.textOf(context);
     final colors = Theme.of(context).colorScheme;
 
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 420),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Expanded(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: colors.surface.withValues(alpha: 0.94),
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: colors.outlineVariant),
-                boxShadow: [
-                  BoxShadow(
-                    color: colors.primary.withValues(alpha: 0.12),
-                    blurRadius: 24,
-                    offset: Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: SizedBox(
-                height: 62,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: colors.surface.withValues(alpha: 0.94),
+              borderRadius: BorderRadius.circular(cornerRadius),
+              border: Border.all(color: colors.outlineVariant),
+              boxShadow: [
+                BoxShadow(
+                  color: colors.primary.withValues(alpha: 0.12),
+                  blurRadius: 24,
+                  offset: Offset(0, 10),
+                ),
+              ],
+            ),
+            child: SizedBox(
+              height: height,
+              child: Padding(
+                padding: const EdgeInsets.all(contentInset),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     _SiponBottomJumpItem(
                       tooltip: text.homeTab,
@@ -124,22 +147,30 @@ class _SiponBottomJumpBar extends StatelessWidget {
                       onPressed: () => onTabSelected(1),
                     ),
                     _SiponBottomJumpItem(
-                      tooltip: text.profileTab,
-                      icon: Icons.person_rounded,
+                      tooltip: text.momentsTab,
+                      icon: Icons.forum_rounded,
                       selected: currentIndex == 2,
                       activeColor: colors.primary,
                       inactiveColor: colors.onSurfaceVariant,
                       onPressed: () => onTabSelected(2),
+                    ),
+                    _SiponBottomJumpItem(
+                      tooltip: text.profileTab,
+                      icon: Icons.person_rounded,
+                      selected: currentIndex == 3,
+                      activeColor: colors.primary,
+                      inactiveColor: colors.onSurfaceVariant,
+                      onPressed: () => onTabSelected(3),
                     ),
                   ],
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 10),
-          _SiponBottomPlusButton(onPressed: onPlusPressed),
-        ],
-      ),
+        ),
+        const SizedBox(width: 10),
+        _SiponBottomPlusButton(onPressed: onPlusPressed),
+      ],
     );
   }
 }
@@ -175,10 +206,11 @@ class _SiponBottomPlusButton extends StatelessWidget {
                 ),
               ],
             ),
-            child: Icon(
-              Icons.add_rounded,
-              color: scheme.onSurfaceVariant,
-              size: 28,
+            child: Center(
+              child: _SiponBottomIcon(
+                icon: Icons.add_rounded,
+                color: scheme.onSurfaceVariant,
+              ),
             ),
           ),
         ),
@@ -216,25 +248,66 @@ class _SiponBottomJumpItem extends StatelessWidget {
         child: IconButton(
           onPressed: onPressed,
           style: IconButton.styleFrom(
-            fixedSize: const Size(70, 52),
+            iconSize: _SiponBottomIcon.size,
+            visualDensity: VisualDensity.standard,
+            alignment: Alignment.center,
+            minimumSize: Size.zero,
+            fixedSize: const Size(
+              _SiponBottomJumpBar.itemWidth,
+              _SiponBottomJumpBar.itemHeight,
+            ),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             backgroundColor: Colors.transparent,
             foregroundColor: selected ? scheme.onPrimary : inactiveColor,
             padding: EdgeInsets.zero,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(22),
+              borderRadius: BorderRadius.circular(
+                _SiponBottomJumpBar.itemCornerRadius,
+              ),
             ),
           ),
-          icon: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            width: 58,
-            height: 44,
-            decoration: BoxDecoration(
-              color: selected ? activeColor : Colors.transparent,
-              borderRadius: BorderRadius.circular(22),
+          icon: Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: _SiponBottomJumpBar.itemWidth,
+              height: _SiponBottomJumpBar.itemHeight,
+              decoration: BoxDecoration(
+                color: selected ? activeColor : Colors.transparent,
+                borderRadius: BorderRadius.circular(
+                  _SiponBottomJumpBar.itemCornerRadius,
+                ),
+              ),
+              child: Center(child: _SiponBottomIcon(icon: icon)),
             ),
-            child: Center(child: Icon(icon, size: 28)),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SiponBottomIcon extends StatelessWidget {
+  const _SiponBottomIcon({required this.icon, this.color});
+
+  static const double size = 30;
+
+  final IconData icon;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    // Center the visual weight of asymmetric glyphs within the shared icon box.
+    final offset = switch (icon) {
+      Icons.forum_rounded => const Offset(0, 2.5),
+      Icons.person_rounded => const Offset(0, 1),
+      _ => Offset.zero,
+    };
+
+    return SizedBox.square(
+      dimension: size,
+      child: Transform.translate(
+        offset: offset,
+        child: Icon(icon, color: color, size: size),
       ),
     );
   }
@@ -570,7 +643,7 @@ class _PlusIconBubble extends StatelessWidget {
         color: color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Icon(icon, color: color, size: 22),
+      child: Icon(icon, color: color, size: 30),
     );
   }
 }

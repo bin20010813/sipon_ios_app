@@ -27,7 +27,9 @@ class MapDataController extends ChangeNotifier {
        _city = city,
        _pinnedVenue = initialVenue,
        _venues = initialVenue == null ? const [] : [initialVenue],
-       _selectedVenueId = initialVenue?.id;
+       _selectedVenueId = initialVenue?.id,
+       _selectedVenueSnapshot = initialVenue,
+       _selectionLocked = initialVenue != null;
 
   static MapVenueSearchRepository? _searchCapabilityOf(
     MapVenueRepository repository,
@@ -49,6 +51,11 @@ class MapDataController extends ChangeNotifier {
   MapPoiFilter _poiFilter = MapPoiFilter.none;
   String _searchQuery = '';
   String? _selectedVenueId;
+
+  /// 用户主动点选后保留该 POI；视野取数会整体替换 [_venues]，
+  /// 但不能因此替换当前信息面板。
+  MapVenue? _selectedVenueSnapshot;
+  bool _selectionLocked;
   MapDataStatus _status = MapDataStatus.idle;
   String? _failureDetail;
   MapBaseStyle _style = MapBaseStyle.standard;
@@ -111,6 +118,12 @@ class MapDataController extends ChangeNotifier {
             return true;
           }
 
+          // 字母输入按酒吧名称开头匹配，避免输入 n 时把 ONCE、Phoenix
+          // 这类仅在名称中间含 n 的结果排进候选列表。
+          if (_isLatinInitialQuery(query)) {
+            return venue.name.trimLeft().toLowerCase().startsWith(query);
+          }
+
           final searchable = [
             venue.name,
             venue.address,
@@ -136,6 +149,27 @@ class MapDataController extends ChangeNotifier {
       });
     }
     return venues;
+  }
+
+  /// 搜索下拉与地图点位共用筛选结果，但字母候选按名称排序，
+  /// 不受当前地图中心距离顺序影响。
+  List<MapVenue> get searchSuggestions {
+    final matches = visibleVenues;
+    if (_isLatinInitialQuery(_searchQuery)) {
+      matches.sort((a, b) {
+        final byName = a.name.trimLeft().toLowerCase().compareTo(
+          b.name.trimLeft().toLowerCase(),
+        );
+        return byName != 0 ? byName : a.id.compareTo(b.id);
+      });
+    }
+    return matches;
+  }
+
+  bool _isLatinInitialQuery(String query) {
+    if (query.isEmpty) return false;
+    final first = query.codeUnitAt(0);
+    return first >= 0x61 && first <= 0x7a;
   }
 
   /// 要画胶囊标签的那一批（按当前缩放抽样）。当前选中的 POI 必须保留在
@@ -175,7 +209,7 @@ class MapDataController extends ChangeNotifier {
       }
     }
 
-    return null;
+    return _selectedVenueSnapshot?.id == id ? _selectedVenueSnapshot : null;
   }
 
   List<MapPoint> get circlePoints => [
@@ -300,15 +334,27 @@ class MapDataController extends ChangeNotifier {
 
   void _applyVenues(List<MapVenue> venues, MapViewport viewport) {
     final pinned = _pinnedVenue;
+    final selection = selectedVenue;
+    _selectedVenueSnapshot = selection;
 
     _venues = pinned == null || venues.any((venue) => venue.id == pinned.id)
         ? venues
         : [pinned, ...venues];
+    if (_selectionLocked) {
+      for (final venue in _venues) {
+        if (venue.id == _selectedVenueId) {
+          _selectedVenueSnapshot = venue;
+          break;
+        }
+      }
+    }
     _loadedViewport = viewport;
     _zoom = viewport.zoom;
     _status = venues.isEmpty ? MapDataStatus.empty : MapDataStatus.ready;
     _failureDetail = null;
-    _reconcileSelection();
+    if (selection == null) {
+      _reconcileSelection();
+    }
     _notify();
   }
 
@@ -318,12 +364,19 @@ class MapDataController extends ChangeNotifier {
     _notify();
   }
 
-  /// 新数据到达或筛选变化后对齐选中态：原来选的还在就留着，否则退回第一个
+  /// 初次选取或筛选变化后对齐选中态：原来选的还在就留着，否则退回第一个
   /// （visibleVenues 按距当前视野中心排序），空列表则清空选中。
-  void _reconcileSelection() {
+  void _reconcileSelection({bool preserveLockedSelection = true}) {
+    if (preserveLockedSelection &&
+        _selectionLocked &&
+        _selectedVenueSnapshot != null) {
+      return;
+    }
     final candidates = visibleVenues;
     if (candidates.isEmpty) {
       _selectedVenueId = null;
+      _selectedVenueSnapshot = null;
+      _selectionLocked = false;
       return;
     }
 
@@ -334,14 +387,28 @@ class MapDataController extends ChangeNotifier {
     }
 
     _selectedVenueId = candidates.first.id;
+    _selectedVenueSnapshot = null;
+    _selectionLocked = false;
   }
 
   void selectVenue(String? venueId) {
-    if (_selectedVenueId == venueId) {
-      return;
+    MapVenue? selected;
+    if (venueId != null) {
+      for (final venue in _venues) {
+        if (venue.id == venueId) {
+          selected = venue;
+          break;
+        }
+      }
+      if (selected == null && _selectedVenueSnapshot?.id == venueId) {
+        selected = _selectedVenueSnapshot;
+      }
     }
-
+    final locked = selected != null;
+    if (_selectedVenueId == venueId && _selectionLocked == locked) return;
     _selectedVenueId = venueId;
+    _selectedVenueSnapshot = selected;
+    _selectionLocked = locked;
     _notify();
   }
 
@@ -359,7 +426,8 @@ class MapDataController extends ChangeNotifier {
     }
 
     _poiFilter = filter;
-    _reconcileSelection();
+    // 用户主动筛选时，面板也必须符合新条件；仅移动地图仍保留原选择。
+    _reconcileSelection(preserveLockedSelection: false);
     _notify();
   }
 
@@ -426,7 +494,7 @@ class MapDataController extends ChangeNotifier {
   /// 的话选中会落空、详情卡片空窗；相机聚焦交给页面的 `_applyStage`。
   void adoptSearchedVenue(MapVenue venue) {
     final known = _venues.any((item) => item.id == venue.id);
-    if (known && _selectedVenueId == venue.id) {
+    if (known && _selectedVenueId == venue.id && _selectionLocked) {
       return;
     }
 
@@ -434,6 +502,8 @@ class MapDataController extends ChangeNotifier {
       _venues = [..._venues, venue];
     }
     _selectedVenueId = venue.id;
+    _selectedVenueSnapshot = venue;
+    _selectionLocked = true;
     _notify();
   }
 
@@ -448,6 +518,8 @@ class MapDataController extends ChangeNotifier {
     _searchDebounce?.cancel();
     _searchGeneration++;
     _selectedVenueId = venue.id;
+    _selectedVenueSnapshot = venue;
+    _selectionLocked = true;
     _notify();
   }
 
@@ -477,6 +549,7 @@ class MapDataController extends ChangeNotifier {
     _searchGeneration++;
     _venues = const [];
     _selectedVenueId = null;
+    _selectedVenueSnapshot = null;
     _status = MapDataStatus.loading;
     _failureDetail = null;
     _notify();

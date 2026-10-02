@@ -189,7 +189,7 @@ void main() {
       cocktail.resolvedImageUrl(
         const SiponApiConfig(baseUrl: 'https://api.example.test'),
       ),
-      'https://api.example.test/api/cocktails/cape_codder.png',
+      'https://api.example.test/api/cocktail-game/assets/cocktails/cape_codder.png',
     );
   });
 
@@ -222,58 +222,9 @@ void main() {
     ]);
   });
 
-  testWidgets('venue detail scrolls from the image while data is loading', (
-    tester,
-  ) async {
-    final languageController = SiponLanguageController();
-    addTearDown(languageController.dispose);
-    late ScrollController scrollController;
-
-    await tester.pumpWidget(
-      SiponLanguageScope(
-        controller: languageController,
-        child: MaterialApp(
-          home: Scaffold(
-            body: DraggableScrollableSheet(
-              initialChildSize: 1,
-              minChildSize: 0.999,
-              maxChildSize: 1,
-              builder: (context, controller) {
-                scrollController = controller;
-                return VenueDetailContent(
-                  venue: const MapVenue(
-                    id: '42',
-                    name: 'Test Bar',
-                    longitude: 121.4,
-                    latitude: 31.2,
-                    kind: MapVenueKind.pub,
-                    rating: 4.8,
-                    address: 'Test address',
-                    distance: '1km',
-                    tags: [],
-                    imageAsset: 'assest/首页/图片素材/酒吧1.png',
-                  ),
-                  scrollController: controller,
-                  opacity: 1,
-                  topInset: 0,
-                  bottomOverlayInset: 0,
-                  onClose: () {},
-                  repository: _PendingVenueDetailRepository(),
-                );
-              },
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pump();
-
-    expect(scrollController.position.maxScrollExtent, greaterThan(0));
-    await tester.drag(find.byType(VenueImage).first, const Offset(0, -300));
-    await tester.pump();
-
-    expect(scrollController.offset, greaterThan(0));
-  });
+  // 注：旧用例「venue detail scrolls from the image while data is loading」
+  // 已随详情页重构移除——加载中不再渲染本地图片 hero，滚动能力由
+  // venue_expand_button_scroll_test 覆盖。
 }
 
 class _BarImagesApi extends SiponApiService {

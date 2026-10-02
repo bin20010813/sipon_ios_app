@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import 'package:sipon/shared/services/map/map_place_result.dart';
+
 import '../models/map_display_options.dart';
 import '../models/map_models.dart';
 import '../models/map_viewport.dart';
@@ -214,6 +216,16 @@ abstract class MapSceneController {
   /// 把某个坐标居中（附带聚焦缩放/俯仰/朝向）。
   Future<void> focusOn({required double longitude, required double latitude});
 
+  /// 定位按钮专用：以地图实际显示的个人点为视图中心。
+  /// 传入坐标只在原生位置尚未就绪时作为兜底。
+  Future<void> centerOnUser({
+    required double longitude,
+    required double latitude,
+  });
+
+  /// Search Apple Maps addresses and places around the current map region.
+  Future<List<MapPlaceResult>> searchPlaces(String query);
+
   Future<void> flyToCity(String city, {required double zoom});
 
   /// Keep selected route stops visible while the route is being edited.
@@ -338,6 +350,13 @@ class UnsupportedMapSceneController extends MapSceneController {
     required double longitude,
     required double latitude,
   }) async {}
+  @override
+  Future<void> centerOnUser({
+    required double longitude,
+    required double latitude,
+  }) async {}
+  @override
+  Future<List<MapPlaceResult>> searchPlaces(String query) async => const [];
   @override
   Future<void> flyToCity(String city, {required double zoom}) async {}
   @override
