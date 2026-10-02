@@ -64,6 +64,28 @@ class _Planner extends RoutePlanner {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test(
+    'user centering uses native position and clears sheet padding',
+    () async {
+      final host = _Host();
+      final controller = TiandituSceneController(
+        onViewportSettled: (_) {},
+        onVenueTapped: (_) {},
+        onBlankTapped: () {},
+      );
+      addTearDown(controller.detach);
+      await controller.attach(host, city: '上海');
+      await controller.applyStage(
+        cameraBottomPadding: 240,
+        ornamentBottomMargin: 240,
+      );
+      await controller.centerOnUser(longitude: 121.1, latitude: 31.1);
+      final camera = host.arguments[SiponMapCommands.centerOnUser]!;
+      expect(camera['lng'], 121.1);
+      expect(camera['lat'], 31.1);
+      expect(camera['bottomPadding'], 0);
+    },
+  );
   const points = [
     MapLatLng(longitude: 121.1, latitude: 31.1),
     MapLatLng(longitude: 121.2, latitude: 31.2),
@@ -188,37 +210,40 @@ void main() {
     });
   });
 
-  test('route key failures are explained instead of reported as bad legs', () async {
-    final host = _Host();
-    final controller = TiandituSceneController(
-      onViewportSettled: (_) {},
-      onVenueTapped: (_) {},
-      onBlankTapped: () {},
-    );
-    addTearDown(controller.detach);
-    await controller.attach(host, city: '上海');
+  test(
+    'route key failures are explained instead of reported as bad legs',
+    () async {
+      final host = _Host();
+      final controller = TiandituSceneController(
+        onViewportSettled: (_) {},
+        onVenueTapped: (_) {},
+        onBlankTapped: () {},
+      );
+      addTearDown(controller.detach);
+      await controller.attach(host, city: '上海');
 
-    host.plannedRoute = PlatformException(
-      code: 'route_service',
-      message: 'TDT_ROUTE_KEY is missing',
-    );
-    expect(await controller.planRoute(points: points), isFalse);
-    expect(controller.routeErrorMessage, contains('TDT_ROUTE_KEY'));
+      host.plannedRoute = PlatformException(
+        code: 'route_service',
+        message: 'TDT_ROUTE_KEY is missing',
+      );
+      expect(await controller.planRoute(points: points), isFalse);
+      expect(controller.routeErrorMessage, contains('TDT_ROUTE_KEY'));
 
-    host.plannedRoute = PlatformException(
-      code: 'route_service',
-      message: 'Tianditu driving HTTP 403: 301012: 权限类型错误',
-    );
-    expect(await controller.planRoute(points: points), isFalse);
-    expect(controller.routeErrorMessage, contains('权限类型错误'));
+      host.plannedRoute = PlatformException(
+        code: 'route_service',
+        message: 'Tianditu driving HTTP 403: 301012: 权限类型错误',
+      );
+      expect(await controller.planRoute(points: points), isFalse);
+      expect(controller.routeErrorMessage, contains('权限类型错误'));
 
-    host.plannedRoute = PlatformException(
-      code: 'route_service',
-      message: 'Tianditu driving HTTP 403: 301018: 不支持的key类型',
-    );
-    expect(await controller.planRoute(points: points), isFalse);
-    expect(controller.routeErrorMessage, contains('301018'));
-  });
+      host.plannedRoute = PlatformException(
+        code: 'route_service',
+        message: 'Tianditu driving HTTP 403: 301018: 不支持的key类型',
+      );
+      expect(await controller.planRoute(points: points), isFalse);
+      expect(controller.routeErrorMessage, contains('301018'));
+    },
+  );
 
   test(
     'late native ready after detach cannot reattach a disposed scene',

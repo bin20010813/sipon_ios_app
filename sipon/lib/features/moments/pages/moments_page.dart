@@ -87,19 +87,16 @@ class _MomentsPageState extends State<MomentsPage> {
                 slivers: [
                   SliverPadding(
                     padding: EdgeInsets.fromLTRB(
-                      23,
                       16,
+                      8,
                       0,
                       24 + widget.bottomOverlayInset,
                     ),
-                    sliver: SliverList.list(
-                      children: [
-                        HomeMomentsSection(
-                          key: _momentsKey,
-                          city: _city,
-                          onCheckInPressed: widget.onCheckInPressed,
-                        ),
-                      ],
+                    sliver: HomeMomentsSection(
+                      key: _momentsKey,
+                      city: _city,
+                      asSliver: true,
+                      onCheckInPressed: widget.onCheckInPressed,
                     ),
                   ),
                 ],

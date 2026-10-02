@@ -150,7 +150,7 @@ class _HomeTopBarState extends State<_HomeTopBar> {
                     ignoring: widget.expanded,
                     child: const Align(
                       alignment: Alignment.centerLeft,
-                      child: SiponCityButton(),
+                      child: SiponCityButton(narrow: true, plain: true),
                     ),
                   ),
                 ),
@@ -367,11 +367,7 @@ class _VirtualDrinkingPrompt extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
             child: Row(
               children: [
-                Icon(
-                  Icons.nightlife_rounded,
-                  color: scheme.primary,
-                  size: 28,
-                ),
+                Icon(Icons.nightlife_rounded, color: scheme.primary, size: 28),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(

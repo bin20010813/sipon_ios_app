@@ -14,6 +14,7 @@ import '../../map/widgets/sipon_map_widget.dart';
 import '../../../shared/services/sipon_api_client.dart';
 import '../../../shared/services/sipon_api_service.dart';
 import '../../../shared/services/sipon_city_controller.dart';
+import '../../../shared/services/sipon_region_data.dart';
 import '../../../shared/services/sipon_search_preferences.dart';
 import '../../map/pages/venue_detail_page.dart';
 import '../widgets/review_composer.dart';
@@ -93,6 +94,23 @@ class _CheckInPageState extends State<CheckInPage> {
   void _handleRadiusChanged() {
     if (!mounted) return;
     _loadNearbyBars();
+  }
+
+  /// 打卡页不等定位：打开即用城市锚点（或默认城市中心）开图，
+  /// 真实定位结果就绪后再平移居中。
+  MapLatLng get _initialMapCenter {
+    final anchor = _cityController?.queryAnchor;
+    if (anchor != null) {
+      return MapLatLng(longitude: anchor.longitude, latitude: anchor.latitude);
+    }
+    final fallback = siponFindCity(SiponCityController.defaultCity);
+    if (fallback != null) {
+      return MapLatLng(
+        longitude: fallback.longitude,
+        latitude: fallback.latitude,
+      );
+    }
+    return const MapLatLng(longitude: 121.4737, latitude: 31.2304);
   }
 
   void _onBarSearchChanged(String value) {
@@ -202,26 +220,19 @@ class _CheckInPageState extends State<CheckInPage> {
   }
 
   Future<void> _handleMapCreated(SiponMapHost host) async {
-    final initialAnchor = _loadedAnchor;
-    if (initialAnchor == null || !mounted) return;
+    if (!mounted) return;
+    // 定位先于建图完成时直接用真实位置开图；否则用城市锚点，由
+    // _loadNearbyBars 在定位成功后居中。
+    final anchor = _loadedAnchor;
     await _scene.attach(
       host,
       city: _cityController?.city ?? SiponCityController.defaultCity,
       style: MapBaseStyle.standard,
-      initialCenter: MapLatLng(
-        longitude: initialAnchor.longitude,
-        latitude: initialAnchor.latitude,
-      ),
+      initialCenter: anchor != null
+          ? MapLatLng(longitude: anchor.longitude, latitude: anchor.latitude)
+          : _initialMapCenter,
     );
     if (!mounted) return;
-    // 地图准备后以实际显示的个人点居中；MapKit 定位未就绪时使用设备坐标。
-    final anchor = _loadedAnchor;
-    if (anchor != null) {
-      await _scene.centerOnUser(
-        longitude: anchor.longitude,
-        latitude: anchor.latitude,
-      );
-    }
     await _renderBars();
   }
 
@@ -352,94 +363,110 @@ class _CheckInPageState extends State<CheckInPage> {
           bottom: false,
           child: Column(
             children: [
-              const SizedBox(height: 10),
-              Container(
-                width: 38,
-                height: 4,
-                decoration: BoxDecoration(
-                  // 抓手条：由次要文字色降透明度合成，两种外观下都可见。
-                  color: scheme.onSurfaceVariant.withValues(alpha: 0.35),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 12, 10, 10),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '打卡酒吧',
-                        style: TextStyle(
-                          color: scheme.onSurface,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close_rounded),
-                      tooltip: '关闭',
-                    ),
-                  ],
-                ),
-              ),
               SizedBox(
-                height: height * 0.28,
+                height: height * 0.28 + 84,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    _loadedAnchor != null
-                        ? SiponMapWidget(
-                            initialStyleId: MapBaseStyle.standard.id,
-                            onHostReady: _handleMapCreated,
-                          )
-                        : Center(
-                            child: _locationError == null
-                                ? const Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      CircularProgressIndicator(),
-                                      SizedBox(height: 12),
-                                      Text('正在获取当前位置…'),
-                                    ],
-                                  )
-                                : Padding(
-                                    padding: const EdgeInsets.all(16),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          _locationError!,
-                                          textAlign: TextAlign.center,
-                                        ),
-                                        TextButton(
-                                          onPressed: _loadNearbyBars,
-                                          child: const Text('重新定位'),
-                                        ),
-                                      ],
+                    SiponMapWidget(
+                      initialStyleId: MapBaseStyle.standard.id,
+                      onHostReady: _handleMapCreated,
+                    ),
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: 120,
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                surface,
+                                surface.withValues(alpha: 0.9),
+                                surface.withValues(alpha: 0),
+                              ],
+                              stops: const [0, .45, 1],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 10),
+                          Container(
+                            width: 38,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: scheme.onSurfaceVariant.withValues(
+                                alpha: 0.35,
+                              ),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(18, 12, 10, 10),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '打卡酒吧',
+                                    style: TextStyle(
+                                      color: scheme.onSurface,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w800,
                                     ),
                                   ),
+                                ),
+                                IconButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  icon: const Icon(Icons.close_rounded),
+                                  tooltip: '关闭',
+                                ),
+                              ],
+                            ),
                           ),
-                    if (_loadedAnchor != null)
+                        ],
+                      ),
+                    ),
+                    // 定位失败时在地图上方提示；地图已用城市锚点打开，不整块遮挡。
+                    if (_locationError != null)
                       Positioned(
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        height: 130,
-                        child: IgnorePointer(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  surface,
-                                  surface.withValues(alpha: 0.9),
-                                  surface.withValues(alpha: 0),
-                                ],
-                                stops: const [0, .25, 1],
-                              ),
+                        left: 24,
+                        right: 24,
+                        bottom: 16,
+                        child: Material(
+                          color: context.siponColors.elevatedSurface,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: scheme.outlineVariant),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _locationError!,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: scheme.onSurface,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: _loadNearbyBars,
+                                  child: const Text('重新定位'),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -449,7 +476,7 @@ class _CheckInPageState extends State<CheckInPage> {
                       Align(
                         alignment: Alignment.bottomCenter,
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 18),
+                          padding: const EdgeInsets.fromLTRB(18, 84, 18, 0),
                           child: _buildBarSearchResults(scheme),
                         ),
                       ),

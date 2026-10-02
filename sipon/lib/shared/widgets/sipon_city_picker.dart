@@ -25,11 +25,19 @@ class SiponCityButton extends StatelessWidget {
   const SiponCityButton({
     super.key,
     this.compact = false,
+    this.narrow = false,
+    this.plain = false,
     this.backgroundColor,
     this.foregroundColor,
   });
 
   final bool compact;
+
+  /// Reduces horizontal spacing and hides the arrow, preserving height and type size.
+  final bool narrow;
+
+  /// Removes the pill background and border while preserving the tap target.
+  final bool plain;
   final Color? backgroundColor;
   final Color? foregroundColor;
 
@@ -38,8 +46,9 @@ class SiponCityButton extends StatelessWidget {
     final controller = SiponCityScope.controllerOf(context);
     final text = SiponLanguageScope.textOf(context);
     final scheme = Theme.of(context).colorScheme;
-    final resolvedBackground =
-        backgroundColor ?? context.siponColors.elevatedSurface;
+    final resolvedBackground = plain
+        ? Colors.transparent
+        : backgroundColor ?? context.siponColors.elevatedSurface;
     final resolvedForeground = foregroundColor ?? scheme.onSurface;
 
     return Material(
@@ -51,14 +60,20 @@ class SiponCityButton extends StatelessWidget {
         child: Container(
           height: compact ? 34 : 44,
           constraints: BoxConstraints(
-            minWidth: compact ? 78 : 92,
+            minWidth: narrow ? 60 : (compact ? 78 : 92),
             maxWidth: compact ? 118 : 138,
           ),
-          padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 13),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(compact ? 15 : 17),
-            border: Border.all(color: scheme.primary.withValues(alpha: 0.2)),
+          padding: EdgeInsets.symmetric(
+            horizontal: narrow ? 5 : (compact ? 10 : 13),
           ),
+          decoration: plain
+              ? null
+              : BoxDecoration(
+                  borderRadius: BorderRadius.circular(compact ? 15 : 17),
+                  border: Border.all(
+                    color: scheme.primary.withValues(alpha: 0.2),
+                  ),
+                ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -75,18 +90,20 @@ class SiponCityButton extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: resolvedForeground,
-                    fontSize: compact ? 12 : 14,
+                    fontSize: compact ? 12 : (plain ? 16 : 14),
                     fontWeight: FontWeight.w400,
                     letterSpacing: 0,
                   ),
                 ),
               ),
-              const SizedBox(width: 1),
-              Icon(
-                Icons.keyboard_arrow_down_rounded,
-                color: resolvedForeground.withValues(alpha: 0.68),
-                size: compact ? 17 : 19,
-              ),
+              if (!narrow || plain) ...[
+                const SizedBox(width: 1),
+                Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: resolvedForeground.withValues(alpha: 0.68),
+                  size: compact ? 17 : 19,
+                ),
+              ],
             ],
           ),
         ),

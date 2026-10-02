@@ -269,6 +269,7 @@ final class SiponMapEngine: NSObject {
   /// 最近一次显式设置的相机 padding。每次移动都带上折算值，
   /// 不依赖引擎记住状态（§5.2 与旧版「padding 粘滞」修法一致）。
   private var appliedBottomPadding: Double = 0
+  private var pendingUserCenterUntil: Date?
 
   /// delegate 集中在 proxy 上；手势识别器共享同一个 target。
   private lazy var proxy = EngineDelegateProxy(engine: self)
@@ -381,6 +382,9 @@ final class SiponMapEngine: NSObject {
         }
         args["bottomPadding"] = 0
         moveCamera(SiponMapProtocol.CameraMove(dict: args), animated: true)
+        if mapView.userLocation.location == nil {
+          pendingUserCenterUntil = Date().addingTimeInterval(10)
+        }
       }
       return nil
     case SiponMapProtocol.Command.applyStage:
@@ -801,6 +805,7 @@ final class SiponMapEngine: NSObject {
   }
 
   private func moveCamera(_ move: SiponMapProtocol.CameraMove, animated: Bool) {
+    pendingUserCenterUntil = nil
     let size = viewportSize()
     let center = SiponMapGeometry.center(
       lat: move.latitude,
@@ -1107,6 +1112,25 @@ final class SiponMapEngine: NSObject {
     venueId != nil && venueId == selectedVenueId
   }
   fileprivate var shouldProcessEvents: Bool { alive && configured }
+
+  fileprivate func finishPendingUserCenter(_ userLocation: MKUserLocation) {
+    guard let deadline = pendingUserCenterUntil else { return }
+    guard shouldProcessEvents, Date() <= deadline else {
+      pendingUserCenterUntil = nil
+      return
+    }
+    guard let location = userLocation.location,
+          CLLocationCoordinate2DIsValid(location.coordinate) else { return }
+    pendingUserCenterUntil = nil
+    mapView.setCenter(location.coordinate, animated: true)
+  }
+
+  fileprivate func cancelPendingUserCenterForGesture() {
+    let gestures = mapView.subviews.flatMap { $0.gestureRecognizers ?? [] }
+    if gestures.contains(where: { $0.state == .began || $0.state == .changed }) {
+      pendingUserCenterUntil = nil
+    }
+  }
   fileprivate var hostMapView: MKMapView { mapView }
   fileprivate var usesDarkAppearance: Bool {
     styleId == "muted" || appBrightness == .dark
@@ -1317,6 +1341,7 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
   // MARK: 相机停稳 → 上报（去抖在 Dart，惯性滚动连发无妨）
 
   func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
+    engine.cancelPendingUserCenterForGesture()
     engine.traceRegion("REGION_BEGIN", animated: animated)
   }
 
@@ -1333,6 +1358,7 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
   }
 
   func mapView(_ mapView: MKMapView, didUpdate userLocation: MKUserLocation) {
+    engine.finishPendingUserCenter(userLocation)
     engine.startHeadingUpdatesIfAuthorized()
     engine.refreshUserDirection()
   }

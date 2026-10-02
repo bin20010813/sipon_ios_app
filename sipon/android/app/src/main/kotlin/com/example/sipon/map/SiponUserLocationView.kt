@@ -24,6 +24,10 @@ internal class SiponUserLocationView(context: Context) : View(context), SensorEv
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val density = resources.displayMetrics.density
     private var position: Location? = null
+    val businessPosition: Gcj02Point?
+        get() = position?.let {
+            MapCoordinateAdapter.toBusiness(Cgcs2000Point(it.longitude, it.latitude))
+        }
     private var heading: Float? = null
     private var running = false
     private var resumed = true

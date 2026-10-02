@@ -259,6 +259,21 @@ internal class SiponTiandituView(
                     result.success(null)
                 }
                 "readViewport" -> result.success(viewport())
+                "centerOnUser" -> {
+                    val camera = args.toMutableMap()
+                    // Device fallback coordinates are WGS-84, unlike venue coordinates.
+                    val fallback = point(args)?.let {
+                        MapCoordinateAdapter.toBusiness(Cgcs2000Point(it.lng, it.lat))
+                    }
+                    (userLocation.businessPosition ?: fallback)?.let {
+                        camera["lng"] = it.lng
+                        camera["lat"] = it.lat
+                    }
+                    camera["bottomPadding"] = 0.0
+                    lastCamera = camera
+                    if (ready) moveCamera(camera)
+                    result.success(null)
+                }
                 "focusOn", "flyToCity" -> {
                     lastCamera = args
                     if (ready) moveCamera(args)
@@ -582,7 +597,7 @@ internal class SiponTiandituView(
         val rating = (item["rating"] as? Number)?.toDouble()?.takeIf { it.isFinite() }?.let { "★ %.1f".format(it) } ?: ""
         val namePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = if (useDarkPalette) Color.rgb(194, 182, 194) else Color.rgb(102, 108, 118)
-            textSize = 45f * density
+            textSize = 30f * density
             setShadowLayer(2f * density, 0f, 0f, if (useDarkPalette) Color.BLACK else Color.WHITE)
         }
         val nameWidth = ceil(Layout.getDesiredWidth(name, namePaint).toDouble()).toInt()

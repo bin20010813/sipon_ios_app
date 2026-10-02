@@ -266,8 +266,17 @@ class TiandituSceneController extends MapSceneController {
     required double longitude,
     required double latitude,
   }) {
-    // 天地图端尚无原生个人点跟随，退化为按兜底坐标聚焦。
-    return focusOn(longitude: longitude, latitude: latitude);
+    return _invokeIfReady(
+      SiponMapCommands.centerOnUser,
+      encodeCameraMove(
+        longitude: longitude,
+        latitude: latitude,
+        zoom: MapSceneController.focusZoom,
+        pitch: MapSceneController.focusPitch,
+        bearing: MapSceneController.focusBearing,
+        bottomPadding: 0,
+      ),
+    );
   }
 
   @override

@@ -148,10 +148,10 @@ void main() {
     await tester.runAsync(() async {
       await (map.onHostReady as Future<void> Function(SiponMapHost))(host);
     });
+    // 定位先于建图完成：initialCenter 直接用设备坐标，无需再居中。
     expect(host.calls[SiponMapCommands.setup]!['lng'], 113.8);
     expect(host.calls[SiponMapCommands.setup]!['lat'], 34.8);
-    expect(host.calls[SiponMapCommands.centerOnUser]!['lng'], 113.8);
-    expect(host.calls[SiponMapCommands.centerOnUser]!['lat'], 34.8);
+    expect(host.calls[SiponMapCommands.centerOnUser], isNull);
     await city.selectCity('北京');
     await tester.pump();
     expect(requests, hasLength(1));
@@ -163,19 +163,45 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testOnIos('定位晚于建图完成时，先以城市锚点开图，定位成功后居中到实际位置', (tester) async {
+    final pending = Completer<SiponLocateResult>();
+    final city = _LocatedCity()..locate = () => pending.future;
+    addTearDown(city.dispose);
+    final requests = <Uri>[];
+    await openPage(tester, city, requests);
+    final host = _Host();
+    final map = tester.widget<SiponMapWidget>(find.byType(SiponMapWidget));
+    await tester.runAsync(() async {
+      await (map.onHostReady as Future<void> Function(SiponMapHost))(host);
+    });
+    expect(host.calls[SiponMapCommands.centerOnUser], isNull);
+    pending.complete(
+      const SiponLocateResult(
+        status: SiponLocateStatus.success,
+        position: SiponLocationPoint(113.8, 34.8),
+      ),
+    );
+    await tester.pump();
+    expect(requests.single.queryParameters['longitude'], '113.8');
+    expect(host.calls[SiponMapCommands.centerOnUser]!['lng'], 113.8);
+    expect(host.calls[SiponMapCommands.centerOnUser]!['lat'], 34.8);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   for (final status in [
     SiponLocateStatus.permissionDenied,
     SiponLocateStatus.serviceDisabled,
     SiponLocateStatus.failed,
   ]) {
-    testOnIos('定位 $status 不回退城市中心，重试后使用实际位置', (tester) async {
+    testOnIos('定位 $status 时地图照常打开，查询不回退城市中心，重试后使用实际位置', (tester) async {
       final city = _LocatedCity()
         ..locate = () async => SiponLocateResult(status: status);
       addTearDown(city.dispose);
       final requests = <Uri>[];
       await openPage(tester, city, requests);
       expect(requests, isEmpty);
-      expect(find.byType(SiponMapWidget), findsNothing);
+      expect(find.byType(SiponMapWidget), findsOneWidget);
       expect(find.text('重新定位'), findsOneWidget);
       city.locate = () async => const SiponLocateResult(
         status: SiponLocateStatus.success,
@@ -184,21 +210,20 @@ void main() {
       await tester.tap(find.text('重新定位'));
       await tester.pump();
       expect(requests.single.queryParameters['longitude'], '113.8');
-      expect(find.byType(SiponMapWidget), findsOneWidget);
       expect(find.text('用户附近酒吧'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     });
   }
 
-  testOnIos('定位未完成前不展示默认上海，页面关闭后忽略定位结果', (tester) async {
+  testOnIos('定位未完成前地图先以城市锚点打开，页面关闭后忽略定位结果', (tester) async {
     final pending = Completer<SiponLocateResult>();
     final city = _LocatedCity()..locate = () => pending.future;
     addTearDown(city.dispose);
     final requests = <Uri>[];
     await openPage(tester, city, requests);
-    expect(find.text('正在获取当前位置…'), findsOneWidget);
-    expect(find.byType(SiponMapWidget), findsNothing);
+    expect(find.byType(SiponMapWidget), findsOneWidget);
+    expect(find.text('正在加载附近酒吧…'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     pending.complete(
       const SiponLocateResult(

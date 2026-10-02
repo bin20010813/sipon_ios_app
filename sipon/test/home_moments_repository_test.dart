@@ -56,6 +56,7 @@ void main() {
     expect(page.items.single.id, 100);
     expect(page.hasMore, isTrue);
     expect(page.offset, 20);
+    expect(page.items.single.venue.imageUrl, '/api/bars/12/images/thumbnail');
   });
 
   test('subtype options come from the API codes', () async {
@@ -74,6 +75,12 @@ class _FakeApi extends SiponApiService {
   String? scope;
   String? sort;
   SiponPage? page;
+
+  @override
+  Future<dynamic> getBarById(int id) async => {
+    'id': id,
+    'thumbnailUrl': '/api/bars/$id/images/thumbnail',
+  };
 
   @override
   Future<dynamic> getCheckInFeed({

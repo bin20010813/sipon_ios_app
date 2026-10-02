@@ -1712,7 +1712,7 @@ class _ProfileListCard extends StatelessWidget {
             rows[index],
             if (index != rows.length - 1)
               Padding(
-                padding: const EdgeInsets.only(left: 42),
+                padding: const EdgeInsets.only(left: 54, right: 16),
                 child: Divider(height: 1, color: scheme.outlineVariant),
               ),
           ],
@@ -1744,7 +1744,7 @@ class _ProfileListRow extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: Row(
           children: [
             Image.asset(assetPath, width: 26, height: 26),
