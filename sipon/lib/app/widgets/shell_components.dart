@@ -81,7 +81,7 @@ class _ShellBottomBar extends StatelessWidget {
   }
 }
 
-class _SiponBottomJumpBar extends StatelessWidget {
+class _SiponBottomJumpBar extends StatefulWidget {
   static const double height = 62;
   static const double contentInset = 9;
   static const double itemCornerRadius = 30;
@@ -100,77 +100,215 @@ class _SiponBottomJumpBar extends StatelessWidget {
   final VoidCallback onPlusPressed;
 
   @override
+  State<_SiponBottomJumpBar> createState() => _SiponBottomJumpBarState();
+}
+
+class _SiponBottomJumpBarState extends State<_SiponBottomJumpBar> {
+  double? _dragPosition;
+  double _dragOrigin = 0;
+  double _dragStartIndex = 0;
+
+  void _startDrag(double dx) {
+    _dragOrigin = dx;
+    _dragStartIndex = widget.currentIndex.toDouble();
+    setState(() => _dragPosition = _dragStartIndex);
+  }
+
+  void _updateDrag(double dx, double slotWidth) {
+    if (_dragPosition == null || slotWidth <= 0) return;
+    final direction = Directionality.of(context) == TextDirection.rtl ? -1 : 1;
+    setState(() {
+      _dragPosition =
+          (_dragStartIndex + direction * (dx - _dragOrigin) / slotWidth).clamp(
+            0.0,
+            3.0,
+          );
+    });
+  }
+
+  void _endDrag() {
+    final index = _dragPosition?.round();
+    setState(() => _dragPosition = null);
+    if (index != null && index != widget.currentIndex) {
+      widget.onTabSelected(index);
+    }
+  }
+
+  void _cancelDrag() => setState(() => _dragPosition = null);
+
+  @override
+  void didUpdateWidget(covariant _SiponBottomJumpBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentIndex != widget.currentIndex) _dragPosition = null;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
     final colors = Theme.of(context).colorScheme;
 
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    final labels = [
+      text.homeTab,
+      text.mapTab,
+      text.momentsTab,
+      text.profileTab,
+    ];
+    const icons = [
+      Icons.home_rounded,
+      Icons.map_rounded,
+      Icons.explore_rounded,
+      Icons.person_rounded,
+    ];
+
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: colors.surface.withValues(alpha: 0.94),
-              borderRadius: BorderRadius.circular(cornerRadius),
-              border: Border.all(color: colors.outlineVariant),
-              boxShadow: [
-                BoxShadow(
-                  color: colors.primary.withValues(alpha: 0.12),
-                  blurRadius: 24,
-                  offset: Offset(0, 10),
-                ),
-              ],
-            ),
+          child: _SiponNavigationGlass(
+            radius: _SiponBottomJumpBar.cornerRadius,
             child: SizedBox(
-              height: height,
+              height: _SiponBottomJumpBar.height,
               child: Padding(
-                padding: const EdgeInsets.all(contentInset),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    _SiponBottomJumpItem(
-                      tooltip: text.homeTab,
-                      icon: Icons.home_rounded,
-                      selected: currentIndex == 0,
-                      activeColor: colors.primary,
-                      inactiveColor: colors.onSurfaceVariant,
-                      onPressed: () => onTabSelected(0),
-                    ),
-                    _SiponBottomJumpItem(
-                      tooltip: text.mapTab,
-                      icon: Icons.map_rounded,
-                      selected: currentIndex == 1,
-                      activeColor: colors.primary,
-                      inactiveColor: colors.onSurfaceVariant,
-                      onPressed: () => onTabSelected(1),
-                    ),
-                    _SiponBottomJumpItem(
-                      tooltip: text.momentsTab,
-                      icon: Icons.forum_rounded,
-                      selected: currentIndex == 2,
-                      activeColor: colors.primary,
-                      inactiveColor: colors.onSurfaceVariant,
-                      onPressed: () => onTabSelected(2),
-                    ),
-                    _SiponBottomJumpItem(
-                      tooltip: text.profileTab,
-                      icon: Icons.person_rounded,
-                      selected: currentIndex == 3,
-                      activeColor: colors.primary,
-                      inactiveColor: colors.onSurfaceVariant,
-                      onPressed: () => onTabSelected(3),
-                    ),
-                  ],
+                padding: const EdgeInsets.all(_SiponBottomJumpBar.contentInset),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final slotWidth = constraints.maxWidth / icons.length;
+                    final indicatorWidth = math.min(
+                      _SiponBottomJumpBar.itemWidth,
+                      slotWidth,
+                    );
+                    final position =
+                        _dragPosition ?? widget.currentIndex.toDouble();
+                    return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onHorizontalDragStart: (details) =>
+                          _startDrag(details.localPosition.dx),
+                      onHorizontalDragUpdate: (details) =>
+                          _updateDrag(details.localPosition.dx, slotWidth),
+                      onHorizontalDragEnd: (_) => _endDrag(),
+                      onHorizontalDragCancel: _cancelDrag,
+                      onLongPressStart: (details) =>
+                          _startDrag(details.localPosition.dx),
+                      onLongPressMoveUpdate: (details) =>
+                          _updateDrag(details.localPosition.dx, slotWidth),
+                      onLongPressEnd: (_) => _endDrag(),
+                      onLongPressCancel: _cancelDrag,
+                      child: Stack(
+                        children: [
+                          AnimatedPositionedDirectional(
+                            duration: reduceMotion || _dragPosition != null
+                                ? Duration.zero
+                                : const Duration(milliseconds: 320),
+                            curve: Curves.easeOutCubic,
+                            start:
+                                position * slotWidth +
+                                (slotWidth - indicatorWidth) / 2,
+                            top: 0,
+                            width: indicatorWidth,
+                            height: _SiponBottomJumpBar.itemHeight,
+                            child: IgnorePointer(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: colors.primary,
+                                  borderRadius: BorderRadius.circular(
+                                    _SiponBottomJumpBar.itemCornerRadius,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: colors.primary.withValues(
+                                        alpha: 0.22,
+                                      ),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              for (var index = 0; index < icons.length; index++)
+                                Expanded(
+                                  child: _SiponBottomJumpItem(
+                                    tooltip: labels[index],
+                                    icon: icons[index],
+                                    selected: widget.currentIndex == index,
+                                    highlighted: position.round() == index,
+                                    inactiveColor: colors.onSurfaceVariant,
+                                    onPressed: () =>
+                                        widget.onTabSelected(index),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ),
             ),
           ),
         ),
         const SizedBox(width: 10),
-        _SiponBottomPlusButton(onPressed: onPlusPressed),
+        _SiponBottomPlusButton(onPressed: widget.onPlusPressed),
       ],
+    );
+  }
+}
+
+class _SiponNavigationGlass extends StatelessWidget {
+  const _SiponNavigationGlass({required this.radius, required this.child});
+
+  final double radius;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final borderRadius = BorderRadius.circular(radius);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: borderRadius,
+        boxShadow: [
+          BoxShadow(
+            color: scheme.shadow.withValues(alpha: dark ? 0.24 : 0.10),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: borderRadius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: borderRadius,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  dark
+                      ? scheme.surface.withValues(alpha: 0.56)
+                      : Colors.white.withValues(alpha: 0.72),
+                  dark
+                      ? scheme.surface.withValues(alpha: 0.36)
+                      : Colors.white.withValues(alpha: 0.54),
+                ],
+              ),
+              border: Border.all(
+                color: dark
+                    ? scheme.onSurface.withValues(alpha: 0.16)
+                    : Colors.white.withValues(alpha: 0.70),
+              ),
+            ),
+            child: child,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -186,30 +324,20 @@ class _SiponBottomPlusButton extends StatelessWidget {
     return Semantics(
       button: true,
       label: '鏇村鎿嶄綔',
-      child: Material(
-        color: Colors.transparent,
-        child: InkResponse(
-          onTap: onPressed,
-          radius: 32,
-          highlightShape: BoxShape.circle,
-          child: Container(
-            width: 54,
-            height: 54,
-            decoration: BoxDecoration(
-              color: scheme.surface,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: scheme.shadow.withValues(alpha: 0.2),
-                  blurRadius: 14,
-                  offset: Offset(0, 6),
+      child: _SiponNavigationGlass(
+        radius: 27,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onPressed,
+            customBorder: const CircleBorder(),
+            child: SizedBox.square(
+              dimension: 54,
+              child: Center(
+                child: _SiponBottomIcon(
+                  icon: Icons.add_rounded,
+                  color: scheme.onSurfaceVariant,
                 ),
-              ],
-            ),
-            child: Center(
-              child: _SiponBottomIcon(
-                icon: Icons.add_rounded,
-                color: scheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -224,7 +352,7 @@ class _SiponBottomJumpItem extends StatelessWidget {
     required this.tooltip,
     required this.icon,
     required this.selected,
-    required this.activeColor,
+    required this.highlighted,
     required this.inactiveColor,
     required this.onPressed,
   });
@@ -232,7 +360,7 @@ class _SiponBottomJumpItem extends StatelessWidget {
   final String tooltip;
   final IconData icon;
   final bool selected;
-  final Color activeColor;
+  final bool highlighted;
   final Color inactiveColor;
   final VoidCallback onPressed;
 
@@ -241,6 +369,8 @@ class _SiponBottomJumpItem extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Tooltip(
       message: tooltip,
+      // Reserve touch-and-hold for dragging the navigation capsule.
+      triggerMode: TooltipTriggerMode.manual,
       child: Semantics(
         button: true,
         selected: selected,
@@ -258,7 +388,7 @@ class _SiponBottomJumpItem extends StatelessWidget {
             ),
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             backgroundColor: Colors.transparent,
-            foregroundColor: selected ? scheme.onPrimary : inactiveColor,
+            foregroundColor: highlighted ? scheme.onPrimary : inactiveColor,
             padding: EdgeInsets.zero,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(
@@ -266,19 +396,13 @@ class _SiponBottomJumpItem extends StatelessWidget {
               ),
             ),
           ),
-          icon: Center(
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              width: _SiponBottomJumpBar.itemWidth,
-              height: _SiponBottomJumpBar.itemHeight,
-              decoration: BoxDecoration(
-                color: selected ? activeColor : Colors.transparent,
-                borderRadius: BorderRadius.circular(
-                  _SiponBottomJumpBar.itemCornerRadius,
-                ),
-              ),
-              child: Center(child: _SiponBottomIcon(icon: icon)),
-            ),
+          icon: AnimatedScale(
+            scale: highlighted ? 1.06 : 1,
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 240),
+            curve: Curves.easeOutCubic,
+            child: _SiponBottomIcon(icon: icon),
           ),
         ),
       ),
@@ -298,7 +422,6 @@ class _SiponBottomIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     // Center the visual weight of asymmetric glyphs within the shared icon box.
     final offset = switch (icon) {
-      Icons.forum_rounded => const Offset(0, 2.5),
       Icons.person_rounded => const Offset(0, 1),
       _ => Offset.zero,
     };

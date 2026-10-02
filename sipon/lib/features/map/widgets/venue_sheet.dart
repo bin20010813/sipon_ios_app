@@ -38,10 +38,13 @@ class VenueSheetSurface extends StatelessWidget {
     required this.onCollapse,
   });
 
-  /// 收起态卡片的最大宽度，与顶部搜索栏保持一致。
-  static const double _collapsedMaxWidth = 430;
-  static const double _collapsedSideInset = 14;
+  /// 与底栏对齐：430 的外层最大宽度减去左右各 23 的留白。
+  static const double _collapsedMaxWidth = 430 - 23 * 2;
+  static const double _collapsedSideInset = 23;
   static const double _cornerRadius = 18;
+
+  static double collapsedSideInsetFor(double width) =>
+      math.max(_collapsedSideInset, (width - _collapsedMaxWidth) / 2);
 
   /// 收起态内容淡出的区间上限；展开态内容从这里才开始淡入，两者不同时可见。
   static const double _contentSwapPoint = 0.28;
@@ -69,9 +72,8 @@ class VenueSheetSurface extends StatelessWidget {
     final expandedOpacity = mapClamp01(
       (progress - _contentSwapPoint) / _contentFadeInSpan,
     );
-    final collapsedSideInset = math.max(
-      _collapsedSideInset,
-      (MediaQuery.sizeOf(context).width - _collapsedMaxWidth) / 2,
+    final collapsedSideInset = collapsedSideInsetFor(
+      MediaQuery.sizeOf(context).width,
     );
     final sideInset = mapLerp(collapsedSideInset, 0, progress);
     final topInset = MediaQuery.paddingOf(context).top * fullscreenProgress;

@@ -72,7 +72,6 @@ class _MapPageState extends State<MapPage> {
 
   /// 定位按钮距面板顶边与右边的间距。
   static const double _locateButtonGap = 12;
-  static const double _locateButtonRightInset = 18;
 
   late final MapDataController _data;
   late final MapSceneController _scene;
@@ -638,7 +637,9 @@ class _MapPageState extends State<MapPage> {
             alignment: Alignment.bottomRight,
             child: Transform.translate(
               offset: Offset(
-                -_locateButtonRightInset,
+                -VenueSheetSurface.collapsedSideInsetFor(
+                  MediaQuery.sizeOf(context).width,
+                ),
                 -(extent * availableHeight + _locateButtonGap),
               ),
               child: child,
