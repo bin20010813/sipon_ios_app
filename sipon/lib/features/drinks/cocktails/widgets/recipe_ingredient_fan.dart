@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 
 import '../../../../app/theme/sipon_theme_colors.dart';
 import '../../../../shared/services/sipon_api_models.dart';
@@ -13,11 +12,13 @@ class RecipeIngredientFan extends StatefulWidget {
   const RecipeIngredientFan({
     super.key,
     required this.items,
+    required this.animationTriggered,
     this.loading = false,
     this.onIngredientTap,
   });
 
   final List<RecipeIngredient> items;
+  final bool animationTriggered;
   final bool loading;
   final ValueChanged<IngredientInfo>? onIngredientTap;
 
@@ -26,72 +27,61 @@ class RecipeIngredientFan extends StatefulWidget {
 }
 
 class _RecipeIngredientFanState extends State<RecipeIngredientFan>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1100),
   );
-  ScrollPosition? _scrollPosition;
   bool _started = false;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final position = Scrollable.maybeOf(context)?.position;
-    if (position != _scrollPosition) {
-      _scrollPosition?.removeListener(_checkVisibility);
-      _scrollPosition = position;
-      _scrollPosition?.addListener(_checkVisibility);
-    }
+
     if (MediaQuery.disableAnimationsOf(context)) {
       _started = true;
       _controller.value = 1;
     } else {
-      _scheduleVisibilityCheck();
+      _scheduleAnimationStart();
     }
   }
 
   @override
   void didUpdateWidget(covariant RecipeIngredientFan oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.loading && !widget.loading) _scheduleVisibilityCheck();
+    if (oldWidget.animationTriggered != widget.animationTriggered ||
+        (oldWidget.loading && !widget.loading) ||
+        (oldWidget.items.isEmpty && widget.items.isNotEmpty)) {
+      _scheduleAnimationStart();
+    }
   }
 
-  void _scheduleVisibilityCheck() {
+  void _scheduleAnimationStart() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _checkVisibility();
-    });
-  }
-
-  void _checkVisibility() {
-    if (_started || widget.loading || widget.items.isEmpty || !mounted) return;
-    final box = context.findRenderObject();
-    if (box is! RenderBox || !box.hasSize) return;
-    final viewport = RenderAbstractViewport.maybeOf(box);
-    if (viewport != null) {
-      final rect = MatrixUtils.transformRect(
-        box.getTransformTo(viewport),
-        Offset.zero & box.size,
-      );
-      final visible = rect.intersect(viewport.paintBounds);
-      if (visible.width <= 0 ||
-          visible.height < math.min(64, box.size.height * 0.25)) {
+      if (!mounted ||
+          _started ||
+          !widget.animationTriggered ||
+          widget.loading ||
+          widget.items.isEmpty) {
         return;
       }
-    }
-    _started = true;
-    _controller.forward();
+      _started = true;
+      _controller.forward();
+    });
   }
 
   @override
   void dispose() {
-    _scrollPosition?.removeListener(_checkVisibility);
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     if (widget.items.isEmpty) return const SizedBox.shrink();
     return LayoutBuilder(
       builder: (context, constraints) {

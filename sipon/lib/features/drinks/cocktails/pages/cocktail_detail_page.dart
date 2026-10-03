@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 
 import '../../../../app/theme/sipon_theme_colors.dart';
 import '../../../../shared/services/sipon_api_client.dart';
@@ -54,6 +55,7 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
   final Set<String> _preloadedRecipeImageUrls = {};
 
   bool _loading = false;
+  bool _recipeAnimationTriggered = false;
   String? _error;
 
   @override
@@ -240,167 +242,185 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
         summary.resolvedMediumImageUrl() ?? summary.resolvedImageUrl();
     final ingredients = detail.sortedIngredients;
 
-    return CustomScrollView(
-      physics: const BouncingScrollPhysics(),
-      slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 返回按钮。
-                _FloatingBackButton(back: text.back),
-                const SizedBox(height: 16),
-                // 居中大图头部。
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Center(
-                      child: DrinkDetailCover(
-                        imageUrl: imageUrl,
-                        fallbackAsset: _fallbackAsset,
+    return NotificationListener<UserScrollNotification>(
+      onNotification: (notification) {
+        if (!_recipeAnimationTriggered &&
+            notification.depth == 0 &&
+            notification.direction == ScrollDirection.reverse) {
+          setState(() => _recipeAnimationTriggered = true);
+        }
+        return false;
+      },
+      child: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 返回按钮。
+                  _FloatingBackButton(back: text.back),
+                  const SizedBox(height: 8),
+                  // 居中大图头部。
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Center(
+                        child: SizedBox(
+                          width: 240,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: DrinkDetailCover(
+                              imageUrl: imageUrl,
+                              fallbackAsset: _fallbackAsset,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: scheme.onSurface,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                    if (summary.nameEn != null &&
-                        summary.nameEn!.isNotEmpty) ...[
-                      const SizedBox(height: 5),
+                      const SizedBox(height: 4),
                       Text(
-                        summary.nameEn!,
+                        name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: scheme.onSurfaceVariant,
-                          fontSize: 13,
+                          color: scheme.onSurface,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
                           letterSpacing: 0,
                         ),
                       ),
-                    ],
-                    if (summary.starRating != null) ...[
-                      const SizedBox(height: 12),
-                      Center(child: _DoubanRating(rating: summary.starRating!)),
-                    ],
-                    const SizedBox(height: 12),
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        if (summary.difficulty != null &&
-                            summary.difficulty!.isNotEmpty)
-                          _MetaTag(label: summary.difficulty!),
-                        if (summary.ingredientCount != null)
-                          _MetaTag(label: '${summary.ingredientCount}种用料'),
+                      if (summary.nameEn != null &&
+                          summary.nameEn!.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          summary.nameEn!,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: scheme.onSurfaceVariant,
+                            fontSize: 13,
+                            letterSpacing: 0,
+                          ),
+                        ),
                       ],
+                      if (summary.starRating != null) ...[
+                        const SizedBox(height: 8),
+                        Center(
+                          child: _DoubanRating(rating: summary.starRating!),
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          if (summary.difficulty != null &&
+                              summary.difficulty!.isNotEmpty)
+                            _MetaTag(label: summary.difficulty!),
+                          if (summary.ingredientCount != null)
+                            _MetaTag(label: '${summary.ingredientCount}种用料'),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SliverPadding(
+            // 底部预留系统安全区（Home Indicator）。
+            padding: EdgeInsets.fromLTRB(
+              22,
+              12,
+              22,
+              28 + MediaQuery.paddingOf(context).bottom,
+            ),
+            sliver: SliverList.list(
+              children: [
+                FutureBuilder<String?>(
+                  future: _virtualDrinkCode,
+                  builder: (context, snapshot) {
+                    final code = snapshot.data;
+                    if (code == null) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 18),
+                      child: FilledButton.icon(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                VirtualDrinkingPage(initialDrinkCode: code),
+                          ),
+                        ),
+                        icon: const Icon(Icons.nightlife_rounded),
+                        label: Text(text.t('在虚拟小酌体验这杯')),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: scheme.primary,
+                          minimumSize: const Size.fromHeight(46),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                // 简介。
+                if (summary.description != null &&
+                    summary.description!.isNotEmpty) ...[
+                  _SectionBlock(
+                    title: text.t('简介'),
+                    child: Text(
+                      summary.description!,
+                      style: TextStyle(
+                        color: scheme.onSurface,
+                        fontSize: 16,
+                        height: 1.5,
+                        letterSpacing: 0,
+                      ),
                     ),
-                  ],
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                // 背后的故事。
+                if (detail.story != null && detail.story!.isNotEmpty) ...[
+                  _SectionBlock(
+                    title: text.t('背后的故事'),
+                    child: Text(
+                      detail.story!,
+                      style: TextStyle(
+                        color: scheme.onSurface,
+                        fontSize: 16,
+                        height: 1.5,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                // 用料清单。
+                _SectionBlock(
+                  title: text.t('用料'),
+                  child: ingredients.isEmpty
+                      ? Text(
+                          text.t(_loading ? '加载中…' : '暂无用料信息'),
+                          style: TextStyle(
+                            color: scheme.onSurfaceVariant,
+                            fontSize: 15,
+                            letterSpacing: 0,
+                          ),
+                        )
+                      : RecipeIngredientFan(
+                          key: ValueKey(widget.cocktailId),
+                          items: _recipeIngredients,
+                          animationTriggered: _recipeAnimationTriggered,
+                          onIngredientTap: _openIngredient,
+                        ),
                 ),
               ],
             ),
           ),
-        ),
-        SliverPadding(
-          // 底部预留系统安全区（Home Indicator）。
-          padding: EdgeInsets.fromLTRB(
-            22,
-            18,
-            22,
-            28 + MediaQuery.paddingOf(context).bottom,
-          ),
-          sliver: SliverList.list(
-            children: [
-              FutureBuilder<String?>(
-                future: _virtualDrinkCode,
-                builder: (context, snapshot) {
-                  final code = snapshot.data;
-                  if (code == null) return const SizedBox.shrink();
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 18),
-                    child: FilledButton.icon(
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) =>
-                              VirtualDrinkingPage(initialDrinkCode: code),
-                        ),
-                      ),
-                      icon: const Icon(Icons.nightlife_rounded),
-                      label: Text(text.t('在虚拟小酌体验这杯')),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: scheme.primary,
-                        minimumSize: const Size.fromHeight(46),
-                      ),
-                    ),
-                  );
-                },
-              ),
-              // 简介。
-              if (summary.description != null &&
-                  summary.description!.isNotEmpty) ...[
-                _SectionBlock(
-                  title: text.t('简介'),
-                  child: Text(
-                    summary.description!,
-                    style: TextStyle(
-                      color: scheme.onSurface,
-                      fontSize: 16,
-                      height: 1.5,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
-              // 背后的故事。
-              if (detail.story != null && detail.story!.isNotEmpty) ...[
-                _SectionBlock(
-                  title: text.t('背后的故事'),
-                  child: Text(
-                    detail.story!,
-                    style: TextStyle(
-                      color: scheme.onSurface,
-                      fontSize: 16,
-                      height: 1.5,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
-              // 用料清单。
-              _SectionBlock(
-                title: text.t('用料'),
-                child: ingredients.isEmpty
-                    ? Text(
-                        text.t(_loading ? '加载中…' : '暂无用料信息'),
-                        style: TextStyle(
-                          color: scheme.onSurfaceVariant,
-                          fontSize: 15,
-                          letterSpacing: 0,
-                        ),
-                      )
-                    : RecipeIngredientFan(
-                        key: ValueKey(widget.cocktailId),
-                        items: _recipeIngredients,
-
-                        onIngredientTap: _openIngredient,
-                      ),
-              ),
-            ],
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -518,7 +538,7 @@ class _SectionBlock extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -531,7 +551,7 @@ class _SectionBlock extends StatelessWidget {
                 letterSpacing: 0,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             child,
           ],
         ),
