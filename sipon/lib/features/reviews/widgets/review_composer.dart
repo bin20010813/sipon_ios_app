@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:sipon/shared/widgets/sipon_message.dart';
 
 import '../../../app/theme/sipon_theme_colors.dart';
 
@@ -100,10 +101,11 @@ class _ReviewComposerState extends State<ReviewComposer> {
     super.dispose();
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+  void _showMessage(
+    String message, {
+    SiponMessageType type = SiponMessageType.info,
+  }) {
+    showSiponMessage(context, message, type: type);
   }
 
   Future<void> _pickImage() async {
@@ -120,7 +122,7 @@ class _ReviewComposerState extends State<ReviewComposer> {
       if (file == null || !mounted) return;
       setState(() => _images.add(file));
     } on Exception {
-      if (mounted) _showMessage('图片选择失败，请重试');
+      if (mounted) _showMessage('图片选择失败，请重试', type: SiponMessageType.error);
     }
   }
 
@@ -142,7 +144,7 @@ class _ReviewComposerState extends State<ReviewComposer> {
         ),
       );
     } on Exception catch (error) {
-      if (mounted) _showMessage('评论提交失败：$error');
+      if (mounted) _showMessage('评论提交失败：$error', type: SiponMessageType.error);
     } finally {
       if (mounted) setState(() => _submitting = false);
     }

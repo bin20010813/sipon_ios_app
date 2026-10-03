@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart' hide Visibility;
+import 'package:sipon/shared/widgets/sipon_message.dart';
 
 import '../../reviews/pages/check_in_page.dart';
 import '../../../shared/localization/language_transform.dart';
@@ -254,6 +255,7 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
       setState(() => _favorite = !nextFavorite);
       _showMockToast(
         '${SiponLanguageScope.textOf(context).t('收藏操作失败')}：$error',
+        type: SiponMessageType.error,
       );
     }
   }
@@ -290,7 +292,7 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
     } on Exception catch (error) {
       if (!mounted) return;
       setState(() => _reviews = previousReviews);
-      _showMockToast('${text.t('互动失败')}：$error');
+      _showMockToast('${text.t('互动失败')}：$error', type: SiponMessageType.error);
       return;
     }
     if (!mounted) return;
@@ -301,6 +303,7 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
             ? (isDislike ? '已取消点踩' : '已取消点赞')
             : (isDislike ? '点踩成功' : '点赞成功'),
       ),
+      type: SiponMessageType.success,
     );
   }
 
@@ -331,28 +334,31 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
         'details': reason.label,
       });
       if (!mounted) return;
-      _showMockToast(text.t('举报已提交，感谢反馈'));
+      _showMockToast(text.t('举报已提交，感谢反馈'), type: SiponMessageType.success);
     } on Exception catch (error) {
       if (!mounted) return;
-      _showMockToast('${text.t('举报提交失败')}：$error');
+      _showMockToast(
+        '${text.t('举报提交失败')}：$error',
+        type: SiponMessageType.error,
+      );
     }
   }
 
-  void _showMockToast(String message) {
+  void _showMockToast(
+    String message, {
+    SiponMessageType type = SiponMessageType.info,
+  }) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     if (messenger == null) {
       return;
     }
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-          width: 220,
-          duration: const Duration(milliseconds: 1200),
-        ),
-      );
+    showSiponMessage(
+      context,
+      message,
+      type: type,
+      duration: const Duration(milliseconds: 1200),
+      messenger: messenger,
+    );
   }
 
   Future<void> _openNavigation() async {
@@ -362,7 +368,10 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
       return;
     }
     if (apps.isEmpty) {
-      _showMockToast(text.t(ExternalMapLaunchResult.unavailable().message));
+      _showMockToast(
+        text.t(ExternalMapLaunchResult.unavailable().message),
+        type: SiponMessageType.error,
+      );
       return;
     }
 
@@ -435,7 +444,10 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
     if (!mounted) {
       return;
     }
-    _showMockToast(text.t(result.message));
+    _showMockToast(
+      text.t(result.message),
+      type: result.opened ? SiponMessageType.success : SiponMessageType.error,
+    );
   }
 
   IconData _mapAppIcon(ExternalMapApp app) {
@@ -579,7 +591,10 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
         return;
       }
       setState(() => _reviewsLoading = false);
-      _showMockToast(SiponLanguageScope.textOf(context).t('加载更多评价失败，请重试'));
+      _showMockToast(
+        SiponLanguageScope.textOf(context).t('加载更多评价失败，请重试'),
+        type: SiponMessageType.error,
+      );
     }
   }
 
@@ -593,7 +608,10 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
     if (!mounted || submitted != true) {
       return;
     }
-    _showMockToast(SiponLanguageScope.textOf(context).t('感谢共建！信息已提交审核'));
+    _showMockToast(
+      SiponLanguageScope.textOf(context).t('感谢共建！信息已提交审核'),
+      type: SiponMessageType.success,
+    );
   }
 
   Future<void> _openReviewComposer() async {

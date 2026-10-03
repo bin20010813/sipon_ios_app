@@ -22,6 +22,7 @@ import 'package:sipon/shared/services/sipon_auth_service.dart';
 import 'package:sipon/shared/services/sipon_city_controller.dart';
 import 'package:sipon/shared/services/sipon_search_preferences.dart';
 import 'package:sipon/shared/widgets/sipon_city_picker.dart';
+import 'package:sipon/shared/widgets/sipon_message.dart';
 import 'package:sipon/app/theme/sipon_theme.dart';
 import 'package:sipon/app/theme/sipon_theme_controller.dart';
 

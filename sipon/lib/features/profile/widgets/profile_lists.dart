@@ -278,13 +278,7 @@ Future<void> _openVenueHalfMap(BuildContext context, MapVenue venue) async {
       longitude.abs() > 180 ||
       latitude.abs() > 90 ||
       (longitude == 0 && latitude == 0)) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('该地点暂无可用位置'),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
+    showSiponMessage(context, '该地点暂无可用位置');
     return;
   }
   await openVenueMapHalfPage<void>(context, venue);
@@ -655,14 +649,12 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
       _selecting = _selected.isNotEmpty;
     });
     final failed = ids.length - deleted.length;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          failed == 0
-              ? '已删除 ${deleted.length} 条记录'
-              : '已删除 ${deleted.length} 条，$failed 条删除失败，请重试',
-        ),
-      ),
+    showSiponMessage(
+      context,
+      failed == 0
+          ? '已删除 ${deleted.length} 条记录'
+          : '已删除 ${deleted.length} 条，$failed 条删除失败，请重试',
+      type: failed == 0 ? SiponMessageType.success : SiponMessageType.error,
     );
     if (_items.isEmpty && _hasMore) await _load();
   }

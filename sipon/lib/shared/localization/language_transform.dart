@@ -853,6 +853,16 @@ const Map<String, String> _englishText = {
   '清除本地缓存': 'Clear Local Cache',
   '不影响账号云端数据': 'Does not affect account cloud data',
   '清理': 'Clear',
+  '清理鸡尾酒推荐缓存': 'Clear Cocktail Recommendation Cache',
+  '清理推荐、详情和配料卡牌图片及推荐数据，不影响登录、饮酒记录或预算':
+      'Clears recommendation, detail cover, and ingredient card images and recommendation data, not your sign-in, drink records, or budget',
+  '清理鸡尾酒推荐缓存？': 'Clear cocktail recommendation cache?',
+  '将删除本机缓存的鸡尾酒推荐图片、详情封面、配料卡牌图片和推荐数据，下次查看时重新加载。不会退出登录，也不会删除饮酒记录、预算或偏好设置。':
+      'Cached cocktail recommendation images, detail covers, ingredient card images, and recommendation data will be removed from this device and reloaded next time. You will stay signed in, and your drink records, budget, and preferences will not be deleted.',
+  '清理中…': 'Clearing…',
+  '鸡尾酒推荐缓存已清理': 'Cocktail recommendation cache cleared',
+  '清理鸡尾酒推荐缓存失败，请重试':
+      'Could not clear cocktail recommendation cache. Please try again.',
   '感谢你的喜欢': 'Thanks for liking Sipon',
   '等应用商店链接接入后，这里会跳转到评分页。':
       'This will open the app store rating page after the link is connected.',

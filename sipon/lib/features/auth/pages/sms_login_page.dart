@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:sipon/shared/widgets/sipon_message.dart';
 
 import 'package:sipon/shared/services/sipon_agreement_links.dart';
 import 'package:sipon/shared/services/sipon_api_client.dart';
@@ -102,7 +103,10 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
   Future<void> _openAgreement(String url) async {
     final opened = await openAgreementInBrowser(url);
     if (!opened && mounted) {
-      _showMessage(SiponLanguageScope.textOf(context).t('无法打开链接，请稍后重试。'));
+      _showMessage(
+        SiponLanguageScope.textOf(context).t('无法打开链接，请稍后重试。'),
+        type: SiponMessageType.error,
+      );
     }
   }
 
@@ -208,7 +212,9 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
           'Apple Sign-In returned no identity token. '
           'authorizationCodePresent=${credential.authorizationCode.isNotEmpty}',
         );
-        if (mounted) _showMessage(text.t('Apple 登录失败，请重试'));
+        if (mounted) {
+          _showMessage(text.t('Apple 登录失败，请重试'), type: SiponMessageType.error);
+        }
         return;
       }
       _logAppleIdentityTokenMetadata(identityToken);
@@ -227,25 +233,34 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
         'code=${error.code.name}, message=${error.message}',
       );
       if (mounted) {
-        _showMessage('${text.t('Apple 登录失败，请重试')} (${error.code.name})');
+        _showMessage(
+          '${text.t('Apple 登录失败，请重试')} (${error.code.name})',
+          type: SiponMessageType.error,
+        );
       }
     } on SignInWithAppleException catch (error) {
       debugPrint(
         'Apple Sign-In plugin failed: '
         'type=${error.runtimeType}, error=$error',
       );
-      if (mounted) _showMessage(text.t('Apple 登录失败，请重试'));
+      if (mounted) {
+        _showMessage(text.t('Apple 登录失败，请重试'), type: SiponMessageType.error);
+      }
     } on SiponApiException catch (error) {
       debugPrint(
         'Apple Sign-In API failed: status=${error.statusCode}, '
         'code=${error.code}, requestId=${error.requestId}, '
         'message=${error.message}',
       );
-      if (mounted) _showMessage(_errorMessage(error));
+      if (mounted) {
+        _showMessage(_errorMessage(error), type: SiponMessageType.error);
+      }
     } catch (error, stackTrace) {
       debugPrint('Apple Sign-In failed unexpectedly: $error');
       debugPrintStack(stackTrace: stackTrace);
-      if (mounted) _showMessage(_errorMessage(error));
+      if (mounted) {
+        _showMessage(_errorMessage(error), type: SiponMessageType.error);
+      }
     } finally {
       if (mounted) setState(() => _appleSubmitting = false);
     }
@@ -371,7 +386,7 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
         await _authService.requestEmailCode(email);
       }
       if (!mounted) return;
-      _showMessage(text.t('验证码已发送，请查收邮箱'));
+      _showMessage(text.t('验证码已发送，请查收邮箱'), type: SiponMessageType.success);
       setState(() {
         _codeCountdown = _codeCooldownSeconds;
         _codeTimer?.cancel();
@@ -388,7 +403,7 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
       });
     } on Exception {
       if (!mounted) return;
-      _showMessage(text.t('验证码发送失败，请稍后重试'));
+      _showMessage(text.t('验证码发送失败，请稍后重试'), type: SiponMessageType.error);
     } finally {
       if (mounted) {
         setState(() => _sendingCode = false);
@@ -409,10 +424,12 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
     try {
       await action();
       if (!mounted) return;
-      if (successMessage != null) _showMessage(successMessage);
+      if (successMessage != null) {
+        _showMessage(successMessage, type: SiponMessageType.success);
+      }
       if (notifyLoginSucceeded) widget.onLoginSucceeded();
     } catch (error) {
-      _showMessage(_errorMessage(error));
+      _showMessage(_errorMessage(error), type: SiponMessageType.error);
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -429,13 +446,12 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
     return text.t('网络异常，请检查网络和服务地址。');
   }
 
-  void _showMessage(String message) {
+  void _showMessage(
+    String message, {
+    SiponMessageType type = SiponMessageType.info,
+  }) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
-      );
+    showSiponMessage(context, message, type: type);
   }
 
   @override

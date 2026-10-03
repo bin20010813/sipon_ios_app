@@ -1,21 +1,16 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/sipon_theme_colors.dart';
+import '../data/cocktail_image_cache.dart';
 
-/// 封面显示尺寸（逻辑像素）；预取与展示共用，保证解码缓存键一致。
-const double kCocktailDetailCoverWidth = 260.0;
-const double kCocktailDetailCoverHeight = 347.0;
+export '../data/cocktail_image_cache.dart'
+    show kCocktailDetailCoverWidth, kCocktailDetailCoverHeight;
 
 /// 详情封面的图片 Provider：按封面显示尺寸（260×347 × dpr）解码。
 /// 首页/列表预取与详情页展示必须共用同一 Provider（同一缓存键），
 /// 预取后点进详情才能直接命中内存缓存；磁盘缓存由 CachedNetworkImageProvider 提供。
 ImageProvider cocktailDetailCoverImageProvider(String url, double dpr) =>
-    ResizeImage(
-      CachedNetworkImageProvider(url),
-      width: (kCocktailDetailCoverWidth * dpr).round(),
-      height: (kCocktailDetailCoverHeight * dpr).round(),
-    );
+    CocktailImageCache.instance.detailProvider(url, dpr);
 
 /// 鸡尾酒与配料详情共用的居中大图封面。
 class DrinkDetailCover extends StatelessWidget {

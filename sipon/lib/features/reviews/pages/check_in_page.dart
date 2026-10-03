@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:sipon/shared/widgets/sipon_message.dart';
 
 import '../../map/widgets/checkin_pin_icon.dart';
 import '../../../app/theme/sipon_theme_colors.dart';
@@ -43,8 +44,9 @@ class _CheckInPageState extends State<CheckInPage> {
   String? _locationError;
   int _requestVersion = 0;
 
-  /// 首屏是否还在加载（展示「正在加载附近酒吧…」）。
+  /// 首屏加载包含设备定位与附近酒吧查询两个阶段。
   bool _loadingBars = true;
+  bool _locating = true;
 
   /// 附近酒吧列表的滚动控制器。
   final ScrollController _barsController = ScrollController();
@@ -164,12 +166,14 @@ class _CheckInPageState extends State<CheckInPage> {
     final version = ++_requestVersion;
     setState(() {
       _loadingBars = true;
+      _locating = true;
       _locationError = null;
     });
     final location = await _cityController?.locateCurrentCity(
       purpose: SiponLocationPurpose.checkIn,
     );
     if (!mounted || version != _requestVersion) return;
+    setState(() => _locating = false);
     final anchor = location?.position;
     if (anchor == null) {
       setState(() {
@@ -186,12 +190,14 @@ class _CheckInPageState extends State<CheckInPage> {
     final anchorChanged = _loadedAnchor != anchor;
     setState(() => _loadedAnchor = anchor);
     if (_scene.isAttached && anchorChanged) {
-      await _scene.centerOnUser(
-        longitude: anchor.longitude,
-        latitude: anchor.latitude,
+      // 地图相机更新不应阻塞附近酒吧查询。
+      unawaited(
+        _scene.centerOnUser(
+          longitude: anchor.longitude,
+          latitude: anchor.latitude,
+        ),
       );
     }
-    if (!mounted || version != _requestVersion) return;
     try {
       final list = await _api.getNearbyBars(
         longitude: anchor.longitude,
@@ -526,7 +532,7 @@ class _CheckInPageState extends State<CheckInPage> {
                     const Spacer(),
                     Text(
                       _loadingBars
-                          ? '正在加载附近酒吧…'
+                          ? (_locating ? '正在获取当前位置…' : '正在加载附近酒吧…')
                           : _locationError != null
                           ? '等待定位'
                           : '${_bars.length} 家可打卡',
@@ -805,10 +811,11 @@ class _CheckInCommentPageState extends State<CheckInCommentPage> {
     super.dispose();
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+  void _showMessage(
+    String message, {
+    SiponMessageType type = SiponMessageType.info,
+  }) {
+    showSiponMessage(context, message, type: type);
   }
 
   /// 逐张上传打卡图片（purpose=check_in），返回上传媒体 ID 列表。
@@ -904,7 +911,7 @@ class _CheckInCommentPageState extends State<CheckInCommentPage> {
         await _api.createCheckIn(body);
       }
       if (!mounted) return;
-      _showMessage('打卡已提交，审核通过后展示在动态中');
+      _showMessage('打卡已提交，审核通过后展示在动态中', type: SiponMessageType.success);
       if (widget.returnToVenue) {
         Navigator.of(context).pop(true);
       } else {
@@ -912,7 +919,7 @@ class _CheckInCommentPageState extends State<CheckInCommentPage> {
       }
     } on Exception catch (error) {
       if (!mounted) return;
-      _showMessage('打卡失败：$error');
+      _showMessage('打卡失败：$error', type: SiponMessageType.error);
     } finally {
       if (mounted) {
         setState(() => _submitting = false);

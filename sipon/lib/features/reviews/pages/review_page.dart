@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:sipon/shared/widgets/sipon_message.dart';
 
 import '../../../app/theme/sipon_theme_colors.dart';
 import '../../../shared/services/sipon_api_client.dart';
@@ -135,7 +136,7 @@ class _ReviewPageState extends State<ReviewPage> {
       setState(() => _selectedImages.add(file));
     } on Exception {
       if (!mounted) return;
-      _showMessage(text.t('图片选择失败，请重试'));
+      _showMessage(text.t('图片选择失败，请重试'), type: SiponMessageType.error);
     }
   }
 
@@ -190,19 +191,20 @@ class _ReviewPageState extends State<ReviewPage> {
 
       _feedbackController.clear();
       setState(() => _selectedImages.clear());
-      _showMessage(text.feedbackSent);
+      _showMessage(text.feedbackSent, type: SiponMessageType.success);
       await _loadHistory();
     } on _FeedbackUploadException catch (error) {
       if (!mounted) return;
-      _showMessage(text.t(error.message));
+      _showMessage(text.t(error.message), type: SiponMessageType.error);
     } on SiponApiException {
       if (!mounted) return;
-      _showMessage(text.t('提交失败，请稍后重试'));
+      _showMessage(text.t('提交失败，请稍后重试'), type: SiponMessageType.error);
     } on Exception {
       if (!mounted) return;
-      _showMessage(text.t(_selectedImages.isEmpty
-          ? '提交失败，请稍后重试'
-          : '图片上传失败，请重试'));
+      _showMessage(
+        text.t(_selectedImages.isEmpty ? '提交失败，请稍后重试' : '图片上传失败，请重试'),
+        type: SiponMessageType.error,
+      );
     } finally {
       if (mounted) {
         setState(() => _submitting = false);
@@ -254,16 +256,11 @@ class _ReviewPageState extends State<ReviewPage> {
     return error.toString();
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      );
+  void _showMessage(
+    String message, {
+    SiponMessageType type = SiponMessageType.info,
+  }) {
+    showSiponMessage(context, message, type: type);
   }
 
   @override

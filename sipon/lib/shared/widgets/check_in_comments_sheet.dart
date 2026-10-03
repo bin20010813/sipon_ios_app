@@ -4,6 +4,7 @@ import '../../shared/localization/language_transform.dart';
 import '../services/sipon_api_client.dart';
 import '../services/sipon_api_service.dart';
 import 'sipon_network_image.dart';
+import 'sipon_message.dart';
 
 /// Public, approved comments for a check-in. Newly submitted comments stay in
 /// moderation and are deliberately not inserted into this list.
@@ -90,10 +91,10 @@ class _CheckInCommentsSheetState extends State<CheckInCommentsSheet> {
       if (!mounted) return;
       _controller.clear();
       FocusScope.of(context).unfocus();
-      _notice('评论已提交，审核通过后展示');
+      _notice('评论已提交，审核通过后展示', type: SiponMessageType.success);
     } on Exception catch (error) {
       if (!mounted) return;
-      _notice(_errorMessage(error));
+      _notice(_errorMessage(error), type: SiponMessageType.error);
       if (error is SiponApiException && error.statusCode == 401) {
         await widget.ensureLogin(force: true);
       }
@@ -107,9 +108,11 @@ class _CheckInCommentsSheetState extends State<CheckInCommentsSheet> {
       await widget.api.deleteCheckInComment(widget.checkInId, comment.id);
       if (!mounted) return;
       setState(() => _comments.removeWhere((item) => item.id == comment.id));
-      _notice('评论已删除');
+      _notice('评论已删除', type: SiponMessageType.success);
     } on Exception catch (error) {
-      if (mounted) _notice(_errorMessage(error));
+      if (mounted) {
+        _notice(_errorMessage(error), type: SiponMessageType.error);
+      }
     }
   }
 
@@ -144,9 +147,11 @@ class _CheckInCommentsSheetState extends State<CheckInCommentsSheet> {
         'reason': reason.$1,
         'details': reason.$2,
       });
-      if (mounted) _notice('举报已提交，感谢反馈');
+      if (mounted) _notice('举报已提交，感谢反馈', type: SiponMessageType.success);
     } on Exception catch (error) {
-      if (mounted) _notice(_errorMessage(error));
+      if (mounted) {
+        _notice(_errorMessage(error), type: SiponMessageType.error);
+      }
     }
   }
 
@@ -155,8 +160,13 @@ class _CheckInCommentsSheetState extends State<CheckInCommentsSheet> {
       ? error.message!
       : '操作失败，请重试';
 
-  void _notice(String message) => ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(SiponLanguageScope.textOf(context).t(message))),
+  void _notice(
+    String message, {
+    SiponMessageType type = SiponMessageType.info,
+  }) => showSiponMessage(
+    context,
+    SiponLanguageScope.textOf(context).t(message),
+    type: type,
   );
 
   @override

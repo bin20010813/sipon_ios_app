@@ -15,6 +15,7 @@ import '../services/sipon_api_service.dart';
 import '../services/sipon_auth_service.dart';
 import '../../features/map/pages/venue_detail_page.dart';
 import 'sipon_network_image.dart';
+import 'sipon_message.dart';
 import 'check_in_comments_sheet.dart';
 
 /// The home page's public check-in feed. Filtering and sorting are performed
@@ -311,8 +312,10 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
     final message = error is SiponApiException
         ? (error.message ?? '操作失败，请重试')
         : '操作失败，请重试';
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(SiponLanguageScope.textOf(context).t(message))),
+    showSiponMessage(
+      context,
+      SiponLanguageScope.textOf(context).t(message),
+      type: SiponMessageType.error,
     );
   }
 

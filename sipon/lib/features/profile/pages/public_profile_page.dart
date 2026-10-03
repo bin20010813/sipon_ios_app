@@ -9,6 +9,7 @@ import 'package:sipon/shared/services/sipon_api_config.dart';
 import 'package:sipon/shared/services/sipon_api_service.dart';
 import 'package:sipon/features/profile/data/user_profile_data.dart';
 import 'package:sipon/shared/widgets/sipon_network_image.dart';
+import 'package:sipon/shared/widgets/sipon_message.dart';
 import 'package:sipon/features/drinks/records/pages/drink_sticker_calendar_page.dart';
 import 'package:sipon/features/routes/pages/route_detail_map_page.dart';
 import 'package:sipon/features/map/pages/venue_map_half_page.dart';
@@ -175,9 +176,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
       await _load();
     } on Exception {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('操作失败，请稍后重试。')));
+      showSiponMessage(context, '操作失败，请稍后重试。', type: SiponMessageType.error);
     } finally {
       if (mounted) setState(() => _updatingFollow = false);
     }
@@ -244,13 +243,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
         longitude.abs() > 180 ||
         latitude.abs() > 90 ||
         (longitude == 0 && latitude == 0)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('该地点暂无可用位置'),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      );
+      showSiponMessage(context, '该地点暂无可用位置');
       return;
     }
     openVenueMapHalfPage<void>(context, venue);

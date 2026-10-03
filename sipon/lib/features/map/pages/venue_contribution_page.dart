@@ -8,6 +8,7 @@ import 'package:sipon/shared/services/sipon_api_client.dart';
 import 'package:sipon/shared/services/sipon_api_service.dart';
 import 'package:sipon/features/map/widgets/map_theme.dart';
 import 'package:sipon/shared/localization/language_transform.dart';
+import 'package:sipon/shared/widgets/sipon_message.dart';
 
 /// 地点详情「补充信息」共建页。
 ///
@@ -89,9 +90,12 @@ class _VenueContributionPageState extends State<VenueContributionPage> {
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } on SiponApiException catch (error) {
-      _showMessage(error.message ?? text.t('提交失败，请稍后重试'));
+      _showMessage(
+        error.message ?? text.t('提交失败，请稍后重试'),
+        type: SiponMessageType.error,
+      );
     } on Exception {
-      _showMessage(text.t('提交失败，请稍后重试'));
+      _showMessage(text.t('提交失败，请稍后重试'), type: SiponMessageType.error);
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -154,7 +158,7 @@ class _VenueContributionPageState extends State<VenueContributionPage> {
       if (image == null || !mounted) return;
       setState(() => target.add(image));
     } on Exception {
-      _showMessage(text.t('图片选择失败，请重试'));
+      _showMessage(text.t('图片选择失败，请重试'), type: SiponMessageType.error);
     }
   }
 
@@ -202,11 +206,12 @@ class _VenueContributionPageState extends State<VenueContributionPage> {
     return 'image/jpeg';
   }
 
-  void _showMessage(String message) {
+  void _showMessage(
+    String message, {
+    SiponMessageType type = SiponMessageType.info,
+  }) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
-    );
+    showSiponMessage(context, message, type: type);
   }
 
   @override

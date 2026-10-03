@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:sipon/shared/widgets/sipon_message.dart';
 
 import '../../../app/theme/sipon_theme_colors.dart';
 import '../../../shared/localization/language_transform.dart';
@@ -105,9 +106,7 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
         longitude.abs() > 180 ||
         latitude.abs() > 90 ||
         (longitude == 0 && latitude == 0)) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('该地点暂无可用位置')));
+      showSiponMessage(context, '该地点暂无可用位置');
       return;
     }
     if (widget.onMapRequested != null) {

@@ -44,20 +44,9 @@ class _CocktailScrollerState extends State<_CocktailScroller> {
     final list = await _recommendations.loadRecommendations(count: _homeLimit);
     if (!mounted || list.isEmpty) return;
     setState(() => _cocktails = list);
-    // 卡片就位后预取详情封面（640 中图），点进详情时直接命中内存缓存。
-    _precacheDetailCovers();
-  }
-
-  /// 把推荐酒款的详情封面图提前拉入图片缓存；失败静默，由详情页兜底。
-  void _precacheDetailCovers() {
-    final context = this.context;
-    if (!context.mounted) return;
-    final dpr = MediaQuery.devicePixelRatioOf(context);
-    for (final cocktail in _cocktails) {
-      final url = cocktail.resolvedMediumImageUrl();
-      if (url == null || url.isEmpty) continue;
-      precacheImage(cocktailDetailCoverImageProvider(url, dpr), context);
-    }
+    unawaited(
+      CocktailImageCache.instance.preloadRecommendations(list, context),
+    );
   }
 
   @override
@@ -106,10 +95,10 @@ class _CocktailScrollerState extends State<_CocktailScroller> {
   }
 
   /// 打开鸡尾酒百科详情页。
-  void _openDetail(CocktailInfo cocktail) {
+  Future<void> _openDetail(CocktailInfo cocktail) async {
     final id = cocktail.id;
     if (id == null) return;
-    Navigator.of(context).push(
+    await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => CocktailDetailPage(
           cocktailId: id,
@@ -117,6 +106,10 @@ class _CocktailScrollerState extends State<_CocktailScroller> {
           initialSummary: cocktail,
         ),
       ),
+    );
+    if (!mounted) return;
+    unawaited(
+      CocktailImageCache.instance.preloadRecommendations(_cocktails, context),
     );
   }
 }
@@ -136,12 +129,9 @@ class _CocktailCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final url = imageUrl;
-    final imageWidth = (142 * MediaQuery.devicePixelRatioOf(context)).round();
-    final imageHeight = (142 / 0.82 * MediaQuery.devicePixelRatioOf(context))
-        .round();
 
     return SizedBox(
-      width: 142,
+      width: kCocktailCardWidth,
       child: Material(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
@@ -154,11 +144,9 @@ class _CocktailCard extends StatelessWidget {
               AspectRatio(
                 aspectRatio: 0.82,
                 child: (url != null && url.isNotEmpty)
-                    ? SiponNetworkImage(
+                    ? CocktailCachedImage(
                         url: url,
                         fallbackAsset: item.imagePath,
-                        cacheWidth: imageWidth,
-                        cacheHeight: imageHeight,
                       )
                     : Image.asset(item.imagePath, fit: BoxFit.cover),
               ),

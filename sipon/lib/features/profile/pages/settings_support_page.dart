@@ -8,7 +8,10 @@ import 'package:sipon/shared/services/sipon_api_service.dart';
 import 'package:sipon/shared/services/sipon_auth_service.dart';
 import 'package:sipon/shared/services/sipon_search_preferences.dart';
 import 'package:sipon/shared/localization/language_transform.dart';
+import 'package:sipon/shared/widgets/sipon_message.dart';
 import 'package:sipon/features/reviews/pages/review_page.dart';
+import 'package:sipon/features/drinks/cocktails/data/cocktail_image_cache.dart';
+import 'package:sipon/features/drinks/cocktails/data/cocktail_recommendation_store.dart';
 import 'package:sipon/app/theme/sipon_theme_colors.dart';
 import 'package:sipon/app/theme/sipon_theme_controller.dart';
 
@@ -19,16 +22,12 @@ class SettingsSupportPage extends StatelessWidget {
 
   final VoidCallback? onLogoutSucceeded;
 
-  void _showMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      );
+  void _showMessage(
+    BuildContext context,
+    String message, {
+    SiponMessageType type = SiponMessageType.info,
+  }) {
+    showSiponMessage(context, message, type: type);
   }
 
   @override
@@ -83,9 +82,10 @@ class SettingsSupportPage extends StatelessWidget {
                                 }
 
                                 languageController.setLanguage(language);
-                                _showMessage(
+                                showSiponMessage(
                                   context,
                                   SiponAppText(language).languageChanged,
+                                  type: SiponMessageType.success,
                                 );
                               },
                             ),
@@ -99,18 +99,19 @@ class SettingsSupportPage extends StatelessWidget {
                                 try {
                                   await themeController.setMode(mode);
                                   if (!context.mounted) return;
-                                  _showMessage(context, text.appearanceChanged);
+                                  _showMessage(
+                                    context,
+                                    text.appearanceChanged,
+                                    type: SiponMessageType.success,
+                                  );
                                 } catch (_) {
                                   if (!context.mounted) return;
-                                  messenger
-                                    ..hideCurrentSnackBar()
-                                    ..showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          text.appearanceSaveFailed,
-                                        ),
-                                      ),
-                                    );
+                                  showSiponMessage(
+                                    context,
+                                    text.appearanceSaveFailed,
+                                    type: SiponMessageType.error,
+                                    messenger: messenger,
+                                  );
                                 }
                               },
                             ),
@@ -268,16 +269,12 @@ class _AccountSecurityPageState extends State<_AccountSecurityPage> {
     return '${email[0]}***$domain';
   }
 
-  void _showMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      );
+  void _showMessage(
+    BuildContext context,
+    String message, {
+    SiponMessageType type = SiponMessageType.info,
+  }) {
+    showSiponMessage(context, message, type: type);
   }
 
   /// 弹出确认对话框，用户确认后注销当前账号。
@@ -328,13 +325,18 @@ class _AccountSecurityPageState extends State<_AccountSecurityPage> {
       Navigator.of(context).popUntil((route) => route.isFirst);
       widget.onLogoutSucceeded?.call();
       if (!mounted) return;
-      _showMessage(context, SiponLanguageScope.textOf(context).t('账号已注销'));
+      _showMessage(
+        context,
+        SiponLanguageScope.textOf(context).t('账号已注销'),
+        type: SiponMessageType.success,
+      );
     } on Exception {
       if (!mounted) return;
       setState(() => _deleting = false);
       _showMessage(
         context,
         SiponLanguageScope.textOf(context).t('账号注销失败，请稍后重试'),
+        type: SiponMessageType.error,
       );
     }
   }
@@ -511,17 +513,12 @@ class _ChangePasswordPageState extends State<_ChangePasswordPage> {
     super.dispose();
   }
 
-  void _showMessage(String message) {
+  void _showMessage(
+    String message, {
+    SiponMessageType type = SiponMessageType.info,
+  }) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      );
+    showSiponMessage(context, message, type: type);
   }
 
   String _errorMessage(Object error) {
@@ -548,7 +545,7 @@ class _ChangePasswordPageState extends State<_ChangePasswordPage> {
     try {
       await SiponAuthService.instance.requestEmailPasswordResetCode(email);
       if (!mounted) return;
-      _showMessage(text.t('验证码已发送，请查收邮箱'));
+      _showMessage(text.t('验证码已发送，请查收邮箱'), type: SiponMessageType.success);
       setState(() {
         _codeCountdown = _codeCooldownSeconds;
         _codeTimer?.cancel();
@@ -562,7 +559,7 @@ class _ChangePasswordPageState extends State<_ChangePasswordPage> {
         });
       });
     } on Exception catch (error) {
-      _showMessage(_errorMessage(error));
+      _showMessage(_errorMessage(error), type: SiponMessageType.error);
     } finally {
       if (mounted) setState(() => _sendingCode = false);
     }
@@ -584,10 +581,10 @@ class _ChangePasswordPageState extends State<_ChangePasswordPage> {
         newPassword: _newPasswordController.text,
       );
       if (!mounted) return;
-      _showMessage(text.t('密码已重置，请重新登录'));
+      _showMessage(text.t('密码已重置，请重新登录'), type: SiponMessageType.success);
       Navigator.of(context).pop();
     } catch (error) {
-      _showMessage(_errorMessage(error));
+      _showMessage(_errorMessage(error), type: SiponMessageType.error);
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -1094,6 +1091,50 @@ class _PrivacySettingsPageState extends State<_PrivacySettingsPage> {
   bool _profileVisible = true;
   bool _recordVisible = false;
   bool _locationEnabled = true;
+  bool _clearingCache = false;
+
+  Future<void> _confirmClearCache() async {
+    if (_clearingCache) return;
+    final text = SiponLanguageScope.textOf(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text(text.t('清理鸡尾酒推荐缓存？')),
+        content: Text(
+          text.t(
+            '将删除本机缓存的鸡尾酒推荐图片、详情封面、配料卡牌图片和推荐数据，下次查看时重新加载。不会退出登录，也不会删除饮酒记录、预算或偏好设置。',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(text.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(text.t('清理')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || _clearingCache) return;
+
+    setState(() => _clearingCache = true);
+    var message = text.t('鸡尾酒推荐缓存已清理');
+    var messageType = SiponMessageType.success;
+    try {
+      await CocktailImageCache.instance.clear();
+      await CocktailRecommendationStore.clearCache();
+    } catch (_) {
+      message = text.t('清理鸡尾酒推荐缓存失败，请重试');
+      messageType = SiponMessageType.error;
+    } finally {
+      if (mounted) setState(() => _clearingCache = false);
+    }
+    if (!mounted) return;
+    showSiponMessage(context, message, type: messageType);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1146,9 +1187,10 @@ class _PrivacySettingsPageState extends State<_PrivacySettingsPage> {
             ),
             _SupportActionRow(
               icon: Icons.delete_outline_rounded,
-              title: text.t('清除本地缓存'),
-              subtitle: text.t('不影响账号云端数据'),
-              trailing: text.t('清理'),
+              title: text.t('清理鸡尾酒推荐缓存'),
+              subtitle: text.t('清理推荐、详情和配料卡牌图片及推荐数据，不影响登录、饮酒记录或预算'),
+              trailing: text.t(_clearingCache ? '清理中…' : '清理'),
+              onTap: _clearingCache ? null : _confirmClearCache,
             ),
           ],
         ),
@@ -1203,17 +1245,11 @@ class _AboutUsPage extends StatelessWidget {
     final opened = await openAgreementInBrowser(url);
     if (!opened && context.mounted) {
       final text = SiponLanguageScope.textOf(context);
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(text.t('无法打开链接，请稍后重试。')),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        );
+      showSiponMessage(
+        context,
+        text.t('无法打开链接，请稍后重试。'),
+        type: SiponMessageType.error,
+      );
     }
   }
 
@@ -1241,8 +1277,14 @@ class _AboutUsPage extends StatelessWidget {
               label: text.t('服务备案号'),
               value: '浙ICP备2026046724号-2A',
             ),
-            _SupportInfoRow(label: text.t('服务邮箱'), value: 'bin_20010813@163.com'),
-            _SupportInfoRow(label: text.t('官方网站'), value: 'http://www.tanjeek.cn'),
+            _SupportInfoRow(
+              label: text.t('服务邮箱'),
+              value: 'bin_20010813@163.com',
+            ),
+            _SupportInfoRow(
+              label: text.t('官方网站'),
+              value: 'http://www.tanjeek.cn',
+            ),
           ],
         ),
         const SizedBox(height: 16),

@@ -10,6 +10,7 @@ import '../../virtual_drinking/models/virtual_drinking_models.dart';
 import '../../../../shared/localization/language_transform.dart';
 import '../../virtual_drinking/pages/virtual_drinking_page.dart';
 import '../data/recipe_ingredient_repository.dart';
+import '../data/cocktail_image_cache.dart';
 import '../widgets/drink_detail_cover.dart';
 import '../widgets/recipe_ingredient_fan.dart';
 import 'ingredient_detail_page.dart';
@@ -50,7 +51,8 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
 
   CocktailDetailInfo? _detail;
   List<RecipeIngredient> _recipeIngredients = const [];
-  bool _recipeImagesLoading = false;
+  final Set<String> _preloadedRecipeImageUrls = {};
+
   bool _loading = false;
   String? _error;
 
@@ -76,12 +78,15 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
       if (!mounted) return;
       final detail = CocktailDetailInfo.fromJson(json);
       final lines = detail.sortedIngredients;
+      _preloadedRecipeImageUrls.clear();
       setState(() {
         _detail = detail;
         _recipeIngredients = lines.map(RecipeIngredient.fromLine).toList();
-        _recipeImagesLoading = lines.isNotEmpty;
       });
-      if (lines.isNotEmpty) unawaited(_loadRecipeImages(lines));
+      if (lines.isNotEmpty) {
+        _preloadRecipeImages(_recipeIngredients);
+        unawaited(_loadRecipeImages(lines));
+      }
     } on Exception catch (error) {
       if (!mounted) return;
       setState(() => _error = _describeError(error));
@@ -93,12 +98,28 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
   }
 
   Future<void> _loadRecipeImages(List<RecipeLine> lines) async {
-    final items = await RecipeIngredientRepository(_api).resolve(lines);
-    if (!mounted) return;
-    setState(() {
-      _recipeIngredients = items;
-      _recipeImagesLoading = false;
-    });
+    await RecipeIngredientRepository(_api).resolve(
+      lines,
+      onUpdate: (items) {
+        if (!mounted) return;
+        setState(() => _recipeIngredients = items);
+        _preloadRecipeImages(items);
+      },
+    );
+  }
+
+  void _preloadRecipeImages(List<RecipeIngredient> items) {
+    final pending = <IngredientInfo>[];
+    for (final item in items) {
+      final url = item.ingredient.resolvedImageUrl();
+      if (url != null && _preloadedRecipeImageUrls.add(url)) {
+        pending.add(item.ingredient);
+      }
+    }
+    if (pending.isEmpty) return;
+    unawaited(
+      CocktailImageCache.instance.preloadRecipeIngredients(pending, context),
+    );
   }
 
   void _openIngredient(IngredientInfo ingredient) {
@@ -372,7 +393,7 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
                     : RecipeIngredientFan(
                         key: ValueKey(widget.cocktailId),
                         items: _recipeIngredients,
-                        loading: _recipeImagesLoading,
+
                         onIngredientTap: _openIngredient,
                       ),
               ),

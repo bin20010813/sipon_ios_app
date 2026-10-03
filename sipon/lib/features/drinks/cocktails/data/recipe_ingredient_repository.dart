@@ -25,11 +25,19 @@ class RecipeIngredientRepository {
 
   final SiponApiService _api;
 
-  Future<List<RecipeIngredient>> resolve(List<RecipeLine> lines) async {
-    // 相同配料只请求一次；每个配料的失败独立降级，不影响整份配方。
+  Future<List<RecipeIngredient>> resolve(
+    List<RecipeLine> lines, {
+    void Function(List<RecipeIngredient>)? onUpdate,
+  }) async {
+    // 相同配料只请求一次；已查到的图片先发布，不等待最慢的配料。
     final requests = <int, Future<IngredientInfo?>>{};
-    final resolved = await Future.wait([
-      for (final line in lines) _resolveLine(line, requests),
+    final resolved = lines.map(RecipeIngredient.fromLine).toList();
+    await Future.wait([
+      for (var index = 0; index < lines.length; index++)
+        _resolveLine(lines[index], requests).then((item) {
+          resolved[index] = item;
+          onUpdate?.call(List<RecipeIngredient>.unmodifiable(resolved));
+        }),
     ]);
     final missing = resolved.where(
       (item) => item.ingredient.resolvedImageUrl() == null,
@@ -56,7 +64,7 @@ class RecipeIngredientRepository {
     } on Exception {
       // 已匹配的图片仍然可用，未匹配项保留图标与用量。
     }
-    return [
+    final result = [
       for (final item in resolved)
         if (item.ingredient.resolvedImageUrl() != null)
           item
@@ -66,6 +74,8 @@ class RecipeIngredientRepository {
             ingredient: _match(item.line, catalog) ?? item.ingredient,
           ),
     ];
+    onUpdate?.call(List<RecipeIngredient>.unmodifiable(result));
+    return result;
   }
 
   Future<RecipeIngredient> _resolveLine(

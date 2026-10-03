@@ -19,6 +19,7 @@ import 'package:sipon/shared/services/sipon_api_client.dart';
 import 'package:sipon/shared/services/sipon_api_service.dart';
 import 'package:sipon/app/theme/sipon_theme_colors.dart';
 import 'package:sipon/shared/widgets/sipon_city_picker.dart';
+import 'package:sipon/shared/widgets/sipon_message.dart';
 
 class AddVenuePage extends StatefulWidget {
   const AddVenuePage({super.key});
@@ -256,9 +257,9 @@ class _AddVenuePageState extends State<AddVenuePage> {
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } on SiponApiException catch (error) {
-      _showMessage(error.message ?? '提交失败，请稍后重试');
+      _showMessage(error.message ?? '提交失败，请稍后重试', type: SiponMessageType.error);
     } on Exception {
-      _showMessage('提交失败，请稍后重试');
+      _showMessage('提交失败，请稍后重试', type: SiponMessageType.error);
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -326,7 +327,7 @@ class _AddVenuePageState extends State<AddVenuePage> {
       if (image == null || !mounted) return;
       setState(() => _photos.add(image));
     } on Exception {
-      _showMessage('图片选择失败，请重试');
+      _showMessage('图片选择失败，请重试', type: SiponMessageType.error);
     }
   }
 
@@ -378,11 +379,12 @@ class _AddVenuePageState extends State<AddVenuePage> {
     return null;
   }
 
-  void _showMessage(String message) {
+  void _showMessage(
+    String message, {
+    SiponMessageType type = SiponMessageType.info,
+  }) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
-    );
+    showSiponMessage(context, message, type: type);
   }
 
   @override

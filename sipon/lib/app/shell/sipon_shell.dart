@@ -140,11 +140,10 @@ class _SiponShellState extends State<_SiponShell> {
     if (!mounted || created != true) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('閰掗淇℃伅宸叉彁浜わ紝瀹℃牳閫氳繃鍚庝細鏄剧ず鍦ㄥ湴鍥句腑'),
-        behavior: SnackBarBehavior.floating,
-      ),
+    showSiponMessage(
+      context,
+      '閰掗淇℃伅宸叉彁浜わ紝瀹℃牳閫氳繃鍚庝細鏄剧ず鍦ㄥ湴鍥句腑',
+      type: SiponMessageType.success,
     );
   }
 

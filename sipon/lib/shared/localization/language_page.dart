@@ -1,22 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../app/theme/sipon_theme_colors.dart';
+import '../widgets/sipon_message.dart';
 import 'language_transform.dart';
 
 class LanguagePage extends StatelessWidget {
   const LanguagePage({super.key});
-
-  void _showMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,9 +52,13 @@ class LanguagePage extends StatelessWidget {
                           text: text,
                           language: languageController.language,
                           onChanged: (language) {
+                            if (languageController.language == language) return;
                             languageController.setLanguage(language);
-                            final updatedText = SiponAppText(language);
-                            _showMessage(context, updatedText.languageChanged);
+                            showSiponMessage(
+                              context,
+                              SiponAppText(language).languageChanged,
+                              type: SiponMessageType.success,
+                            );
                           },
                         ),
                       ],

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:sipon/shared/widgets/sipon_message.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -953,9 +954,7 @@ class _VirtualDrinkingPageState extends State<VirtualDrinkingPage>
         .where((drink) => drink.category == 'non_alcoholic')
         .firstOrNull;
     if (water == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('当前目录暂无无酒精饮品')));
+      showSiponMessage(context, '当前目录暂无无酒精饮品');
       return;
     }
     _changeDrink(water);

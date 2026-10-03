@@ -12,7 +12,6 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
-
 # IntelliJ related
 *.iml
 *.ipr
@@ -71,3 +70,4 @@ app.*.map.json
 **/DerivedData/
 **/xcuserdata/
 *.xcuserstate
+test

@@ -12,6 +12,7 @@ import 'package:sipon/features/profile/data/user_profile_data.dart';
 import 'package:sipon/shared/widgets/bottom_clamping_bouncing_scroll_physics.dart';
 import 'package:sipon/features/drinks/records/widgets/drink_sticker.dart';
 import 'package:sipon/shared/widgets/sipon_network_image.dart';
+import 'package:sipon/shared/widgets/sipon_message.dart';
 import 'package:sipon/features/drinks/records/pages/drink_sticker_calendar_page.dart';
 import 'package:sipon/shared/localization/language_transform.dart';
 import 'package:sipon/app/theme/sipon_theme_colors.dart';
@@ -77,15 +78,7 @@ String _romanNumeral(int value) {
 }
 
 void _showProfileMessage(BuildContext context, String message) {
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
+  showSiponMessage(context, message);
 }
 
 class ProfilePage extends StatefulWidget {

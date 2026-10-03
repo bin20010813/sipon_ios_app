@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:sipon/shared/widgets/sipon_message.dart';
 import '../../map/models/map_display_options.dart';
 import '../../map/models/map_models.dart';
 import '../../map/controllers/map_scene_controller.dart';
@@ -283,10 +284,11 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
   /// 路线版本号：站点或顺序变更、退出页面都递增，旧规划结果据此作废。
   int _routeRevision = 0;
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+  void _showMessage(
+    String message, {
+    SiponMessageType type = SiponMessageType.info,
+  }) {
+    showSiponMessage(context, message, type: type);
   }
 
   /// 站点编排变更后清除已规划的路线，必须重新规划才能保存。
@@ -335,16 +337,19 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
       if (!mounted || revision != _routeRevision) return;
 
       setState(() => _planned = ok);
-      _showMessage(ok
-          ? '路线已规划，可以保存为我的路线了'
-          : _scene.routeErrorMessage ?? '路线规划失败，请检查站点或稍后重试');
+      _showMessage(
+        ok
+            ? '路线已规划，可以保存为我的路线了'
+            : _scene.routeErrorMessage ?? '路线规划失败，请检查站点或稍后重试',
+        type: ok ? SiponMessageType.success : SiponMessageType.error,
+      );
       if (ok) {
         // 折线绘制后再重画一次点位，保证编号 marker 落在折线上层。
         unawaited(_renderMap());
       }
     } on Exception catch (error) {
       if (!mounted || revision != _routeRevision) return;
-      _showMessage('路径规划失败：$error');
+      _showMessage('路径规划失败：$error', type: SiponMessageType.error);
     } finally {
       if (mounted && revision == _routeRevision) {
         setState(() => _planning = false);
@@ -398,10 +403,10 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
         'visibility': 'private',
       });
       if (!mounted) return;
-      _showMessage('路线「$title」已保存');
+      _showMessage('路线「$title」已保存', type: SiponMessageType.success);
     } on Exception catch (error) {
       if (!mounted) return;
-      _showMessage('保存失败：$error');
+      _showMessage('保存失败：$error', type: SiponMessageType.error);
     } finally {
       if (mounted) {
         setState(() => _saving = false);

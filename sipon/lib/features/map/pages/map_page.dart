@@ -52,7 +52,7 @@ class MapPage extends StatefulWidget {
   final bool showMapControls;
   final bool showSheetDragHandle;
 
-  /// IndexedStack 中只有地图 Tab 可见时才请求一次当前位置。
+  /// IndexedStack 中首次进入地图 Tab 时请求当前位置，返回时保留原视野。
   final bool active;
   final bool allowSheetCollapse;
 
@@ -152,7 +152,8 @@ class _MapPageState extends State<MapPage> {
       _data.focusVenueFromPage(widget.requestedVenue!);
       _sheet.collapse();
       if (_scene.isAttached) unawaited(_applyStage(reason: 'homeVenue'));
-    } else if (widget.active && !oldWidget.active) {
+    } else if (widget.active && !oldWidget.active && _locationRequest == 0) {
+      // 返回 Tab 不是定位意图，否则会把用户正在浏览的城市/酒吧移出视野。
       unawaited(_centerOnCurrentLocation());
     } else if (!widget.active && oldWidget.active) {
       _locationRequest++;

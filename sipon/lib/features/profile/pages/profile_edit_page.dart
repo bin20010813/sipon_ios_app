@@ -10,6 +10,7 @@ import 'package:sipon/shared/services/sipon_api_client.dart';
 import 'package:sipon/shared/services/sipon_api_service.dart';
 import 'package:sipon/features/profile/data/user_profile_data.dart';
 import 'package:sipon/shared/widgets/sipon_network_image.dart';
+import 'package:sipon/shared/widgets/sipon_message.dart';
 
 class ProfileEditPage extends StatefulWidget {
   const ProfileEditPage({super.key, required this.profile});
@@ -91,7 +92,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         imageQuality: 85,
       );
     } on Exception {
-      if (mounted) _showMessage('图片选择失败，请重试');
+      if (mounted) {
+        _showMessage('图片选择失败，请重试', type: SiponMessageType.error);
+      }
       return;
     }
     if (file == null || !mounted) return;
@@ -120,7 +123,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     } on MissingPluginException {
       // 新增原生插件后，Hot Reload/Hot Restart 不会注册插件；必须完整重启应用。
       if (mounted) {
-        _showMessage('图片裁切组件尚未加载，请完全停止应用后重新运行');
+        _showMessage('图片裁切组件尚未加载，请完全停止应用后重新运行', type: SiponMessageType.error);
       }
       return;
     } on PlatformException catch (error) {
@@ -129,11 +132,14 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           error.message?.trim().isNotEmpty == true
               ? '图片裁切失败：${error.message}'
               : '图片裁切失败，请重试',
+          type: SiponMessageType.error,
         );
       }
       return;
     } on Exception {
-      if (mounted) _showMessage('图片裁切失败，请重试');
+      if (mounted) {
+        _showMessage('图片裁切失败，请重试', type: SiponMessageType.error);
+      }
       return;
     }
     setState(() {
@@ -162,11 +168,11 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       setState(() {
         _avatarController.text = _avatarUrlFromUpload(response, mediaId);
       });
-      _showMessage('头像已上传，请点击保存资料');
+      _showMessage('头像已上传，请点击保存资料', type: SiponMessageType.success);
     } on FormatException catch (error) {
       if (!mounted) return;
       setState(() => _pickedAvatar = null);
-      _showMessage(error.message);
+      _showMessage(error.message, type: SiponMessageType.error);
     } on SiponApiException catch (error) {
       if (!mounted) return;
       setState(() => _pickedAvatar = null);
@@ -177,12 +183,13 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       );
       _showMessage(
         '上传失败（${error.statusCode}）：${_compactErrorMessage(error.message ?? '')}',
+        type: SiponMessageType.error,
       );
     } on Exception catch (error, stackTrace) {
       if (!mounted) return;
       setState(() => _pickedAvatar = null);
       debugPrint('Avatar upload failed: $error\n$stackTrace');
-      _showMessage('头像上传失败，请重试');
+      _showMessage('头像上传失败，请重试', type: SiponMessageType.error);
     } finally {
       if (mounted) setState(() => _uploadingAvatar = false);
     }
@@ -235,10 +242,11 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     return 'image/jpeg';
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+  void _showMessage(
+    String message, {
+    SiponMessageType type = SiponMessageType.info,
+  }) {
+    showSiponMessage(context, message, type: type);
   }
 
   Widget _buildAvatarEditor() {
@@ -365,7 +373,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         ...body,
         ...returnedFields,
       });
-      _showMessage('资料已保存');
+      _showMessage('资料已保存', type: SiponMessageType.success);
       Navigator.of(context).pop(updated);
     } on SiponApiException catch (error) {
       if (!mounted) return;
@@ -375,11 +383,12 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       );
       _showMessage(
         '保存失败（${error.statusCode}）：${_compactErrorMessage(error.message ?? '')}',
+        type: SiponMessageType.error,
       );
     } on Exception catch (error, stackTrace) {
       if (!mounted) return;
       debugPrint('Profile save failed: $error\n$stackTrace');
-      _showMessage('保存失败，请稍后重试');
+      _showMessage('保存失败，请稍后重试', type: SiponMessageType.error);
     } finally {
       if (mounted) setState(() => _saving = false);
     }

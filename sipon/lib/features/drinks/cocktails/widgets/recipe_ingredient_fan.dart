@@ -5,7 +5,7 @@ import 'package:flutter/rendering.dart';
 
 import '../../../../app/theme/sipon_theme_colors.dart';
 import '../../../../shared/services/sipon_api_models.dart';
-import '../../../../shared/widgets/sipon_network_image.dart';
+import '../data/cocktail_image_cache.dart';
 import '../data/recipe_ingredient_repository.dart';
 
 /// 用料图片从中央依次发出，沿扇形展开；用量保持水平，便于阅读。
@@ -125,10 +125,10 @@ class _RecipeIngredientFanState extends State<RecipeIngredientFan>
     const arcHeight = 14.0;
     final cardWidth = math
         .min(
-          112.0,
+          kRecipeIngredientCardMaxWidth,
           (width - sidePadding * 2 - gap * (items.length - 1)) / items.length,
         )
-        .clamp(24.0, 112.0);
+        .clamp(24.0, kRecipeIngredientCardMaxWidth);
     final coverHeight = cardWidth * 4 / 3;
     final amountStyle = TextStyle(
       color: Theme.of(context).colorScheme.onSurface,
@@ -315,13 +315,15 @@ class _IngredientImage extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         child: url == null
             ? placeholder
-            : SiponNetworkImage(
-                url: url,
-                fallbackWidget: placeholder,
+            : Image(
+                image: CocktailImageCache.instance.ingredientProvider(url, dpr),
                 width: width,
                 height: height,
-                cacheWidth: math.max(1, (width * dpr).round()),
-                cacheHeight: math.max(1, (height * dpr).round()),
+                fit: BoxFit.cover,
+                filterQuality: FilterQuality.low,
+                frameBuilder: (context, child, frame, synchronouslyLoaded) =>
+                    synchronouslyLoaded || frame != null ? child : placeholder,
+                errorBuilder: (context, error, stackTrace) => placeholder,
               ),
       ),
     );

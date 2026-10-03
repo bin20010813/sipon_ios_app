@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../app/theme/sipon_theme_colors.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:sipon/shared/widgets/sipon_message.dart';
 
 import '../data/drink_budget_store.dart';
 import '../../../../shared/services/sipon_data_repository.dart';
@@ -47,16 +48,11 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
     super.dispose();
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      );
+  void _showMessage(
+    String message, {
+    SiponMessageType type = SiponMessageType.info,
+  }) {
+    showSiponMessage(context, message, type: type);
   }
 
   Future<void> _pickPhoto() async {
@@ -149,12 +145,18 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
           'no_subject' => text.t('没有识别到清晰主体，已保留原图'),
           _ => text.t('自动抠图失败，已保留原图'),
         };
-        _showMessage(message);
+        _showMessage(
+          message,
+          type: switch (generated.status) {
+            'unsupported' || 'no_subject' => SiponMessageType.info,
+            _ => SiponMessageType.error,
+          },
+        );
       }
     } on StickerCutoutException {
       if (mounted) {
         final text = SiponLanguageScope.textOf(context);
-        _showMessage(text.t('自动抠图失败，已保留原图'));
+        _showMessage(text.t('自动抠图失败，已保留原图'), type: SiponMessageType.error);
       }
     } finally {
       if (mounted) {
@@ -273,6 +275,7 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
       DrinkBudgetStore.instance.hasPendingSync
           ? text.t('饮品贴纸已保存，待同步')
           : text.t('饮品贴纸已保存'),
+      type: SiponMessageType.success,
     );
     _resetForm();
   }

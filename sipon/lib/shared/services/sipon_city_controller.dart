@@ -23,6 +23,7 @@ class SiponCityController extends ChangeNotifier {
   bool _manualSelection = false;
   bool _locationAttempted = false;
   SiponLocationPoint? _detectedPosition;
+  Position? _lastDevicePosition;
 
   String get city => _city;
   String get province => _province;
@@ -155,23 +156,20 @@ class SiponCityController extends ChangeNotifier {
 
       Position? recentPosition;
       if (purpose == SiponLocationPurpose.checkIn) {
-        try {
-          final cached = await Geolocator.getLastKnownPosition().timeout(
-            const Duration(milliseconds: 500),
-          );
-          if (cached != null) {
-            final age = DateTime.now().difference(cached.timestamp);
-            if (!age.isNegative &&
-                age <= const Duration(minutes: 2) &&
-                cached.accuracy.isFinite &&
-                cached.accuracy > 0 &&
-                cached.accuracy <= 100 &&
-                _validCoordinates(cached)) {
+        // 部分平台未提供系统缓存，仍可复用 App 刚取得的合格设备位置。
+        if (_usableCheckInPosition(_lastDevicePosition)) {
+          recentPosition = _lastDevicePosition;
+        } else {
+          try {
+            final cached = await Geolocator.getLastKnownPosition().timeout(
+              const Duration(milliseconds: 500),
+            );
+            if (_usableCheckInPosition(cached)) {
               recentPosition = cached;
             }
+          } catch (_) {
+            // 缓存不支持或读取超时时，继续获取实时定位。
           }
-        } catch (_) {
-          // 缓存不支持或读取超时时，继续获取实时定位。
         }
       }
 
@@ -210,6 +208,7 @@ class SiponCityController extends ChangeNotifier {
         return const SiponLocateResult(status: SiponLocateStatus.failed);
       }
 
+      _lastDevicePosition = position;
       final point = SiponLocationPoint(position.longitude, position.latitude);
       _detectedPosition = point;
 
@@ -234,6 +233,17 @@ class SiponCityController extends ChangeNotifier {
     final permission = await Geolocator.checkPermission();
     return permission == LocationPermission.always ||
         permission == LocationPermission.whileInUse;
+  }
+
+  bool _usableCheckInPosition(Position? position) {
+    if (position == null) return false;
+    final age = DateTime.now().difference(position.timestamp);
+    return !age.isNegative &&
+        age <= const Duration(minutes: 2) &&
+        position.accuracy.isFinite &&
+        position.accuracy > 0 &&
+        position.accuracy <= 100 &&
+        _validCoordinates(position);
   }
 
   bool _validCoordinates(Position position) =>
