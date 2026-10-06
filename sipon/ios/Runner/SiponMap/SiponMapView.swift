@@ -1499,7 +1499,9 @@ final class UserDirectionAnnotationView: MKAnnotationView {
       radius: 34,
       startAngle: -CGFloat.pi / 2 - CGFloat.pi / 7,
       endAngle: -CGFloat.pi / 2 + CGFloat.pi / 7,
-      clockwise: false
+      // UIKit 的 Y 轴向下：顺时针走两端之间约 51° 的短弧，
+      // 逆时针会画出其余约 309°，形成缺口圆盘而不是朝向小扇形。
+      clockwise: true
     )
     fan.close()
     directionLayer.frame = bounds
@@ -1785,7 +1787,7 @@ final class MarkerAnnotationView: MKAnnotationView {
     setNeedsLayout()
   }
 
-  /// 选中时展示分类图标、品牌色圆环和勾选标记，明确反馈当前选择。
+  /// 选中时展示分类图标和品牌色圆环；勾选标记暂时隐藏。
   func setHighlighted(_ highlighted: Bool) {
     guard isPoiHighlighted != highlighted else { return }
     isPoiHighlighted = highlighted
@@ -1826,7 +1828,9 @@ final class MarkerAnnotationView: MKAnnotationView {
   override func layoutSubviews() {
     super.layoutSubviews()
     selectionHalo.isHidden = !isPoiHighlighted || isRouteMarker
-    selectionCheck.isHidden = !isPoiHighlighted || isRouteMarker
+    // 暂时隐藏 POI 勾选标记，恢复时取消下一行注释并移除固定隐藏。
+    // selectionCheck.isHidden = !isPoiHighlighted || isRouteMarker
+    selectionCheck.isHidden = true
     if isRouteMarker {
       layoutRouteMarker()
     } else if isPoiHighlighted {

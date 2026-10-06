@@ -7,9 +7,11 @@ import '../../../../app/theme/sipon_theme_colors.dart';
 import '../../../../shared/services/sipon_api_client.dart';
 import '../../../../shared/services/sipon_api_models.dart';
 import '../../../../shared/services/sipon_api_service.dart';
-import '../../virtual_drinking/models/virtual_drinking_models.dart';
+// 虚拟饮酒模块暂时停用。
+// import '../../virtual_drinking/models/virtual_drinking_models.dart';
 import '../../../../shared/localization/language_transform.dart';
-import '../../virtual_drinking/pages/virtual_drinking_page.dart';
+// 虚拟饮酒模块暂时停用。
+// import '../../virtual_drinking/pages/virtual_drinking_page.dart';
 import '../data/recipe_ingredient_repository.dart';
 import '../data/cocktail_image_cache.dart';
 import '../widgets/drink_detail_cover.dart';
@@ -48,7 +50,8 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
   static const String _fallbackAsset = 'assest/首页/图片素材/鸡尾酒系列1.png';
 
   late final SiponApiService _api = widget.apiService ?? SiponApiService();
-  late final Future<String?> _virtualDrinkCode = _findVirtualDrinkCode();
+  // 虚拟饮酒模块暂时停用。
+  //   late final Future<String?> _virtualDrinkCode = _findVirtualDrinkCode();
 
   CocktailDetailInfo? _detail;
   List<RecipeIngredient> _recipeIngredients = const [];
@@ -134,20 +137,20 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
     );
   }
 
-  Future<String?> _findVirtualDrinkCode() async {
-    try {
-      final catalog = VirtualDrinkingCatalog.fromJson(
-        await _api.getVirtualDrinkingBootstrap(),
-      );
-      for (final drink in catalog.drinks) {
-        if (drink.cocktailId == widget.cocktailId) return drink.code;
-      }
-    } on Exception {
-      // 目录不可用时仍可正常阅读鸡尾酒百科。
-    }
-    return null;
-  }
-
+  //   Future<String?> _findVirtualDrinkCode() async {
+  //     try {
+  //       final catalog = VirtualDrinkingCatalog.fromJson(
+  //         await _api.getVirtualDrinkingBootstrap(),
+  //       );
+  //       for (final drink in catalog.drinks) {
+  //         if (drink.cocktailId == widget.cocktailId) return drink.code;
+  //       }
+  //     } on Exception {
+  //       // 目录不可用时仍可正常阅读鸡尾酒百科。
+  //     }
+  //     return null;
+  //   }
+  //
   /// 把异常转为用户可读文案。
   String _describeError(Exception error) {
     if (error is SiponApiException) {
@@ -340,30 +343,30 @@ class _CocktailDetailPageState extends State<CocktailDetailPage> {
             ),
             sliver: SliverList.list(
               children: [
-                FutureBuilder<String?>(
-                  future: _virtualDrinkCode,
-                  builder: (context, snapshot) {
-                    final code = snapshot.data;
-                    if (code == null) return const SizedBox.shrink();
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 18),
-                      child: FilledButton.icon(
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) =>
-                                VirtualDrinkingPage(initialDrinkCode: code),
-                          ),
-                        ),
-                        icon: const Icon(Icons.nightlife_rounded),
-                        label: Text(text.t('在虚拟小酌体验这杯')),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: scheme.primary,
-                          minimumSize: const Size.fromHeight(46),
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                //                 FutureBuilder<String?>(
+                //                   future: _virtualDrinkCode,
+                //                   builder: (context, snapshot) {
+                //                     final code = snapshot.data;
+                //                     if (code == null) return const SizedBox.shrink();
+                //                     return Padding(
+                //                       padding: const EdgeInsets.only(bottom: 18),
+                //                       child: FilledButton.icon(
+                //                         onPressed: () => Navigator.of(context).push(
+                //                           MaterialPageRoute<void>(
+                //                             builder: (_) =>
+                //                                 VirtualDrinkingPage(initialDrinkCode: code),
+                //                           ),
+                //                         ),
+                //                         icon: const Icon(Icons.nightlife_rounded),
+                //                         label: Text(text.t('在虚拟小酌体验这杯')),
+                //                         style: FilledButton.styleFrom(
+                //                           backgroundColor: scheme.primary,
+                //                           minimumSize: const Size.fromHeight(46),
+                //                         ),
+                //                       ),
+                //                     );
+                //                   },
+                //                 ),
                 // 简介。
                 if (summary.description != null &&
                     summary.description!.isNotEmpty) ...[

@@ -21,7 +21,8 @@ import 'package:sipon/features/drinks/cocktails/pages/cocktail_detail_page.dart'
 import 'package:sipon/features/drinks/cocktails/pages/cocktail_list_page.dart';
 import 'package:sipon/features/drinks/cocktails/pages/ingredient_list_page.dart';
 import 'package:sipon/shared/localization/language_transform.dart';
-import 'package:sipon/features/drinks/virtual_drinking/pages/virtual_drinking_page.dart';
+// 虚拟饮酒模块暂时停用，恢复时取消相关导入和入口的注释。
+// import 'package:sipon/features/drinks/virtual_drinking/pages/virtual_drinking_page.dart';
 
 part '../widgets/home_top_and_prompts.dart';
 part '../widgets/home_data_widgets.dart';
@@ -250,19 +251,19 @@ class _HomePageState extends State<HomePage> {
                           const SizedBox(height: 14),
                           const _CocktailScroller(),
                           const SizedBox(height: 18),
-                          Padding(
-                            padding: const EdgeInsets.only(
-                              right: HomePage.contentHorizontalPadding,
-                            ),
-                            child: _VirtualDrinkingPrompt(
-                              onPressed: () => Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => const VirtualDrinkingPage(),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 18),
+                          // Padding(
+                          // padding: const EdgeInsets.only(
+                          // right: HomePage.contentHorizontalPadding,
+                          // ),
+                          // child: _VirtualDrinkingPrompt(
+                          // onPressed: () => Navigator.of(context).push(
+                          // MaterialPageRoute<void>(
+                          // builder: (_) => const VirtualDrinkingPage(),
+                          // ),
+                          // ),
+                          // ),
+                          // ),
+                          // const SizedBox(height: 18),
                           Padding(
                             padding: const EdgeInsets.only(
                               right: HomePage.contentHorizontalPadding,

@@ -275,10 +275,9 @@ class _RankingCard extends StatelessWidget {
 }
 
 class _RankingTile extends StatelessWidget {
-  const _RankingTile({required this.item, this.compact = false, this.onTap});
+  const _RankingTile({required this.item, this.onTap});
 
   final _RankingItem item;
-  final bool compact;
 
   /// 点击这一行动项时的回调，用于跳转到对应地点详情页。
   final VoidCallback? onTap;
@@ -295,11 +294,11 @@ class _RankingTile extends StatelessWidget {
             child: _HomeVenueImage(
               imageUrl: item.imageUrl,
               assetPath: item.imagePath,
-              width: compact ? 58 : 60,
-              height: compact ? 58 : 60,
+              width: 60,
+              height: 60,
             ),
           ),
-          if (!compact) ...[
+          ...[
             const SizedBox(width: 14),
             Expanded(
               child: Column(

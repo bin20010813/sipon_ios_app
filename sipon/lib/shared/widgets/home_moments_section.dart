@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../../app/theme/sipon_theme_colors.dart';
@@ -46,14 +44,11 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
   late final HomeMomentsRepository _repository =
       widget.repository ?? HomeMomentsRepository();
   late final SiponApiService _api = widget.apiService ?? SiponApiService();
-  final _searchController = TextEditingController();
   final List<HomeMoment> _moments = [];
   final Set<int> _reacting = {};
   final Set<int> _following = {};
   int? _viewerId;
-  Timer? _searchDebounce;
   List<BarSubtypeOption> _subtypes = const [];
-  String? _subtype;
   String _scope = 'all';
   String _sort = 'latest';
   bool _allCities = false;
@@ -114,8 +109,6 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
   @override
   void dispose() {
     _generation++;
-    _searchDebounce?.cancel();
-    _searchController.dispose();
     super.dispose();
   }
 
@@ -155,10 +148,6 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
     final offset = replace ? 0 : _nextOffset;
     final query = HomeFeedQuery(
       city: _allCities ? null : widget.city,
-      keyword: _searchController.text.trim().isEmpty
-          ? null
-          : _searchController.text.trim(),
-      barSubtype: _subtype,
       scope: _scope,
       sort: _sort,
       limit: _pageSize,
@@ -192,13 +181,6 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
     }
   }
 
-  void _onKeywordChanged(String _) {
-    _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
-      if (mounted) refresh(clear: true);
-    });
-  }
-
   Future<bool> _ensureLogin({bool force = false}) async {
     if (!force && _signedIn) return true;
     final loggedIn = await Navigator.of(context).push<bool>(
@@ -224,6 +206,10 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
   }
 
   Future<void> _toggleLike(HomeMoment moment) async {
+    if (moment.entry['preview'] == true) {
+      _showPreviewNotice();
+      return;
+    }
     if (_reacting.contains(moment.id)) return;
     if (!await _ensureLogin() || !mounted) return;
     final index = _moments.indexWhere((item) => item.id == moment.id);
@@ -253,6 +239,10 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
   }
 
   Future<void> _toggleFollow(HomeMoment moment) async {
+    if (moment.entry['preview'] == true) {
+      _showPreviewNotice();
+      return;
+    }
     final authorId = moment.author.id;
     if (authorId == null ||
         authorId == _viewerId ||
@@ -293,6 +283,10 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
   }
 
   Future<void> _openComments(HomeMoment moment) async {
+    if (moment.entry['preview'] == true) {
+      _showPreviewNotice();
+      return;
+    }
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -319,7 +313,41 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
     );
   }
 
+  void _showPreviewNotice() {
+    showSiponMessage(context, '模拟动态，仅供预览展示');
+  }
+
   void _openMoment(HomeMoment moment) {
+    if (moment.entry['preview'] == true) {
+      showDialog<void>(
+        context: context,
+        builder: (context) => Dialog(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AspectRatio(
+                aspectRatio: 1,
+                child: PageView(
+                  children: [
+                    for (final photo in moment.photos)
+                      Image.asset(photo, fit: BoxFit.contain),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  moment.entry['previewDuration'] != null
+                      ? '模拟视频封面 · 暂不支持播放'
+                      : '模拟照片动态 · 左右滑动查看',
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => _ActivityCheckInDetailPage(moment: moment, api: _api),
@@ -328,6 +356,10 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
   }
 
   void _openVenue(HomeMoment moment) {
+    if (moment.entry['preview'] == true) {
+      _showPreviewNotice();
+      return;
+    }
     if (moment.venue.id.isEmpty) return;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -415,52 +447,13 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
                     if (mounted) await refresh();
                   },
                   icon: const Icon(Icons.add_rounded, size: 18),
-                  label: Text(text.t('发布打卡')),
+                  label: Text(text.t('发布动态')),
                 ),
             ],
           ),
           Text(
             text.t(_allCities ? '全部城市的公开打卡' : '当前城市的公开打卡'),
             style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: _searchController,
-            onChanged: _onKeywordChanged,
-            maxLength: 100,
-            style: TextStyle(fontSize: 14, color: colors.onSurface),
-            decoration: InputDecoration(
-              hintText: text.t('搜索酒吧或动态内容'),
-              prefixIcon: const Icon(Icons.search_rounded, size: 20),
-              suffixIcon: _searchController.text.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: text.t('清除搜索'),
-                      icon: const Icon(Icons.close_rounded, size: 18),
-                      onPressed: () {
-                        _searchDebounce?.cancel();
-                        _searchController.clear();
-                        refresh(clear: true);
-                      },
-                    ),
-              counterText: '',
-              isDense: true,
-              filled: true,
-              fillColor: colors.surface,
-              contentPadding: const EdgeInsets.symmetric(vertical: 15),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(
-                  color: colors.outlineVariant.withValues(alpha: 0.5),
-                ),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(
-                  color: colors.outlineVariant.withValues(alpha: 0.5),
-                ),
-              ),
-            ),
           ),
           const SizedBox(height: 20),
           Row(
@@ -484,29 +477,6 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        PopupMenuButton<String?>(
-                          tooltip: text.t('品类'),
-                          onSelected: (value) {
-                            if (_subtype == value) return;
-                            setState(() => _subtype = value);
-                            refresh(clear: true);
-                          },
-                          itemBuilder: (_) => [
-                            PopupMenuItem<String?>(
-                              value: null,
-                              child: Text(text.t('全部品类')),
-                            ),
-                            for (final option in _subtypes)
-                              PopupMenuItem<String?>(
-                                value: option.code,
-                                child: Text(text.t(option.name)),
-                              ),
-                          ],
-                          child: _filterLabel(
-                            text.t(subtypeName[_subtype] ?? '全部品类'),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
                         PopupMenuButton<String>(
                           tooltip: text.t('排序'),
                           onSelected: (value) {
@@ -794,32 +764,18 @@ class _MomentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
     final colors = Theme.of(context).colorScheme;
-    final date = moment.createdAt;
-    final dateLabel = date == null
-        ? ''
-        : '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}';
+    final category = subtypeName ?? moment.barCategory ?? moment.barSubtype;
     final location = [
       moment.city,
       moment.address,
-    ].whereType<String>().where((value) => value.isNotEmpty).join(' · ');
-    final category = subtypeName ?? moment.barCategory ?? moment.barSubtype;
-    final metadata = [
-      if (dateLabel.isNotEmpty) dateLabel,
-      if (moment.author.checkInCount != null)
-        '${moment.author.checkInCount} ${text.t('条公开评价')}',
-    ].join(' · ');
-    final liked = moment.myReaction == 'like';
+      moment.priceRange,
+    ].whereType<String>().where((value) => value.isNotEmpty).join(' | ');
     return Material(
       color: context.siponColors.elevatedSurface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.45)),
-      ),
-      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onOpen,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          padding: const EdgeInsets.symmetric(vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -828,277 +784,275 @@ class _MomentCard extends StatelessWidget {
                   InkWell(
                     onTap: onOpenAuthor,
                     customBorder: const CircleBorder(),
-                    child: CircleAvatar(
-                      radius: 20,
-                      backgroundColor: context.siponColors.brandSurface,
-                      child: ClipOval(
-                        child: SizedBox(
-                          width: 40,
-                          height: 40,
-                          child: moment.author.avatarUrl == null
-                              ? Icon(
-                                  Icons.person_rounded,
-                                  color: colors.primary,
-                                  size: 23,
-                                )
-                              : SiponNetworkImage(
-                                  url: moment.author.avatarUrl!,
-                                  auth: true,
-                                  fallbackWidget: Icon(
-                                    Icons.person_rounded,
-                                    color: colors.primary,
-                                  ),
-                                ),
+                    child: ClipOval(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: moment.author.avatarUrl == null
+                            ? ColoredBox(
+                                color: context.siponColors.brandSurface,
+                                child: Icon(Icons.person_rounded, size: 16),
+                              )
+                            : SiponNetworkImage(
+                                url: moment.author.avatarUrl!,
+                                auth: true,
+                              ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: InkWell(
+                      onTap: onOpenAuthor,
+                      child: Text(
+                        moment.author.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: InkWell(
-                      onTap: onOpenAuthor,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            moment.author.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: colors.onSurface,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          if (metadata.isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              metadata,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: colors.onSurfaceVariant,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
+                  const SizedBox(width: 8),
+                  Text(
+                    text.t('分享'),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  if (onFollow != null) ...[
-                    const SizedBox(width: 8),
+                  const Spacer(),
+                  if (onFollow != null)
                     TextButton(
                       onPressed: followingBusy ? null : onFollow,
                       style: TextButton.styleFrom(
-                        foregroundColor: moment.author.isFollowing == true
-                            ? colors.onSurfaceVariant
-                            : colors.primary,
-                        backgroundColor: moment.author.isFollowing == true
-                            ? context.siponColors.subtleSurface
-                            : context.siponColors.brandSurface,
-                        minimumSize: const Size(60, 36),
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        shape: const StadiumBorder(),
-                        textStyle: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        minimumSize: const Size(44, 32),
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
                       ),
                       child: Text(
                         text.t(
-                          moment.author.isFollowing == true ? '已关注' : '+ 关注',
+                          moment.author.isFollowing == true ? '已关注' : '关注',
                         ),
                       ),
                     ),
-                  ],
                 ],
               ),
-              if (moment.content.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Text(
-                  moment.content,
-                  maxLines: 5,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: colors.onSurface,
-                    fontSize: 15,
-                    height: 1.6,
-                  ),
-                ),
-              ],
-              if (moment.photos.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                SizedBox(
-                  height: 172,
-                  child: ListView.separated(
-                    key: ValueKey('moment-photos-${moment.id}'),
-                    scrollDirection: Axis.horizontal,
-                    itemCount: moment.photos.length,
-                    separatorBuilder: (_, index) => const SizedBox(width: 8),
-                    itemBuilder: (_, index) => ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: SiponNetworkImage(
-                        url: moment.photos[index],
-                        width: 172,
-                        height: 172,
-                        fallbackWidget: ColoredBox(
-                          color: context.siponColors.subtleSurface,
-                          child: Icon(
-                            Icons.image_outlined,
-                            color: colors.onSurfaceVariant,
-                          ),
-                        ),
+              const SizedBox(height: 14),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (moment.photos.isNotEmpty) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: SizedBox(
+                        width: 104,
+                        height: 104,
+                        child: moment.photos.isEmpty
+                            ? ColoredBox(
+                                color: context.siponColors.subtleSurface,
+                                child: Icon(
+                                  Icons.local_bar_outlined,
+                                  color: colors.onSurfaceVariant,
+                                  size: 32,
+                                ),
+                              )
+                            : PageView.builder(
+                                key: ValueKey('moment-photos-${moment.id}'),
+                                itemCount: moment.photos.length,
+                                itemBuilder: (_, index) =>
+                                    moment.entry['preview'] == true
+                                    ? Stack(
+                                        fit: StackFit.expand,
+                                        children: [
+                                          Image.asset(
+                                            moment.photos[index],
+                                            fit: BoxFit.cover,
+                                          ),
+                                          if (moment.entry['previewDuration'] !=
+                                              null)
+                                            const Center(
+                                              child: Icon(
+                                                Icons.play_circle_fill_rounded,
+                                                color: Colors.white,
+                                                size: 38,
+                                              ),
+                                            ),
+                                          Positioned(
+                                            right: 4,
+                                            bottom: 4,
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 5,
+                                                    vertical: 2,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.black54,
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                moment.entry['previewDuration']
+                                                        as String? ??
+                                                    '${index + 1}/${moment.photos.length}',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 10,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    : SiponNetworkImage(
+                                        url: moment.photos[index],
+                                        fallbackWidget: ColoredBox(
+                                          color:
+                                              context.siponColors.subtleSurface,
+                                          child: Icon(Icons.image_outlined),
+                                        ),
+                                      ),
+                              ),
                       ),
                     ),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 14),
-              Material(
-                color: context.siponColors.subtleSurface,
-                borderRadius: BorderRadius.circular(12),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: onOpenVenue,
-                  child: Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: Row(
+                    const SizedBox(width: 12),
+                  ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: SizedBox(
-                            width: 56,
-                            height: 56,
-                            child: moment.venue.imageUrl == null
-                                ? Image.asset(
-                                    moment.venue.imageAsset,
-                                    fit: BoxFit.cover,
-                                  )
-                                : SiponNetworkImage(
-                                    url: moment.venue.imageUrl!,
-                                    fallbackAsset: moment.venue.imageAsset,
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: InkWell(
+                                onTap: onOpenVenue,
+                                child: Text(
+                                  moment.venue.name,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: colors.onSurface,
+                                    height: 1.3,
                                   ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                moment.venue.name,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: colors.onSurface,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  height: 1.4,
                                 ),
                               ),
-                              if (category != null ||
-                                  moment.priceRange != null) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  [
-                                    if (category != null) text.t(category),
-                                    if (moment.priceRange != null)
-                                      moment.priceRange!,
-                                  ].join(' · '),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: colors.onSurfaceVariant,
-                                    fontSize: 11,
+                            ),
+                            const SizedBox(width: 4),
+                            SizedBox(
+                              width: 32,
+                              child: InkWell(
+                                onTap: onLike,
+                                borderRadius: BorderRadius.circular(8),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 2,
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Icon(
+                                        moment.myReaction == 'like'
+                                            ? Icons.favorite_rounded
+                                            : Icons.favorite_border_rounded,
+                                        size: 21,
+                                        color: moment.myReaction == 'like'
+                                            ? Theme.of(
+                                                context,
+                                              ).colorScheme.primary
+                                            : colors.onSurfaceVariant,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '${moment.likeCount}',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ],
-                              if (location.isNotEmpty) ...[
-                                const SizedBox(height: 3),
-                                Text(
-                                  location,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: colors.onSurfaceVariant,
-                                    fontSize: 10,
-                                  ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (location.isNotEmpty) ...[
+                          const SizedBox(height: 5),
+                          Text(
+                            location,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                        if (category != null || moment.rating != null) ...[
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 5,
+                            runSpacing: 5,
+                            children: [
+                              if (moment.rating != null)
+                                _tag(
+                                  context,
+                                  '★ ${moment.rating}/5',
+                                  highlighted: true,
                                 ),
-                              ],
+                              if (category != null)
+                                _tag(context, text.t(category)),
                             ],
                           ),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          color: colors.onSurfaceVariant,
-                          size: 18,
+                        ],
+                        if (moment.content.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            moment.content,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              height: 1.6,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: onComments,
+                            style: TextButton.styleFrom(
+                              foregroundColor: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
+                              minimumSize: const Size(44, 32),
+                            ),
+                            icon: const Icon(
+                              Icons.mode_comment_outlined,
+                              size: 15,
+                            ),
+                            label: Text(
+                              '${moment.commentCount}',
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                          ),
                         ),
                       ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  if (moment.rating != null) ...[
-                    Icon(
-                      Icons.star_rounded,
-                      color: context.siponColors.starRating,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 3),
-                    Text(
-                      '${moment.rating}/5',
-                      style: TextStyle(
-                        color: colors.onSurfaceVariant,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                  const Spacer(),
-                  TextButton.icon(
-                    onPressed: onLike,
-                    style: TextButton.styleFrom(
-                      foregroundColor: liked
-                          ? colors.primary
-                          : colors.onSurfaceVariant,
-                      minimumSize: const Size(48, 44),
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      textStyle: const TextStyle(fontSize: 12),
-                    ),
-                    icon: Icon(
-                      liked
-                          ? Icons.favorite_rounded
-                          : Icons.favorite_border_rounded,
-                      size: 19,
-                    ),
-                    label: Text(
-                      moment.likeCount == 0
-                          ? text.t('赞')
-                          : '${moment.likeCount}',
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  TextButton.icon(
-                    onPressed: onComments,
-                    style: TextButton.styleFrom(
-                      foregroundColor: colors.onSurfaceVariant,
-                      minimumSize: const Size(48, 44),
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      textStyle: const TextStyle(fontSize: 12),
-                    ),
-                    icon: const Icon(
-                      Icons.chat_bubble_outline_rounded,
-                      size: 18,
-                    ),
-                    label: Text(
-                      moment.commentCount == 0
-                          ? text.t('评论')
-                          : '${moment.commentCount}',
                     ),
                   ),
                 ],
@@ -1109,4 +1063,26 @@ class _MomentCard extends StatelessWidget {
       ),
     );
   }
+
+  Widget _tag(BuildContext context, String label, {bool highlighted = false}) =>
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        decoration: BoxDecoration(
+          color: highlighted
+              ? context.siponColors.brandSurface
+              : context.siponColors.subtleSurface,
+          borderRadius: BorderRadius.circular(5),
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 10,
+            color: highlighted
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      );
 }

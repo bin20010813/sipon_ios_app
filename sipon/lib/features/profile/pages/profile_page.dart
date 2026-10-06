@@ -95,8 +95,6 @@ class ProfilePage extends StatefulWidget {
 
   static const Color _brand = Color(0xFF9A3D78);
   static const Color _ink = Color(0xFF292B32);
-  static const Color _muted = Color(0xFF8E8790);
-  static const Color _line = Color(0xFFF1EBEF);
 
   static const String _avatarAsset = 'assest/首页/图片素材/Bharat Balami.png';
   static const String _drunkAsset = 'assest/我的/我喝过的@3x.png';
