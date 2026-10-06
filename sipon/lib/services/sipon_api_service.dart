@@ -85,7 +85,8 @@ class SiponApiService {
   Future<void> deleteDevice(String deviceId) =>
       _deleteEmpty('/api/users/me/devices/${Uri.encodeComponent(deviceId)}');
 
-  Future<dynamic> getMembership() => _get('/api/users/me/membership');
+  // Sipon 会员暂时隐藏，保留接口待后续启用。
+  // Future<dynamic> getMembership() => _get('/api/users/me/membership');
 
   Future<List<dynamic>> getCoupons() => _getList('/api/users/me/coupons');
 
