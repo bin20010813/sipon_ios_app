@@ -41,6 +41,8 @@ String _formatCurrency(double value) {
   return '${negative ? '-' : ''}¥$reversed$decimals';
 }
 
+// Sipon 会员暂时隐藏，保留代码待后续启用。
+/*
 String _romanNumeral(int value) {
   if (value <= 0 || value > 3999) return '—';
   const numerals = <(int, String)>[
@@ -68,6 +70,8 @@ String _romanNumeral(int value) {
   }
   return result.toString();
 }
+
+*/
 
 void _showProfileMessage(BuildContext context, String message) {
   ScaffoldMessenger.of(context)
@@ -102,7 +106,8 @@ class ProfilePage extends StatefulWidget {
   static const String _drunkAsset = 'assest/我的/我喝过的@3x.png';
   static const String _wishAsset = 'assest/我的/我想喝的@3x.png';
   static const String _routeAsset = 'assest/我的/酒鬼线路@3x.png';
-  static const String _memberAsset = 'assest/我的/Sipon会员@3x.png';
+  // Sipon 会员暂时隐藏，保留资源引用待后续启用。
+  // static const String _memberAsset = 'assest/我的/Sipon会员@3x.png';
   static const String _couponAsset = 'assest/我的/我的礼券@3x.png';
   // static const String _achievementAsset = 'assest/我的/成就勋章@3x.png';
 
@@ -333,15 +338,16 @@ class ProfilePageState extends State<ProfilePage> {
                         const SizedBox(height: 12),
                         _ProfileListCard(
                           rows: [
-                            _ProfileListRow(
-                              assetPath: ProfilePage._memberAsset,
-                              title: text.membership,
-                              badge: text.membershipLimitedTime,
-                              onTap: () => _showMembershipSheet(
-                                context,
-                                userLevel: _profile?.level,
-                              ),
-                            ),
+                            // Sipon 会员暂时隐藏，保留入口待后续启用。
+                            // _ProfileListRow(
+                            //   assetPath: ProfilePage._memberAsset,
+                            //   title: text.membership,
+                            //   badge: text.membershipLimitedTime,
+                            //   onTap: () => _showMembershipSheet(
+                            //     context,
+                            //     userLevel: _profile?.level,
+                            //   ),
+                            // ),
                             _ProfileListRow(
                               assetPath: ProfilePage._couponAsset,
                               title: text.vouchers,
@@ -1353,6 +1359,8 @@ Future<void> _showAchievementList(BuildContext context) {
 }
 */
 
+// Sipon 会员暂时隐藏，保留代码待后续启用。
+/*
 /// 打开「Sipon 会员」摘要弹窗：GET /api/users/me/membership。
 void _showMembershipSheet(BuildContext context, {int? userLevel}) {
   showModalBottomSheet<void>(
@@ -1621,6 +1629,8 @@ class _MembershipSheetState extends State<_MembershipSheet> {
     );
   }
 }
+
+*/
 
 /// 个人中心列表的单页数据：条目 + 是否还有下一页。
 class _ProfileListPage {
