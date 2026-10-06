@@ -211,7 +211,9 @@ class _AddVenuePageState extends State<AddVenuePage> {
 
     setState(() => _submitting = true);
     try {
-      final mediaUrls = await _uploadImages(_photos, purpose: 'poi_storefront');
+      // POI images use the supported generic upload purpose; the submission
+      // fields below describe how the photos are used.
+      final mediaUrls = await _uploadImages(_photos, purpose: 'feedback');
       // One photo gallery in the UI; retain the legacy field for API compatibility.
       final body = <String, Object?>{
         'name': _nameController.text.trim(),
