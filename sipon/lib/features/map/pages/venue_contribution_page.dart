@@ -64,13 +64,15 @@ class _VenueContributionPageState extends State<VenueContributionPage> {
 
     setState(() => _submitting = true);
     try {
+      // The upload API accepts feedback for generic images. Storefront/menu
+      // classification belongs in the POI submission fields below.
       final storefrontMediaUrls = await _uploadImages(
         _storefrontImages,
-        purpose: 'poi_storefront',
+        purpose: 'feedback',
       );
       final menuMediaUrls = await _uploadImages(
         _menuImages,
-        purpose: 'poi_menu',
+        purpose: 'feedback',
       );
       final body = <String, Object?>{
         'name': widget.venue.name,
