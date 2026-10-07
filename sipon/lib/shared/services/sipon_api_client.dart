@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'sipon_api_config.dart';
@@ -64,13 +65,13 @@ class SiponApiClient {
       queryParameters: queryParameters,
     );
 
-    return _decode(response);
+    return _decode(response, debugEndpoint: _debugEndpoint('POST', path));
   }
 
   Future<dynamic> postUnauthenticatedJson(String path, {Object? body}) async {
     final response = await _send('POST', path, body: body, includeAuth: false);
 
-    return _decode(response);
+    return _decode(response, debugEndpoint: _debugEndpoint('POST', path));
   }
 
   Future<dynamic> putJson(
@@ -149,10 +150,10 @@ class SiponApiClient {
       ),
     );
 
-    var response = await http.Response.fromStream(
-      await _httpClient.send(request).timeout(config.timeout),
-    ).timeout(config.timeout);
-    if (response.statusCode == 401 && await _refreshSession()) {
+    final debugEndpoint = _debugEndpoint('POST', path);
+    var response = await _sendRequest(request, attempt: 1);
+    if (response.statusCode == 401 &&
+        await _refreshSession(debugEndpoint: debugEndpoint)) {
       final retry = http.MultipartRequest(
         'POST',
         config.uri(path, queryParameters),
@@ -169,11 +170,9 @@ class SiponApiClient {
           contentType: http.MediaType.parse(mimeType),
         ),
       );
-      response = await http.Response.fromStream(
-        await _httpClient.send(retry).timeout(config.timeout),
-      ).timeout(config.timeout);
+      response = await _sendRequest(retry, attempt: 2);
     }
-    return _decode(response);
+    return _decode(response, debugEndpoint: debugEndpoint);
   }
 
   Future<http.Response> _send(
@@ -184,6 +183,8 @@ class SiponApiClient {
     bool includeAuth = true,
     bool acceptJson = true,
   }) async {
+    final debugEndpoint = _debugEndpoint(method, path);
+    var attempt = 0;
     Future<http.Response> sendOnce() async {
       final request = http.Request(method, config.uri(path, queryParameters));
       request.headers.addAll(
@@ -199,50 +200,164 @@ class SiponApiClient {
       if (body != null) {
         request.body = jsonEncode(body);
       }
-      return http.Response.fromStream(
-        await _httpClient.send(request).timeout(config.timeout),
-      ).timeout(config.timeout);
+      return _sendRequest(request, attempt: ++attempt);
     }
 
     var response = await sendOnce();
+    if (response.statusCode == 401 && !includeAuth) {
+      _debugLog(debugEndpoint, 'refresh unavailable includeAuth=false');
+    }
     if (!includeAuth ||
         response.statusCode != 401 ||
-        !await _refreshSession()) {
+        !await _refreshSession(debugEndpoint: debugEndpoint)) {
       return response;
     }
     return sendOnce();
   }
 
-  static Future<bool> _refreshSession() async {
-    final refresher = _sharedSessionRefresher;
-    if (refresher == null || _sharedSessionAccessToken == null) return false;
-    final pending = _refreshingSession ??= refresher();
+  Future<http.Response> _sendRequest(
+    http.BaseRequest request, {
+    required int attempt,
+  }) async {
+    final endpoint = _debugEndpoint(request.method, request.url.path);
+    if (endpoint == null) {
+      return http.Response.fromStream(
+        await _httpClient.send(request).timeout(config.timeout),
+      ).timeout(config.timeout);
+    }
+
+    final stopwatch = Stopwatch()..start();
+    var stage = 'send';
+    _debugLog(
+      endpoint,
+      'attempt=$attempt stage=$stage '
+      'hasAuthorization=${request.headers.containsKey('Authorization')} '
+      'hasSessionRefresher=${_sharedSessionRefresher != null} '
+      'timeoutMs=${config.timeout.inMilliseconds}',
+    );
     try {
-      final accessToken = await pending;
-      return accessToken?.trim().isNotEmpty == true;
+      final streamed = await _httpClient.send(request).timeout(config.timeout);
+      stage = 'read';
+      _debugLog(
+        endpoint,
+        'attempt=$attempt stage=$stage status=${streamed.statusCode} '
+        'elapsedMs=${stopwatch.elapsedMilliseconds} '
+        'contentType=${streamed.headers['content-type']} '
+        'requestId=${streamed.headers['x-request-id']}',
+      );
+      final response = await http.Response.fromStream(
+        streamed,
+      ).timeout(config.timeout);
+      _debugLog(
+        endpoint,
+        'attempt=$attempt stage=complete status=${response.statusCode} '
+        'elapsedMs=${stopwatch.elapsedMilliseconds} '
+        'responseBytes=${response.bodyBytes.length} '
+        'contentType=${response.headers['content-type']} '
+        'requestId=${response.headers['x-request-id']}',
+      );
+      return response;
+    } catch (error, stack) {
+      _debugLog(
+        endpoint,
+        'attempt=$attempt stage=$stage elapsedMs=${stopwatch.elapsedMilliseconds} '
+        'exceptionType=${error.runtimeType}',
+        stack: stack,
+      );
+      rethrow;
     } finally {
-      if (identical(_refreshingSession, pending)) {
-        _refreshingSession = null;
-      }
+      stopwatch.stop();
     }
   }
 
-  dynamic _decode(http.Response response) {
-    _throwForError(response);
+  static String? _debugEndpoint(String method, String path) {
+    if (!kDebugMode || method != 'POST') return null;
+    final parsedPath = Uri.tryParse(path)?.path;
+    final endpoint = parsedPath?.startsWith('/') == true
+        ? parsedPath
+        : '/$parsedPath';
+    return endpoint == '/api/uploads' || endpoint == '/api/poi-submissions'
+        ? endpoint
+        : null;
+  }
+
+  static void _debugLog(String? endpoint, String message, {StackTrace? stack}) {
+    if (!kDebugMode || endpoint == null) return;
+    debugPrint('[VenueAPI] POST $endpoint $message');
+    if (stack != null) {
+      debugPrintStack(
+        stackTrace: stack,
+        label: '[VenueAPI] POST $endpoint stack',
+      );
+    }
+  }
+
+  static Future<bool> _refreshSession({String? debugEndpoint}) async {
+    _debugLog(debugEndpoint, 'refresh start status=401');
+    final refresher = _sharedSessionRefresher;
+    if (refresher == null || _sharedSessionAccessToken == null) {
+      _debugLog(
+        debugEndpoint,
+        'refresh unavailable hasSessionRefresher=${refresher != null} '
+        'hasSessionAccessToken=${_sharedSessionAccessToken != null}',
+      );
+      return false;
+    }
+    try {
+      _debugLog(debugEndpoint, 'refresh shared=${_refreshingSession != null}');
+      final pending = _refreshingSession ??= refresher();
+      try {
+        final accessToken = await pending;
+        final refreshed = accessToken?.trim().isNotEmpty == true;
+        _debugLog(debugEndpoint, 'refresh result=$refreshed');
+        return refreshed;
+      } finally {
+        if (identical(_refreshingSession, pending)) {
+          _refreshingSession = null;
+        }
+      }
+    } catch (error, stack) {
+      _debugLog(
+        debugEndpoint,
+        'refresh exceptionType=${error.runtimeType}',
+        stack: stack,
+      );
+      rethrow;
+    }
+  }
+
+  dynamic _decode(http.Response response, {String? debugEndpoint}) {
+    _throwForError(response, debugEndpoint: debugEndpoint);
     final body = _bodyText(response);
 
     if (body.trim().isEmpty) {
+      _debugLog(debugEndpoint, 'decode empty response');
       return null;
     }
 
-    return jsonDecode(body);
+    return _decodeJson(body, debugEndpoint: debugEndpoint);
   }
 
-  void _throwForError(http.Response response) {
+  dynamic _decodeJson(String body, {String? debugEndpoint}) {
+    try {
+      final value = jsonDecode(body);
+      _debugLog(debugEndpoint, 'decode success jsonType=${value.runtimeType}');
+      return value;
+    } catch (error, stack) {
+      _debugLog(
+        debugEndpoint,
+        'decode failure exceptionType=${error.runtimeType}',
+        stack: stack,
+      );
+      rethrow;
+    }
+  }
+
+  void _throwForError(http.Response response, {String? debugEndpoint}) {
     if (response.statusCode >= 200 && response.statusCode < 300) return;
     final body = _bodyText(response);
-    final payload = _tryDecodeObject(body);
-    throw SiponApiException(
+    final payload = _tryDecodeObject(body, debugEndpoint: debugEndpoint);
+    final error = SiponApiException(
       statusCode: response.statusCode,
       code: payload?['code']?.toString(),
       message:
@@ -252,12 +367,21 @@ class SiponApiClient {
       requestId:
           payload?['requestId']?.toString() ?? response.headers['x-request-id'],
     );
+    _debugLog(
+      debugEndpoint,
+      'apiError status=${error.statusCode} code=${error.code} '
+      'requestId=${error.requestId}',
+    );
+    throw error;
   }
 
-  Map<String, dynamic>? _tryDecodeObject(String body) {
-    if (body.trim().isEmpty) return null;
+  Map<String, dynamic>? _tryDecodeObject(String body, {String? debugEndpoint}) {
+    if (body.trim().isEmpty) {
+      _debugLog(debugEndpoint, 'decode empty response');
+      return null;
+    }
     try {
-      final value = jsonDecode(body);
+      final value = _decodeJson(body, debugEndpoint: debugEndpoint);
       return value is Map ? value.cast<String, dynamic>() : null;
     } on FormatException {
       return null;

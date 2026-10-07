@@ -142,7 +142,7 @@ class _SiponShellState extends State<_SiponShell> {
     }
     showSiponMessage(
       context,
-      '閰掗淇℃伅宸叉彁浜わ紝瀹℃牳閫氳繃鍚庝細鏄剧ず鍦ㄥ湴鍥句腑',
+      '酒馆信息已提交，审核通过后会显示在地图中',
       type: SiponMessageType.success,
     );
   }

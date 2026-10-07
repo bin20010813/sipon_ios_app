@@ -914,8 +914,21 @@ class _MomentCard extends StatelessWidget {
                   ],
                 ],
               ),
+              if (moment.rating != null) ...[
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    for (var i = 0; i < moment.rating!.clamp(0, 5); i++)
+                      Icon(
+                        Icons.star_rounded,
+                        color: context.siponColors.starRating,
+                        size: 18,
+                      ),
+                  ],
+                ),
+              ],
               if (moment.content.isNotEmpty) ...[
-                const SizedBox(height: 16),
+                SizedBox(height: moment.rating != null ? 6 : 16),
                 Text(
                   moment.content,
                   maxLines: 5,
@@ -1043,22 +1056,6 @@ class _MomentCard extends StatelessWidget {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  if (moment.rating != null) ...[
-                    Icon(
-                      Icons.star_rounded,
-                      color: context.siponColors.starRating,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 3),
-                    Text(
-                      '${moment.rating}/5',
-                      style: TextStyle(
-                        color: colors.onSurfaceVariant,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
                   const Spacer(),
                   TextButton.icon(
                     onPressed: onLike,

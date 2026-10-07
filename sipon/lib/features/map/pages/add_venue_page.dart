@@ -1,11 +1,11 @@
-import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:sipon/shared/localization/language_transform.dart';
-import 'package:sipon/shared/services/map/map_place_result.dart';
+
 import 'package:sipon/features/map/widgets/checkin_pin_icon.dart';
 import 'package:sipon/features/map/models/map_display_options.dart';
 import 'package:sipon/features/map/models/map_models.dart';
@@ -14,7 +14,7 @@ import 'package:sipon/features/map/models/map_viewport.dart';
 import 'package:sipon/features/map/platform/sipon_map_host.dart';
 import 'package:sipon/features/map/platform/map_engine.dart';
 import 'package:sipon/features/map/widgets/sipon_map_widget.dart';
-import 'package:sipon/features/map/widgets/map_theme.dart';
+
 import 'package:sipon/shared/services/sipon_api_client.dart';
 import 'package:sipon/shared/services/sipon_api_service.dart';
 import 'package:sipon/app/theme/sipon_theme_colors.dart';
@@ -34,8 +34,7 @@ class _AddVenuePageState extends State<AddVenuePage> {
   final _formKey = GlobalKey<FormState>();
   final _api = SiponApiService();
   final _nameController = TextEditingController();
-  final _addressController = TextEditingController();
-  final _cityController = TextEditingController();
+
   final _longitudeController = TextEditingController();
   final _latitudeController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -45,16 +44,37 @@ class _AddVenuePageState extends State<AddVenuePage> {
   final _photos = <XFile>[];
 
   late final MapSceneController _scene;
-  MapVenueKind _kind = MapVenueKind.pub;
+  MapVenueKind? _kind;
   bool _submitting = false;
-  bool _cityInitialized = false;
   bool _mapReady = false;
-  Timer? _addressSearchTimer;
-  int _addressSearchRevision = 0;
-  List<MapPlaceResult> _addressSuggestions = const [];
-  bool _addressSearching = false;
-  bool _addressSearchFailed = false;
-  bool _addressResolved = false;
+  final _debugId = DateTime.now().microsecondsSinceEpoch;
+  int _submissionAttempt = 0;
+
+  void _debugLog(String message, {Object? error, StackTrace? stackTrace}) {
+    if (!kDebugMode) return;
+    debugPrint('[AddVenue][$_debugId][attempt=$_submissionAttempt] $message');
+    if (error is SiponApiException) {
+      debugPrint(
+        '[AddVenue] HTTP error: status=${error.statusCode}, '
+        'code=${error.code}, path=${error.path}, requestId=${error.requestId}',
+      );
+    } else if (error != null) {
+      // FormatException may contain the response body; log only the type.
+      debugPrint('[AddVenue] exceptionType=${error.runtimeType}');
+    }
+    if (stackTrace != null) {
+      debugPrintStack(label: '[AddVenue] stack', stackTrace: stackTrace);
+    }
+  }
+
+  String _responseShape(dynamic response) {
+    if (response is Map) {
+      final data = response['data'];
+      return 'type=${response.runtimeType}, keys=${response.keys.toList()}, '
+          'dataKeys=${data is Map ? data.keys.toList() : null}';
+    }
+    return 'type=${response.runtimeType}';
+  }
 
   @override
   void initState() {
@@ -64,22 +84,12 @@ class _AddVenuePageState extends State<AddVenuePage> {
       onVenueTapped: (_) {},
       onBlankTapped: () {},
     );
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_cityInitialized) return;
-    _cityInitialized = true;
-    _cityController.text = SiponCityScope.controllerOf(context).city;
+    _debugLog('page.init locationMode=coordinatesOnly, addressSearch=disabled');
   }
 
   @override
   void dispose() {
-    _addressSearchTimer?.cancel();
     _nameController.dispose();
-    _addressController.dispose();
-    _cityController.dispose();
     _longitudeController.dispose();
     _latitudeController.dispose();
     _phoneController.dispose();
@@ -90,177 +100,183 @@ class _AddVenuePageState extends State<AddVenuePage> {
   }
 
   Future<void> _handleMapCreated(SiponMapHost host) async {
-    final city = SiponCityScope.controllerOf(context).city;
-    await _scene.attach(host, city: city, style: MapBaseStyle.standard);
-    if (!_scene.isAttached) return;
+    final timer = Stopwatch()..start();
+    var stage = 'attach';
+    _debugLog('map.init.start engine=${selectMapEngine().name}');
+    try {
+      final city = SiponCityScope.controllerOf(context).city;
+      await _scene.attach(host, city: city, style: MapBaseStyle.standard);
+      _debugLog(
+        'map.attach.complete attached=${_scene.isAttached}, '
+        'elapsedMs=${timer.elapsedMilliseconds}',
+      );
+      if (!_scene.isAttached) {
+        _debugLog('map.init.blocked reason=notAttached');
+        return;
+      }
 
-    final center = mapCenterForCity(city);
-    await _scene.focusOn(
-      longitude: center.longitude,
-      latitude: center.latitude,
-    );
-    final viewport = await _scene.readViewport();
-    if (!mounted) return;
-    // Android must report the actual screen center after its coordinate
-    // adapter. A bounds midpoint is not accurate enough for a submission.
-    if (selectMapEngine() == MapEngine.tianditu &&
-        viewport?.screenCenter == null) {
-      return;
-    }
-    _setSelectedLocation(viewport?.center ?? center);
-    setState(() => _mapReady = true);
-    if (_addressController.text.trim().isNotEmpty && !_addressResolved) {
-      _handleAddressChanged(_addressController.text);
+      final center = mapCenterForCity(city);
+      stage = 'focus';
+      await _scene.focusOn(
+        longitude: center.longitude,
+        latitude: center.latitude,
+      );
+      stage = 'readViewport';
+      final viewport = await _scene.readViewport();
+      _debugLog(
+        'map.viewport.read hasViewport=${viewport != null}, '
+        'hasScreenCenter=${viewport?.screenCenter != null}, mounted=$mounted',
+      );
+      if (!mounted) return;
+      // Android must report the actual screen center after its coordinate
+      // adapter. A bounds midpoint is not accurate enough for a submission.
+      if (selectMapEngine() == MapEngine.tianditu &&
+          viewport?.screenCenter == null) {
+        _debugLog('map.init.blocked reason=missingScreenCenter');
+        return;
+      }
+      _setSelectedLocation(viewport?.center ?? center);
+      setState(() => _mapReady = true);
+      _debugLog('map.init.ready elapsedMs=${timer.elapsedMilliseconds}');
+    } catch (error, stackTrace) {
+      _debugLog(
+        'map.init.failed stage=$stage, elapsedMs=${timer.elapsedMilliseconds}',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
     }
   }
 
   void _handleViewportSettled(MapViewport viewport) {
+    _debugLog(
+      'map.viewport.settled mapReady=$_mapReady, '
+      'hasScreenCenter=${viewport.screenCenter != null}',
+    );
     if (selectMapEngine() == MapEngine.tianditu &&
         viewport.screenCenter == null) {
+      _debugLog('map.location.ignored reason=missingScreenCenter');
       return;
     }
     _setSelectedLocation(viewport.center);
   }
 
   void _setSelectedLocation(MapLatLng location) {
-    if (!location.longitude.isFinite || !location.latitude.isFinite) return;
+    if (!location.longitude.isFinite || !location.latitude.isFinite) {
+      _debugLog('map.location.ignored reason=nonFiniteCoordinate');
+      return;
+    }
     _longitudeController.text = location.longitude.toStringAsFixed(6);
     _latitudeController.text = location.latitude.toStringAsFixed(6);
+    _debugLog(
+      'map.location.selected source=mapCenter, '
+      'longitude=${_longitudeController.text}, latitude=${_latitudeController.text}',
+    );
     if (mounted) setState(() {});
   }
 
-  void _handleAddressChanged(String value) {
-    _addressSearchTimer?.cancel();
-    final query = value.trim();
-    final revision = ++_addressSearchRevision;
-    setState(() {
-      _addressSuggestions = const [];
-      _addressSearching = query.isNotEmpty;
-      _addressSearchFailed = false;
-      _addressResolved = false;
-    });
-    if (query.isEmpty || !_mapReady) return;
-    _addressSearchTimer = Timer(const Duration(milliseconds: 350), () {
-      unawaited(_searchAddress(query, revision));
-    });
-  }
-
-  void _handleAddressSubmitted(String value) {
-    final query = value.trim();
-    if (query.isEmpty) return;
-    if (_addressSuggestions.isNotEmpty) {
-      _selectAddress(_addressSuggestions.first);
-      return;
-    }
-    _addressSearchTimer?.cancel();
-    final revision = ++_addressSearchRevision;
-    setState(() {
-      _addressSearching = true;
-      _addressSearchFailed = false;
-      _addressResolved = false;
-    });
-    unawaited(_searchAddress(query, revision, selectFirst: true));
-  }
-
-  Future<void> _searchAddress(
-    String query,
-    int revision, {
-    bool selectFirst = false,
-  }) async {
-    try {
-      final results = await _scene.searchPlaces(query);
-      if (!mounted || revision != _addressSearchRevision) return;
-      if (selectFirst && results.isNotEmpty) {
-        _selectAddress(results.first);
-        return;
-      }
-      setState(() {
-        _addressSuggestions = results;
-        _addressSearching = false;
-      });
-    } on Exception {
-      if (!mounted || revision != _addressSearchRevision) return;
-      setState(() {
-        _addressSuggestions = const [];
-        _addressSearching = false;
-        _addressSearchFailed = true;
-      });
-    }
-  }
-
-  void _selectAddress(MapPlaceResult place) {
-    _addressSearchTimer?.cancel();
-    _addressSearchRevision++;
-    _addressController.text = place.address.isEmpty
-        ? place.name
-        : place.address;
-    if (place.city.isNotEmpty) _cityController.text = place.city;
-    _setSelectedLocation(place.location);
-    setState(() {
-      _addressSuggestions = const [];
-      _addressSearching = false;
-      _addressSearchFailed = false;
-      _addressResolved = true;
-    });
-    FocusManager.instance.primaryFocus?.unfocus();
-    unawaited(
-      _scene.focusOn(
-        longitude: place.location.longitude,
-        latitude: place.location.latitude,
-      ),
-    );
-  }
-
   Future<void> _submit() async {
-    if (_submitting || !_formKey.currentState!.validate()) return;
-
-    // The Android display adapter currently uses an unverified
-    // WGS-84/CGCS2000 approximation. Keep precise coordinate submissions
-    // closed until surveyed control points confirm the required accuracy.
-    const androidCoordinateVerified = bool.fromEnvironment(
-      'SIPON_ANDROID_COORDINATE_VERIFIED',
-      defaultValue: false,
-    );
-    if (selectMapEngine() == MapEngine.tianditu && !androidCoordinateVerified) {
-      _showMessage('地点坐标仍在校验，暂不能提交');
+    if (_submitting) {
+      _debugLog('submit.blocked reason=alreadySubmitting');
       return;
     }
+    _submissionAttempt++;
+    _debugLog(
+      'submit.start engine=${selectMapEngine().name}, mapReady=$_mapReady, '
+      'photoCount=${_photos.length}, nameLength=${_nameController.text.trim().length}',
+    );
+    if (!_formKey.currentState!.validate()) {
+      _debugLog('submit.blocked reason=formValidation');
+      return;
+    }
+    _debugLog('submit.validation.passed');
 
     if (!_mapReady) {
+      _debugLog(
+        'submit.blocked reason=mapNotReady attached=${_scene.isAttached}',
+      );
       _showMessage('地图还在加载，请稍候再提交');
       return;
     }
     final longitude = _parseCoordinate(_longitudeController.text);
     final latitude = _parseCoordinate(_latitudeController.text);
-    if (longitude == null || latitude == null) return;
+    if (longitude == null || latitude == null) {
+      _debugLog(
+        'submit.blocked reason=coordinateParseFailed, '
+        'longitudeParsed=${longitude != null}, latitudeParsed=${latitude != null}',
+      );
+      return;
+    }
+    _debugLog(
+      'submit.coordinates.checked longitude=$longitude, latitude=$latitude, '
+      'finite=${longitude.isFinite && latitude.isFinite}, '
+      'inRange=${longitude >= -180 && longitude <= 180 && latitude >= -90 && latitude <= 90}',
+    );
 
+    final timer = Stopwatch()..start();
+    var stage = 'uploadImages';
     setState(() => _submitting = true);
     try {
+      _debugLog('images.upload.start count=${_photos.length}');
       final mediaUrls = await _uploadImages(_photos, purpose: 'poi_storefront');
+      _debugLog('images.upload.complete count=${mediaUrls.length}');
       // One photo gallery in the UI; retain the legacy field for API compatibility.
       final body = <String, Object?>{
-        'name': _nameController.text.trim(),
         'longitude': longitude,
         'latitude': latitude,
-        'subtypeCode': _kind.id,
+        if (_kind != null) 'subtypeCode': _kind!.id,
         if (mediaUrls.isNotEmpty) ...{
           'storefrontMediaUrls': mediaUrls,
           'mediaUrls': mediaUrls,
         },
       };
-      _addOptional(body, 'address', _emptyToNull(_addressController));
-      _addOptional(body, 'city', _emptyToNull(_cityController));
+
+      body['name'] = _nameController.text.trim();
       _addOptional(body, 'phoneNumber', _emptyToNull(_phoneController));
       _addOptional(body, 'openingHours', _emptyToNull(_openingHoursController));
       _addOptional(body, 'description', _emptyToNull(_descriptionController));
-      await _api.createPoiSubmission(body);
+      stage = 'createPoiSubmission';
+      _debugLog(
+        'submission.request.start endpoint=/api/poi-submissions, '
+        'fields=${body.keys.toList()}, subtypeCode=${_kind?.id}, '
+        'mediaCount=${mediaUrls.length}, locationMode=coordinatesOnly, '
+        'longitude=$longitude, latitude=$latitude, '
+        'hasAddress=${body.containsKey('address')}, hasCity=${body.containsKey('city')}, '
+        'phoneLength=${_phoneController.text.trim().length}, '
+        'openingHoursLength=${_openingHoursController.text.trim().length}, '
+        'descriptionLength=${_descriptionController.text.trim().length}',
+      );
+      final response = await _api.createPoiSubmission(body);
+      _debugLog(
+        'submission.request.complete ${_responseShape(response)}, '
+        'elapsedMs=${timer.elapsedMilliseconds}, mounted=$mounted',
+      );
       if (!mounted) return;
+      stage = 'navigateBack';
       Navigator.of(context).pop(true);
-    } on SiponApiException catch (error) {
+    } on SiponApiException catch (error, stackTrace) {
+      _debugLog(
+        'submit.failed stage=$stage, elapsedMs=${timer.elapsedMilliseconds}',
+        error: error,
+        stackTrace: stackTrace,
+      );
       _showMessage(error.message ?? '提交失败，请稍后重试', type: SiponMessageType.error);
-    } on Exception {
+    } on Exception catch (error, stackTrace) {
+      _debugLog(
+        'submit.failed stage=$stage, elapsedMs=${timer.elapsedMilliseconds}',
+        error: error,
+        stackTrace: stackTrace,
+      );
       _showMessage('提交失败，请稍后重试', type: SiponMessageType.error);
+    } catch (error, stackTrace) {
+      _debugLog(
+        'submit.unhandled stage=$stage, elapsedMs=${timer.elapsedMilliseconds}',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
     } finally {
+      _debugLog('submit.end elapsedMs=${timer.elapsedMilliseconds}');
       if (mounted) setState(() => _submitting = false);
     }
   }
@@ -316,17 +332,26 @@ class _AddVenuePageState extends State<AddVenuePage> {
         ),
       ),
     );
-    if (source == null) return;
+    if (source == null) {
+      _debugLog('image.pick.cancelled stage=chooseSource');
+      return;
+    }
 
+    _debugLog('image.pick.start source=${source.name}');
     try {
       final image = await _picker.pickImage(
         source: source,
         maxWidth: 1920,
         imageQuality: 85,
       );
+      _debugLog(
+        'image.pick.complete selected=${image != null}, mounted=$mounted',
+      );
       if (image == null || !mounted) return;
       setState(() => _photos.add(image));
-    } on Exception {
+      _debugLog('image.pick.added photoCount=${_photos.length}');
+    } on Exception catch (error, stackTrace) {
+      _debugLog('image.pick.failed', error: error, stackTrace: stackTrace);
       _showMessage('图片选择失败，请重试', type: SiponMessageType.error);
     }
   }
@@ -337,19 +362,57 @@ class _AddVenuePageState extends State<AddVenuePage> {
   }) async {
     final urls = <String>[];
     for (final image in images) {
-      final bytes = await image.readAsBytes();
-      if (bytes.length > 10 * 1024 * 1024) {
-        throw Exception('图片超过 10MiB 限制，请更换图片');
+      final index = urls.length + 1;
+      final timer = Stopwatch()..start();
+      var stage = 'readBytes';
+      try {
+        _debugLog('image.read.start index=$index');
+        final bytes = await image.readAsBytes();
+        final mimeType = _mimeTypeFor(image);
+        _debugLog(
+          'image.read.complete index=$index, bytes=${bytes.length}, '
+          'mimeType=$mimeType, elapsedMs=${timer.elapsedMilliseconds}',
+        );
+        if (bytes.length > 10 * 1024 * 1024) {
+          _debugLog('image.upload.blocked index=$index, reason=exceeds10MiB');
+          throw Exception('图片超过 10MiB 限制，请更换图片');
+        }
+        stage = 'uploadMedia';
+        _debugLog(
+          'image.upload.start index=$index, endpoint=/api/uploads, '
+          'purpose=$purpose, purposeLocation=multipartField',
+        );
+        final response = await _api.uploadMedia(
+          fileBytes: bytes,
+          filename: image.name,
+          mimeType: mimeType,
+          purpose: purpose,
+        );
+        stage = 'extractMediaId';
+        final mediaId = _extractMediaId(response);
+        _debugLog(
+          'image.upload.response index=$index, ${_responseShape(response)}, '
+          'hasMediaId=${mediaId != null}',
+        );
+        if (mediaId == null) {
+          _debugLog('image.upload.failed index=$index, reason=missingMediaId');
+          throw Exception('图片上传失败，请重试');
+        }
+        urls.add('/api/uploads/$mediaId/content');
+        _debugLog(
+          'image.upload.complete index=$index, '
+          'urlPattern=/api/uploads/{mediaId}/content, '
+          'elapsedMs=${timer.elapsedMilliseconds}',
+        );
+      } catch (error, stackTrace) {
+        _debugLog(
+          'image.failed index=$index, stage=$stage, '
+          'elapsedMs=${timer.elapsedMilliseconds}',
+          error: error,
+          stackTrace: stackTrace,
+        );
+        rethrow;
       }
-      final response = await _api.uploadMedia(
-        fileBytes: bytes,
-        filename: image.name,
-        mimeType: _mimeTypeFor(image),
-        purpose: purpose,
-      );
-      final mediaId = _extractMediaId(response);
-      if (mediaId == null) throw Exception('图片上传失败，请重试');
-      urls.add('/api/uploads/$mediaId/content');
     }
     return urls;
   }
@@ -372,11 +435,6 @@ class _AddVenuePageState extends State<AddVenuePage> {
     if (name.endsWith('.webp')) return 'image/webp';
     if (name.endsWith('.heic') || name.endsWith('.heif')) return 'image/heic';
     return 'image/jpeg';
-  }
-
-  String? _requiredText(String? value) {
-    if (value == null || value.trim().isEmpty) return '请填写此项';
-    return null;
   }
 
   void _showMessage(
@@ -432,47 +490,22 @@ class _AddVenuePageState extends State<AddVenuePage> {
                       _VenueTextField(
                         controller: _nameController,
                         label: text.t('酒馆名称'),
+                        validator: (value) => (value ?? '').trim().isEmpty
+                            ? text.t('请输入酒馆名称')
+                            : null,
                         hint: text.t('例如：复兴公园酒廊'),
                         icon: Icons.storefront_rounded,
-                        validator: _requiredText,
+
                         onChanged: (_) => setState(() {}),
                       ),
 
-                      const SizedBox(height: 12),
-                      _VenueTextField(
-                        controller: _addressController,
-                        label: text.t('酒馆地址'),
-                        hint: text.t('输入地址或地点名称'),
-                        icon: Icons.place_outlined,
-                        textInputAction: TextInputAction.search,
-                        onChanged: _handleAddressChanged,
-                        onFieldSubmitted: _handleAddressSubmitted,
-                      ),
-                      if (_addressController.text.trim().isNotEmpty &&
-                          !_addressResolved) ...[
-                        const SizedBox(height: 6),
-                        _AddressSearchResults(
-                          results: _addressSuggestions,
-                          searching: _addressSearching,
-                          failed: _addressSearchFailed,
-                          onSelected: _selectAddress,
-                        ),
-                      ],
-                      const SizedBox(height: 6),
-                      Text(
-                        text.t('选择搜索结果可自动定位地图，也可拖动地图微调'),
-                        style: const TextStyle(
-                          color: MapDesign.muted,
-                          fontSize: 11,
-                        ),
-                      ),
-
                       const SizedBox(height: 18),
-                      _FieldLabel(text.t('地点类型')),
+                      _FieldLabel('${text.t('地点类型')}（${text.t('可选')}）'),
                       const SizedBox(height: 10),
                       _KindSelector(
                         selected: _kind,
-                        onChanged: (kind) => setState(() => _kind = kind),
+                        onChanged: (kind) =>
+                            setState(() => _kind = _kind == kind ? null : kind),
                       ),
                       const SizedBox(height: 18),
                       _VenueTextField(
@@ -684,7 +717,7 @@ class _LocationPicker extends StatelessWidget {
 class _KindSelector extends StatelessWidget {
   const _KindSelector({required this.selected, required this.onChanged});
 
-  final MapVenueKind selected;
+  final MapVenueKind? selected;
   final ValueChanged<MapVenueKind> onChanged;
 
   @override
@@ -739,26 +772,24 @@ class _VenueTextField extends StatelessWidget {
     required this.label,
     required this.hint,
     required this.icon,
-    this.validator,
+
     this.keyboardType,
     this.minLines = 1,
     this.maxLines = 1,
     this.onChanged,
-    this.onFieldSubmitted,
-    this.textInputAction,
+    this.validator,
   });
 
+  final FormFieldValidator<String>? validator;
   final TextEditingController controller;
   final String label;
   final String hint;
   final IconData icon;
-  final FormFieldValidator<String>? validator;
+
   final TextInputType? keyboardType;
   final int minLines;
   final int maxLines;
   final ValueChanged<String>? onChanged;
-  final ValueChanged<String>? onFieldSubmitted;
-  final TextInputAction? textInputAction;
 
   @override
   Widget build(BuildContext context) {
@@ -769,12 +800,11 @@ class _VenueTextField extends StatelessWidget {
       keyboardType: keyboardType,
       minLines: minLines,
       maxLines: maxLines,
-      validator: validator,
       onChanged: onChanged,
-      onFieldSubmitted: onFieldSubmitted,
-      textInputAction:
-          textInputAction ??
-          (maxLines == 1 ? TextInputAction.next : TextInputAction.newline),
+      validator: validator,
+      textInputAction: maxLines == 1
+          ? TextInputAction.next
+          : TextInputAction.newline,
       decoration: InputDecoration(
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(
@@ -816,74 +846,6 @@ class _VenueTextField extends StatelessWidget {
   }
 }
 
-class _AddressSearchResults extends StatelessWidget {
-  const _AddressSearchResults({
-    required this.results,
-    required this.searching,
-    required this.failed,
-    required this.onSelected,
-  });
-
-  final List<MapPlaceResult> results;
-  final bool searching;
-  final bool failed;
-  final ValueChanged<MapPlaceResult> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = SiponLanguageScope.textOf(context);
-    if (results.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: Text(
-          text.t(
-            searching
-                ? '正在搜索地点…'
-                : failed
-                ? '地点搜索失败，请重试'
-                : '未找到地点',
-          ),
-          style: const TextStyle(color: MapDesign.muted, fontSize: 12),
-        ),
-      );
-    }
-
-    final visible = results.take(5).toList();
-    return Material(
-      color: Colors.white,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: Color(0xFFE6E3E5)),
-      ),
-      child: Column(
-        children: [
-          for (var index = 0; index < visible.length; index++) ...[
-            if (index > 0) const Divider(height: 1),
-            ListTile(
-              dense: true,
-              leading: const Icon(Icons.place_outlined, color: MapDesign.brand),
-              title: Text(
-                visible[index].name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              subtitle: visible[index].address.isEmpty
-                  ? null
-                  : Text(
-                      visible[index].address,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-              onTap: () => onSelected(visible[index]),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
 class _VenueImageSection extends StatelessWidget {
   const _VenueImageSection({
     required this.title,
@@ -902,13 +864,14 @@ class _VenueImageSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    const slotSize = 104.0;
+    const slotWidth = 104.0;
+    const slotHeight = slotWidth * 4 / 3;
     const gap = 8.0;
     final slots = List.generate(3, (index) {
       if (index < images.length) {
         return SizedBox(
-          width: slotSize,
-          height: slotSize,
+          width: slotWidth,
+          height: slotHeight,
           child: _ImagePreview(
             image: images[index],
             onRemove: () => onRemove(index),
@@ -917,14 +880,14 @@ class _VenueImageSection extends StatelessWidget {
       }
       if (index == images.length && canAdd) {
         return SizedBox(
-          width: slotSize,
-          height: slotSize,
+          width: slotWidth,
+          height: slotHeight,
           child: _AddImageSlot(onTap: onAdd),
         );
       }
       return SizedBox(
-        width: slotSize,
-        height: slotSize,
+        width: slotWidth,
+        height: slotHeight,
         child: const _EmptyImageSlot(),
       );
     });
@@ -959,7 +922,7 @@ class _VenueImageSection extends StatelessWidget {
         const SizedBox(height: 8),
         SizedBox(
           width: double.infinity,
-          height: slotSize + 14,
+          height: slotHeight,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(14),
             clipBehavior: Clip.hardEdge,
@@ -971,8 +934,8 @@ class _VenueImageSection extends StatelessWidget {
               itemCount: slots.length,
               separatorBuilder: (_, _) => const SizedBox(width: gap),
               itemBuilder: (_, index) => SizedBox(
-                width: slotSize,
-                height: slotSize,
+                width: slotWidth,
+                height: slotHeight,
                 child: slots[index],
               ),
             ),
@@ -996,8 +959,8 @@ class _AddImageSlot extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
       child: Ink(
-        width: 78,
-        height: 78,
+        width: double.infinity,
+        height: double.infinity,
         decoration: BoxDecoration(
           color: siponColors.subtleSurface,
           borderRadius: BorderRadius.circular(14),
@@ -1017,8 +980,8 @@ class _EmptyImageSlot extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final siponColors = context.siponColors;
     return Container(
-      width: 78,
-      height: 78,
+      width: double.infinity,
+      height: double.infinity,
       decoration: BoxDecoration(
         color: siponColors.subtleSurface,
         borderRadius: BorderRadius.circular(14),
@@ -1039,21 +1002,17 @@ class _ImagePreview extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final siponColors = context.siponColors;
     return Stack(
+      fit: StackFit.expand,
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(14),
-          child: Image.file(
-            File(image.path),
-            width: 78,
-            height: 78,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => ColoredBox(
-              color: siponColors.subtleSurface,
-              child: const SizedBox(
-                width: 78,
-                height: 78,
-                child: Icon(Icons.broken_image_outlined),
-              ),
+          child: ColoredBox(
+            color: siponColors.subtleSurface,
+            child: Image.file(
+              File(image.path),
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) =>
+                  const Center(child: Icon(Icons.broken_image_outlined)),
             ),
           ),
         ),
