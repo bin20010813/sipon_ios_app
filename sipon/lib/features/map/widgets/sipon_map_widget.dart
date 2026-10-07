@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 import '../platform/map_engine.dart';
+import '../platform/petal_map_platform.dart';
 import '../platform/sipon_map_host.dart';
 import '../platform/sipon_map_protocol.dart';
 
@@ -85,7 +86,7 @@ class _SiponMapWidgetState extends State<SiponMapWidget> {
   ChannelMapHost? _mapHost;
   int? _viewId;
   Brightness? _brightness;
-  String? _androidError;
+  String? _nativeError;
   int _generation = 0;
   final Map<int, Offset> _pointerStarts = {};
 
@@ -121,6 +122,15 @@ class _SiponMapWidgetState extends State<SiponMapWidget> {
     if (engine == MapEngine.unsupported) {
       return const Center(child: Text('此平台暂不支持地图'));
     }
+    if (engine == MapEngine.petal && PetalMapPlatform.viewBuilder == null) {
+      assert(() {
+        debugPrint(
+          'SiponMap: missing PetalMapPlatform builder; use ohos/flutter/main.dart',
+        );
+        return true;
+      }());
+      return const Center(child: Text('地图暂时无法加载'));
+    }
     final params = <String, Object?>{
       'compassTopInset': widget.compassTopInset,
       'showsUserHeading': widget.showsUserHeading,
@@ -129,7 +139,15 @@ class _SiponMapWidgetState extends State<SiponMapWidget> {
     final gestures = <Factory<OneSequenceGestureRecognizer>>{
       Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
     };
-    final map = engine == MapEngine.mapKit
+    final map = engine == MapEngine.petal
+        ? PetalMapPlatform.viewBuilder!(
+            key: ValueKey(_generation),
+            creationParams: params,
+            gestureRecognizers: gestures,
+            onPlatformViewCreated: (viewId) =>
+                _onCreated(engine, viewId, brightness),
+          )
+        : engine == MapEngine.mapKit
         ? UiKitView(
             viewType: kSiponMapViewType,
             creationParams: params,
@@ -174,7 +192,7 @@ class _SiponMapWidgetState extends State<SiponMapWidget> {
               return controller;
             },
           );
-    final content = engine == MapEngine.tianditu && _androidError != null
+    final content = _nativeError != null
         ? Stack(
             fit: StackFit.expand,
             children: [
@@ -187,10 +205,10 @@ class _SiponMapWidgetState extends State<SiponMapWidget> {
                     children: [
                       const Icon(Icons.map_outlined, size: 30),
                       const SizedBox(height: 8),
-                      Text(_androidError!, textAlign: TextAlign.center),
+                      Text(_nativeError!, textAlign: TextAlign.center),
                       TextButton(
                         onPressed: () => setState(() {
-                          _androidError = null;
+                          _nativeError = null;
                           ++_generation;
                         }),
                         child: const Text('重试地图'),
@@ -220,17 +238,15 @@ class _SiponMapWidgetState extends State<SiponMapWidget> {
     final host = ChannelMapHost(
       MethodChannel(siponChannelName(engine, viewId)),
       onEvent: (method, arguments) {
-        if (!mounted || _viewId != viewId || engine != MapEngine.tianditu) {
+        if (!mounted || _viewId != viewId) {
           return;
         }
         if (method == SiponMapEvents.onMapError) {
           final args = arguments is Map ? arguments : const {};
-          setState(
-            () => _androidError = '${args['message'] ?? '地图暂时无法加载，请重试'}',
-          );
+          setState(() => _nativeError = '${args['message'] ?? '地图暂时无法加载，请重试'}');
         } else if (method == SiponMapEvents.onMapReady &&
-            _androidError != null) {
-          setState(() => _androidError = null);
+            _nativeError != null) {
+          setState(() => _nativeError = null);
         }
       },
     );

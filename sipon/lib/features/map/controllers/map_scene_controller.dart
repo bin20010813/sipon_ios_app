@@ -100,6 +100,12 @@ abstract class MapSceneController {
         onVenueTapped: onVenueTapped,
         onBlankTapped: onBlankTapped,
       ),
+      MapEngine.petal => MapkitSceneController(
+        onViewportSettled: onViewportSettled,
+        onVenueTapped: onVenueTapped,
+        onBlankTapped: onBlankTapped,
+        resolveInitialCityCenter: true,
+      ),
       MapEngine.tianditu => TiandituSceneController(
         onViewportSettled: onViewportSettled,
         onVenueTapped: onVenueTapped,

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:sipon/shared/services/harmony_platform.dart';
 
 import '../models/virtual_drinking_models.dart';
 import 'virtual_drinking_canvas.dart';
@@ -40,7 +41,8 @@ class VirtualThreeGlass extends StatefulWidget {
     if (catalog.modelRendererVersion != '1' ||
         kIsWeb ||
         (defaultTargetPlatform != TargetPlatform.iOS &&
-            defaultTargetPlatform != TargetPlatform.android)) {
+            defaultTargetPlatform != TargetPlatform.android &&
+            !isHarmonyOS)) {
       return false;
     }
     return catalog.asset(glass.modelAssetCode)?.kind == 'glass_model' &&

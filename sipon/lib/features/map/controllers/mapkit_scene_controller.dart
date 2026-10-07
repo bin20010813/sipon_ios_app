@@ -27,9 +27,11 @@ class MapkitSceneController extends MapSceneController {
     required super.onVenueTapped,
     required super.onBlankTapped,
     AssetBundle? assetBundle,
+    this.resolveInitialCityCenter = false,
   }) : _assetBundle = assetBundle ?? rootBundle;
 
   final AssetBundle _assetBundle;
+  final bool resolveInitialCityCenter;
 
   SiponMapHost? _host;
 
@@ -63,7 +65,13 @@ class MapkitSceneController extends MapSceneController {
     // 收到这条命令后原生才装配地图并回报 onMapReady——不存在事件早于监听。
     await host.invoke(
       SiponMapCommands.setup,
-      encodeSetup(city: city, style: style, initialCenter: initialCenter),
+      encodeSetup(
+        city: city,
+        style: style,
+        initialCenter:
+            initialCenter ??
+            (resolveInitialCityCenter ? mapCenterForCity(city) : null),
+      ),
     );
     // 手势显式下一次：原来 [encodeGestures] 与原生 setGestures 分支都在，
     // 但没有任何调用点，等于「靠原生默认值恰好是开着的」。补齐这条，缩放/拖拽
@@ -157,7 +165,9 @@ class MapkitSceneController extends MapSceneController {
       case SiponMapEvents.onMapReady:
         _ready = true;
         resetStyleCaches();
-        _readyCompleter?.complete();
+        if (!(_readyCompleter?.isCompleted ?? true)) {
+          _readyCompleter!.complete();
+        }
         // setup 之前页面就可能推过一帧（缓存在基类），这里负责真正落图。
         final frame = lastFrame;
         if (frame != null) {

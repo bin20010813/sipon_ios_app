@@ -2,6 +2,8 @@
 
 A new Flutter project.
 
+原生 HarmonyOS 构建、花瓣地图接入、插件版本及签名配置见 [鸿蒙适配说明](docs/harmonyos.md)。
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.

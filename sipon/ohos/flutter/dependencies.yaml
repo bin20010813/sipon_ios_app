@@ -1,0 +1,37 @@
+# Direct federated implementations are selected only in the HarmonyOS build.
+# Git revisions are immutable; see docs/harmonyos.md for the corresponding tags.
+  shared_preferences_ohos:
+    git:
+      url: https://gitcode.com/CPF-Flutter/flutter_packages.git
+      ref: ce0d3d4a9c6921edf5a5e4467c3dfecb377fd684
+      path: packages/shared_preferences/shared_preferences_ohos
+  path_provider_ohos:
+    git:
+      url: https://gitcode.com/CPF-Flutter/flutter_packages.git
+      ref: 7cc9f4cfbd464943096dc7c87288252c543df5cb
+      path: packages/path_provider/path_provider_ohos
+  image_picker_ohos:
+    git:
+      url: https://gitcode.com/CPF-Flutter/flutter_packages.git
+      ref: 1a027ce4c1739b26356fe30556c027bfad47aa94
+      path: packages/image_picker/image_picker_ohos
+  url_launcher_ohos:
+    git:
+      url: https://gitcode.com/CPF-Flutter/flutter_packages.git
+      ref: f31db0d72e7a1d91dd023325a23dc2fba4b6ce4b
+      path: packages/url_launcher/url_launcher_ohos
+  webview_flutter_ohos:
+    git:
+      url: https://gitcode.com/CPF-Flutter/flutter_packages.git
+      ref: 89476bb7432938a54e5b09b449d1d031e85f0e5c
+      path: packages/webview_flutter/webview_flutter_ohos
+  flutter_geolocator_ohos:
+    git:
+      url: https://gitcode.com/CPF-Flutter/fluttertpc_geolocator.git
+      ref: 6fa6307b29fa6bc0e1983b146d2c33de48740862
+      path: geolocator_ohos
+  audioplayers_ohos:
+    git:
+      url: https://gitcode.com/CPF-Flutter/flutter_audioplayers.git
+      ref: 3a3e22642fac78dedb5fd4364b5ca29bcb144365
+      path: packages/audioplayers_ohos

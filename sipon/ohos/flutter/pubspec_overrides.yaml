@@ -1,0 +1,19 @@
+dependency_overrides:
+  # Prevent these implementation packages from pulling moving Git branches.
+  geolocator_platform_interface: 4.2.6
+  audioplayers_platform_interface: 7.1.1
+  image_cropper:
+    git:
+      url: https://gitcode.com/CPF-Flutter/fluttertpc_image_cropper.git
+      ref: 6844f7d86b7dfc34e164fa913d8624fd114f3a32
+      path: image_cropper
+  image_cropper_platform_interface:
+    git:
+      url: https://gitcode.com/CPF-Flutter/fluttertpc_image_cropper.git
+      ref: 6844f7d86b7dfc34e164fa913d8624fd114f3a32
+      path: image_cropper_platform_interface
+  image_cropper_for_web:
+    git:
+      url: https://gitcode.com/CPF-Flutter/fluttertpc_image_cropper.git
+      ref: 6844f7d86b7dfc34e164fa913d8624fd114f3a32
+      path: image_cropper_for_web
