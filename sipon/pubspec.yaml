@@ -45,9 +45,10 @@ dependencies:
   # Keep the plugin implementation: 2.6.0's FFI loader fails on iOS with
   # DOBJC_initializeApi (https://github.com/flutter/flutter/issues/186794).
   path_provider_foundation: 2.5.1
-  audioplayers: ^6.7.1
+  # 虚拟饮酒模块暂时停用，恢复时再启用音频和 WebView 依赖。
+  # audioplayers: ^6.7.1
   sign_in_with_apple: ^6.1.0
-  webview_flutter: ^4.14.1
+  # webview_flutter: ^4.14.1
   flutter_svg: ^2.1.0
 
 dev_dependencies:
@@ -78,8 +79,9 @@ flutter:
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
   assets:
-    - assets/virtual_drinking/audio/
-    - assets/virtual_drinking/three/scene.bundle.js
+    # 虚拟饮酒模块暂时停用，源码和资源只保留在本地。
+    # - assets/virtual_drinking/audio/
+    # - assets/virtual_drinking/three/scene.bundle.js
     - assest/logo.png
     - assest/app_name.png
     - assest/首页/首页.png

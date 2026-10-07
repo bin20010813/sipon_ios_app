@@ -346,77 +346,77 @@ BoxDecoration _homePromptDecoration(BuildContext context) {
   );
 }
 
-class _VirtualDrinkingPrompt extends StatelessWidget {
-  const _VirtualDrinkingPrompt({required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = SiponLanguageScope.textOf(context);
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: _homePromptDecoration(context),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
-            child: Row(
-              children: [
-                Icon(Icons.nightlife_rounded, color: scheme.primary, size: 28),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        text.t('虚拟小酌'),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: HomePage.inkOf(context),
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        text.t('选一杯酒，走进属于你的场景'),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: HomePage.mutedOf(context),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                SizedBox(
-                  height: 44,
-                  child: Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    color: scheme.primary,
-                    size: 17,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
+// class _VirtualDrinkingPrompt extends StatelessWidget {
+//   const _VirtualDrinkingPrompt({required this.onPressed});
+//
+//   final VoidCallback onPressed;
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     final text = SiponLanguageScope.textOf(context);
+//     final scheme = Theme.of(context).colorScheme;
+//     return Container(
+//       decoration: _homePromptDecoration(context),
+//       child: Material(
+//         color: Colors.transparent,
+//         borderRadius: BorderRadius.circular(16),
+//         child: InkWell(
+//           onTap: onPressed,
+//           borderRadius: BorderRadius.circular(16),
+//           child: Padding(
+//             padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+//             child: Row(
+//               children: [
+//                 Icon(Icons.nightlife_rounded, color: scheme.primary, size: 28),
+//                 const SizedBox(width: 12),
+//                 Expanded(
+//                   child: Column(
+//                     crossAxisAlignment: CrossAxisAlignment.start,
+//                     children: [
+//                       Text(
+//                         text.t('虚拟小酌'),
+//                         maxLines: 1,
+//                         overflow: TextOverflow.ellipsis,
+//                         style: TextStyle(
+//                           color: HomePage.inkOf(context),
+//                           fontSize: 15,
+//                           fontWeight: FontWeight.w900,
+//                           letterSpacing: 0,
+//                         ),
+//                       ),
+//                       const SizedBox(height: 4),
+//                       Text(
+//                         text.t('选一杯酒，走进属于你的场景'),
+//                         maxLines: 1,
+//                         overflow: TextOverflow.ellipsis,
+//                         style: TextStyle(
+//                           color: HomePage.mutedOf(context),
+//                           fontSize: 12,
+//                           fontWeight: FontWeight.w600,
+//                           letterSpacing: 0,
+//                         ),
+//                       ),
+//                     ],
+//                   ),
+//                 ),
+//                 const SizedBox(width: 10),
+//                 SizedBox(
+//                   height: 44,
+//                   child: Icon(
+//                     Icons.arrow_forward_ios_rounded,
+//                     color: scheme.primary,
+//                     size: 17,
+//                   ),
+//                 ),
+//               ],
+//             ),
+//           ),
+//         ),
+//       ),
+//     );
+//   }
+// }
+//
 class _HomeRecordPrompt extends StatelessWidget {
   const _HomeRecordPrompt({required this.onPressed});
 

@@ -241,13 +241,9 @@ class _StartupGateState extends State<_StartupGate> {
   }
 }
 
-/// 鎮诞搴曟爮涓?Plus 寮瑰眰搴曡竟璺濈灞忓箷搴曡竟鐨勯棿璺濄€?
-///
-/// iOS 涓庡畨鍗撶殑绯荤粺搴曢儴瀹夊叏鍖哄樊寮傚緢澶э紙iPhone 鎭掍负 34pt锛屽畨鍗撴墜鍔垮鑸€氬父
-/// 0~24dp銆佷笁閿鑸害 48dp锛夛紝鍥犳鎷嗘垚涓や釜鐙珛鏃嬮挳锛?
-/// - iOS 璋冨噺鏁?`- 20`锛堣秺灏忓簳鏍忚秺楂橈紝iPhone 涓婄搴?= 34 - 鍑忔暟锛夛紱
-/// - 瀹夊崜璋冨姞鏁?`+ 0`锛堣秺澶у簳鏍忚秺楂橈紱鍔犳硶鍦ㄤ换浣曞畨鍗撴満鍨嬮兘鐢熸晥锛?
-///   鑰屽噺娉曠粨鏋滀細钀藉埌搴曢儴涓嬮檺涔嬩笅锛岀湅璧锋潵灏辨槸"鏀逛簡娌″弽搴?锛夈€?
+/// 计算悬浮底栏和加号面板距离屏幕底部的间距。
+/// iOS 使用安全区减去偏移量；Android 使用安全区加上间距。
+/// 两个平台分别保留最小间距，避免底栏紧贴屏幕边缘。
 double _bottomBarBottomGapFor(double safeBottom) {
   if (defaultTargetPlatform == TargetPlatform.iOS) {
     return math.max(safeBottom - 18, 10);

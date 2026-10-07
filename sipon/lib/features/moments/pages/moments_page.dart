@@ -1,6 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:sipon/shared/services/sipon_city_controller.dart';
+import 'package:sipon/shared/services/home_moments_repository.dart';
+import 'package:sipon/shared/services/mock_home_moments_repository.dart';
 import 'package:sipon/shared/widgets/bottom_clamping_bouncing_scroll_physics.dart';
 import 'package:sipon/shared/widgets/home_moments_section.dart';
 import 'package:sipon/shared/widgets/sipon_city_picker.dart';
@@ -11,19 +14,23 @@ class MomentsPage extends StatefulWidget {
     super.key,
     this.bottomOverlayInset = 0,
     this.onCheckInPressed,
+    this.repository,
   });
 
   final double bottomOverlayInset;
+  final HomeMomentsRepository? repository;
   final Future<void> Function()? onCheckInPressed;
 
   @override
-  State<MomentsPage> createState() => _MomentsPageState();
+  State<MomentsPage> createState() => MomentsPageState();
 }
 
-class _MomentsPageState extends State<MomentsPage> {
+class MomentsPageState extends State<MomentsPage> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<HomeMomentsSectionState> _momentsKey =
       GlobalKey<HomeMomentsSectionState>();
+  late final HomeMomentsRepository? _repository =
+      widget.repository ?? (kDebugMode ? MockHomeMomentsRepository() : null);
   SiponCityController? _cityController;
   String _city = SiponCityController.defaultCity;
 
@@ -65,7 +72,7 @@ class _MomentsPageState extends State<MomentsPage> {
     }
   }
 
-  Future<void> _refresh() async {
+  Future<void> refresh() async {
     await _momentsKey.currentState?.refresh();
   }
 
@@ -80,7 +87,7 @@ class _MomentsPageState extends State<MomentsPage> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
             child: RefreshIndicator(
-              onRefresh: _refresh,
+              onRefresh: refresh,
               child: CustomScrollView(
                 controller: _scrollController,
                 physics: const BottomClampingBouncingScrollPhysics(),
@@ -95,6 +102,7 @@ class _MomentsPageState extends State<MomentsPage> {
                     sliver: HomeMomentsSection(
                       key: _momentsKey,
                       city: _city,
+                      repository: _repository,
                       asSliver: true,
                       onCheckInPressed: widget.onCheckInPressed,
                     ),

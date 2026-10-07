@@ -29,8 +29,7 @@ class _ShellBottomBar extends StatelessWidget {
         valueListenable: searchOverlayActive,
         builder: (context, searchActive, _) {
           final progress = currentIndex == 1 ? sheetProgress : 0.0;
-          // 棣栭〉鎼滅储閬僵灞曞紑鏃跺悓姝ラ殣钘忓簳鏍忥細鏃㈤伩鍏嶅簳鏍忔诞鍦ㄦā绯婂眰涔嬩笂锛?
-          // 涔熼槻姝㈡悳绱㈡ā寮忎笅璇偣 tab 鍒囬〉鍚庨椤垫畫鐣欐悳绱㈢姸鎬併€?
+          // 首页搜索或键盘显示时隐藏底栏，避免误触导航。
           final hidden = keyboardVisible || searchActive;
           return Align(
             alignment: Alignment.bottomCenter,
@@ -323,7 +322,7 @@ class _SiponBottomPlusButton extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Semantics(
       button: true,
-      label: '鏇村鎿嶄綔',
+      label: SiponLanguageScope.textOf(context).t('更多操作'),
       child: _SiponNavigationGlass(
         radius: 27,
         child: Material(

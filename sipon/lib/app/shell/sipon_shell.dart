@@ -12,20 +12,19 @@ class _SiponShell extends StatefulWidget {
 class _SiponShellState extends State<_SiponShell> {
   static const double _navigationBarHeight = 62;
 
-  // viewPadding 鏄澶囩殑鍥哄畾绯荤粺瀹夊叏鍖猴紱padding 浼氬湪閿洏鍑虹幇鏃舵墸鎺?
-  // viewInsets锛屽洜姝や笉鑳界敤瀹冩潵鍐冲畾鍏ㄥ眬鎮诞瀵艰埅鐨勫熀绾夸綅缃€傞棿璺濇寜骞冲彴
-  // 鐨勫叿浣撴棆閽 _bottomBarBottomGapFor 鐨勬枃妗ｆ敞閲娿€?
+  // viewPadding 表示固定安全区；键盘出现时仍用它计算底栏位置。
   double get _bottomBarBottomGap =>
       _bottomBarBottomGapFor(MediaQuery.viewPaddingOf(context).bottom);
 
-  /// 搴曟爮鍗犳嵁鐨勬€婚珮搴︼紝鍚勯〉闈㈢敤瀹冨仛鍒楄〃搴曢儴鐨勬粴鍔ㄩ鐣欍€?
+  /// 页面列表底部为悬浮导航栏预留的高度。
   double get _effectiveNavigationReserveHeight =>
       _navigationBarHeight + _bottomBarBottomGap;
 
-  /// 鎴戠殑椤电姸鎬佸紩鐢紝鐢ㄤ簬鍒囧洖 tab / 瑙勫垝璺嚎 / 鎵撳崱杩斿洖鍚庡埛鏂板揩鎹峰叆鍙ｈ鏁般€?
+  /// 返回个人页或完成打卡、路线规划后刷新个人页数据。
   final GlobalKey<ProfilePageState> _profilePageKey =
       GlobalKey<ProfilePageState>();
 
+  final _momentsPageKey = GlobalKey<MomentsPageState>();
   int _currentIndex = 0;
   MapVenue? _mapRequestedVenue;
   bool _recordRouteOpening = false;
@@ -33,7 +32,7 @@ class _SiponShellState extends State<_SiponShell> {
   // 首次切到该 tab 前先用占位，避免启动即请求（测试环境也会因此挂起）。
   bool _momentsVisited = false;
   final ValueNotifier<double> _mapSheetProgress = ValueNotifier<double>(0);
-  // 棣栭〉鎼滅储閬僵灞曞紑鐘舵€侊細娉ㄥ叆 HomePage锛屽苟鐢辨偓娴簳鏍忕洃鍚互鍚屾闅愯棌銆?
+  // 与首页共享搜索展开状态，用于同步隐藏底栏。
   final ValueNotifier<bool> _homeSearchExpanded = ValueNotifier<bool>(false);
 
   @override
@@ -51,7 +50,8 @@ class _SiponShellState extends State<_SiponShell> {
 
   void _selectTab(int index) {
     if (index == _currentIndex) {
-      // 閲嶅鐐瑰嚮褰撳墠 tab锛氳涓烘墜鍔ㄥ埛鏂般€?
+      // 再次点击当前 tab 时手动刷新。
+      if (index == 2) _momentsPageKey.currentState?.refresh();
       if (index == 3) {
         _profilePageKey.currentState?.refreshProfile();
         _profilePageKey.currentState?.refreshCounts();
@@ -125,7 +125,7 @@ class _SiponShellState extends State<_SiponShell> {
     );
   }
 
-  /// 鎵撳紑璺嚎瑙勫垝锛涜繑鍥炲悗鍒锋柊鎴戠殑椤佃鏁帮紙鏂板/鍙樺寲鐨勮矾绾跨珛鍗冲弽鏄狅級銆?
+  /// 路线规划返回后刷新个人页计数。
   Future<void> _openRoutePlanning() async {
     await Navigator.of(
       context,
@@ -142,12 +142,12 @@ class _SiponShellState extends State<_SiponShell> {
     }
     showSiponMessage(
       context,
-      '酒馆信息已提交，审核通过后会显示在地图中',
+      '酒吧信息已提交，审核通过后会显示在地图中',
       type: SiponMessageType.success,
     );
   }
 
-  /// 鎵撳紑鎵撳崱寮圭獥锛涘叧闂悗鍒锋柊鎴戠殑椤佃鏁帮紙鎵撳崱璁板綍鍙兘鏂板锛夈€?
+  /// 关闭打卡面板后刷新个人页计数和动态列表。
   Future<void> _openCheckIn() async {
     await showModalBottomSheet<void>(
       context: context,
@@ -157,16 +157,14 @@ class _SiponShellState extends State<_SiponShell> {
       builder: (_) => const CheckInPage(),
     );
     _profilePageKey.currentState?.refreshCounts();
+    _momentsPageKey.currentState?.refresh();
   }
 
   @override
   Widget build(BuildContext context) {
-    // 娉ㄦ剰锛氫笉瑕佸湪鏈眰璇诲彇 MediaQuery.viewInsets 鈥斺€?閿洏婊戝叆鍔ㄧ敾鏈熼棿瀹冮€愬抚
-    // 鍙樺寲锛屼細瀵艰嚧澹冲眰涓?IndexedStack 鍐呬笁涓〉闈㈤€愬抚閲嶅缓锛堥敭鐩樻帀甯х殑鏉ユ簮锛夈€?
-    // 搴曟爮瀵归敭鐩樼殑鍝嶅簲宸查殧绂诲埌 _ShellBottomBar 鍐呴儴銆?
+    // 键盘高度变化仅在底栏内监听，避免整个页面栈逐帧重建。
     return Scaffold(
-      // 鎼滅储妗嗚幏鍙栫劍鐐规椂锛屼笉璁?Scaffold 缂╃煭 Stack 鐨勫彲鐢ㄩ珮搴︼紱鍚﹀垯搴曟爮浼?
-      // 琚敭鐩橀《璧枫€傞敭鐩樻湡闂村簳鏍忎細闅愯棌锛屾悳绱㈡浠嶄綅浜庡睆骞曢《閮ㄥ彲姝ｅ父杈撳叆銆?
+      // 搜索时保持页面高度；底栏会在键盘显示期间隐藏。
       resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
@@ -189,6 +187,7 @@ class _SiponShellState extends State<_SiponShell> {
                 enabled: _currentIndex == 2,
                 child: _momentsVisited
                     ? MomentsPage(
+                        key: _momentsPageKey,
                         bottomOverlayInset: _effectiveNavigationReserveHeight,
                         onCheckInPressed: _openCheckIn,
                       )
@@ -219,7 +218,3 @@ class _SiponShellState extends State<_SiponShell> {
     );
   }
 }
-
-/// 澹冲眰鎮诞搴曟爮銆傚閿洏 viewInsets 鐨勪緷璧栬鍒绘剰闅旂鍦ㄦ湰缁勪欢鍐咃細iOS 閿洏
-/// 婊戝叆鍔ㄧ敾鏈熼棿 engine 閫愬抚鏇存柊 viewInsets锛岃嫢鍦ㄥ３灞?build 璇诲彇浼氳
-/// IndexedStack 閲屼笁涓〉闈㈣窡鐫€閫愬抚閲嶅缓锛涘湪杩欓噷璇诲彇锛屾瘡甯у彧閲嶅缓杩欎竴灏忓潡銆?

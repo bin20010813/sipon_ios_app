@@ -33,6 +33,13 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Keep the disabled virtual-drinking module local.
+node_modules/
+/sipon/three_renderer/
+/sipon/assets/virtual_drinking/
+/sipon/lib/features/drinks/virtual_drinking/
+/sipon/tool/generate_virtual_audio.py
+
 # Local secrets / compile-time environment values
 .env*
 !.env.example.json

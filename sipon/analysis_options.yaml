@@ -16,6 +16,8 @@ analyzer:
     - windows/**
     - macos/**
     - linux/**
+    # 暂时停用且仅保留本地的模块，不属于当前应用构建。
+    - lib/features/drinks/virtual_drinking/**
 include: package:flutter_lints/flutter.yaml
 
 linter:
