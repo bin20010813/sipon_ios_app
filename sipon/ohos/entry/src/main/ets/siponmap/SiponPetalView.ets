@@ -58,6 +58,7 @@ export class SiponPetalView extends PlatformView implements MethodCallHandler {
     creation: Map<string, Object>, onDisposed: () => void) {
     super();
     this.creation = creation;
+    this.brightness = textValue(creation, 'brightness', 'light');
     this.onDisposed = onDisposed;
     this.channel = new MethodChannel(messenger, `sipon/petal_${id}`);
     this.channel.setMethodCallHandler(this);
@@ -71,21 +72,26 @@ export class SiponPetalView extends PlatformView implements MethodCallHandler {
       this.failSetup(error.message);
       return;
     }
+    if (this.initializationError) return;
     this.controller = controller;
-    controller.setZoomControlsEnabled(false);
-    controller.setMyLocationControlsEnabled(false);
-    controller.setCompassControlsEnabled(this.creation.has('compassTopInset') &&
-      typeof this.creation.get('compassTopInset') === 'number');
-    if (typeof this.creation.get('compassTopInset') === 'number') {
-      controller.setCompassPosition({ positionX: vp2px(16),
-        positionY: vp2px(numberValue(this.creation, 'compassTopInset')) });
+    try {
+      controller.setZoomControlsEnabled(false);
+      controller.setMyLocationControlsEnabled(false);
+      controller.setCompassControlsEnabled(this.creation.has('compassTopInset') &&
+        typeof this.creation.get('compassTopInset') === 'number');
+      if (typeof this.creation.get('compassTopInset') === 'number') {
+        controller.setCompassPosition({ positionX: vp2px(16),
+          positionY: vp2px(numberValue(this.creation, 'compassTopInset')) });
+      }
+      const events = controller.getEventManager();
+      events.on('cameraIdle', () => this.emitViewport());
+      events.on('mapClick', () => this.emit('onBlankTapped', null));
+      events.on('markerClick', (marker: map.Marker) => this.onOverlayTap(marker.getId()));
+      events.on('circleClick', (circle: map.MapCircle) => this.onOverlayTap(circle.getId()));
+      this.finishSetup();
+    } catch (error) {
+      this.failSetup((error as Error).message);
     }
-    const events = controller.getEventManager();
-    events.on('cameraIdle', () => this.emitViewport());
-    events.on('mapClick', () => this.emit('onBlankTapped', null));
-    events.on('markerClick', (marker: map.Marker) => this.onOverlayTap(marker.getId()));
-    events.on('circleClick', (circle: map.MapCircle) => this.onOverlayTap(circle.getId()));
-    this.finishSetup();
   }
 
   private emit(method: string, args: Object | null): void {
@@ -243,7 +249,8 @@ export class SiponPetalView extends PlatformView implements MethodCallHandler {
     for (const key of values.keys()) {
       const bytes = values.get(key);
       if (!(bytes instanceof Uint8Array)) continue;
-      const source = image.createImageSource(bytes.buffer as ArrayBuffer);
+      const source = image.createImageSource(
+        bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
       try {
         const size = Math.round(vp2px(36));
         const icon = await source.createPixelMap({ desiredSize: { width: size, height: size } });

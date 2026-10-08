@@ -635,7 +635,7 @@ class _LocationPicker extends StatelessWidget {
   static const _pinSize = Size(30, 38);
 
   final bool mapReady;
-  final void Function(SiponMapHost host) onHostReady;
+  final Future<void> Function(SiponMapHost host) onHostReady;
 
   @override
   Widget build(BuildContext context) {

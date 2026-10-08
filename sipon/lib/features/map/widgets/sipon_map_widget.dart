@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -76,7 +78,7 @@ class SiponMapWidget extends StatefulWidget {
   final MapEngine? engine;
 
   /// 平台视图就绪时回调一次，附上引擎宿主。页面在回调里执行 attach。
-  final void Function(SiponMapHost host) onHostReady;
+  final FutureOr<void> Function(SiponMapHost host) onHostReady;
 
   @override
   State<SiponMapWidget> createState() => _SiponMapWidgetState();
@@ -98,7 +100,7 @@ class _SiponMapWidgetState extends State<SiponMapWidget> {
     _brightness = brightness;
     final host = _mapHost;
     if (host != null) {
-      host.invoke(SiponMapCommands.setAppearance, encodeAppearance(brightness));
+      unawaited(_setAppearance(host, brightness));
     }
   }
 
@@ -139,16 +141,18 @@ class _SiponMapWidgetState extends State<SiponMapWidget> {
     final gestures = <Factory<OneSequenceGestureRecognizer>>{
       Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
     };
+    final generation = _generation;
     final map = engine == MapEngine.petal
         ? PetalMapPlatform.viewBuilder!(
             key: ValueKey(_generation),
             creationParams: params,
             gestureRecognizers: gestures,
             onPlatformViewCreated: (viewId) =>
-                _onCreated(engine, viewId, brightness),
+                _onCreated(engine, viewId, brightness, generation),
           )
         : engine == MapEngine.mapKit
         ? UiKitView(
+            key: ValueKey(_generation),
             viewType: kSiponMapViewType,
             creationParams: params,
             creationParamsCodec: const StandardMessageCodec(),
@@ -163,7 +167,7 @@ class _SiponMapWidgetState extends State<SiponMapWidget> {
             // 在 Flutter 拒绝手势时仍让 MapKit 收到完整触摸序列。
             gestureRecognizers: gestures,
             onPlatformViewCreated: (viewId) =>
-                _onCreated(engine, viewId, brightness),
+                _onCreated(engine, viewId, brightness, generation),
           )
         : PlatformViewLink(
             key: ValueKey(_generation),
@@ -186,40 +190,42 @@ class _SiponMapWidgetState extends State<SiponMapWidget> {
                 parameters.onPlatformViewCreated,
               );
               controller.addOnPlatformViewCreatedListener(
-                (viewId) => _onCreated(engine, viewId, brightness),
+                (viewId) => _onCreated(engine, viewId, brightness, generation),
               );
               controller.create();
               return controller;
             },
           );
-    final content = _nativeError != null
-        ? Stack(
-            fit: StackFit.expand,
-            children: [
-              map,
-              ColoredBox(
-                color: Theme.of(context).colorScheme.surface,
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.map_outlined, size: 30),
-                      const SizedBox(height: 8),
-                      Text(_nativeError!, textAlign: TextAlign.center),
-                      TextButton(
-                        onPressed: () => setState(() {
-                          _nativeError = null;
-                          ++_generation;
-                        }),
-                        child: const Text('重试地图'),
-                      ),
-                    ],
+    final content = Stack(
+      fit: StackFit.expand,
+      children: [
+        map,
+        if (_nativeError != null)
+          ColoredBox(
+            color: Theme.of(context).colorScheme.surface,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.map_outlined, size: 30),
+                  const SizedBox(height: 8),
+                  Text(_nativeError!, textAlign: TextAlign.center),
+                  TextButton(
+                    onPressed: () => setState(() {
+                      _mapHost?.dispose();
+                      _mapHost = null;
+                      _viewId = null;
+                      _nativeError = null;
+                      ++_generation;
+                    }),
+                    child: const Text('重试地图'),
                   ),
-                ),
+                ],
               ),
-            ],
-          )
-        : map;
+            ),
+          ),
+      ],
+    );
     // Listener 只观察原始事件，不加入手势竞技场或改变地图手势策略。
     if (!kDebugMode) return content;
     return Listener(
@@ -230,15 +236,40 @@ class _SiponMapWidgetState extends State<SiponMapWidget> {
     );
   }
 
-  void _onCreated(MapEngine engine, int viewId, Brightness brightness) {
-    if (!mounted) return;
+  Future<void> _setAppearance(
+    ChannelMapHost host,
+    Brightness brightness,
+  ) async {
+    try {
+      await host.invoke(
+        SiponMapCommands.setAppearance,
+        encodeAppearance(brightness),
+      );
+    } catch (error) {
+      _showHostError(host, error);
+    }
+  }
+
+  void _showHostError(ChannelMapHost host, Object error) {
+    if (!mounted || !identical(_mapHost, host)) return;
+    debugPrint('SiponMap: ${host.diagnosticName}: $error');
+    setState(() => _nativeError ??= '地图暂时无法加载，请重试');
+  }
+
+  Future<void> _onCreated(
+    MapEngine engine,
+    int viewId,
+    Brightness brightness,
+    int generation,
+  ) async {
+    if (!mounted || generation != _generation) return;
     _viewId = viewId;
     final oldHost = _mapHost;
     oldHost?.dispose();
     final host = ChannelMapHost(
       MethodChannel(siponChannelName(engine, viewId)),
       onEvent: (method, arguments) {
-        if (!mounted || _viewId != viewId) {
+        if (!mounted || generation != _generation || _viewId != viewId) {
           return;
         }
         if (method == SiponMapEvents.onMapError) {
@@ -251,11 +282,13 @@ class _SiponMapWidgetState extends State<SiponMapWidget> {
       },
     );
     _mapHost = host;
-    host.invoke(
-      SiponMapCommands.setAppearance,
-      encodeAppearance(_brightness ?? brightness),
-    );
-    widget.onHostReady(host);
+    await _setAppearance(host, _brightness ?? brightness);
+    if (!mounted || !identical(_mapHost, host)) return;
+    try {
+      await widget.onHostReady(host);
+    } catch (error) {
+      _showHostError(host, error);
+    }
   }
 
   @override

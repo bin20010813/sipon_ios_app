@@ -19,10 +19,12 @@ abstract class SiponMapHost {
 
 /// 把一条事件派发给当前登记的处理器；没人登记就先攒着。
 class SiponEventSink {
+  int _generation = 0;
   final List<MapEntry<String, Object?>> _pending = [];
   void Function(String method, Object? arguments)? _handler;
 
   void attachHandler(void Function(String method, Object? arguments)? handler) {
+    ++_generation;
     _handler = handler;
     if (handler != null && _pending.isNotEmpty) {
       // 补发早于注册到达的事件。copy 后清空，避免补发过程再入队造成重放。
@@ -35,6 +37,7 @@ class SiponEventSink {
   }
 
   void detachHandler() {
+    ++_generation;
     _handler = null;
     _pending.clear();
   }
@@ -49,6 +52,9 @@ class SiponEventSink {
     }
 
     // 控制器回调里可能同步触发页面 setState，异步化保证不在平台消息泵里执行。
-    Timer.run(() => handler(method, arguments));
+    final generation = _generation;
+    Timer.run(() {
+      if (generation == _generation) handler(method, arguments);
+    });
   }
 }

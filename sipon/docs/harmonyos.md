@@ -14,6 +14,7 @@ Hvigor、HDC 和 `DEVECO_SDK_HOME`。采用
 
 ```powershell
 $env:FLUTTER_OHOS_HOME = 'D:\flutter_ohos'
+$env:SIPON_HUAWEI_CLIENT_ID = '<该鸿蒙应用的 OAuth Client ID>'
 .\tool\build_harmony.ps1 -Mode debug
 ```
 
@@ -35,9 +36,15 @@ $env:FLUTTER_OHOS_HOME = 'D:\flutter_ohos'
 
 `ohos/AppScope/app.json5` 默认包名是 `com.sipon.app`，版本为 `1.0.6`。
 请与华为开发者后台的真实应用包名保持一致，在该应用中开通 Map Kit。
+从 AppGallery Connect 的应用信息取得 OAuth Client ID，通过 `SIPON_HUAWEI_CLIENT_ID`
+或 `-MapClientId` 传给构建脚本。脚本会替换生成工程 `entry/src/main/module.json5`
+中 `metadata.client_id` 的占位符；未配置时会阻止正式构建，`-PrepareOnly` 只发出提示。
+若直接用 DevEco 构建源工程，需要先将该占位符替换成真实 Client ID。
+这是应用的客户端标识，不是 Client Secret，也不是 Android 地图 API Key。
 通过 DevEco Studio 配置调试或发布签名，并同步到源工程的
 `ohos/build-profile.json5`，设置对应产品的 `signingConfig`。
 签名文件放入被忽略的 `ohos/signing/`，不要提交证书私钥或密码。
+构建脚本会将此目录复制到生成工程的 `ohos/signing/`；签名配置建议使用相对此目录的路径。
 当前工程没有预置真实签名，也没有声称已完成地图服务开通。
 
 原生工程声明网络、前台精确/模糊定位和相机权限。定位继续使用现有业务的权限申请流程；
@@ -76,6 +83,8 @@ flutter test tool/tests/harmony_map_test.dart
 ```
 
 共享 Dart 代码可用上游 Flutter 检查；`ohos/flutter/main.dart` 必须使用 Flutter OH 分析。
+`build_harmony.ps1` 会在 HAP 编译之前运行地图回归测试，包括初始化失败重试、
+关闭页面时取消初始化、重试隔离旧地图回调及事件队列清理。
 原生 ArkTS 编译与 HAP 安装必须使用 HarmonyOS SDK 和签名配置完成。
 真机验收需覆盖地图拖动/缩放、半屏与全屏切换、点位点击、城市切换、定位授权与拒绝、
 搜索和路线失败、地图重试、多地图同时存在、关闭页面后异步回调、花瓣地图唤起，
@@ -84,6 +93,7 @@ flutter test tool/tests/harmony_map_test.dart
 ## 接口参考
 
 - [MapComponent](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/map-mapcomponent)
+- [地图服务开通与 client_id 配置示例](https://developer.huawei.com/consumer/cn/doc/doccenter-scenario/bpta-shared-bicycle)
 - [地图控制器](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/map-map-mapcomponentcontroller)
 - [事件管理](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/map-map-mapeventmanager)
 - [坐标转换](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/map-map-convertcoordinatesync)

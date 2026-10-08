@@ -34,6 +34,7 @@ class MapkitSceneController extends MapSceneController {
   final bool resolveInitialCityCenter;
 
   SiponMapHost? _host;
+  int _attachment = 0;
 
   /// 原生配置完成并回报 ready 之后才允许渲染/读视野。
   bool _ready = false;
@@ -55,11 +56,21 @@ class MapkitSceneController extends MapSceneController {
     MapBaseStyle style = MapBaseStyle.standard,
     MapLatLng? initialCenter,
   }) async {
+    final attachment = ++_attachment;
+    bool isCurrent() => attachment == _attachment && identical(_host, host);
+    _ready = false;
+    _cancelSettleDebounce();
+    _settlingViewport = null;
+    final previousReady = _readyCompleter;
+    if (previousReady != null && !previousReady.isCompleted) {
+      previousReady.complete();
+    }
     _host = host;
-    host.onNativeCall(handleNativeEvent);
-
     final ready = Completer<void>();
     _readyCompleter = ready;
+    host.onNativeCall((method, arguments) {
+      if (isCurrent()) handleNativeEvent(method, arguments);
+    });
 
     // 地图配置（初始相机、底图、手势、装饰物开关）全部收进原生侧的 setup，
     // 收到这条命令后原生才装配地图并回报 onMapReady——不存在事件早于监听。
@@ -73,10 +84,12 @@ class MapkitSceneController extends MapSceneController {
             (resolveInitialCityCenter ? mapCenterForCity(city) : null),
       ),
     );
+    if (!isCurrent()) throw StateError('Map attachment was cancelled');
     // 手势显式下一次：原来 [encodeGestures] 与原生 setGestures 分支都在，
     // 但没有任何调用点，等于「靠原生默认值恰好是开着的」。补齐这条，缩放/拖拽
     // 不再依赖平台默认行为（协议 §3.1 setGestures）。
     await host.invoke(SiponMapCommands.setGestures, encodeGestures());
+    if (!isCurrent()) throw StateError('Map attachment was cancelled');
     // 打包产物的中文与空格使用 URI 编码，原生直接按未编码的 key 查找会失败。
     // AssetBundle 负责解析真实资源路径；每次 attach 只传一次图片字节。
     final keys = encodeMarkerAssets()['assets']! as Map<String, Object?>;
@@ -111,25 +124,24 @@ class MapkitSceneController extends MapSceneController {
       );
     }
     // 读取期间页面可能已关闭，不能给已销毁或新绑定的地图注册资源。
-    if (!identical(_host, host) || !identical(_readyCompleter, ready)) return;
+    if (!isCurrent()) throw StateError('Map attachment was cancelled');
     await host.invoke(SiponMapCommands.registerAssets, {'assets': images});
+    if (!isCurrent()) throw StateError('Map attachment was cancelled');
 
-    // 正常情况 onMapReady 在上面两条 invoke 返回前后就会到；超时兜底放行，
-    // 避免原生异常时页面永远停在「等待地图」。
+    // 未收到 ready 时交由宿主显示重试，不能把未初始化的地图视为成功。
     const readyTimeout = Duration(seconds: 5);
     if (!ready.isCompleted) {
-      await ready.future.timeout(
-        readyTimeout,
-        onTimeout: () {
-          debugPrint('SiponMap: onMapReady timed out after $readyTimeout');
-        },
-      );
+      await ready.future.timeout(readyTimeout);
     }
+    if (!isCurrent()) throw StateError('Map attachment was cancelled');
     _readyCompleter = null;
   }
 
   @override
   void detach() {
+    ++_attachment;
+    final ready = _readyCompleter;
+    if (ready != null && !ready.isCompleted) ready.complete();
     final host = _host;
     if (host != null) {
       // 尽力通知原生销毁；通道可能已经没了，失败不必上抛。

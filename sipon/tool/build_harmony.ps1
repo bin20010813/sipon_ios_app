@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$FlutterSdk = $env:FLUTTER_OHOS_HOME,
+    [string]$MapClientId = $env:SIPON_HUAWEI_CLIENT_ID,
     [ValidateSet('debug', 'profile', 'release')][string]$Mode = 'debug',
     [switch]$PrepareOnly,
     [switch]$ResolvePlugins
@@ -10,6 +11,18 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $stageRoot = [IO.Path]::GetFullPath((Join-Path $projectRoot 'build/harmony_workspace'))
 $utf8 = New-Object System.Text.UTF8Encoding($false)
+$moduleManifest = [IO.File]::ReadAllText((Join-Path $projectRoot 'ohos/entry/src/main/module.json5'))
+$clientIdPlaceholder = '"__SIPON_HUAWEI_CLIENT_ID__"'
+if (-not [string]::IsNullOrWhiteSpace($MapClientId)) {
+    $clientIdJson = ConvertTo-Json -InputObject $MapClientId.Trim() -Compress
+    $moduleManifest = $moduleManifest.Replace($clientIdPlaceholder, $clientIdJson)
+}
+if ($moduleManifest.Contains($clientIdPlaceholder)) {
+    if (-not $PrepareOnly) {
+        throw 'Map Kit client_id is missing. Set SIPON_HUAWEI_CLIENT_ID or pass -MapClientId with the HarmonyOS app OAuth Client ID from AppGallery Connect.'
+    }
+    Write-Warning 'Map Kit client_id is not configured. This workspace is for preparation only; configure it before building/installing.'
+}
 
 if (-not $PrepareOnly) {
     if ([string]::IsNullOrWhiteSpace($FlutterSdk)) {
@@ -33,13 +46,21 @@ if (Test-Path -LiteralPath $stageRoot) {
     Remove-Item -LiteralPath $stageRoot -Recurse -Force
 }
 New-Item -ItemType Directory -Path $stageRoot -Force | Out-Null
-foreach ($directory in @('lib', 'assets', 'assest', 'ohos', 'test')) {
+foreach ($directory in @('lib', 'assets', 'assest', 'ohos', 'test', 'tool/tests')) {
     $source = Join-Path $projectRoot $directory
     if (-not (Test-Path -LiteralPath $source)) { continue }
     & robocopy $source (Join-Path $stageRoot $directory) /E /NFL /NDL /NJH /NJS /NP `
         /XD build oh_modules .hvigor .dart_tool signing /XF local.properties | Out-Null
     if ($LASTEXITCODE -gt 7) { throw "Failed to copy $directory (robocopy $LASTEXITCODE)." }
 }
+# Relative signing paths in build-profile.json5 must exist in the generated
+# project as well. These files remain under ignored build/ and ohos/signing/.
+$signingSource = Join-Path $projectRoot 'ohos/signing'
+if (Test-Path -LiteralPath $signingSource) {
+    & robocopy $signingSource (Join-Path $stageRoot 'ohos/signing') /E /NFL /NDL /NJH /NJS /NP | Out-Null
+    if ($LASTEXITCODE -gt 7) { throw 'Failed to stage HarmonyOS signing files.' }
+}
+[IO.File]::WriteAllText((Join-Path $stageRoot 'ohos/entry/src/main/module.json5'), $moduleManifest, $utf8)
 Copy-Item -LiteralPath (Join-Path $projectRoot 'analysis_options.yaml') -Destination $stageRoot
 $analysisOptions = [IO.File]::ReadAllText((Join-Path $stageRoot 'analysis_options.yaml'))
 $analysisOptions = [Text.RegularExpressions.Regex]::Replace($analysisOptions, '(?m)^\s*- ohos/\*\*\r?\n', '')
@@ -68,6 +89,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'HarmonyOS dependency resolution failed.' }
     & $flutterCommand analyze --no-pub --no-fatal-warnings --no-fatal-infos lib ohos/flutter/main.dart
     if ($LASTEXITCODE -ne 0) { throw 'HarmonyOS Dart analysis failed.' }
+    & $flutterCommand test --no-pub tool/tests/harmony_map_test.dart
+    if ($LASTEXITCODE -ne 0) { throw 'HarmonyOS map regression tests failed.' }
     & $flutterCommand build hap "--$Mode" --target ohos/flutter/main.dart
     if ($LASTEXITCODE -ne 0) { throw 'HAP build failed. Check the HarmonyOS SDK and signing configuration.' }
 } finally {
