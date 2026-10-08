@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import '../../../shared/services/sipon_api_models.dart';
 import '../../../shared/services/sipon_region_data.dart';
 
 /// 一个经纬度点。纯 Dart，避免把地图引擎类型渗到数据层。
@@ -130,6 +131,13 @@ class MapViewport {
   ///   都落在已加载范围内 → 不重拉。
   bool differsMateriallyFrom(MapViewport previous) {
     if (!bounds.isValid || !previous.bounds.isValid) {
+      return true;
+    }
+    // Each integer zoom has its own server query, including the transition
+    // from representatives (13) to individual bars (14). A small camera zoom
+    // change can cross this boundary even when it is below zoomEpsilon.
+    if (SiponMapBounds.normalizeZoom(zoom) !=
+        SiponMapBounds.normalizeZoom(previous.zoom)) {
       return true;
     }
     if ((zoom - previous.zoom).abs() >= zoomEpsilon) {

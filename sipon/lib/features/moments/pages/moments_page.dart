@@ -30,7 +30,10 @@ class MomentsPageState extends State<MomentsPage> {
   final GlobalKey<HomeMomentsSectionState> _momentsKey =
       GlobalKey<HomeMomentsSectionState>();
   late final HomeMomentsRepository? _repository =
-      widget.repository ?? (kDebugMode ? MockHomeMomentsRepository() : null);
+      widget.repository ??
+      (kDebugMode && const bool.fromEnvironment('SIPON_MOCK_MOMENTS')
+          ? MockHomeMomentsRepository()
+          : null);
   SiponCityController? _cityController;
   String _city = SiponCityController.defaultCity;
 

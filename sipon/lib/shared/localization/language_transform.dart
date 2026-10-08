@@ -158,24 +158,9 @@ class SiponAppText {
   String get noRecords => t('本月还没有记账记录');
   String get cancel => t('取消');
   String get confirm => t('确定');
-  String get benefits => t('权益');
-  String get membership => t('Sipon会员');
 
-  /// 限时会员标识。
-  String get membershipLimitedTime => t('限时');
-
-  String get vouchers => t('我的礼券');
-  String get vouchersBadge => t('3张可用');
   String get achievements => t('成就勋章');
   String get achievementsUnlocked => t('已解锁8枚');
-
-  /// 礼券徽标：数量来自接口，无数据时显示 0 张。
-  String vouchersBadgeCount(int count) {
-    if (count <= 0) {
-      return isZh ? '0张' : '0 available';
-    }
-    return isZh ? '$count张可用' : '$count available';
-  }
 
   /// 成就勋章：已解锁数量来自接口，无数据时显示 0 枚。
   // String achievementsUnlockedCount(int count) {
@@ -390,11 +375,6 @@ const Map<String, String> _englishText = {
   '暂无统计数据': 'No statistics yet',
   '取消': 'Cancel',
   '确定': 'Confirm',
-  '权益': 'Benefits',
-  'Sipon会员': 'Sipon Membership',
-  '限时': 'Limited time',
-  '我的礼券': 'Vouchers',
-  '3张可用': '3 available',
   '成就勋章': 'Achievements',
   '已解锁8枚': '8 unlocked',
   '设置与支持': 'Settings & Support',

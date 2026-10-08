@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -26,7 +27,6 @@ import 'settings_support_page.dart';
 
 part '../widgets/profile_header.dart';
 part '../widgets/profile_lists.dart';
-part '../widgets/membership_sheet.dart';
 part '../widgets/budget_card.dart';
 part '../widgets/budget_bill.dart';
 
@@ -47,34 +47,6 @@ String _formatCurrency(double value) {
   }
   final reversed = buffer.toString().split('').reversed.join();
   return '${negative ? '-' : ''}¥$reversed$decimals';
-}
-
-String _romanNumeral(int value) {
-  if (value <= 0 || value > 3999) return '—';
-  const numerals = <(int, String)>[
-    (1000, 'M'),
-    (900, 'CM'),
-    (500, 'D'),
-    (400, 'CD'),
-    (100, 'C'),
-    (90, 'XC'),
-    (50, 'L'),
-    (40, 'XL'),
-    (10, 'X'),
-    (9, 'IX'),
-    (5, 'V'),
-    (4, 'IV'),
-    (1, 'I'),
-  ];
-  final result = StringBuffer();
-  var remaining = value;
-  for (final (number, numeral) in numerals) {
-    while (remaining >= number) {
-      result.write(numeral);
-      remaining -= number;
-    }
-  }
-  return result.toString();
 }
 
 void _showProfileMessage(BuildContext context, String message) {
@@ -100,8 +72,6 @@ class ProfilePage extends StatefulWidget {
   static const String _drunkAsset = 'assest/我的/我喝过的@3x.png';
   static const String _wishAsset = 'assest/我的/我想喝的@3x.png';
   static const String _routeAsset = 'assest/我的/酒鬼线路@3x.png';
-  static const String _memberAsset = 'assest/我的/Sipon会员@3x.png';
-  static const String _couponAsset = 'assest/我的/我的礼券@3x.png';
   // static const String _achievementAsset = 'assest/我的/成就勋章@3x.png';
 
   @override
@@ -110,26 +80,28 @@ class ProfilePage extends StatefulWidget {
 
 /// 我的页状态；通过 [ProfilePageState.refreshCounts] 供外部（切回 tab、
 /// 规划路线/打卡返回后）触发「喝过 / 想喝 / 酒鬼路线」计数刷新。
-class ProfilePageState extends State<ProfilePage> {
+class ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   final GlobalKey<_QuickEntryCardState> _quickEntryKey = GlobalKey();
   final SiponApiService _api = SiponApiService();
   UserProfileData? _profile;
   bool _profileLoading = true;
   bool _hasUnreadNotifications = false;
-
-  /// 礼券数量；为 null 表示尚未加载或加载失败。
-  int? _couponCount;
-
-  // 成就勋章暂时隐藏，相关状态保留待后续启用。
-  // /// 已解锁成就数量；为 null 表示尚未加载或加载失败。
-  // int? _achievementCount;
+  Timer? _notificationTimer;
+  bool _unreadRequestInFlight = false;
+  bool _unreadRefreshQueued = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _notificationTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      final state = WidgetsBinding.instance.lifecycleState;
+      if (state == null || state == AppLifecycleState.resumed) {
+        _loadUnreadNotifications();
+      }
+    });
     _loadProfile();
     _loadUnreadNotifications();
-    _loadBenefits();
   }
 
   /// 资料和概览分开请求；概览失败不会阻塞用户基础信息展示。
@@ -174,6 +146,12 @@ class ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _loadUnreadNotifications() async {
+    if (!mounted) return;
+    if (_unreadRequestInFlight) {
+      _unreadRefreshQueued = true;
+      return;
+    }
+    _unreadRequestInFlight = true;
     try {
       final response = await _api.getUnreadNotificationCount();
       final value = response is Map
@@ -185,7 +163,25 @@ class ProfilePageState extends State<ProfilePage> {
       }
     } on Exception {
       // The bell stays available when the count endpoint is unavailable.
+    } finally {
+      _unreadRequestInFlight = false;
+      if (_unreadRefreshQueued && mounted) {
+        _unreadRefreshQueued = false;
+        unawaited(_loadUnreadNotifications());
+      }
     }
+  }
+
+  @override
+  void dispose() {
+    _notificationTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _loadUnreadNotifications();
   }
 
   Future<void> _openNotifications() async {
@@ -221,58 +217,8 @@ class ProfilePageState extends State<ProfilePage> {
     await _loadUnreadNotifications();
   }
 
-  /// 拉取礼券数量；失败时不显示徽标。
-  Future<void> _loadBenefits() async {
-    int? couponCount;
-    try {
-      couponCount = (await _api.getCoupons()).length;
-    } on Exception {
-      couponCount = null;
-    }
-
-    // 成就勋章暂时隐藏，以下计数逻辑保留待后续启用。
-    // // 成就接口同时返回已解锁与未解锁条目，这里只统计已解锁数量。
-    // Future<int?> safeUnlockedCount() async {
-    //   try {
-    //     final list = await _api.getAchievements();
-    //     return list
-    //         .whereType<Map>()
-    //         .where((item) {
-    //           final map = item.cast<String, dynamic>();
-    //           return map['unlocked'] == true ||
-    //               map['achieved'] == true ||
-    //               map['isUnlocked'] == true;
-    //         })
-    //         .length;
-    //   } on Exception {
-    //     return null;
-    //   }
-    // }
-
-    if (!mounted) return;
-    setState(() {
-      _couponCount = couponCount;
-    });
-  }
-
-  /// 礼券徽标文案：数量来自接口，无数据时显示 0 张。
-  String? _voucherBadge(SiponAppText text) {
-    final count = _couponCount;
-    if (count == null) return null;
-    return text.vouchersBadgeCount(count);
-  }
-
-  // 成就勋章暂时隐藏，以下文案方法保留待后续启用。
-  // /// 成就文案：已解锁数量来自接口，无数据时显示 0 枚。
-  // String? _achievementTrailing(SiponAppText text) {
-  //   final count = _achievementCount;
-  //   if (count == null) return null;
-  //   return text.achievementsUnlockedCount(count);
-  // }
-
   @override
   Widget build(BuildContext context) {
-    final text = SiponLanguageScope.textOf(context);
     final themeColors = context.siponColors;
     final bottomOverlayInset = widget.bottomOverlayInset;
     final onRecordPressed = widget.onRecordPressed;
@@ -327,44 +273,6 @@ class ProfilePageState extends State<ProfilePage> {
                         _QuickEntryCard(key: _quickEntryKey),
                         const SizedBox(height: 18),
                         _BudgetCard(onRecordPressed: onRecordPressed),
-                        const SizedBox(height: 22),
-                        Padding(
-                          padding: const EdgeInsets.only(left: 16),
-                          child: _SectionTitle(text.benefits),
-                        ),
-                        const SizedBox(height: 12),
-                        _ProfileListCard(
-                          rows: [
-                            _ProfileListRow(
-                              assetPath: ProfilePage._memberAsset,
-                              title: text.membership,
-                              badge: text.membershipLimitedTime,
-                              onTap: () => _showMembershipSheet(
-                                context,
-                                userLevel: _profile?.level,
-                              ),
-                            ),
-                            _ProfileListRow(
-                              assetPath: ProfilePage._couponAsset,
-                              title: text.vouchers,
-                              badge: _voucherBadge(text),
-                              onTap: () async {
-                                await _showCouponList(context);
-                                _loadBenefits();
-                              },
-                            ),
-                            // 成就勋章暂时隐藏，保留逻辑待后续启用。
-                            // _ProfileListRow(
-                            //   assetPath: ProfilePage._achievementAsset,
-                            //   title: text.achievements,
-                            //   trailingText: _achievementTrailing(text),
-                            //   onTap: () async {
-                            //     await _showAchievementList(context);
-                            //     _loadBenefits();
-                            //   },
-                            // ),
-                          ],
-                        ),
                       ],
                     ),
                   ),

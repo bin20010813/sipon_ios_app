@@ -4,10 +4,11 @@ import 'package:sipon/shared/services/sipon_api_service.dart';
 import 'package:sipon/shared/services/sipon_notification.dart';
 import 'package:sipon/features/profile/data/user_profile_data.dart';
 import 'package:sipon/shared/localization/language_transform.dart';
+import 'profile_edit_page.dart';
+import 'notification_content_page.dart';
 
 class ProfileNotificationsPage extends StatefulWidget {
   const ProfileNotificationsPage({super.key, this.profile, this.api});
-
   final UserProfileData? profile;
   final SiponApiService? api;
 
@@ -16,44 +17,154 @@ class ProfileNotificationsPage extends StatefulWidget {
       _ProfileNotificationsPageState();
 }
 
-class _ProfileNotificationsPageState extends State<ProfileNotificationsPage> {
+class _ProfileNotificationsPageState extends State<ProfileNotificationsPage>
+    with WidgetsBindingObserver {
+  static const _pageSize = 20;
   late final SiponApiService _api = widget.api ?? SiponApiService();
   UserProfileData? _profile;
   List<SiponNotification> _notifications = const [];
+  final Set<int> _marking = {};
   bool _loading = true;
+  bool _busy = false;
   bool _failed = false;
+  bool _hasMore = false;
+  bool _readingAll = false;
+  int _offset = 0;
 
   @override
   void initState() {
     super.initState();
     _profile = widget.profile;
+    WidgetsBinding.instance.addObserver(this);
     _refresh();
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refresh();
+  }
+
   Future<void> _refresh() async {
-    UserProfileData? profile = _profile;
-    List<SiponNotification>? notifications;
-    var failed = false;
+    if (_busy || _readingAll || _marking.isNotEmpty) return;
+    _busy = true;
     try {
-      profile = UserProfileData.fromJson(await _api.getMyProfile());
+      final raw = await _api.getMyProfile();
+      if (mounted) _profile = UserProfileData.fromJson(raw);
     } on Exception {
-      failed = profile == null;
+      /* Messages remain available if profile loading fails. */
     }
+    if (mounted) await _load(replace: true);
+  }
+
+  Future<void> _load({bool replace = false}) async {
+    if (!replace && (_busy || !_hasMore || _readingAll)) return;
+    setState(() => _busy = true);
     try {
-      notifications = (await _api.getMyNotifications())
-          .map(SiponNotification.fromJson)
-          .toList();
+      final raw = await _api.getMyNotifications(
+        page: SiponPage(limit: _pageSize, offset: replace ? 0 : _offset),
+      );
+      if (!mounted) return;
+      final items = raw.map(SiponNotification.fromJson).toList();
+      setState(() {
+        final previous = replace ? <SiponNotification>[] : _notifications;
+        final ids = previous.map((item) => item.id).whereType<int>().toSet();
+        _notifications = [
+          ...previous,
+          ...items.where((item) => item.id == null || ids.add(item.id!)),
+        ];
+        _offset = (replace ? 0 : _offset) + raw.length;
+        _hasMore = raw.length == _pageSize;
+        _failed = false;
+      });
     } on Exception {
-      failed = true;
+      if (mounted) setState(() => _failed = true);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  void _error(String message) => ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(SiponLanguageScope.textOf(context).t(message))),
+  );
+
+  Future<void> _readAll() async {
+    if (_readingAll || _busy || _marking.isNotEmpty) return;
+    setState(() => _readingAll = true);
+    try {
+      await _api.markAllNotificationsRead();
+      if (mounted) {
+        setState(
+          () => _notifications = _notifications
+              .map((item) => item.asRead())
+              .toList(),
+        );
+      }
+    } on Exception {
+      if (mounted) _error('标记已读失败，请重试');
+    } finally {
+      if (mounted) setState(() => _readingAll = false);
+    }
+  }
+
+  Future<void> _open(SiponNotification item) async {
+    if (_readingAll || (item.id != null && _marking.contains(item.id))) return;
+    if (item.isUnread) {
+      setState(() => _marking.add(item.id!));
+      try {
+        await _api.markNotificationsRead({
+          'notificationIds': [item.id!],
+        });
+        if (mounted) {
+          setState(
+            () => _notifications = _notifications
+                .map((row) => row.id == item.id ? row.asRead() : row)
+                .toList(),
+          );
+        }
+      } on Exception {
+        if (mounted) _error('标记已读失败，请重试');
+      } finally {
+        if (mounted) setState(() => _marking.remove(item.id));
+      }
     }
     if (!mounted) return;
-    setState(() {
-      _profile = profile;
-      if (notifications != null) _notifications = notifications;
-      _failed = failed;
-      _loading = false;
-    });
+    if (item.checkInId != null || item.routeId != null) {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => NotificationContentPage(
+            notification: item,
+            api: _api,
+            viewerId: _profile?.id,
+          ),
+        ),
+      );
+    } else if (item.isProfileModeration && _profile != null) {
+      await Navigator.of(context).push<UserProfileData>(
+        MaterialPageRoute(builder: (_) => ProfileEditPage(profile: _profile!)),
+      );
+      if (mounted) await _refresh();
+    }
   }
+
+  IconData _icon(SiponNotification item) => switch (item.type) {
+    'check_in_like' => Icons.favorite_outline_rounded,
+    'check_in_comment' => Icons.chat_bubble_outline_rounded,
+    _ =>
+      item.isReview
+          ? Icons.fact_check_outlined
+          : Icons.notifications_none_rounded,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -64,7 +175,15 @@ class _ProfileNotificationsPageState extends State<ProfileNotificationsPage> {
         .toList();
     return Scaffold(
       appBar: AppBar(
-        title: Text(text.t('消息'), style: TextStyle(color: scheme.onSurface)),
+        title: Text(text.t('消息')),
+        actions: [
+          TextButton(
+            onPressed: _readingAll || _busy || _marking.isNotEmpty
+                ? null
+                : _readAll,
+            child: Text(text.t(_readingAll ? '处理中' : '全部已读')),
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: _refresh,
@@ -74,43 +193,66 @@ class _ProfileNotificationsPageState extends State<ProfileNotificationsPage> {
           children: [
             if (_profile?.profileModerationStatus != null)
               _ModerationCard(profile: _profile!),
-            if (_profile?.profileModerationStatus != null)
-              const SizedBox(height: 20),
             if (_loading)
               const Center(child: CircularProgressIndicator())
             else if (_failed)
               ListTile(
                 title: Text(text.t('部分消息加载失败')),
                 trailing: TextButton(
-                  onPressed: _refresh,
+                  onPressed: _busy ? null : _refresh,
                   child: Text(text.t('重试')),
                 ),
               ),
-            for (final notification in visible)
-              _MessageBubble(
-                timestamp: notification.createdAt,
-                icon: notification.isProfileModeration
-                    ? Icons.verified_user_outlined
-                    : Icons.chat_bubble_outline_rounded,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      notification.title,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: scheme.onSurface,
-                      ),
+            if (!_loading && !_failed && visible.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Center(child: Text(text.t('暂无消息'))),
+              ),
+            for (final item in visible)
+              Card(
+                color: item.isUnread
+                    ? scheme.primaryContainer
+                    : scheme.surfaceContainerLow,
+                child: ListTile(
+                  onTap: _busy || _readingAll ? null : () => _open(item),
+                  isThreeLine: true,
+                  leading: Icon(_icon(item)),
+                  title: Text(
+                    item.title,
+                    style: TextStyle(
+                      fontWeight: item.isUnread
+                          ? FontWeight.w700
+                          : FontWeight.w500,
                     ),
-                    if (notification.body.isNotEmpty) ...[
-                      const SizedBox(height: 8),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (item.body.isNotEmpty) Text(item.body),
+                      if (item.contentVersion != null)
+                        Text('${text.t('审核内容版本')}：${item.contentVersion}'),
+                      const SizedBox(height: 6),
                       Text(
-                        notification.body,
-                        style: TextStyle(color: scheme.onSurface),
+                        [
+                          if (item.createdAt != null)
+                            _formatDate(item.createdAt!),
+                          text.t(item.isUnread ? '未读' : '已读'),
+                        ].join(' · '),
                       ),
                     ],
-                  ],
+                  ),
+                  trailing:
+                      item.checkInId != null ||
+                          item.routeId != null ||
+                          item.isProfileModeration
+                      ? const Icon(Icons.chevron_right_rounded)
+                      : null,
                 ),
+              ),
+            if (_hasMore)
+              TextButton(
+                onPressed: _busy || _readingAll ? null : () => _load(),
+                child: Text(text.t(_busy ? '加载中' : '加载更多消息')),
               ),
           ],
         ),

@@ -64,7 +64,7 @@ class SiponApiMapVenueRepository
     required String city,
     required String keyword,
   }) async {
-    final bars = await _repository.fetchHomeBars(
+    final bars = await _repository.searchBars(
       city: city,
       keyword: keyword,
       limit: 100,

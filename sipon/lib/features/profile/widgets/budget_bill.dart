@@ -488,9 +488,7 @@ class _BillDatePickerDialogState extends State<_BillDatePickerDialog> {
                   child: Container(
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: selected
-                          ? scheme.primary
-                          : sipon.subtleSurface,
+                      color: selected ? scheme.primary : sipon.subtleSurface,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
@@ -1336,25 +1334,6 @@ class _RecordDetailRow extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.title);
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: TextStyle(
-        color: Theme.of(context).colorScheme.onSurface,
-        fontSize: 15,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 0,
       ),
     );
   }

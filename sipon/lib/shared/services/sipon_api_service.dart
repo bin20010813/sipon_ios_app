@@ -74,6 +74,9 @@ class SiponApiService {
   Future<dynamic> markNotificationsRead(Map<String, Object?> body) =>
       _postJson('/api/users/me/notifications/read', body: body);
 
+  Future<dynamic> markAllNotificationsRead() =>
+      _postJson('/api/users/me/notifications/read-all', body: const {});
+
   Future<void> upsertDevice({
     required String deviceId,
     required Map<String, Object?> body,
@@ -84,11 +87,6 @@ class SiponApiService {
 
   Future<void> deleteDevice(String deviceId) =>
       _deleteEmpty('/api/users/me/devices/${Uri.encodeComponent(deviceId)}');
-
-  // Sipon 会员暂时隐藏，保留接口待后续启用。
-  // Future<dynamic> getMembership() => _get('/api/users/me/membership');
-
-  Future<List<dynamic>> getCoupons() => _getList('/api/users/me/coupons');
 
   Future<List<dynamic>> getAchievements() =>
       _getList('/api/users/me/achievements');

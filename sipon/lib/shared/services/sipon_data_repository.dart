@@ -38,6 +38,26 @@ class SiponDataRepository {
         .toList(growable: false);
   }
 
+  /// 地图关键词搜索包含所有匹配的正式酒吧，照片不作为搜索条件。
+  Future<List<SiponBarMapItem>> searchBars({
+    required String city,
+    required String keyword,
+    int limit = 100,
+  }) async {
+    final json = await _apiClient.getJson(
+      '/api/bars',
+      queryParameters: {
+        'city': siponApiCityName(city),
+        'keyword': keyword,
+        'limit': limit,
+        'offset': 0,
+      },
+    );
+    return SiponBarMapResponse.fromJson(json).items
+        .where((item) => !item.cluster && item.hasCoordinates)
+        .toList(growable: false);
+  }
+
   /// 拉取首页精选酒吧，支持 [offset]/[limit] 分页。
   ///
   /// 首页精选展示只需第一页；后续若扩展“查看全部酒吧”可由调用方传 offset 翻页。

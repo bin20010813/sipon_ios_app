@@ -32,7 +32,7 @@ class _ProfileListEntry {
   /// 后端返回的封面图（相对或绝对地址）；为空或加载失败时用 [fallbackImagePath]。
   final String? imageUrl;
 
-  /// 解析出的地点信息；喝过/想喝条目用于跳转半屏地图，礼券等无地点列表为 null。
+  /// 解析出的地点信息；喝过/想喝条目用于跳转半屏地图。
   final MapVenue? venue;
 
   /// 打卡卡会使用评论标题与地点、时间两行信息布局。
@@ -456,49 +456,6 @@ Future<_ProfileListPage> _loadRouteEntries(
   return _ProfileListPage(items: entries, hasMore: list.length >= limit);
 }
 
-/// 打开「我的礼券」列表弹窗：GET /api/users/me/coupons。
-Future<void> _showCouponList(BuildContext context) {
-  final api = SiponApiService();
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (_) => _ProfileListSheet(
-      title: '我的礼券',
-      emptyText: '暂无可用礼券',
-      // 礼券接口暂不分页，一次性拉取并标记无更多。
-      loader: (int _, int _) async {
-        final list = await api.getCoupons();
-        return _ProfileListPage(
-          hasMore: false,
-          items: [
-            for (final item in list.whereType<Map>())
-              () {
-                final map = item.cast<String, dynamic>();
-                final name = _pickString(map, ['title', 'name', 'couponName']);
-                if (name == null) return null;
-                final amount = _pickNum(map, ['amount', 'discount', 'value']);
-                final validTo = _shortDate(
-                  _pickString(map, ['validTo', 'expireAt', 'expiredAt']),
-                );
-                return _ProfileListEntry(
-                  name: name,
-                  description:
-                      _pickString(map, ['description', 'rule', 'condition']) ??
-                      '',
-                  meta: [
-                    if (amount != null) '¥${amount.toStringAsFixed(0)}',
-                    if (validTo.isNotEmpty) '有效期至 $validTo',
-                  ].join(' · '),
-                );
-              }(),
-          ].whereType<_ProfileListEntry>().toList(growable: false),
-        );
-      },
-    ),
-  );
-}
-
 /* 成就勋章暂时隐藏，保留逻辑待后续启用。
 /// 打开「成就勋章」列表弹窗：GET /api/users/me/achievements。
 Future<void> _showAchievementList(BuildContext context) {
@@ -539,17 +496,7 @@ Future<void> _showAchievementList(BuildContext context) {
 }
 */
 
-/// 打开「Sipon 会员」摘要弹窗：GET /api/users/me/membership。
-void _showMembershipSheet(BuildContext context, {int? userLevel}) {
-  showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (_) => _MembershipSheet(userLevel: userLevel),
-  );
-}
-
-/// 会员卡摘要：固定展示已开放权益，其余会员信息来自接口。
+/// 个人中心列表的单页数据：条目和是否还有下一页。
 class _ProfileListPage {
   const _ProfileListPage({required this.items, required this.hasMore});
 
@@ -910,10 +857,7 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: scheme.onSurfaceVariant,
-                fontSize: 13,
-              ),
+              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
             ),
             const SizedBox(height: 14),
             OutlinedButton.icon(
@@ -936,10 +880,7 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
         child: Center(
           child: Text(
             widget.emptyText,
-            style: TextStyle(
-              color: scheme.onSurfaceVariant,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
           ),
         ),
       );
@@ -1031,9 +972,7 @@ class _ProfileListFooter extends StatelessWidget {
               )
             : TextButton(
                 onPressed: onLoadMore,
-                style: TextButton.styleFrom(
-                  foregroundColor: scheme.primary,
-                ),
+                style: TextButton.styleFrom(foregroundColor: scheme.primary),
                 child: const Text(
                   '加载更多',
                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
@@ -1188,7 +1127,7 @@ class _MockListCard extends StatefulWidget {
   final bool selected;
   final _ProfileListEntry item;
 
-  /// 点击条目打开半屏地图；无地点的列表（如礼券）为 null，整卡不响应。
+  /// 点击条目打开半屏地图；没有地点信息时整卡不响应。
   final VoidCallback? onOpenMap;
 
   @override
@@ -1681,114 +1620,6 @@ class _VerticalDivider extends StatelessWidget {
       width: 1,
       height: 42,
       color: Theme.of(context).colorScheme.outlineVariant,
-    );
-  }
-}
-
-class _ProfileListCard extends StatelessWidget {
-  const _ProfileListCard({required this.rows});
-
-  final List<Widget> rows;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: context.siponColors.glassSurface,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          for (var index = 0; index < rows.length; index++) ...[
-            rows[index],
-            if (index != rows.length - 1)
-              Padding(
-                padding: const EdgeInsets.only(left: 54, right: 16),
-                child: Divider(height: 1, color: scheme.outlineVariant),
-              ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _ProfileListRow extends StatelessWidget {
-  const _ProfileListRow({
-    required this.assetPath,
-    required this.title,
-    this.badge,
-    // 成就勋章暂时隐藏，trailingText 保留待后续启用。
-    // this.trailingText,
-    this.onTap,
-  });
-
-  final String assetPath;
-  final String title;
-  final String? badge;
-  // final String? trailingText;
-  final VoidCallback? onTap;
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        child: Row(
-          children: [
-            Image.asset(assetPath, width: 26, height: 26),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                title,
-                style: TextStyle(
-                  color: scheme.onSurface,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0,
-                ),
-              ),
-            ),
-            if (badge != null)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: context.siponColors.brandSurface,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  badge!,
-                  style: TextStyle(
-                    color: scheme.primary,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ),
-            // 成就勋章暂时隐藏，trailingText 渲染保留待后续启用。
-            // if (trailingText != null)
-            //   Text(
-            //     trailingText!,
-            //     style: const TextStyle(
-            //       color: ProfilePage._brand,
-            //       fontSize: 10,
-            //       fontWeight: FontWeight.w700,
-            //       letterSpacing: 0,
-            //     ),
-            //   ),
-            const SizedBox(width: 7),
-            Icon(
-              Icons.chevron_right_rounded,
-              color: scheme.onSurfaceVariant,
-              size: 22,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

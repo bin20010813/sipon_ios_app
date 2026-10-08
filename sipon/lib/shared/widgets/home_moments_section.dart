@@ -764,6 +764,7 @@ class _MomentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
     final colors = Theme.of(context).colorScheme;
+    final liked = moment.myReaction == 'like';
     final category = subtypeName ?? moment.barCategory ?? moment.barSubtype;
     final location = [
       moment.city,
@@ -1031,26 +1032,4 @@ class _MomentCard extends StatelessWidget {
       ),
     );
   }
-
-  Widget _tag(BuildContext context, String label, {bool highlighted = false}) =>
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-        decoration: BoxDecoration(
-          color: highlighted
-              ? context.siponColors.brandSurface
-              : context.siponColors.subtleSurface,
-          borderRadius: BorderRadius.circular(5),
-        ),
-        child: Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 10,
-            color: highlighted
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-      );
 }

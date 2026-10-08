@@ -1024,57 +1024,135 @@ class _NotificationSettingsPage extends StatefulWidget {
 }
 
 class _NotificationSettingsPageState extends State<_NotificationSettingsPage> {
-  bool _activity = true;
-  bool _budget = true;
-  bool _recommend = false;
-  bool _system = true;
+  final SiponApiService _api = SiponApiService();
+  Map<String, bool> _values = {
+    'socialNotifications': true,
+    'activityNotifications': true,
+    'budgetNotifications': true,
+    'recommendationNotifications': true,
+    'systemNotifications': true,
+  };
+  bool _loading = true;
+  bool _failed = false;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _failed = false;
+    });
+    try {
+      final raw = await _api.getMyPreferences();
+      if (raw is! Map) {
+        throw const FormatException('Invalid notification preferences');
+      }
+      if (mounted) {
+        setState(
+          () => _values = {
+            for (final key in _values.keys)
+              key: raw[key] is bool ? raw[key] as bool : _values[key]!,
+          },
+        );
+      }
+    } on Exception {
+      if (mounted) setState(() => _failed = true);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _save(String key, bool value) async {
+    if (_saving || _loading || _failed) return;
+    setState(() => _saving = true);
+    try {
+      await _api.updateMyPreferences({key: value});
+      if (mounted) setState(() => _values[key] = value);
+    } on Exception {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(SiponLanguageScope.textOf(context).t('保存失败，请重试')),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
-
+    final disabled = _loading || _failed || _saving;
     return _SupportDetailScaffold(
       title: text.notificationSettings,
       children: [
         _SupportHero(
           icon: Icons.notifications_active_outlined,
           title: text.t('消息偏好'),
-          subtitle: text.t('先保存在本地状态，接口接入后同步到账号。'),
+          subtitle: text.t('管理当前账号的消息偏好，审核结果始终保留在消息中心。'),
         ),
         const SizedBox(height: 16),
+        if (_loading) const Center(child: CircularProgressIndicator()),
+        if (_failed)
+          TextButton(onPressed: _load, child: Text(text.t('加载失败，点击重试'))),
         _SupportPanel(
           title: text.t('通知类型'),
           children: [
             _SupportSwitchRow(
+              icon: Icons.favorite_outline_rounded,
+              title: text.t('点赞与评论'),
+              subtitle: text.t('动态收到点赞或已审核评论时提醒'),
+              value: _values['socialNotifications']!,
+              onChanged: (value) {
+                if (!disabled) _save('socialNotifications', value);
+              },
+            ),
+            _SupportSwitchRow(
               icon: Icons.event_available_outlined,
               title: text.t('活动与预约'),
               subtitle: text.t('酒吧活动、预约状态和到店提醒'),
-              value: _activity,
-              onChanged: (value) => setState(() => _activity = value),
+              value: _values['activityNotifications']!,
+              onChanged: (value) {
+                if (!disabled) _save('activityNotifications', value);
+              },
             ),
             _SupportSwitchRow(
               icon: Icons.account_balance_wallet_outlined,
               title: text.t('预算提醒'),
               subtitle: text.t('月预算接近上限时提醒'),
-              value: _budget,
-              onChanged: (value) => setState(() => _budget = value),
+              value: _values['budgetNotifications']!,
+              onChanged: (value) {
+                if (!disabled) _save('budgetNotifications', value);
+              },
             ),
             _SupportSwitchRow(
               icon: Icons.auto_awesome_outlined,
               title: text.t('个性推荐'),
               subtitle: text.t('推荐酒款、酒吧和榜单内容'),
-              value: _recommend,
-              onChanged: (value) => setState(() => _recommend = value),
+              value: _values['recommendationNotifications']!,
+              onChanged: (value) {
+                if (!disabled) _save('recommendationNotifications', value);
+              },
             ),
             _SupportSwitchRow(
               icon: Icons.security_update_good_outlined,
               title: text.t('系统通知'),
               subtitle: text.t('账号、安全和服务变更通知'),
-              value: _system,
-              onChanged: (value) => setState(() => _system = value),
+              value: _values['systemNotifications']!,
+              onChanged: (value) {
+                if (!disabled) _save('systemNotifications', value);
+              },
             ),
           ],
         ),
+        if (_saving) const LinearProgressIndicator(),
       ],
     );
   }

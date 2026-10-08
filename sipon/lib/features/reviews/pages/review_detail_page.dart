@@ -17,12 +17,16 @@ class ReviewDetailPage extends StatefulWidget {
     required this.venue,
     this.author,
     this.apiService,
+    this.notice,
+    this.onCommentsPressed,
   });
 
   final Map<String, dynamic> entry;
   final MapVenue venue;
   final UserProfileData? author;
   final SiponApiService? apiService;
+  final String? notice;
+  final VoidCallback? onCommentsPressed;
 
   @override
   State<ReviewDetailPage> createState() => _ReviewDetailPageState();
@@ -148,8 +152,30 @@ class _ReviewDetailPageState extends State<ReviewDetailPage> {
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
         ),
       ),
+      bottomNavigationBar: widget.onCommentsPressed == null
+          ? null
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: FilledButton.icon(
+                  onPressed: widget.onCommentsPressed,
+                  icon: const Icon(Icons.chat_bubble_outline_rounded),
+                  label: const Text('查看评论'),
+                ),
+              ),
+            ),
       body: CustomScrollView(
         slivers: [
+          if (widget.notice != null)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: Text(
+                  widget.notice!,
+                  style: TextStyle(color: scheme.onSurfaceVariant),
+                ),
+              ),
+            ),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 22, 20, 0),
