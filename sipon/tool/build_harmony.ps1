@@ -84,7 +84,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'HarmonyOS dependency resolution failed.' }
     & $flutterCommand analyze --no-pub --no-fatal-warnings --no-fatal-infos lib ohos/flutter/main.dart
     if ($LASTEXITCODE -ne 0) { throw 'HarmonyOS Dart analysis failed.' }
-    & $flutterCommand test --no-pub tool/tests/harmony_map_test.dart
+    & $flutterCommand test --no-pub tool/tests
     if ($LASTEXITCODE -ne 0) { throw 'HarmonyOS map regression tests failed.' }
     & node --test tool/tests/harmony_sticker_test.cjs
     if ($LASTEXITCODE -ne 0) { throw 'HarmonyOS native sticker regression tests failed.' }

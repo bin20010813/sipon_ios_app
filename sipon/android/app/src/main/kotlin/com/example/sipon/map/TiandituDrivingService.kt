@@ -38,7 +38,13 @@ internal class TiandituDrivingService {
         pending = onResult
         task = worker.submit {
             try {
-                val legs = listOf(mapOf<String, Any>("coordinates" to fetchRoute(stops)))
+                // Provider geometry is CGCS2000; shared/Dart geometry is GCJ-02.
+                val business = fetchRoute(stops).map { pair ->
+                    MapCoordinateAdapter.toBusiness(Cgcs2000Point(pair[0], pair[1])).let {
+                        listOf(it.lng, it.lat)
+                    }
+                }
+                val legs = listOf(mapOf<String, Any>("coordinates" to business))
                 main.post { if (revision == generation) finish(legs, null) }
             } catch (error: Exception) {
                 main.post { if (revision == generation) finish(null, error.message ?: "Driving route failed") }

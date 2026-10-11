@@ -261,10 +261,8 @@ internal class SiponTiandituView(
                 "readViewport" -> result.success(viewport())
                 "centerOnUser" -> {
                     val camera = args.toMutableMap()
-                    // Device fallback coordinates are WGS-84, unlike venue coordinates.
-                    val fallback = point(args)?.let {
-                        MapCoordinateAdapter.toBusiness(Cgcs2000Point(it.lng, it.lat))
-                    }
+                    // Dart has already normalized the fallback to GCJ-02.
+                    val fallback = point(args)
                     (userLocation.businessPosition ?: fallback)?.let {
                         camera["lng"] = it.lng
                         camera["lat"] = it.lat
@@ -303,14 +301,16 @@ internal class SiponTiandituView(
                         val lat = (point["lat"] as? Number)?.toDouble()
                         if (lng == null || lat == null || !lng.isFinite() || !lat.isFinite() ||
                             lng !in -180.0..180.0 || lat !in -90.0..90.0
-                        ) null else lng to lat
+                        ) null else MapCoordinateAdapter.toDisplay(Gcj02Point(lng, lat)).let {
+                            it.lng to it.lat
+                        }
                     }
                     if (rawPoints == null || stops == null || stops.size != rawPoints.size || stops.size !in 2..12) {
                         result.error("route_input", "Invalid route stops", null)
                     } else {
                         drivingService.plan(stops) { legs, error ->
                             if (error != null) result.error("route_service", error, null)
-                            else result.success(mapOf("crs" to "CGCS2000", "legs" to legs))
+                            else result.success(mapOf("crs" to MapCoordinateAdapter.businessCrs, "legs" to legs))
                         }
                     }
                 }

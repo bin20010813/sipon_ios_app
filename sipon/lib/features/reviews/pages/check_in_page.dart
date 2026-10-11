@@ -107,9 +107,13 @@ class _CheckInPageState extends State<CheckInPage> {
     }
     final fallback = siponFindCity(SiponCityController.defaultCity);
     if (fallback != null) {
+      final business = SiponLocationPoint.fromWgs84(
+        fallback.longitude,
+        fallback.latitude,
+      );
       return MapLatLng(
-        longitude: fallback.longitude,
-        latitude: fallback.latitude,
+        longitude: business.longitude,
+        latitude: business.latitude,
       );
     }
     return const MapLatLng(longitude: 121.4737, latitude: 31.2304);

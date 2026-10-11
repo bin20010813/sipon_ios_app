@@ -38,10 +38,19 @@ Windows 上通常是 `C:\Users\你的用户名\.gradle\gradle.properties`。不�
 
 如果还要启用腾讯地图外部导航，Flutter 构建另传 `--dart-define=SIPON_TENCENT_MAP_KEY=你的腾讯地图Key`；未配置时腾讯选项不会展示。高德和百度导航不使用这个 Key。
 
-## 道路路线代理
+## 道路路线
 
-Android 路线调用 Sipon 后端的拟议接口 `POST /api/map/routes/plan`。客户端发送 `requestId`、`crs: WGS84`、`mode: driving` 和有序的 `{lng, lat}` 站点；期望响应为 `crs: WGS84` 及每一对相邻站点对应的一段 `legs[].coordinates`，坐标格式 `[lng, lat]`。该接口不在本仓库内，部署和供应商密钥需要在后端完成。接口未部署或校验失败时，客户端明确提示路线失败，不会画直线冒充道路规划。
+当前默认由 Android 原生 `TiandituDrivingService` 请求天地图驾车服务。共享层传入
+GCJ-02 站点，原生边界转换为天地图显示坐标；返回道路几何转回 GCJ-02，通道响应
+标记 `crs: GCJ02`。绘制和样式重放均从业务坐标转换，避免累积偏移。
+
+若注入 `RoutePlanner`，则调用拟议后端接口 `POST /api/map/routes/plan`，请求和响应
+均要求 `crs: GCJ02`，站点为 `{lng, lat}`，`legs[].coordinates` 为 `[lng, lat]`。
+该代理不在本仓库内，不能仅修改响应标签冒充转换；接入前需同步后端契约。
 
 ## 当前验证边界
 
-WGS-84 与 CGCS2000 目前在 Android 地图边界采用 `approximate-identity-v1` 显示近似。它只用于首版联调；Android 新增地点提交默认关闭。按适配方案第 6.1 节使用可信同名点实测、达到业务精度门槛后，构建时传 `--dart-define=SIPON_ANDROID_COORDINATE_VERIFIED=true` 才可开放提交。正式发布前还需 Android 真机验证地图合成、无 GMS 定位、导航 App URI、授权失败和 release 包。
+当前 `MapCoordinateAdapter` 使用 `gcj02-to-cgcs2000-v1`，移除 GCJ-02 偏移并将
+WGS-84/CGCS2000 数值近似用于地图显示，不宣称测绘精度。详见
+[三端整合与坐标契约](three-platform-integration.md)。正式发布前仍需 Android
+真机验证点位、道路、选点回传、无 GMS 定位、外部导航、授权失败和 release 包。

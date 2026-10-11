@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:sipon/shared/services/map/business_coordinates.dart';
 
 import '../data/route_planner.dart';
 import '../models/map_display_options.dart';
@@ -12,8 +13,8 @@ import '../widgets/checkin_pin_icon.dart';
 import 'map_scene_controller.dart';
 import 'package:sipon/shared/services/map/map_place_result.dart';
 
-/// Android map scene. The current diagnostic build treats business coordinates
-/// as GCJ-02; the native adapter converts them at the Tianditu boundary.
+/// Android map scene. Business coordinates are GCJ-02; the native adapter
+/// converts them at the Tianditu boundary.
 class TiandituSceneController extends MapSceneController {
   TiandituSceneController({
     required super.onViewportSettled,
@@ -333,7 +334,7 @@ class TiandituSceneController extends MapSceneController {
           SiponMapCommands.planRoadRoute,
           encodeRoutePoints(points),
         );
-        if (response is! Map || response['crs'] != 'CGCS2000') {
+        if (response is! Map || response['crs'] != BusinessCoordinates.crs) {
           throw const FormatException('Unexpected Tianditu route coordinates');
         }
         legs = RoutePlanner.parseLegs(response['legs'], expectedLegs: 1);

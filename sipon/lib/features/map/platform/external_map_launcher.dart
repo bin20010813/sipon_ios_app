@@ -149,9 +149,10 @@ class ExternalMapLauncher {
 
   /// 各地图路线规划的 URL Scheme：
   /// - Apple：`daddr` 打开路线页，起点默认当前位置；
-  /// - 高德：`path` 路线规划，`dev=1` 表示传入 WGS-84 坐标，由高德纠偏；
-  /// - 百度：`direction` 路线规划，`coord_type=wgs84` 由百度纠偏；
-  /// - 腾讯：`routeplan` 路线规划，`coord_type=1` 表示 GPS(WGS-84) 坐标。
+  /// 输入统一为 GCJ-02 业务坐标：
+  /// - 高德：`dev=0`，不重复纠偏；
+  /// - 百度：`coord_type=gcj02`；
+  /// - 腾讯：`coord_type=2`，使用腾讯地图坐标。
   /// 自定义 scheme 使用百分号编码，避免中文或空格被编码为 `+`。
   static Uri _routeUri({
     required ExternalMapApp app,
@@ -180,7 +181,7 @@ class ExternalMapLauncher {
           'dname': name,
           'dlat': lat,
           'dlon': lng,
-          'dev': '1',
+          'dev': '0',
           't': '0',
         },
       ),
@@ -192,7 +193,7 @@ class ExternalMapLauncher {
           'origin': '我的位置',
           'destination': 'name:$name|latlng:$lat,$lng',
           'mode': 'driving',
-          'coord_type': 'wgs84',
+          'coord_type': 'gcj02',
           'src': 'sipon',
         },
       ),
@@ -205,7 +206,7 @@ class ExternalMapLauncher {
           'fromcoord': 'CurrentLocation',
           'to': name,
           'tocoord': '$lat,$lng',
-          'coord_type': '1',
+          'coord_type': '2',
           'referer': _tencentMapKey,
         },
       ),

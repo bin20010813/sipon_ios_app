@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'harmony_platform.dart';
+import 'map/business_coordinates.dart';
 
 import 'sipon_region_data.dart';
 import 'sipon_data_repository.dart';
@@ -33,14 +33,14 @@ class SiponCityController extends ChangeNotifier {
   bool get locationAttempted => _locationAttempted;
   SiponLocationPoint? get detectedPosition => _detectedPosition;
 
-  /// 手选城市以城市中心为查询锚点；自动定位时优先使用真实 WGS-84 坐标。
+  /// 查询锚点统一为 GCJ-02；设备定位与内置城市中心在入口转换一次。
   SiponLocationPoint? get queryAnchor {
     if (!_manualSelection && _detectedPosition != null) {
       return _detectedPosition!;
     }
     final entry = siponFindCity(_city);
     if (entry == null) return null;
-    return SiponLocationPoint(entry.longitude, entry.latitude);
+    return SiponLocationPoint.fromWgs84(entry.longitude, entry.latitude);
   }
 
   /// 后端新增但本地行政区表尚未收录的城市，用该城市真实酒吧坐标作为锚点。
@@ -210,23 +210,12 @@ class SiponCityController extends ChangeNotifier {
       }
 
       _lastDevicePosition = position;
-      var point = SiponLocationPoint(position.longitude, position.latitude);
-      if (isHarmonyOS) {
-        // Device GPS is WGS-84. Business map coordinates use Map Kit's
-        // regional datum; never apply this conversion again in the map view.
-        final converted = await harmonyServices
-            .invokeMapMethod<String, Object?>('convertDeviceLocation', {
-              'lng': position.longitude,
-              'lat': position.latitude,
-            });
-        if (converted?['lng'] is! num || converted?['lat'] is! num) {
-          return const SiponLocateResult(status: SiponLocateStatus.failed);
-        }
-        point = SiponLocationPoint(
-          (converted!['lng']! as num).toDouble(),
-          (converted['lat']! as num).toDouble(),
-        );
-      }
+      // Keep the cached Position raw; every fresh/cached position crosses this
+      // same boundary once on all three platforms.
+      final point = SiponLocationPoint.fromWgs84(
+        position.longitude,
+        position.latitude,
+      );
       _detectedPosition = point;
 
       final city = _nearestKnownCity(position.latitude, position.longitude);
@@ -314,8 +303,17 @@ class SiponLocateResult {
   final SiponLocationPoint? position;
 }
 
+/// GCJ-02 business position for nearby queries, check-ins and map commands.
 class SiponLocationPoint {
   const SiponLocationPoint(this.longitude, this.latitude);
+
+  factory SiponLocationPoint.fromWgs84(double longitude, double latitude) {
+    final point = BusinessCoordinates.fromWgs84(
+      longitude: longitude,
+      latitude: latitude,
+    );
+    return SiponLocationPoint(point.longitude, point.latitude);
+  }
 
   final double longitude;
   final double latitude;

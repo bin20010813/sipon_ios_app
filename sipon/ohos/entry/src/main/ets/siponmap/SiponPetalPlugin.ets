@@ -1,5 +1,5 @@
 import { common } from '@kit.AbilityKit';
-import { map, mapCommon, petalMaps } from '@kit.MapKit';
+import { petalMaps } from '@kit.MapKit';
 import {
   Any, BinaryMessenger, FlutterPlugin, FlutterPluginBinding,
   PlatformView, PlatformViewFactory, StandardMessageCodec,
@@ -54,11 +54,7 @@ export class SiponPetalPlugin implements FlutterPlugin, MethodCallHandler {
   onMethodCall(call: MethodCall, result: MethodResult): void {
     const args = payload(call.args);
     try {
-      if (call.method === 'convertDeviceLocation') {
-        const converted = map.convertCoordinateSync(mapCommon.CoordinateType.WGS84,
-          mapCommon.CoordinateType.GCJ02, position(args));
-        result.success(new Map<string, Object>([['lng', converted.longitude], ['lat', converted.latitude]]));
-      } else if (call.method === 'openPetalNavigation') {
+      if (call.method === 'openPetalNavigation') {
         petalMaps.openMapRoutePlan(this.context, {
           destinationPosition: position(args), destinationName: textValue(args, 'name', '目的地')
         }).then(() => result.success(true))

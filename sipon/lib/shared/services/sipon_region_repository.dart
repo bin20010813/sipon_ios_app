@@ -1,5 +1,6 @@
 import 'sipon_api_client.dart';
 import 'sipon_region_data.dart';
+import 'map/business_coordinates.dart';
 
 /// 城市选择器用的一行城市选项。
 class SiponCityOption {
@@ -55,7 +56,9 @@ class SiponRegionRepository {
 
   List<SiponProvinceGroup>? _cache;
 
-  Future<List<SiponProvinceGroup>> loadGroups({bool forceRefresh = false}) async {
+  Future<List<SiponProvinceGroup>> loadGroups({
+    bool forceRefresh = false,
+  }) async {
     if (!forceRefresh && _cache != null) {
       return _cache!;
     }
@@ -89,13 +92,17 @@ class SiponRegionRepository {
       String provinceEn,
     ) {
       final override = _matchOverride(entry.name, coordinateOverrides);
+      final fallback = BusinessCoordinates.fromWgs84(
+        longitude: entry.longitude,
+        latitude: entry.latitude,
+      );
       return SiponCityOption(
         city: entry.name,
         cityEn: entry.nameEn,
         province: provinceName,
         provinceEn: provinceEn,
-        longitude: override?.longitude ?? entry.longitude,
-        latitude: override?.latitude ?? entry.latitude,
+        longitude: override?.longitude ?? fallback.longitude,
+        latitude: override?.latitude ?? fallback.latitude,
       );
     }
 
@@ -235,10 +242,7 @@ class SiponRegionRepository {
     return overrides;
   }
 
-  _LngLat? _matchOverride(
-    String shortName,
-    Map<String, _LngLat> overrides,
-  ) {
+  _LngLat? _matchOverride(String shortName, Map<String, _LngLat> overrides) {
     if (overrides.isEmpty) {
       return null;
     }

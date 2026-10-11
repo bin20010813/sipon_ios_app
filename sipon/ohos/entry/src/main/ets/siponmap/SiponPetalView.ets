@@ -42,9 +42,9 @@ struct PetalMapComponent {
   }
 }
 
-// All business coordinates at this boundary use the Map Kit regional datum
-// (GCJ-02 in mainland China/Hong Kong/Macao). Device GPS is converted once by
-// SiponPetalPlugin before it enters the Dart city controller.
+// The shared contract is GCJ-02. Device GPS is normalized once in Dart's
+// BusinessCoordinates before entering the city controller or this view.
+// Mainland Map Kit places and viewports already use the business datum.
 export class SiponPetalView extends PlatformView implements MethodCallHandler {
   readonly options: mapCommon.MapOptions = {
     position: { target: { latitude: 31.2304, longitude: 121.4737 }, zoom: 12 },

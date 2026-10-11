@@ -1,9 +1,10 @@
 import 'dart:math' as math;
 
 import '../../../shared/services/sipon_api_models.dart';
+import '../../../shared/services/map/business_coordinates.dart';
 import '../../../shared/services/sipon_region_data.dart';
 
-/// 一个经纬度点。纯 Dart，避免把地图引擎类型渗到数据层。
+/// 一个 GCJ-02 业务经纬度点。供应商原始坐标须先在适配边界归一。
 class MapLatLng {
   const MapLatLng({required this.longitude, required this.latitude});
 
@@ -115,7 +116,7 @@ class MapViewport {
   final MapBoundsBox bounds;
   final double zoom;
 
-  /// WGS-84 center sampled by the native map. Bounds midpoint is only a fallback.
+  /// GCJ-02 center returned by the native adapter; bounds midpoint is a fallback.
   final MapLatLng? screenCenter;
 
   MapLatLng get center => screenCenter ?? bounds.center;
@@ -148,7 +149,7 @@ class MapViewport {
   }
 }
 
-/// 支持的城市中心。与 [SiponCityController] 里的定位表保持一致。
+/// 历史精选城市的 GCJ-02 地图落点；与内置 WGS-84 城市数据表分开维护。
 const Map<String, MapLatLng> mapCityCenters = {
   '上海': MapLatLng(longitude: 121.4712, latitude: 31.2227),
   '北京': MapLatLng(longitude: 116.4074, latitude: 39.9042),
@@ -171,7 +172,11 @@ MapLatLng mapCenterForCity(String city) {
   }
   final entry = siponFindCity(city);
   if (entry != null) {
-    return MapLatLng(longitude: entry.longitude, latitude: entry.latitude);
+    final point = BusinessCoordinates.fromWgs84(
+      longitude: entry.longitude,
+      latitude: entry.latitude,
+    );
+    return MapLatLng(longitude: point.longitude, latitude: point.latitude);
   }
   return mapFallbackCityCenter;
 }

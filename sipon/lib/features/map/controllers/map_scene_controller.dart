@@ -87,7 +87,7 @@ abstract class MapSceneController {
   final void Function(String venueId) onVenueTapped;
   final VoidCallback onBlankTapped;
 
-  /// 当前只使用 MapKit 引擎。
+  /// 按平台选择引擎；所有实现使用同一 GCJ-02 业务坐标契约。
   static MapSceneController create({
     required void Function(MapViewport viewport) onViewportSettled,
     required void Function(String venueId) onVenueTapped,
@@ -223,13 +223,13 @@ abstract class MapSceneController {
   Future<void> focusOn({required double longitude, required double latitude});
 
   /// 定位按钮专用：以地图实际显示的个人点为视图中心。
-  /// 传入坐标只在原生位置尚未就绪时作为兜底。
+  /// 传入 GCJ-02 业务坐标，只在原生位置尚未就绪时作为兜底。
   Future<void> centerOnUser({
     required double longitude,
     required double latitude,
   });
 
-  /// Search Apple Maps addresses and places around the current map region.
+  /// Search supported providers around the current region; return GCJ-02.
   Future<List<MapPlaceResult>> searchPlaces(String query);
 
   Future<void> flyToCity(String city, {required double zoom});

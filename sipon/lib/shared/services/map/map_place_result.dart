@@ -1,6 +1,6 @@
 import 'package:sipon/features/map/models/map_viewport.dart';
 
-/// Apple Maps address or place; it is never treated as an existing bar.
+/// A searched place with GCJ-02 business coordinates, separate from a saved bar.
 class MapPlaceResult {
   const MapPlaceResult({
     required this.name,

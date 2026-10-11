@@ -5,11 +5,12 @@ import kotlin.math.abs
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-/** Trial assumption: Flutter/API business coordinates are GCJ-02. */
+/** Flutter/API business coordinates are GCJ-02. Convert only at SDK boundaries. */
 internal data class Gcj02Point(val lng: Double, val lat: Double)
 internal data class Cgcs2000Point(val lng: Double, val lat: Double)
 
 internal object MapCoordinateAdapter {
+    const val businessCrs = "GCJ02"
     const val strategy = "gcj02-to-cgcs2000-v1"
 
     private const val semiMajorAxis = 6378245.0

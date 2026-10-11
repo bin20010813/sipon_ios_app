@@ -1,4 +1,5 @@
-/// Dart ⇄ 原生（MapKit）MethodChannel 协议的编解码。
+/// Dart ⇄ 三端原生地图的 MethodChannel 协议。所有业务坐标为 GCJ-02，
+/// 数组顺序固定为 [longitude, latitude]；供应商坐标只在原生边界转换。
 ///
 /// 通道名、方法名、载荷形状集中在这一个文件里（原指南 §3），
 /// 全部是纯函数：不碰 Flutter 绑定，可被纯 Dart 测试直接构造与回放。
@@ -218,7 +219,7 @@ class SiponViewportPayload {
   final double north;
   final double zoom;
 
-  /// WGS-84 coordinate at the actual screen center, when supplied by native.
+  /// GCJ-02 coordinate at the actual screen center, supplied by native.
   final MapLatLng? center;
 
   bool get isValid =>

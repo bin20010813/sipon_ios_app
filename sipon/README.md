@@ -4,6 +4,9 @@ A new Flutter project.
 
 原生 HarmonyOS 构建、花瓣地图接入、插件版本及签名配置见 [鸿蒙适配说明](docs/harmonyos.md)。
 
+三端统一开发流程、GCJ-02 业务坐标约定及回归要求见
+[三端整合与坐标契约](docs/three-platform-integration.md)。
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.

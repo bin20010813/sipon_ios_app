@@ -1,7 +1,8 @@
 import '../../../shared/services/sipon_api_client.dart';
+import '../../../shared/services/map/business_coordinates.dart';
 import '../models/map_viewport.dart';
 
-/// A road leg in the coordinate system declared by its provider.
+/// A road leg normalized to GCJ-02 business coordinates.
 class RouteLeg {
   const RouteLeg(this.coordinates);
 
@@ -22,7 +23,7 @@ class RoutePlanner {
   }) async {
     if (points.length < 2 || points.any((point) => !_valid(point))) {
       throw const FormatException(
-        'Route stops must contain valid WGS-84 coordinates',
+        'Route stops must contain valid GCJ-02 business coordinates',
       );
     }
     if (requestId.trim().isEmpty) {
@@ -33,7 +34,7 @@ class RoutePlanner {
       '/api/map/routes/plan',
       body: {
         'requestId': requestId,
-        'crs': 'WGS84',
+        'crs': BusinessCoordinates.crs,
         'mode': 'driving',
         'stops': [
           for (final point in points)
@@ -42,8 +43,8 @@ class RoutePlanner {
       },
     );
 
-    if (response is! Map || response['crs'] != 'WGS84') {
-      throw const FormatException('Route proxy did not return WGS-84');
+    if (response is! Map || response['crs'] != BusinessCoordinates.crs) {
+      throw const FormatException('Route proxy did not return GCJ-02');
     }
     return parseLegs(response['legs'], expectedLegs: points.length - 1);
   }
@@ -77,7 +78,9 @@ class RoutePlanner {
         latitude: (rawPoint[1] as num).toDouble(),
       );
       if (!_valid(point)) {
-        throw const FormatException('Route coordinate outside WGS-84 range');
+        throw const FormatException(
+          'Route coordinate outside longitude/latitude range',
+        );
       }
       coordinates.add(point);
     }

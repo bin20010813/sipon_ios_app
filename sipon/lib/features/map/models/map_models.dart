@@ -1,5 +1,5 @@
 /// 地图域的数据模型。这一层刻意不依赖具体地图引擎：
-/// 坐标一律用裸 double，GeoJSON 也只是普通 Map。这样模型可以被纯 Dart
+/// 坐标一律为 GCJ-02 业务坐标，使用 double，GeoJSON 也只是普通 Map。这样模型可以被纯 Dart
 /// 测试直接构造。
 library;
 

@@ -89,12 +89,11 @@ AppGallery Connect 中对应的 APP ID 为 `6917618507642289146`，申请 Profil
 
 ## 坐标边界
 
-沿用现有 Android 代码对业务坐标采用 GCJ-02 的约定：大陆及港澳的业务点位、
-搜索结果和视野直接传递给 Map Kit。系统 GPS 定位通过
-`sipon/harmony.convertDeviceLocation` 转换一次，再进入城市控制器和地图。
-原始 GPS 仍用于定位缓存与城市距离计算。台湾及海外采用 Map Kit 对应的 WGS-84 坐标。
-地图上线前需要将真实服务端点位与花瓣地图地点搜索结果交叉核对；
-现有 Android 注释将后端坐标系标为试验假设，仓库内没有服务端坐标系声明。
+三端统一采用 [GCJ-02 业务坐标契约](three-platform-integration.md)。大陆业务点位、
+地点搜索结果和视野直接传递给 Map Kit。系统 GPS 与内置城市表的 WGS-84 坐标
+统一经 Dart `BusinessCoordinates.fromWgs84` 转换一次，再进入城市控制器和地图；
+鸿蒙原生层不再重复转换。原始 GPS 仍用于定位缓存与最近城市计算。
+地图上线前需用真实点位核对定位、搜索、选点与导航，地域边界限制见统一契约。
 
 ## 验证
 

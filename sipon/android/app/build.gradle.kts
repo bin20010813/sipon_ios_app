@@ -65,6 +65,7 @@ android {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
     implementation("com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1")
     implementation("org.maplibre.gl:android-sdk:13.6.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
