@@ -14,11 +14,11 @@
     },
     {
       "name": "location_reason",
-      "value": "??????????????????"
+      "value": "Used to show your location on the map, find nearby bars and plan routes."
     },
     {
       "name": "camera_reason",
-      "value": "????????????????"
+      "value": "Used to take bar photos or a profile photo for you to review and upload."
     }
   ]
 }

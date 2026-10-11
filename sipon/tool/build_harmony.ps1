@@ -1,7 +1,6 @@
 [CmdletBinding()]
 param(
     [string]$FlutterSdk = $env:FLUTTER_OHOS_HOME,
-    [string]$MapClientId = $env:SIPON_HUAWEI_CLIENT_ID,
     [ValidateSet('debug', 'profile', 'release')][string]$Mode = 'debug',
     [switch]$PrepareOnly,
     [switch]$ResolvePlugins
@@ -11,24 +10,21 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $stageRoot = [IO.Path]::GetFullPath((Join-Path $projectRoot 'build/harmony_workspace'))
 $utf8 = New-Object System.Text.UTF8Encoding($false)
-$moduleManifest = [IO.File]::ReadAllText((Join-Path $projectRoot 'ohos/entry/src/main/module.json5'))
-$clientIdPlaceholder = '"__SIPON_HUAWEI_CLIENT_ID__"'
-if (-not [string]::IsNullOrWhiteSpace($MapClientId)) {
-    $clientIdJson = ConvertTo-Json -InputObject $MapClientId.Trim() -Compress
-    $moduleManifest = $moduleManifest.Replace($clientIdPlaceholder, $clientIdJson)
-}
-if ($moduleManifest.Contains($clientIdPlaceholder)) {
-    if (-not $PrepareOnly) {
-        throw 'Map Kit client_id is missing. Set SIPON_HUAWEI_CLIENT_ID or pass -MapClientId with the HarmonyOS app OAuth Client ID from AppGallery Connect.'
-    }
-    Write-Warning 'Map Kit client_id is not configured. This workspace is for preparation only; configure it before building/installing.'
-}
+& (Join-Path $PSScriptRoot 'check_harmony_resources.ps1')
 
 if (-not $PrepareOnly) {
     if ([string]::IsNullOrWhiteSpace($FlutterSdk)) {
         throw 'Set FLUTTER_OHOS_HOME or pass -FlutterSdk pointing to Flutter OH 3.41.10-ohos-1.0.1.'
     }
     $flutterCommand = Join-Path $FlutterSdk 'bin/flutter.bat'
+    $toolPaths = @((Join-Path $FlutterSdk 'bin'))
+    if ($env:NODE_HOME) { $toolPaths += $env:NODE_HOME }
+    if ($env:JAVA_HOME) { $toolPaths += (Join-Path $env:JAVA_HOME 'bin') }
+    if ($env:DEVECO_SDK_HOME) {
+        $commandLineBin = Join-Path (Split-Path $env:DEVECO_SDK_HOME -Parent) 'bin'
+        if (Test-Path -LiteralPath $commandLineBin) { $toolPaths += $commandLineBin }
+    }
+    $env:Path = ($toolPaths -join [IO.Path]::PathSeparator) + [IO.Path]::PathSeparator + $env:Path
     $platformSource = Join-Path $FlutterSdk 'packages/flutter/lib/src/foundation/platform.dart'
     if (-not (Test-Path -LiteralPath $flutterCommand) -or
         -not (Test-Path -LiteralPath $platformSource) -or
@@ -60,7 +56,6 @@ if (Test-Path -LiteralPath $signingSource) {
     & robocopy $signingSource (Join-Path $stageRoot 'ohos/signing') /E /NFL /NDL /NJH /NJS /NP | Out-Null
     if ($LASTEXITCODE -gt 7) { throw 'Failed to stage HarmonyOS signing files.' }
 }
-[IO.File]::WriteAllText((Join-Path $stageRoot 'ohos/entry/src/main/module.json5'), $moduleManifest, $utf8)
 Copy-Item -LiteralPath (Join-Path $projectRoot 'analysis_options.yaml') -Destination $stageRoot
 $analysisOptions = [IO.File]::ReadAllText((Join-Path $stageRoot 'analysis_options.yaml'))
 $analysisOptions = [Text.RegularExpressions.Regex]::Replace($analysisOptions, '(?m)^\s*- ohos/\*\*\r?\n', '')
@@ -91,8 +86,31 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'HarmonyOS Dart analysis failed.' }
     & $flutterCommand test --no-pub tool/tests/harmony_map_test.dart
     if ($LASTEXITCODE -ne 0) { throw 'HarmonyOS map regression tests failed.' }
-    & $flutterCommand build hap "--$Mode" --target ohos/flutter/main.dart
-    if ($LASTEXITCODE -ne 0) { throw 'HAP build failed. Check the HarmonyOS SDK and signing configuration.' }
+    & node --test tool/tests/harmony_sticker_test.cjs
+    if ($LASTEXITCODE -ne 0) { throw 'HarmonyOS native sticker regression tests failed.' }
+    & node --test tool/tests/petal_marker_layout_test.cjs tool/tests/petal_marker_artwork_test.cjs
+    if ($LASTEXITCODE -ne 0) { throw 'HarmonyOS marker regression tests failed.' }
+    $buildStarted = Get-Date
+    & $flutterCommand build hap "--$Mode" --target ohos/flutter/main.dart 2>&1 | Tee-Object -Variable hapOutput
+    if ($LASTEXITCODE -ne 0) {
+        # Flutter OH asks for IDE signing even after Hvigor successfully creates
+        # an unsigned HAP. This project signs separately with the official tool.
+        $unsigned = Join-Path $stageRoot 'ohos/entry/build/default/outputs/default/entry-default-unsigned.hap'
+        if (-not ($hapOutput -match 'Signing Configs') -or
+            -not (Test-Path -LiteralPath $unsigned) -or
+            (Get-Item -LiteralPath $unsigned).LastWriteTime -lt $buildStarted) {
+            throw 'HAP build failed. See the compiler output above.'
+        }
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $archive = [IO.Compression.ZipFile]::OpenRead($unsigned)
+        try {
+            foreach ($entry in @('module.json', 'ets/modules.abc', 'libs/arm64-v8a/libapp.so', 'libs/arm64-v8a/libflutter.so')) {
+                if (-not $archive.GetEntry($entry)) { throw "Incomplete unsigned HAP: missing $entry" }
+            }
+        } finally { $archive.Dispose() }
+        Write-Output "Unsigned HAP ready: $unsigned"
+        Write-Output 'For release signing, double-click tool/Sign-Harmony-Release.cmd.'
+    }
 } finally {
     Pop-Location
 }

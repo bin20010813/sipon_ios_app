@@ -4,6 +4,19 @@ import { image } from '@kit.ImageKit';
 import { BinaryMessenger, MethodCall, MethodCallHandler, MethodChannel, MethodResult, PlatformView } from '@ohos/flutter_ohos';
 import { Params } from '@ohos/flutter_ohos/src/main/ets/plugin/platform/PlatformView';
 import { items, numberValue, payload, position, textValue } from './PetalPayload';
+import { PetalLabelCandidate, petalMarkerCaption, selectPetalLabels } from './PetalMarkerLayout';
+import { makePetalMarker } from './PetalMarkerArtwork';
+
+interface PetalMarkerEntry {
+  marker: map.Marker;
+  location: mapCommon.LatLng;
+  caption: string;
+  selected: boolean;
+  routeStop: boolean;
+  width: number;
+  height: number;
+  anchorV: number;
+}
 
 @Builder
 function petalBuilder(params: Params) {
@@ -12,15 +25,20 @@ function petalBuilder(params: Params) {
 
 @Component
 struct PetalMapComponent {
-  host: SiponPetalView;
+  host: SiponPetalView | null = null;
 
   build() {
-    MapComponent({
-      mapOptions: this.host.options,
-      mapCallback: (error: BusinessError, controller: map.MapComponentController) => {
-        this.host.onMapCreated(error, controller);
-      }
-    }).width('100%').height('100%');
+    if (this.host !== null) {
+      MapComponent({
+        mapOptions: this.host.options,
+        mapCallback: (error: BusinessError, controller: map.MapComponentController) => {
+          this.host?.onMapCreated(error, controller);
+        }
+      }).width('100%').height('100%')
+        .onAreaChange((_oldArea: Area, area: Area) => {
+          this.host?.onSizeChanged(Number(area.width), Number(area.height));
+        });
+    }
   }
 }
 
@@ -47,6 +65,11 @@ export class SiponPetalView extends PlatformView implements MethodCallHandler {
   private lastFrame?: Map<string, Object>;
   private assets: Map<string, image.PixelMap> = new Map();
   private markers: map.Marker[] = [];
+  private markerIcons: image.PixelMap[] = [];
+  private markerEntries: PetalMarkerEntry[] = [];
+  private mapWidth: number = 0;
+  private mapHeight: number = 0;
+  private bottomPadding: number = 0;
   private circles: map.MapCircle[] = [];
   private venueByOverlay: Map<string, string> = new Map();
   private routeLines: map.MapPolyline[] = [];
@@ -84,7 +107,10 @@ export class SiponPetalView extends PlatformView implements MethodCallHandler {
           positionY: vp2px(numberValue(this.creation, 'compassTopInset')) });
       }
       const events = controller.getEventManager();
-      events.on('cameraIdle', () => this.emitViewport());
+      events.on('cameraIdle', () => {
+        this.updateMarkerVisibility();
+        this.emitViewport();
+      });
       events.on('mapClick', () => this.emit('onBlankTapped', null));
       events.on('markerClick', (marker: map.Marker) => this.onOverlayTap(marker.getId()));
       events.on('circleClick', (circle: map.MapCircle) => this.onOverlayTap(circle.getId()));
@@ -101,6 +127,26 @@ export class SiponPetalView extends PlatformView implements MethodCallHandler {
   private onOverlayTap(id: string): void {
     const venueId = this.venueByOverlay.get(id);
     if (venueId) this.emit('onVenueTapped', new Map<string, Object>([['venueId', venueId]]));
+  }
+
+  onSizeChanged(width: number, height: number): void {
+    this.mapWidth = width;
+    this.mapHeight = height;
+    this.updateMarkerVisibility();
+  }
+
+  private updateMarkerVisibility(): void {
+    const controller = this.controller;
+    if (!controller || this.destroyed || this.mapWidth <= 0 || this.mapHeight <= 0) return;
+    const projection = controller.getProjection();
+    const candidates: PetalLabelCandidate[] = this.markerEntries.map((entry: PetalMarkerEntry) => {
+      const screen = projection.toScreenLocation(entry.location);
+      return { id: entry.marker.getId(), x: px2vp(screen.positionX), y: px2vp(screen.positionY),
+        caption: entry.caption, selected: entry.selected, routeStop: entry.routeStop,
+        width: entry.width, height: entry.height, anchorV: entry.anchorV };
+    });
+    const visible = selectPetalLabels(candidates, this.mapWidth, this.mapHeight, this.bottomPadding);
+    this.markerEntries.forEach((entry: PetalMarkerEntry) => entry.marker.setVisible(visible.has(entry.marker.getId())));
   }
 
   private failSetup(message: string): void {
@@ -162,6 +208,7 @@ export class SiponPetalView extends PlatformView implements MethodCallHandler {
     if (method === 'setAppearance') {
       this.brightness = textValue(args, 'brightness', 'light');
       if (this.controller) await this.applyStyle();
+      await this.redrawMarkers();
       return null;
     }
     if (method === 'registerAssets') {
@@ -182,6 +229,7 @@ export class SiponPetalView extends PlatformView implements MethodCallHandler {
       case 'setStyle':
         this.style = textValue(args, 'styleId', 'standard');
         await this.applyStyle();
+        await this.redrawMarkers();
         return null;
       case 'setGestures':
         controller.setRotateGesturesEnabled(args.get('rotateEnabled') !== false);
@@ -193,14 +241,18 @@ export class SiponPetalView extends PlatformView implements MethodCallHandler {
       case 'focusOn':
       case 'centerOnUser':
         if (method === 'centerOnUser') controller.setMyLocationEnabled(true);
-        controller.setPadding({ bottom: vp2px(numberValue(args, 'bottomPadding')) });
+        this.bottomPadding = numberValue(args, 'bottomPadding');
+        controller.setPadding({ bottom: vp2px(this.bottomPadding) });
+        this.updateMarkerVisibility();
         controller.animateCamera(map.newCameraPosition({
           target: position(args), zoom: numberValue(args, 'zoom', 15),
           tilt: 0, bearing: numberValue(args, 'bearing')
         }), numberValue(args, 'durationMs', 350));
         return null;
       case 'applyStage':
-        controller.setPadding({ bottom: vp2px(numberValue(args, 'bottomPadding')) });
+        this.bottomPadding = numberValue(args, 'bottomPadding');
+        controller.setPadding({ bottom: vp2px(this.bottomPadding) });
+        this.updateMarkerVisibility();
         if (args.has('lat') && args.has('lng')) controller.moveCamera(map.newLatLng(position(args)));
         return null;
       case 'renderFrame': {
@@ -266,8 +318,20 @@ export class SiponPetalView extends PlatformView implements MethodCallHandler {
     this.markers.forEach((marker: map.Marker) => marker.remove());
     this.circles.forEach((circle: map.MapCircle) => circle.remove());
     this.markers = [];
+    this.markerIcons.forEach((icon: image.PixelMap) => { icon.release().catch(() => {}); });
+    this.markerIcons = [];
+    this.markerEntries = [];
     this.circles = [];
     this.venueByOverlay.clear();
+  }
+
+  private async redrawMarkers(): Promise<void> {
+    const frame = this.lastFrame;
+    if (!frame) return;
+    const revision = ++this.renderRevision;
+    const work = this.renderQueue.then(() => this.render(frame, revision));
+    this.renderQueue = work.catch(() => {});
+    await work;
   }
 
   private async render(args: Map<string, Object>, revision: number): Promise<void> {
@@ -276,36 +340,48 @@ export class SiponPetalView extends PlatformView implements MethodCallHandler {
     this.clearOverlays();
     for (const item of items(args, 'circles')) {
       const circle = await controller.addCircle({ center: position(item), radius: 18,
-        fillColor: 0xffed708f, strokeColor: 0xffffffff, strokeWidth: 1, clickable: true });
+        fillColor: 0xff9a3d78, strokeColor: 0xffffffff, strokeWidth: 1, clickable: true });
       if (this.destroyed || revision !== this.renderRevision) { circle.remove(); return; }
       this.circles.push(circle);
       this.venueByOverlay.set(circle.getId(), textValue(item, 'venueId'));
     }
+    const selected = payload(args.get('selected'));
+    const selectedVenueId = textValue(selected, 'venueId');
     for (const item of items(args, 'markers')) {
-      const sequence = item.get('sequence');
+      const sequenceValue = item.get('sequence');
+      const sequence = typeof sequenceValue === 'number' ? sequenceValue : undefined;
       const label = textValue(item, 'label');
       const rating = numberValue(item, 'rating', NaN);
-      const caption = sequence === undefined ? label : `${sequence}. ${label}`;
+      const caption = petalMarkerCaption(label, rating, sequence);
+      const venueId = textValue(item, 'venueId');
+      const isSelected = selectedVenueId.length > 0 && venueId === selectedVenueId;
+      const routeStop = sequence !== undefined;
+      const location = position(item);
+      const artwork = makePetalMarker(label, rating, sequence, isSelected,
+        this.style === 'muted' || this.brightness === 'dark',
+        this.assets.get(textValue(item, 'category')), vp2px(1));
       const options: mapCommon.MarkerOptions = {
-        position: position(item),
-        annotations: [{ content: Number.isFinite(rating) ? `${caption}  ${rating.toFixed(1)}` : caption,
-          color: 0xff242730, strokeColor: 0xffffffff, fontSize: vp2px(12) }],
-        clickable: true, anchorU: 0.5, anchorV: 1, zIndex: 2
+        position: location,
+        icon: artwork.icon,
+        // Logical collision checks include both capsule and name and reserve the page controls.
+        collisionRule: mapCommon.CollisionRule.NONE,
+        visible: false, clickable: true, anchorU: 0.5, anchorV: artwork.anchorV, zIndex: isSelected ? 3 : 2
       };
-      const icon = this.assets.get(textValue(item, 'category'));
-      if (icon) options.icon = icon;
-      const marker = await controller.addMarker(options);
-      if (this.destroyed || revision !== this.renderRevision) { marker.remove(); return; }
+      let marker: map.Marker;
+      try { marker = await controller.addMarker(options); }
+      catch (error) { await artwork.icon.release().catch(() => {}); throw error as Error; }
+      if (this.destroyed || revision !== this.renderRevision) {
+        marker.remove();
+        await artwork.icon.release();
+        return;
+      }
+      this.markerIcons.push(artwork.icon);
       this.markers.push(marker);
-      this.venueByOverlay.set(marker.getId(), textValue(item, 'venueId'));
+      this.markerEntries.push({ marker, location, caption, selected: isSelected, routeStop,
+        width: artwork.width, height: artwork.height, anchorV: artwork.anchorV });
+      this.venueByOverlay.set(marker.getId(), venueId);
     }
-    const selected = payload(args.get('selected'));
-    if (selected.has('lat')) {
-      const circle = await controller.addCircle({ center: position(selected), radius: 35,
-        fillColor: 0x44ff4778, strokeColor: 0xffff4778, strokeWidth: 2, zIndex: 1 });
-      if (this.destroyed || revision !== this.renderRevision) { circle.remove(); return; }
-      this.circles.push(circle);
-    }
+    this.updateMarkerVisibility();
   }
 
   private async search(query: string): Promise<Map<string, Object>[]> {
@@ -367,7 +443,7 @@ export class SiponPetalView extends PlatformView implements MethodCallHandler {
       return true;
     } catch (error) {
       added.forEach((item: map.MapPolyline) => item.remove());
-      throw error;
+      throw error as Error;
     }
   }
 

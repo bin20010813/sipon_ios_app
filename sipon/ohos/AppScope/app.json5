@@ -1,6 +1,6 @@
 {
   "app": {
-    "bundleName": "com.sipon.app",
+    "bundleName": "cn.hangzhoutanji.sipon",
     "vendor": "Sipon",
     "versionCode": 1000006,
     "versionName": "1.0.6",
