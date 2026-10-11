@@ -386,49 +386,49 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
       builder: (context) {
         final scheme = Theme.of(context).colorScheme;
         return SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
-              child: Text(
-                text.t('选择地图软件'),
-                style: TextStyle(
-                  color: scheme.onSurface,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0,
-                ),
-              ),
-            ),
-            for (final app in apps)
-              ListTile(
-                leading: Icon(_mapAppIcon(app), color: scheme.primary),
-                title: Text(
-                  app.label,
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+                child: Text(
+                  text.t('选择地图软件'),
                   style: TextStyle(
                     color: scheme.onSurface,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
                     letterSpacing: 0,
                   ),
                 ),
-                subtitle: Text(
-                  text.t('以当前位置规划路线，可选择交通方式'),
-                  style: TextStyle(
-                    color: scheme.onSurfaceVariant,
-                    fontSize: 12,
-                    letterSpacing: 0,
-                  ),
-                ),
-                onTap: () => Navigator.of(context).pop(app),
               ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      );
+              for (final app in apps)
+                ListTile(
+                  leading: Icon(_mapAppIcon(app), color: scheme.primary),
+                  title: Text(
+                    app.label,
+                    style: TextStyle(
+                      color: scheme.onSurface,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  subtitle: Text(
+                    text.t('以当前位置规划路线，可选择交通方式'),
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
+                      fontSize: 12,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  onTap: () => Navigator.of(context).pop(app),
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
       },
     );
     if (selected == null) {
@@ -452,6 +452,7 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
 
   IconData _mapAppIcon(ExternalMapApp app) {
     return switch (app) {
+      ExternalMapApp.petal => Icons.local_florist_rounded,
       ExternalMapApp.apple => Icons.map_rounded,
       ExternalMapApp.amap => Icons.navigation_rounded,
       ExternalMapApp.baidu => Icons.explore_rounded,
@@ -720,7 +721,11 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
       padding: const EdgeInsets.fromLTRB(_pagePadding, 32, _pagePadding, 32),
       child: Column(
         children: [
-          Icon(Icons.wifi_off_rounded, color: scheme.onSurfaceVariant, size: 32),
+          Icon(
+            Icons.wifi_off_rounded,
+            color: scheme.onSurfaceVariant,
+            size: 32,
+          ),
           const SizedBox(height: 12),
           Text(
             text.t('详情加载失败'),
@@ -1309,7 +1314,11 @@ class _VenueTitleBlock extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Icon(Icons.location_on_outlined, color: scheme.onSurfaceVariant, size: 15),
+            Icon(
+              Icons.location_on_outlined,
+              color: scheme.onSurfaceVariant,
+              size: 15,
+            ),
             const SizedBox(width: 3),
             Flexible(
               child: Text(
@@ -1339,10 +1348,10 @@ class _VenueTitleBlock extends StatelessWidget {
                 child: Text(
                   '${text.t('人均')} ${detail!.priceLevel}',
                   maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: scheme.onSurfaceVariant,
-                      fontSize: 12,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0,
                   ),
@@ -1645,11 +1654,7 @@ class _ContributePillButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.edit_note_rounded,
-                color: scheme.primary,
-                size: 17,
-              ),
+              Icon(Icons.edit_note_rounded, color: scheme.primary, size: 17),
               const SizedBox(width: 2),
               Text(
                 label,
@@ -2233,11 +2238,7 @@ class _VenueReviewsSection extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.filter_list_rounded,
-              color: scheme.primary,
-              size: 16,
-            ),
+            Icon(Icons.filter_list_rounded, color: scheme.primary, size: 16),
             const SizedBox(width: 5),
             Text(
               text.t('筛选'),
@@ -2785,9 +2786,7 @@ class _ContributionHint extends StatelessWidget {
                 colors: [sipon.brandSurface, sipon.brandSurface],
               ),
               shape: BoxShape.circle,
-              border: Border.all(
-                color: scheme.primary.withValues(alpha: 0.08),
-              ),
+              border: Border.all(color: scheme.primary.withValues(alpha: 0.08)),
               boxShadow: [
                 BoxShadow(
                   color: sipon.shadow,

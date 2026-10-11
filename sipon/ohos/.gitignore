@@ -1,0 +1,15 @@
+.hvigor/
+oh_modules/
+**/oh_modules/
+local.properties
+**/build/
+entry/src/main/ets/plugins/GeneratedPluginRegistrant.ets
+entry/src/main/resources/rawfile/flutter_assets/
+flutter_module.har
+**/*.har
+**/*.hap
+**/*.hsp
+**/*.p12
+**/*.cer
+**/*.p7b
+signing/

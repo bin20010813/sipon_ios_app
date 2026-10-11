@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'harmony_platform.dart';
 
 import 'sipon_region_data.dart';
 import 'sipon_data_repository.dart';
@@ -209,7 +210,23 @@ class SiponCityController extends ChangeNotifier {
       }
 
       _lastDevicePosition = position;
-      final point = SiponLocationPoint(position.longitude, position.latitude);
+      var point = SiponLocationPoint(position.longitude, position.latitude);
+      if (isHarmonyOS) {
+        // Device GPS is WGS-84. Business map coordinates use Map Kit's
+        // regional datum; never apply this conversion again in the map view.
+        final converted = await harmonyServices
+            .invokeMapMethod<String, Object?>('convertDeviceLocation', {
+              'lng': position.longitude,
+              'lat': position.latitude,
+            });
+        if (converted?['lng'] is! num || converted?['lat'] is! num) {
+          return const SiponLocateResult(status: SiponLocateStatus.failed);
+        }
+        point = SiponLocationPoint(
+          (converted!['lng']! as num).toDouble(),
+          (converted['lat']! as num).toDouble(),
+        );
+      }
       _detectedPosition = point;
 
       final city = _nearestKnownCity(position.latitude, position.longitude);

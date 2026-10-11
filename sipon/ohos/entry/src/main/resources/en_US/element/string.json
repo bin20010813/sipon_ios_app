@@ -1,0 +1,24 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "module description"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "description"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "Sipon"
+    },
+    {
+      "name": "location_reason",
+      "value": "Used to show your location on the map, find nearby bars and plan routes."
+    },
+    {
+      "name": "camera_reason",
+      "value": "Used to take bar photos or a profile photo for you to review and upload."
+    }
+  ]
+}

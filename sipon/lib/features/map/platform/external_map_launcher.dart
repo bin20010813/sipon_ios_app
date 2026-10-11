@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:sipon/shared/services/harmony_platform.dart';
 
 /// 可从地点详情页唤起的外部地图 App。
 enum ExternalMapApp {
+  petal('花瓣地图'),
   apple('Apple 地图'),
   amap('高德地图'),
   baidu('百度地图'),
@@ -48,6 +50,8 @@ class ExternalMapLauncher {
       defaultTargetPlatform == TargetPlatform.iOS;
 
   static bool _isSupported(ExternalMapApp app) {
+    if (isHarmonyOS) return app == ExternalMapApp.petal;
+    if (app == ExternalMapApp.petal) return false;
     if (!_isMobile) return false;
     if (app == ExternalMapApp.apple) {
       return defaultTargetPlatform == TargetPlatform.iOS;
@@ -59,6 +63,8 @@ class ExternalMapLauncher {
   }
 
   static Future<List<ExternalMapApp>> availableNavigationApps() async {
+    // Map Kit invokes the system map application directly on HarmonyOS.
+    if (isHarmonyOS) return const [ExternalMapApp.petal];
     final apps = <ExternalMapApp>[];
     for (final app in const [
       ExternalMapApp.apple,
@@ -94,6 +100,19 @@ class ExternalMapLauncher {
     }
 
     final destinationName = name.trim().isEmpty ? '目的地' : name.trim();
+    if (app == ExternalMapApp.petal) {
+      try {
+        final opened = await harmonyServices.invokeMethod<bool>(
+          'openPetalNavigation',
+          {'name': destinationName, 'lng': longitude, 'lat': latitude},
+        );
+        return opened == true
+            ? ExternalMapLaunchResult.success(app)
+            : ExternalMapLaunchResult.unavailable(app);
+      } catch (_) {
+        return ExternalMapLaunchResult.unavailable(app);
+      }
+    }
     final uri = _routeUri(
       app: app,
       name: destinationName,
@@ -117,6 +136,7 @@ class ExternalMapLauncher {
 
   static Uri _probeUri(ExternalMapApp app) {
     return switch (app) {
+      ExternalMapApp.petal => throw UnsupportedError('Use HarmonyOS Map Kit'),
       ExternalMapApp.apple => Uri.parse('http://maps.apple.com/'),
       ExternalMapApp.amap =>
         defaultTargetPlatform == TargetPlatform.android
@@ -143,6 +163,7 @@ class ExternalMapLauncher {
     final lng = longitude.toStringAsFixed(8);
 
     return switch (app) {
+      ExternalMapApp.petal => throw UnsupportedError('Use HarmonyOS Map Kit'),
       ExternalMapApp.apple => Uri.https('maps.apple.com', '/', {
         'daddr': '$lat,$lng',
       }),

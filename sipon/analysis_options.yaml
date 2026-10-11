@@ -12,6 +12,8 @@ analyzer:
     - build/**
     - android/**
     - ios/**
+    # Analyzed separately with Flutter OH (defines OhosView).
+    - ohos/**
     - web/**
     - windows/**
     - macos/**
