@@ -6,6 +6,51 @@ import MapKit
 /// 配 RunnerTests 里的 SiponMapGeometryTests 覆盖（迁移指南 §5）。
 enum SiponMapGeometry {
 
+  /// Samples the ordered line in screen units. Phase is global across segments
+  /// and tiles so duplicate vertices and tile clipping cannot flip directions.
+  static func routeArrows(
+    points: [CGPoint], visibleRect: CGRect, spacing: CGFloat = 72
+  ) -> [(tip: CGPoint, direction: CGPoint)] {
+    guard points.count > 1, spacing.isFinite, spacing >= 24 else { return [] }
+    let lengths = zip(points, points.dropFirst()).map { a, b in
+      hypot(b.x - a.x, b.y - a.y)
+    }
+    let total = lengths.reduce(0, +)
+    guard total.isFinite, total >= 24 else { return [] }
+    let phase = min(spacing / 2, total / 2)
+    var distance: CGFloat = 0
+    var result: [(tip: CGPoint, direction: CGPoint)] = []
+    for index in lengths.indices {
+      let length = lengths[index]
+      defer { distance += length }
+      guard length > 0.001 else { continue }
+      let a = points[index]
+      let b = points[index + 1]
+      let dx = (b.x - a.x) / length
+      let dy = (b.y - a.y) / length
+      // Project the visible rectangle onto this segment before sampling. A
+      // long offscreen leg then costs O(1), even at street-level zoom.
+      let projections = [
+        CGPoint(x: visibleRect.minX, y: visibleRect.minY),
+        CGPoint(x: visibleRect.maxX, y: visibleRect.minY),
+        CGPoint(x: visibleRect.minX, y: visibleRect.maxY),
+        CGPoint(x: visibleRect.maxX, y: visibleRect.maxY),
+      ].map { ($0.x - a.x) * dx + ($0.y - a.y) * dy }
+      let lower = max(distance, distance + (projections.min() ?? 0))
+      let upper = min(min(distance + length, distance + (projections.max() ?? length)), total - 12)
+      var target = phase + max(0, ceil((lower - phase) / spacing)) * spacing
+      while target <= upper && target < distance + length {
+        let tip = CGPoint(x: a.x + dx * (target - distance), y: a.y + dy * (target - distance))
+        if visibleRect.contains(tip) {
+          result.append((tip, CGPoint(x: dx, y: dy)))
+          if result.count >= 256 { return result }
+        }
+        target += spacing
+      }
+    }
+    return result
+  }
+
   /// Web Mercator 基准 tile 尺寸（pt）。
   static let tileSize = 256.0
 

@@ -4,6 +4,46 @@ import MapKit
 import UIKit
 import CoreMotion
 
+/// Direction marks use the same ordered road geometry as the route stroke.
+final class SiponRouteRenderer: MKPolylineRenderer {
+  override func draw(_ mapRect: MKMapRect, zoomScale: MKZoomScale, in context: CGContext) {
+    context.saveGState()
+    super.draw(mapRect, zoomScale: zoomScale, in: context)
+    context.restoreGState()
+    guard zoomScale > 0, zoomScale.isFinite else { return }
+    let scale = CGFloat(zoomScale)
+    let points = (0..<polyline.pointCount).map { index -> CGPoint in
+      let p = point(for: polyline.points()[index])
+      return CGPoint(x: p.x * scale, y: p.y * scale)
+    }
+    let visible = rect(for: mapRect).applying(CGAffineTransform(scaleX: scale, y: scale))
+      .insetBy(dx: -12, dy: -12)
+    let arrows = SiponMapGeometry.routeArrows(points: points, visibleRect: visible)
+    context.saveGState()
+    defer { context.restoreGState() }
+    context.setLineCap(.round)
+    context.setLineJoin(.round)
+    for arrow in arrows {
+      let tip = arrow.tip
+      let d = arrow.direction
+      let path = CGMutablePath()
+      path.move(to: CGPoint(x: (tip.x - 6 * d.x - 4 * d.y) / scale,
+                           y: (tip.y - 6 * d.y + 4 * d.x) / scale))
+      path.addLine(to: CGPoint(x: tip.x / scale, y: tip.y / scale))
+      path.addLine(to: CGPoint(x: (tip.x - 6 * d.x + 4 * d.y) / scale,
+                              y: (tip.y - 6 * d.y - 4 * d.x) / scale))
+      context.addPath(path)
+      context.setStrokeColor((strokeColor ?? UIColor.systemPink).cgColor)
+      context.setLineWidth(4.5 / scale)
+      context.strokePath()
+      context.addPath(path)
+      context.setStrokeColor(UIColor.white.cgColor)
+      context.setLineWidth(2.2 / scale)
+      context.strokePath()
+    }
+  }
+}
+
 /// 位置中心固定，扇形按设备朝向减去地图方位角旋转。
 final class SiponUserLocationView: MKAnnotationView {
   weak var mapView: MKMapView?
@@ -1313,7 +1353,7 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
     rendererFor overlay: MKOverlay
   ) -> MKOverlayRenderer {
     if let polyline = overlay as? MKPolyline {
-      let renderer = MKPolylineRenderer(polyline: polyline)
+      let renderer = SiponRouteRenderer(polyline: polyline)
       renderer.strokeColor = engine.routeStrokeColor
       renderer.lineWidth = 5
       renderer.lineCap = .round

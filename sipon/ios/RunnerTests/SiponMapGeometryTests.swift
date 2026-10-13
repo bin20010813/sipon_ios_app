@@ -5,6 +5,43 @@ import XCTest
 /// zoom ↔ span 换算与 padding 折算的正反一致性抽查（迁移指南 §7）。
 final class SiponMapGeometryTests: XCTestCase {
 
+  func testRouteArrowsFollowBothTravelDirections() {
+    let visible = CGRect(x: -20, y: -20, width: 240, height: 40)
+    for sign in [CGFloat(1), CGFloat(-1)] {
+      let points = sign > 0
+        ? [CGPoint(x: 0, y: 0), CGPoint(x: 200, y: 0)]
+        : [CGPoint(x: 200, y: 0), CGPoint(x: 0, y: 0)]
+      let arrows = SiponMapGeometry.routeArrows(points: points, visibleRect: visible)
+      XCTAssertFalse(arrows.isEmpty)
+      for arrow in arrows {
+        XCTAssertEqual(arrow.direction.x, sign, accuracy: 1e-9)
+        XCTAssertEqual(arrow.direction.y, 0, accuracy: 1e-9)
+      }
+    }
+  }
+
+  func testRouteArrowsKeepPhaseThroughDuplicatePointsAndTurns() {
+    let points = [CGPoint.zero, CGPoint(x: 36, y: 0), CGPoint(x: 36, y: 0), CGPoint(x: 36, y: 120)]
+    let arrows = SiponMapGeometry.routeArrows(
+      points: points, visibleRect: CGRect(x: -20, y: -20, width: 200, height: 200))
+    XCTAssertEqual(arrows.count, 2)
+    XCTAssertEqual(arrows[0].tip, CGPoint(x: 36, y: 0))
+    XCTAssertEqual(arrows[0].direction, CGPoint(x: 0, y: 1))
+    XCTAssertEqual(arrows[1].tip, CGPoint(x: 36, y: 72))
+  }
+
+  func testShortRoutesAndClipping() {
+    let rect = CGRect(x: 0, y: -20, width: 200, height: 40)
+    XCTAssertTrue(SiponMapGeometry.routeArrows(points: [.zero, .zero], visibleRect: rect).isEmpty)
+    let short = SiponMapGeometry.routeArrows(points: [.zero, CGPoint(x: 40, y: 0)], visibleRect: rect)
+    XCTAssertEqual(short.count, 1)
+    XCTAssertEqual(short.first?.tip.x, 20)
+    let long = SiponMapGeometry.routeArrows(
+      points: [CGPoint(x: -1e8, y: 0), CGPoint(x: 1e8, y: 0)], visibleRect: rect)
+    XCTAssertLessThanOrEqual(long.count, 3)
+    XCTAssertFalse(long.isEmpty)
+  }
+
   func testZoomSpanRoundTrip() {
     let width: CGFloat = 390
     for zoom in stride(from: 9.0, through: 17.0, by: 0.7) {

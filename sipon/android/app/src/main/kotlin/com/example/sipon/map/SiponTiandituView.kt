@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.PointF
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
@@ -464,6 +465,34 @@ internal class SiponTiandituView(
         }
         style.addLayer(LineLayer("sipon-route-line", "sipon-route").withProperties(
             lineColor(Color.rgb(247, 82, 78)), lineWidth(5f), lineOpacity(0.88f),
+        ))
+        // Icons point along the GeoJSON coordinate order, including westbound
+        // legs. Upright correction would silently reverse those arrows.
+        val arrow = Bitmap.createBitmap(36, 28, Bitmap.Config.ARGB_8888)
+        arrow.density = 320
+        val arrowCanvas = Canvas(arrow)
+        arrowCanvas.scale(2f, 2f)
+        val chevron = Path().apply {
+            moveTo(5f, 3f); lineTo(11f, 7f); lineTo(5f, 11f)
+        }
+        val arrowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+            color = Color.rgb(247, 82, 78)
+            strokeWidth = 4.5f
+        }
+        arrowCanvas.drawPath(chevron, arrowPaint)
+        arrowPaint.color = Color.WHITE
+        arrowPaint.strokeWidth = 2.2f
+        arrowCanvas.drawPath(chevron, arrowPaint)
+        style.addImage("sipon-route-arrow", arrow)
+        arrow.recycle()
+        style.addLayer(SymbolLayer("sipon-route-arrows", "sipon-route").withProperties(
+            symbolPlacement("line"), symbolSpacing(72f),
+            iconImage("sipon-route-arrow"), iconRotationAlignment("map"),
+            iconPitchAlignment("map"), iconKeepUpright(false),
+            iconAllowOverlap(true), iconIgnorePlacement(true), iconPadding(0f),
         ))
         style.addLayer(CircleLayer("sipon-clusters", "sipon-circles").withProperties(
             circleColor(POI_THEME_COLOR), circleRadius(13f),

@@ -16,8 +16,8 @@ class Context {
   measureText(text) { return { width: Array.from(text).reduce((w, c) => w + (c.charCodeAt(0) > 255 ? 12 : 6), 0) }; }
   beginPath() {}
   closePath() {}
-  moveTo() {}
-  lineTo() {}
+  moveTo(...args) { this.calls.push(['move', ...args]); }
+  lineTo(...args) { this.calls.push(['line', ...args]); }
   arc() {}
   fill() { this.calls.push(['fill', this.fillStyle]); }
   stroke() { this.calls.push(['stroke', this.strokeStyle, this.lineWidth]); }
@@ -43,6 +43,21 @@ function load(name, mocks = {}) {
 }
 const artwork = load('PetalMarkerArtwork', {
   '@kit.ArkUI': { LengthMetricsUnit: { PX: 1 } }, './PetalMarkerLayout': load('PetalMarkerLayout'),
+});
+
+test('route texture points forward and preserves a continuous stroke between repeats', () => {
+  contexts.length = 0;
+  const icon = artwork.makePetalRouteTexture();
+  const context = contexts[0];
+  assert.equal(icon.width, 144);
+  assert.equal(icon.height, 24);
+  assert.deepEqual(context.calls.filter(c => c[0] === 'move' || c[0] === 'line'), [
+    ['move', 0, 6], ['line', 72, 6],
+    ['move', 33, 2], ['line', 39, 6], ['line', 33, 10],
+  ]);
+  assert.deepEqual(context.calls.filter(c => c[0] === 'stroke'), [
+    ['stroke', '#FF4778', 5], ['stroke', '#FF4778', 4], ['stroke', '#FFFFFF', 2],
+  ]);
 });
 const make = (selected = false, extra = {}) => {
   contexts.length = 0;

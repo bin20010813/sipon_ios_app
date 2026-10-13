@@ -5,7 +5,7 @@ import { BinaryMessenger, MethodCall, MethodCallHandler, MethodChannel, MethodRe
 import { Params } from '@ohos/flutter_ohos/src/main/ets/plugin/platform/PlatformView';
 import { items, numberValue, payload, position, textValue } from './PetalPayload';
 import { PetalLabelCandidate, petalMarkerCaption, selectPetalLabels } from './PetalMarkerLayout';
-import { makePetalMarker } from './PetalMarkerArtwork';
+import { makePetalMarker, makePetalRouteTexture } from './PetalMarkerArtwork';
 
 interface PetalMarkerEntry {
   marker: map.Marker;
@@ -73,6 +73,7 @@ export class SiponPetalView extends PlatformView implements MethodCallHandler {
   private circles: map.MapCircle[] = [];
   private venueByOverlay: Map<string, string> = new Map();
   private routeLines: map.MapPolyline[] = [];
+  private routeTexture?: image.PixelMap;
   private routeRevision: number = 0;
   private renderRevision: number = 0;
   private renderQueue: Promise<void> = Promise.resolve();
@@ -425,8 +426,10 @@ export class SiponPetalView extends PlatformView implements MethodCallHandler {
     if (!controller || this.destroyed || revision !== this.routeRevision) return false;
     const added: map.MapPolyline[] = [];
     try {
+      if (!this.routeTexture) this.routeTexture = makePetalRouteTexture();
       for (const points of legs) {
-        const line = await controller.addPolyline({ points, color: 0xffff4778, width: 6, zIndex: 1 });
+        const line = await controller.addPolyline({ points, width: 12, zIndex: 1,
+          customTexture: this.routeTexture, isTextureMappingUsed: true });
         added.push(line);
         if (this.destroyed || revision !== this.routeRevision) {
           added.forEach((item: map.MapPolyline) => item.remove());
@@ -469,6 +472,8 @@ export class SiponPetalView extends PlatformView implements MethodCallHandler {
     this.controller?.getEventManager().off('circleClick');
     this.clearOverlays();
     this.clearRouteLines();
+    this.routeTexture?.release().catch(() => {});
+    this.routeTexture = undefined;
     this.assets.forEach((icon: image.PixelMap) => { icon.release(); });
     this.assets.clear();
     this.channel.setMethodCallHandler(null);

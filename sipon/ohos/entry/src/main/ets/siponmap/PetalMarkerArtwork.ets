@@ -5,6 +5,30 @@ import { PETAL_LABEL_FONT_SIZE } from './PetalMarkerLayout';
 export const PETAL_MARKER_THEME = '#9A3D78';
 export const PETAL_CAPSULE_HEIGHT = 28;
 
+// Mapping mode aligns the texture's x-axis with the ordered polyline. Keep the
+// full route stroke in the texture because mapping mode ignores line.color.
+export function makePetalRouteTexture(): image.PixelMap {
+  const context = canvas(72, 12, 2);
+  context.strokeStyle = '#FF4778';
+  context.lineWidth = 5;
+  context.beginPath();
+  context.moveTo(0, 6);
+  context.lineTo(72, 6);
+  context.stroke();
+  context.beginPath();
+  context.moveTo(33, 2);
+  context.lineTo(39, 6);
+  context.lineTo(33, 10);
+  context.lineJoin = 'round';
+  context.lineCap = 'round';
+  context.lineWidth = 4;
+  context.stroke();
+  context.strokeStyle = '#FFFFFF';
+  context.lineWidth = 2;
+  context.stroke();
+  return context.getPixelMap(0, 0, 144, 24);
+}
+
 export interface PetalMarkerArtwork {
   icon: image.PixelMap;
   width: number;
