@@ -51,14 +51,46 @@ class LanguagePage extends StatelessWidget {
                         _LanguageCard(
                           text: text,
                           language: languageController.language,
-                          onChanged: (language) {
+                          usesSystemLanguageSettings:
+                              languageController.usesSystemLanguageSettings,
+                          onOpenSettings: () async {
+                            try {
+                              await languageController
+                                  .openSystemLanguageSettings();
+                            } catch (_) {
+                              if (!context.mounted) return;
+                              showSiponMessage(
+                                context,
+                                SiponLanguageScope.textOf(
+                                  context,
+                                ).languageSettingsOpenFailed,
+                                type: SiponMessageType.error,
+                              );
+                            }
+                          },
+                          onChanged: (language) async {
                             if (languageController.language == language) return;
-                            languageController.setLanguage(language);
-                            showSiponMessage(
-                              context,
-                              SiponAppText(language).languageChanged,
-                              type: SiponMessageType.success,
-                            );
+                            try {
+                              final changed = await languageController
+                                  .setLanguage(language);
+                              if (!context.mounted || !changed) return;
+                              showSiponMessage(
+                                context,
+                                SiponAppText(
+                                  languageController.language,
+                                ).languageChanged,
+                                type: SiponMessageType.success,
+                              );
+                            } catch (_) {
+                              if (!context.mounted) return;
+                              showSiponMessage(
+                                context,
+                                SiponLanguageScope.textOf(
+                                  context,
+                                ).languageSettingsOpenFailed,
+                                type: SiponMessageType.error,
+                              );
+                            }
                           },
                         ),
                       ],
@@ -127,11 +159,15 @@ class _LanguageCard extends StatelessWidget {
     required this.text,
     required this.language,
     required this.onChanged,
+    required this.usesSystemLanguageSettings,
+    required this.onOpenSettings,
   });
 
   final SiponAppText text;
   final SiponLanguage language;
   final ValueChanged<SiponLanguage> onChanged;
+  final bool usesSystemLanguageSettings;
+  final VoidCallback onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -213,6 +249,23 @@ class _LanguageCard extends StatelessWidget {
                 onSelectionChanged: (selection) => onChanged(selection.first),
               ),
             ),
+            if (usesSystemLanguageSettings) ...[
+              const SizedBox(height: 12),
+              Text(
+                text.languageSettingsHint,
+                style: TextStyle(
+                  color: scheme.onSurfaceVariant,
+                  fontSize: 12,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 4),
+              TextButton.icon(
+                onPressed: onOpenSettings,
+                icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                label: Text(text.languageOpenSettings),
+              ),
+            ],
           ],
         ),
       ),

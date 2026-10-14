@@ -5,6 +5,7 @@ import UIKit
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private let stickerMotion = StickerMotionStream()
+  private var languageChannel: FlutterMethodChannel?
 
   override func application(
     _ application: UIApplication,
@@ -15,6 +16,7 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    registerSiponLanguage(with: engineBridge.pluginRegistry)
     registerSiponMapView(with: engineBridge.pluginRegistry)
     registerSiponSticker(with: engineBridge.pluginRegistry)
 
@@ -25,6 +27,36 @@ import UIKit
         name: "sipon/sticker_motion",
         binaryMessenger: registrar.messenger()
       ).setStreamHandler(stickerMotion)
+    }
+  }
+
+  /// MapKit 与 Flutter 使用同一个应用语言，由 iOS 的应用语言设置管理。
+  /// 原生 MapKit 没有单独切换底图语言的公开接口。
+  private func registerSiponLanguage(with registry: FlutterPluginRegistry) {
+    guard let registrar = registry.registrar(forPlugin: "SiponLanguage") else { return }
+    let channel = FlutterMethodChannel(
+      name: "sipon/language",
+      binaryMessenger: registrar.messenger()
+    )
+    languageChannel = channel
+    channel.setMethodCallHandler { call, result in
+      switch call.method {
+      case "getLanguage":
+        // Locale.preferredLanguages 是设备偏好；Bundle 才反映本应用实际语言。
+        let language = Bundle.main.preferredLocalizations.first ?? "en"
+        result(language.hasPrefix("zh") ? "zh" : "en")
+      case "openSettings":
+        guard let url = URL(string: UIApplication.openSettingsURLString) else {
+          result(false)
+          return
+        }
+        // 用户选择语言后，iOS 会重新启动应用与 MapKit。
+        UIApplication.shared.open(url, options: [:]) { opened in
+          result(opened)
+        }
+      default:
+        result(FlutterMethodNotImplemented)
+      }
     }
   }
 

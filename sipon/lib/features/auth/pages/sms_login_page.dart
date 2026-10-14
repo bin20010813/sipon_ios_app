@@ -473,7 +473,16 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
               child: _LoginLanguageSwitch(
                 text: text,
                 language: languageController.language,
-                onChanged: languageController.setLanguage,
+                onChanged: (language) async {
+                  try {
+                    await languageController.setLanguage(language);
+                  } catch (_) {
+                    _showMessage(
+                      text.languageSettingsOpenFailed,
+                      type: SiponMessageType.error,
+                    );
+                  }
+                },
               ),
             ),
             Center(

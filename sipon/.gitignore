@@ -71,3 +71,6 @@ app.*.map.json
 **/xcuserdata/
 *.xcuserstate
 test
+!/test/
+/test/*
+!/test/sipon_language_test.dart

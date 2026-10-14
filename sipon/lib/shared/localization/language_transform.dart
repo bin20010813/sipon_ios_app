@@ -1,22 +1,93 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 enum SiponLanguage { zh, en }
 
 class SiponLanguageController extends ChangeNotifier {
-  SiponLanguageController({SiponLanguage initialLanguage = SiponLanguage.zh})
-    : _language = initialLanguage;
+  SiponLanguageController({
+    SiponLanguage initialLanguage = SiponLanguage.zh,
+    TargetPlatform? platform,
+    MethodChannel? channel,
+  }) : _language = initialLanguage,
+       _platform = platform ?? defaultTargetPlatform,
+       _channel = channel ?? const MethodChannel('sipon/language');
 
   SiponLanguage _language;
+  final TargetPlatform _platform;
+  final MethodChannel _channel;
+  bool _disposed = false;
 
   SiponLanguage get language => _language;
+  bool get usesSystemLanguageSettings =>
+      !kIsWeb && _platform == TargetPlatform.iOS;
+  Locale get locale => _language == SiponLanguage.zh
+      ? const Locale('zh', 'CN')
+      : const Locale('en');
 
-  void setLanguage(SiponLanguage language) {
-    if (_language == language) {
+  static Future<SiponLanguageController> load({
+    TargetPlatform? platform,
+    MethodChannel? channel,
+  }) async {
+    final controller = SiponLanguageController(
+      platform: platform,
+      channel: channel,
+    );
+    await controller.refreshSystemLanguage();
+    return controller;
+  }
+
+  /// Read the language iOS actually launched the app with, including its
+  /// per-app setting. Refreshing never writes a requested language to iOS.
+  Future<void> refreshSystemLanguage() async {
+    if (!usesSystemLanguageSettings || _disposed) return;
+    String? nativeLanguage;
+    try {
+      nativeLanguage = await _channel.invokeMethod<String>('getLanguage');
+    } on MissingPluginException {
+      return;
+    } on PlatformException {
       return;
     }
+    final next = switch (nativeLanguage) {
+      'zh' => SiponLanguage.zh,
+      'en' => SiponLanguage.en,
+      _ => null,
+    };
+    if (_disposed || next == null || next == _language) return;
+    _language = next;
+    notifyListeners();
+  }
 
+  /// True means the displayed language changed. On iOS, open the app's
+  /// Settings page and retain the actual language until iOS relaunches it.
+  Future<bool> setLanguage(SiponLanguage language) async {
+    if (_disposed || _language == language) return false;
+    if (usesSystemLanguageSettings) {
+      await openSystemLanguageSettings();
+      return false;
+    }
     _language = language;
     notifyListeners();
+    return true;
+  }
+
+  Future<void> openSystemLanguageSettings() async {
+    if (!usesSystemLanguageSettings) {
+      throw UnsupportedError(
+        'System app language settings are only used on iOS.',
+      );
+    }
+    final opened = await _channel.invokeMethod<bool>('openSettings');
+    if (opened != true) {
+      throw PlatformException(code: 'sipon_language_settings_unavailable');
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }
 
@@ -190,6 +261,14 @@ class SiponAppText {
   String get languageChinese => t('中文');
   String get languageEnglish => t('En');
   String get languageChanged => t('语言已切换');
+  String get languageSettingsHint => isZh
+      ? '在系统设置中更改语言，重新打开后界面与地图一起更新。'
+      : 'Change the app language in Settings, then reopen Sipon to update its interface and map.';
+  String get languageOpenSettings =>
+      isZh ? '打开系统语言设置' : 'Open language settings';
+  String get languageSettingsOpenFailed => isZh
+      ? '无法打开系统设置，请在系统设置中更改 Sipon 的语言。'
+      : "Unable to open Settings. Please change Sipon's language in Settings.";
   String get appearance => t('外观');
   String get appearanceSystem => t('跟随系统');
   String get appearanceLight => t('浅色模式');

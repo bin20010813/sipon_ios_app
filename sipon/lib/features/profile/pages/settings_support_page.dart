@@ -76,17 +76,32 @@ class SettingsSupportPage extends StatelessWidget {
                               title: text.languageTransformEntry,
                               text: text,
                               language: languageController.language,
-                              onChanged: (language) {
+                              hint:
+                                  languageController.usesSystemLanguageSettings
+                                  ? text.languageSettingsHint
+                                  : null,
+                              onChanged: (language) async {
                                 if (languageController.language == language) {
                                   return;
                                 }
 
-                                languageController.setLanguage(language);
-                                showSiponMessage(
-                                  context,
-                                  SiponAppText(language).languageChanged,
-                                  type: SiponMessageType.success,
-                                );
+                                try {
+                                  final changed = await languageController
+                                      .setLanguage(language);
+                                  if (!context.mounted || !changed) return;
+                                  showSiponMessage(
+                                    context,
+                                    SiponAppText(language).languageChanged,
+                                    type: SiponMessageType.success,
+                                  );
+                                } catch (_) {
+                                  if (!context.mounted) return;
+                                  showSiponMessage(
+                                    context,
+                                    text.languageSettingsOpenFailed,
+                                    type: SiponMessageType.error,
+                                  );
+                                }
                               },
                             ),
                             _AppearanceRow(
@@ -2045,12 +2060,14 @@ class _LanguageRow extends StatelessWidget {
     required this.text,
     required this.language,
     required this.onChanged,
+    this.hint,
   });
 
   final String title;
   final SiponAppText text;
   final SiponLanguage language;
   final ValueChanged<SiponLanguage> onChanged;
+  final String? hint;
 
   @override
   Widget build(BuildContext context) {
@@ -2063,16 +2080,31 @@ class _LanguageRow extends StatelessWidget {
           Icon(Icons.translate_outlined, color: scheme.primary, size: 25),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: scheme.onSurface,
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: scheme.onSurface,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
+                ),
+                if (hint != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    hint!,
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           // 右侧胶囊与外观行同宽，贴合内容、靠右对齐。

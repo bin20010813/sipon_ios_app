@@ -1,0 +1,4 @@
+"NSLocationWhenInUseUsageDescription" = "SipOn uses your location to show nearby bars and content for your current city.";
+"NSCameraUsageDescription" = "SipOn uses your camera to attach photos when you report a problem.";
+"NSPhotoLibraryUsageDescription" = "SipOn accesses your photo library so you can attach screenshots when you report a problem.";
+"NSMotionUsageDescription" = "SipOn uses device motion and orientation to show the direction you face on the map and animate profile stickers as you tilt your phone.";

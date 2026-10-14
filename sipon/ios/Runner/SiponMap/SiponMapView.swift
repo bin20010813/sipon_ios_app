@@ -44,6 +44,40 @@ final class SiponRouteRenderer: MKPolylineRenderer {
   }
 }
 
+/// 与 Android SiponUserLocationView 共用视觉规格（iOS pt / Android dp）。
+private enum SiponUserLocationStyle {
+  static let size = CGSize(width: 104, height: 104)
+
+  static func draw(in context: CGContext, bounds: CGRect, isDark: Bool, direction: Double?) {
+    let color = isDark
+      ? UIColor(red: 232/255, green: 160/255, blue: 204/255, alpha: 1)
+      : UIColor(red: 154/255, green: 61/255, blue: 120/255, alpha: 1)
+    let center = CGPoint(x: bounds.midX, y: bounds.midY)
+    if let direction = direction, direction.isFinite {
+      context.saveGState()
+      context.translateBy(x: center.x, y: center.y)
+      context.rotate(by: CGFloat(direction * .pi / 180))
+      context.move(to: .zero)
+      // CGContext 取递增角度的短弧；UIKit 的 Y 轴向下，呈现朝上的 72° 扇形。
+      context.addArc(center: .zero, radius: 48, startAngle: -.pi / 2 - .pi / 5,
+        endAngle: -.pi / 2 + .pi / 5, clockwise: false)
+      context.closePath()
+      context.clip()
+      if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+        colors: [color.withAlphaComponent(140.0/255).cgColor, color.withAlphaComponent(0).cgColor] as CFArray,
+        locations: [0, 1]) {
+        context.drawRadialGradient(gradient, startCenter: .zero, startRadius: 0,
+          endCenter: .zero, endRadius: 48, options: [])
+      }
+      context.restoreGState()
+    }
+    context.setFillColor(UIColor.white.cgColor)
+    context.fillEllipse(in: CGRect(x: center.x - 9, y: center.y - 9, width: 18, height: 18))
+    context.setFillColor(color.cgColor)
+    context.fillEllipse(in: CGRect(x: center.x - 6, y: center.y - 6, width: 12, height: 12))
+  }
+}
+
 /// 位置中心固定，扇形按设备朝向减去地图方位角旋转。
 final class SiponUserLocationView: MKAnnotationView {
   weak var mapView: MKMapView?
@@ -52,11 +86,13 @@ final class SiponUserLocationView: MKAnnotationView {
 
   override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
     super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
-    bounds = CGRect(x: 0, y: 0, width: 104, height: 104)
+    bounds = CGRect(origin: .zero, size: SiponUserLocationStyle.size)
     backgroundColor = .clear
     isOpaque = false
     isEnabled = false
     displayPriority = .required
+    isAccessibilityElement = true
+    accessibilityLabel = NSLocalizedString("user_location", comment: "User location on the map")
     NotificationCenter.default.addObserver(self, selector: #selector(stopMotion),
       name: UIApplication.didEnterBackgroundNotification, object: nil)
     NotificationCenter.default.addObserver(self, selector: #selector(startMotion),
@@ -120,31 +156,9 @@ final class SiponUserLocationView: MKAnnotationView {
 
   override func draw(_ rect: CGRect) {
     guard let context = UIGraphicsGetCurrentContext() else { return }
-    let color = traitCollection.userInterfaceStyle == .dark
-      ? UIColor(red: 232/255, green: 160/255, blue: 204/255, alpha: 1)
-      : UIColor(red: 154/255, green: 61/255, blue: 120/255, alpha: 1)
-    let center = CGPoint(x: bounds.midX, y: bounds.midY)
-    if let heading = heading {
-      context.saveGState()
-      context.translateBy(x: center.x, y: center.y)
-      context.rotate(by: CGFloat((heading - (mapView?.camera.heading ?? 0)) * .pi / 180))
-      context.move(to: .zero)
-      context.addArc(center: .zero, radius: 48, startAngle: -.pi / 2 - .pi / 5,
-        endAngle: -.pi / 2 + .pi / 5, clockwise: false)
-      context.closePath()
-      context.clip()
-      if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
-        colors: [color.withAlphaComponent(0.55).cgColor, color.withAlphaComponent(0).cgColor] as CFArray,
-        locations: [0, 1]) {
-        context.drawRadialGradient(gradient, startCenter: .zero, startRadius: 5,
-          endCenter: .zero, endRadius: 48, options: [])
-      }
-      context.restoreGState()
-    }
-    context.setFillColor(UIColor.white.cgColor)
-    context.fillEllipse(in: CGRect(x: center.x - 9, y: center.y - 9, width: 18, height: 18))
-    context.setFillColor(color.cgColor)
-    context.fillEllipse(in: CGRect(x: center.x - 6, y: center.y - 6, width: 12, height: 12))
+    SiponUserLocationStyle.draw(in: context, bounds: bounds,
+      isDark: traitCollection.userInterfaceStyle == .dark,
+      direction: heading.map { $0 - (mapView?.camera.heading ?? 0) })
   }
 }
 
@@ -713,44 +727,44 @@ final class SiponMapEngine: NSObject {
     mapView.isScrollEnabled = true
     mapView.isZoomEnabled = true
 
-    // 底图 POI（餐厅、地铁、地标）的开关放在 apply(styleId:) 里，跟着
+    // 底图公共设施 POI 的筛选放在 apply(styleId:) 里，跟着
     // MKMapConfiguration 一起设。这里设 `mapView.pointOfInterestFilter` 在
     // iOS 16+ 上会被随后赋值的 preferredConfiguration 覆盖掉，等于没设。
-    // 旧版 iOS 走 mapType 分支，那时才需要在这里兜底（见 apply(styleId:)）。
+    // 旧版 iOS 走 apply(styleId:) 中的 mapType 分支。
   }
 
-  /// 底图三档切换。iOS 16+ 用 MKMapConfiguration（muted emphasis +
-  /// 强制深色界面近似原 dark）；低版本降级到老 mapType 枚举，
-  /// muted 退化为普通浅色（决策 D5）。
+  /// 仅保留系统底图中的公共设施类别，不影响应用自己的店铺 annotation。
+  private static let publicFacilityPOIFilter = MKPointOfInterestFilter(including: [
+    .publicTransport, .airport, .parking,
+    .hospital, .police, .fireStation,
+    .school, .university, .library,
+    .park, .nationalPark, .beach, .museum,
+  ])
+
+  /// 普通和暗色底图均使用 Muted 柔和样式；卫星模式保留混合底图。
+  /// 所有模式统一筛选公共设施 POI，旧版 iOS 使用 mutedStandard。
   func apply(styleId: String) {
     self.styleId = styleId
 
     if #available(iOS 16.0, *) {
-      // POI 过滤必须设在 configuration 上：在 iOS 16+ 里 mapView 自身那个
-      // pointOfInterestFilter 会被 preferredConfiguration 顶掉，写在那里不生效，
-      // 结果就是底图上连便利店、地铁站的名称都没有。
+      // POI 筛选与底图配置一起设置，避免切换样式后恢复商业 POI。
       switch styleId {
       case "satellite":
         let configuration = MKHybridMapConfiguration()
         configuration.elevationStyle = .flat
-        configuration.pointOfInterestFilter = .includingAll
-        mapView.preferredConfiguration = configuration
-      case "muted":
-        let configuration = MKStandardMapConfiguration()
-        configuration.elevationStyle = .flat
-        configuration.emphasisStyle = .muted
-        configuration.pointOfInterestFilter = .includingAll
+        configuration.pointOfInterestFilter = Self.publicFacilityPOIFilter
         mapView.preferredConfiguration = configuration
       default:
         let configuration = MKStandardMapConfiguration()
         configuration.elevationStyle = .flat
-        configuration.pointOfInterestFilter = .includingAll
+        configuration.emphasisStyle = .muted
+        configuration.pointOfInterestFilter = Self.publicFacilityPOIFilter
         mapView.preferredConfiguration = configuration
       }
     } else {
       // 老版本没有配置对象，POI 开关就是 mapView 自己的属性。
-      mapView.mapType = (styleId == "satellite") ? .hybrid : .standard
-      mapView.pointOfInterestFilter = .includingAll
+      mapView.mapType = (styleId == "satellite") ? .hybrid : .mutedStandard
+      mapView.pointOfInterestFilter = Self.publicFacilityPOIFilter
     }
     applyEffectiveAppearance()
   }
@@ -1293,7 +1307,7 @@ final class EngineDelegateProxy: NSObject, MKMapViewDelegate, UIGestureRecognize
     switch annotation {
     case is MKUserLocation:
       if engine.showsUserHeading {
-        // 主地图：带个人标识和朝向扇形的定位视图。
+        // 主地图：与 Android 一致的圆点和渐隐朝向扇形。
         let identifier = "sipon.userDirection"
         let view = (mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
           as? UserDirectionAnnotationView)
@@ -1513,73 +1527,46 @@ final class SelectionAnnotation: NSObject, MKAnnotation, VenueSelecting {
 // 自绘 annotation 视图
 // =============================================================================
 
-/// 用户位置：中心是个人点位，半透明扇形指向设备朝向。
+/// 用户位置：白边圆点与渐隐扇形的样式与 Android 一致。
 /// 扇形与地图相机的 heading 相抵消，因此转动地图时仍指向真实方向。
 final class UserDirectionAnnotationView: MKAnnotationView {
-  private static let side: CGFloat = 72
-  private static let center = CGPoint(x: side / 2, y: side / 2)
-  private let directionLayer = CAShapeLayer()
-  private let dotView = UIView(frame: CGRect(x: 26, y: 26, width: 20, height: 20))
-  private let personView = UIImageView(image: UIImage(systemName: "person.fill"))
+  private var direction: CLLocationDirection?
 
   override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
     super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
-    bounds = CGRect(x: 0, y: 0, width: Self.side, height: Self.side)
+    bounds = CGRect(origin: .zero, size: SiponUserLocationStyle.size)
+    backgroundColor = .clear
+    isOpaque = false
+    isEnabled = false
     centerOffset = .zero
     displayPriority = .required
     collisionMode = .circle
     if #available(iOS 14.0, *) { zPriority = .max }
     isAccessibilityElement = true
-    accessibilityLabel = "我的位置"
-
-    let fan = UIBezierPath()
-    fan.move(to: Self.center)
-    fan.addArc(
-      withCenter: Self.center,
-      radius: 34,
-      startAngle: -CGFloat.pi / 2 - CGFloat.pi / 7,
-      endAngle: -CGFloat.pi / 2 + CGFloat.pi / 7,
-      // UIKit 的 Y 轴向下：顺时针走两端之间约 51° 的短弧，
-      // 逆时针会画出其余约 309°，形成缺口圆盘而不是朝向小扇形。
-      clockwise: true
-    )
-    fan.close()
-    directionLayer.frame = bounds
-    directionLayer.path = fan.cgPath
-    directionLayer.fillColor = UIColor(red: 0x9A / 255.0, green: 0x3D / 255.0, blue: 0x78 / 255.0, alpha: 0.25).cgColor
-    directionLayer.isHidden = true
-    layer.addSublayer(directionLayer)
-
-    dotView.backgroundColor = UIColor(red: 0x9A / 255.0, green: 0x3D / 255.0, blue: 0x78 / 255.0, alpha: 1)
-    dotView.layer.cornerRadius = 10
-    dotView.layer.borderWidth = 2.5
-    dotView.layer.borderColor = UIColor.white.cgColor
-    dotView.layer.shadowColor = UIColor.black.cgColor
-    dotView.layer.shadowOpacity = 0.22
-    dotView.layer.shadowRadius = 3
-    dotView.layer.shadowOffset = CGSize(width: 0, height: 1)
-    addSubview(dotView)
-
-    personView.frame = CGRect(x: 31, y: 31, width: 10, height: 10)
-    personView.contentMode = .scaleAspectFit
-    personView.tintColor = .white
-    addSubview(personView)
+    accessibilityLabel = NSLocalizedString("user_location", comment: "User location on the map")
   }
 
   @available(*, unavailable)
   required init?(coder: NSCoder) { nil }
 
   func setDirection(_ heading: CLLocationDirection?, mapHeading: CLLocationDirection) {
-    guard let heading = heading, heading.isFinite, mapHeading.isFinite else {
-      directionLayer.isHidden = true
-      return
+    if let heading = heading, heading.isFinite, mapHeading.isFinite {
+      direction = heading - mapHeading
+    } else {
+      direction = nil
     }
-    let radians = CGFloat((heading - mapHeading) * .pi / 180)
-    CATransaction.begin()
-    CATransaction.setDisableActions(true)
-    directionLayer.isHidden = false
-    directionLayer.setAffineTransform(CGAffineTransform(rotationAngle: radians))
-    CATransaction.commit()
+    setNeedsDisplay()
+  }
+
+  override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    super.traitCollectionDidChange(previousTraitCollection)
+    setNeedsDisplay()
+  }
+
+  override func draw(_ rect: CGRect) {
+    guard let context = UIGraphicsGetCurrentContext() else { return }
+    SiponUserLocationStyle.draw(in: context, bounds: bounds,
+      isDark: traitCollection.userInterfaceStyle == .dark, direction: direction)
   }
 }
 

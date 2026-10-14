@@ -1,0 +1,4 @@
+"NSLocationWhenInUseUsageDescription" = "SipOn 需要获取你的位置，用于展示附近酒吧和当前城市内容。";
+"NSCameraUsageDescription" = "SipOn 需要使用相机拍照，用于提交反馈问题时附上现场照片。";
+"NSPhotoLibraryUsageDescription" = "SipOn 需要访问相册以选择图片，用于提交反馈问题时附上截图。";
+"NSMotionUsageDescription" = "SipOn 使用设备运动和朝向，在地图上显示你的面向方向，并让个人页面贴纸随手机倾斜滚动。";

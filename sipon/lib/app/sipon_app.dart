@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'package:sipon/features/map/pages/add_venue_page.dart';
 import 'package:sipon/features/drinks/records/pages/drink_record_page.dart';
@@ -30,16 +32,18 @@ part 'shell/sipon_shell.dart';
 part 'widgets/shell_components.dart';
 
 class SiponApp extends StatefulWidget {
-  const SiponApp({super.key, this.themeController});
+  const SiponApp({super.key, this.themeController, this.languageController});
 
   final SiponThemeController? themeController;
+  final SiponLanguageController? languageController;
 
   @override
   State<SiponApp> createState() => _SiponAppState();
 }
 
-class _SiponAppState extends State<SiponApp> {
-  final SiponLanguageController _languageController = SiponLanguageController();
+class _SiponAppState extends State<SiponApp> with WidgetsBindingObserver {
+  late final SiponLanguageController _languageController;
+  late final bool _ownsLanguageController;
   final SiponCityController _cityController = SiponCityController();
   late final SiponThemeController _themeController;
   late final bool _ownsThemeController;
@@ -47,6 +51,13 @@ class _SiponAppState extends State<SiponApp> {
   @override
   void initState() {
     super.initState();
+    _ownsLanguageController = widget.languageController == null;
+    _languageController =
+        widget.languageController ?? SiponLanguageController();
+    WidgetsBinding.instance.addObserver(this);
+    if (_ownsLanguageController) {
+      unawaited(_languageController.refreshSystemLanguage());
+    }
     _ownsThemeController = widget.themeController == null;
     _themeController = widget.themeController ?? SiponThemeController();
     DrinkBudgetStore.instance.ensureLoaded();
@@ -55,10 +66,18 @@ class _SiponAppState extends State<SiponApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _cityController.dispose();
-    _languageController.dispose();
+    if (_ownsLanguageController) _languageController.dispose();
     if (_ownsThemeController) _themeController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_languageController.refreshSystemLanguage());
+    }
   }
 
   @override
@@ -76,6 +95,9 @@ class _SiponAppState extends State<SiponApp> {
 
               return MaterialApp(
                 title: text.appTitle,
+                locale: _languageController.locale,
+                supportedLocales: const [Locale('zh', 'CN'), Locale('en')],
+                localizationsDelegates: GlobalMaterialLocalizations.delegates,
                 debugShowCheckedModeBanner: false,
                 theme: SiponTheme.light,
                 darkTheme: SiponTheme.dark,
