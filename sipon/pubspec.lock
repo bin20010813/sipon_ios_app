@@ -13,7 +13,7 @@ packages:
     dependency: transitive
     description:
       name: archive
-      sha256: "6c5bcd986e06b94e3c40244af471750840a3d2341d1f9763a1100a14add517b4"
+      sha256: ace891da0862b0e4cabbb064ee3fd87b2728b898949fdb366d83fe98342c9f19
       url: "https://pub.dev"
     source: hosted
     version: "4.2.0"
@@ -33,62 +33,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.13.1"
-  audioplayers:
-    dependency: "direct main"
-    description:
-      name: audioplayers
-      sha256: f16640453cc47487b7de72a2b28d37c7df1ac97999849f4a46d92b1d2b0f093d
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.7.1"
-  audioplayers_android:
-    dependency: transitive
-    description:
-      name: audioplayers_android
-      sha256: "60a6728277228413a85755bd3ffd6fab98f6555608923813ce383b190a360605"
-      url: "https://pub.dev"
-    source: hosted
-    version: "5.2.1"
-  audioplayers_darwin:
-    dependency: transitive
-    description:
-      name: audioplayers_darwin
-      sha256: c994b3bb3a921e4904ac40e013fbc94488e824fd7c1de6326f549943b0b44a91
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.4.0"
-  audioplayers_linux:
-    dependency: transitive
-    description:
-      name: audioplayers_linux
-      sha256: f75bce1ce864170ef5e6a2c6a61cd3339e1a17ce11e99a25bae4474ea491d001
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.2.1"
-  audioplayers_platform_interface:
-    dependency: transitive
-    description:
-      name: audioplayers_platform_interface
-      sha256: "0e2f6a919ab56d0fec272e801abc07b26ae7f31980f912f24af4748763e5a656"
-      url: "https://pub.dev"
-    source: hosted
-    version: "7.1.1"
-  audioplayers_web:
-    dependency: transitive
-    description:
-      name: audioplayers_web
-      sha256: "24a6f258062bd7da8cb2157e83fccb9816a08dd306cbaaa24f9813d071470545"
-      url: "https://pub.dev"
-    source: hosted
-    version: "5.2.1"
-  audioplayers_windows:
-    dependency: transitive
-    description:
-      name: audioplayers_windows
-      sha256: "95f875a96c88c3dbbcb608d4f8288e300b0113d256a81d0b3197fcc18f0dc91a"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.3.1"
   boolean_selector:
     dependency: transitive
     description:
@@ -136,7 +80,6 @@ packages:
       sha256: fddb70d9b5277016c77a80201021d40a2247104d9f4aa7bab7157b7e3f05b84b
       url: "https://pub.dev"
     source: hosted
-    version: "1.1.2"
     version: "1.1.2"
   collection:
     dependency: transitive
@@ -287,7 +230,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.4.7"
-    version: "2.4.7"
   flutter_plugin_android_lifecycle:
     dependency: transitive
     description:
@@ -414,7 +356,7 @@ packages:
     dependency: transitive
     description:
       name: image
-      sha256: a1e7f4951e538a568e14b856702afc9ae1d2f4b202daced8d22c1b9cd211ce89
+      sha256: "1976370a4df3091bb0f72409c187ad1f9132a818bc6b95ca59c0bae1c75c688e"
       url: "https://pub.dev"
     source: hosted
     version: "4.9.2"
@@ -457,7 +399,6 @@ packages:
       sha256: d5b3e1774af29c9ab00103afb0d4614070f924d2e0057ac867ec98800114793f
       url: "https://pub.dev"
     source: hosted
-    version: "0.8.13+17"
     version: "0.8.13+17"
   image_picker_for_web:
     dependency: transitive
@@ -587,7 +528,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.17.0"
-    version: "1.17.0"
   mime:
     dependency: transitive
     description:
@@ -700,7 +640,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "7.0.2"
-    version: "7.0.2"
   platform:
     dependency: transitive
     description:
@@ -708,7 +647,6 @@ packages:
       sha256: "5d6b1b0036a5f331ebc77c850ebc8506cbc1e9416c27e59b439f917a902a4984"
       url: "https://pub.dev"
     source: hosted
-    version: "3.1.6"
     version: "3.1.6"
   plugin_platform_interface:
     dependency: transitive
@@ -749,7 +687,6 @@ packages:
       sha256: e8d4762b1e2e8578fc4d0fd548cebf24afd24f49719c08974df92834565e2c53
       url: "https://pub.dev"
     source: hosted
-    version: "2.4.23"
     version: "2.4.23"
   shared_preferences_foundation:
     dependency: transitive
@@ -836,7 +773,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.4.2+1"
-    version: "2.4.2+1"
   sqflite_android:
     dependency: transitive
     description:
@@ -844,7 +780,6 @@ packages:
       sha256: "881e28efdcc9950fd8e9bb42713dcf1103e62a2e7168f23c9338d82db13dec40"
       url: "https://pub.dev"
     source: hosted
-    version: "2.4.2+3"
     version: "2.4.2+3"
   sqflite_common:
     dependency: transitive
@@ -854,7 +789,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.5.8"
-    version: "2.5.8"
   sqflite_darwin:
     dependency: transitive
     description:
@@ -862,7 +796,6 @@ packages:
       sha256: "279832e5cde3fe99e8571879498c9211f3ca6391b0d818df4e17d9fff5c6ccb3"
       url: "https://pub.dev"
     source: hosted
-    version: "2.4.2"
     version: "2.4.2"
   sqflite_platform_interface:
     dependency: transitive
@@ -872,7 +805,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.4.0"
-    version: "2.4.0"
   stack_trace:
     dependency: transitive
     description:
@@ -880,7 +812,6 @@ packages:
       sha256: "8b27215b45d22309b5cddda1aa2b19bdfec9df0e765f2de506401c071d38d1b1"
       url: "https://pub.dev"
     source: hosted
-    version: "1.12.1"
     version: "1.12.1"
   stream_channel:
     dependency: transitive
@@ -905,7 +836,6 @@ packages:
       sha256: "63896c27e81b28f8cb4e69ead0d3e8f03f1d1e5fc531a3e579cabed6a2c7c9e5"
       url: "https://pub.dev"
     source: hosted
-    version: "3.4.0+1"
     version: "3.4.0+1"
   term_glyph:
     dependency: transitive
@@ -954,7 +884,6 @@ packages:
       sha256: "17bc677f0b301615530dd1d67e0a9828cafa2d0b6b6eae4cd3679b7eac4a273c"
       url: "https://pub.dev"
     source: hosted
-    version: "6.3.30"
     version: "6.3.30"
   url_launcher_ios:
     dependency: transitive
@@ -1044,7 +973,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.0"
-    version: "2.2.0"
   vm_service:
     dependency: transitive
     description:
@@ -1061,38 +989,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.1"
-  webview_flutter:
-    dependency: "direct main"
-    description:
-      name: webview_flutter
-      sha256: d53e1ccf5516f25017e3c9d44c39034db352d20fa34fe200674270242c2c5111
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.14.1"
-  webview_flutter_android:
-    dependency: transitive
-    description:
-      name: webview_flutter_android
-      sha256: ad5182eff9a550925330cb9f0cb038eddfdd5712aba8b77aa0f0400e50f6e688
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.12.0"
-  webview_flutter_platform_interface:
-    dependency: transitive
-    description:
-      name: webview_flutter_platform_interface
-      sha256: "1221c1b12f5278791042f2ec2841743784cf25c5a644e23d6680e5d718824f04"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.15.1"
-  webview_flutter_wkwebview:
-    dependency: transitive
-    description:
-      name: webview_flutter_wkwebview
-      sha256: "82648217f537573e1ca9ae9952d3eacedca6ab5aee69dc84445fc763766dcea2"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.25.1"
   win32:
     dependency: transitive
     description:
@@ -1117,7 +1013,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.6.1"
-    version: "6.6.1"
   yaml:
     dependency: transitive
     description:
@@ -1127,7 +1022,5 @@ packages:
     source: hosted
     version: "3.1.4"
 sdks:
-  dart: ">=3.11.0 <4.0.0"
-  flutter: ">=3.41.0"
   dart: ">=3.11.0 <4.0.0"
   flutter: ">=3.41.0"

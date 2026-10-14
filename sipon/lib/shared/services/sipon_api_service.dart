@@ -88,6 +88,10 @@ class SiponApiService {
   Future<void> deleteDevice(String deviceId) =>
       _deleteEmpty('/api/users/me/devices/${Uri.encodeComponent(deviceId)}');
 
+  Future<dynamic> getMembership() => _get('/api/users/me/membership');
+
+  Future<List<dynamic>> getCoupons() => _getList('/api/users/me/coupons');
+
   Future<List<dynamic>> getAchievements() =>
       _getList('/api/users/me/achievements');
 

@@ -72,6 +72,8 @@ class ProfilePage extends StatefulWidget {
   static const String _drunkAsset = 'assest/我的/我喝过的@3x.png';
   static const String _wishAsset = 'assest/我的/我想喝的@3x.png';
   static const String _routeAsset = 'assest/我的/酒鬼线路@3x.png';
+  // static const String _memberAsset = 'assest/我的/Sipon会员@3x.png';
+  static const String _couponAsset = 'assest/我的/我的礼券@3x.png';
   // static const String _achievementAsset = 'assest/我的/成就勋章@3x.png';
 
   @override
@@ -273,6 +275,45 @@ class ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                         _QuickEntryCard(key: _quickEntryKey),
                         const SizedBox(height: 18),
                         _BudgetCard(onRecordPressed: onRecordPressed),
+                        const SizedBox(height: 22),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 16),
+                          child: _SectionTitle(text.benefits),
+                        ),
+                        const SizedBox(height: 12),
+                        _ProfileListCard(
+                          rows: [
+                            // Sipon 会员暂时隐藏，保留样式和入口待后续启用。
+                            // _ProfileListRow(
+                            //   assetPath: ProfilePage._memberAsset,
+                            //   title: text.membership,
+                            //   badge: text.membershipLimitedTime,
+                            //   onTap: () => _showMembershipSheet(
+                            //     context,
+                            //     userLevel: _profile?.level,
+                            //   ),
+                            // ),
+                            _ProfileListRow(
+                              assetPath: ProfilePage._couponAsset,
+                              title: text.vouchers,
+                              badge: _voucherBadge(text),
+                              onTap: () async {
+                                await _showCouponList(context);
+                                _loadBenefits();
+                              },
+                            ),
+                            // 成就勋章暂时隐藏，保留逻辑待后续启用。
+                            // _ProfileListRow(
+                            //   assetPath: ProfilePage._achievementAsset,
+                            //   title: text.achievements,
+                            //   trailingText: _achievementTrailing(text),
+                            //   onTap: () async {
+                            //     await _showAchievementList(context);
+                            //     _loadBenefits();
+                            //   },
+                            // ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
