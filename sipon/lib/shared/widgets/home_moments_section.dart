@@ -11,7 +11,7 @@ import '../services/sipon_api_client.dart';
 import '../services/sipon_api_config.dart';
 import '../services/sipon_api_service.dart';
 import '../services/sipon_auth_service.dart';
-import '../../features/map/pages/venue_detail_page.dart';
+import '../../features/map/pages/venue_map_half_page.dart';
 import 'sipon_network_image.dart';
 import 'sipon_message.dart';
 import 'check_in_comments_sheet.dart';
@@ -251,6 +251,28 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
     }
     if (!await _ensureLogin() || !mounted) return;
     final next = moment.author.isFollowing != true;
+    if (!next) {
+      final text = SiponLanguageScope.textOf(context);
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(text.t('取消关注')),
+          content: Text(text.t('确定取消关注这位酒友吗？')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(text.t('取消')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(text.t('取消关注')),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
+    if (_following.contains(authorId)) return;
     setState(() {
       _following.add(authorId);
       for (var i = 0; i < _moments.length; i++) {
@@ -361,11 +383,7 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
       return;
     }
     if (moment.venue.id.isEmpty) return;
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => VenueDetailPage(venue: moment.venue),
-      ),
-    );
+    openVenueMapHalfPage<void>(context, moment.venue);
   }
 
   Future<void> _openAuthor(HomeMoment moment) async {
@@ -765,18 +783,27 @@ class _MomentCard extends StatelessWidget {
     final text = SiponLanguageScope.textOf(context);
     final colors = Theme.of(context).colorScheme;
     final liked = moment.myReaction == 'like';
+    final publishedAt = moment.createdAt?.toLocal();
+    final publishedTime = publishedAt == null
+        ? null
+        : '${publishedAt.year}-${publishedAt.month.toString().padLeft(2, '0')}-${publishedAt.day.toString().padLeft(2, '0')} '
+              '${publishedAt.hour.toString().padLeft(2, '0')}:${publishedAt.minute.toString().padLeft(2, '0')}';
     final category = subtypeName ?? moment.barCategory ?? moment.barSubtype;
     final location = [
       moment.city,
       moment.address,
-      moment.priceRange,
-    ].whereType<String>().where((value) => value.isNotEmpty).join(' | ');
+    ].whereType<String>().where((value) => value.isNotEmpty).join(' · ');
     return Material(
       color: context.siponColors.elevatedSurface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.35)),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onOpen,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -787,12 +814,12 @@ class _MomentCard extends StatelessWidget {
                     customBorder: const CircleBorder(),
                     child: ClipOval(
                       child: SizedBox(
-                        width: 24,
-                        height: 24,
+                        width: 40,
+                        height: 40,
                         child: moment.author.avatarUrl == null
                             ? ColoredBox(
                                 color: context.siponColors.brandSurface,
-                                child: Icon(Icons.person_rounded, size: 16),
+                                child: Icon(Icons.person_rounded, size: 24),
                               )
                             : SiponNetworkImage(
                                 url: moment.author.avatarUrl!,
@@ -801,36 +828,74 @@ class _MomentCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Flexible(
+                  const SizedBox(width: 10),
+                  Expanded(
                     child: InkWell(
                       onTap: onOpenAuthor,
-                      child: Text(
-                        moment.author.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            moment.author.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  text.t('分享'),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: colors.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                              if (moment.rating != null) ...[
+                                const SizedBox(width: 6),
+                                for (var i = 0; i < 5; i++)
+                                  Icon(
+                                    i < moment.rating!.clamp(0, 5)
+                                        ? Icons.star_rounded
+                                        : Icons.star_outline_rounded,
+                                    color: context.siponColors.starRating,
+                                    size: 14,
+                                  ),
+                              ],
+                            ],
+                          ),
+                        ],
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    text.t('分享'),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const Spacer(),
                   if (onFollow != null)
                     TextButton(
                       onPressed: followingBusy ? null : onFollow,
                       style: TextButton.styleFrom(
-                        minimumSize: const Size(44, 32),
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        minimumSize: const Size(64, 28),
+                        foregroundColor: moment.author.isFollowing == true
+                            ? colors.onSurfaceVariant
+                            : colors.primary,
+                        backgroundColor: moment.author.isFollowing == true
+                            ? context.siponColors.subtleSurface
+                            : context.siponColors.brandSurface,
+                        shape: const StadiumBorder(),
+                        textStyle: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
                       ),
                       child: Text(
                         text.t(
@@ -840,28 +905,15 @@ class _MomentCard extends StatelessWidget {
                     ),
                 ],
               ),
-              if (moment.rating != null) ...[
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    for (var i = 0; i < moment.rating!.clamp(0, 5); i++)
-                      Icon(
-                        Icons.star_rounded,
-                        color: context.siponColors.starRating,
-                        size: 18,
-                      ),
-                  ],
-                ),
-              ],
               if (moment.content.isNotEmpty) ...[
-                SizedBox(height: moment.rating != null ? 6 : 16),
+                const SizedBox(height: 12),
                 Text(
                   moment.content,
                   maxLines: 5,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: colors.onSurface,
-                    fontSize: 15,
+                    fontSize: 14,
                     height: 1.6,
                   ),
                 ),
@@ -896,19 +948,19 @@ class _MomentCard extends StatelessWidget {
               const SizedBox(height: 14),
               Material(
                 color: context.siponColors.subtleSurface,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
                   onTap: onOpenVenue,
                   child: Padding(
-                    padding: const EdgeInsets.all(10),
+                    padding: const EdgeInsets.all(12),
                     child: Row(
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(10),
                           child: SizedBox(
-                            width: 56,
-                            height: 56,
+                            width: 52,
+                            height: 52,
                             child: moment.venue.imageUrl == null
                                 ? Image.asset(
                                     moment.venue.imageAsset,
@@ -961,7 +1013,7 @@ class _MomentCard extends StatelessWidget {
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     color: colors.onSurfaceVariant,
-                                    fontSize: 10,
+                                    fontSize: 11,
                                   ),
                                 ),
                               ],
@@ -980,9 +1032,25 @@ class _MomentCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 8),
+              Divider(
+                height: 1,
+                color: colors.outlineVariant.withValues(alpha: 0.35),
+              ),
               Row(
                 children: [
-                  const Spacer(),
+                  Expanded(
+                    child: publishedTime == null
+                        ? const SizedBox.shrink()
+                        : Text(
+                            publishedTime,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
+                  ),
                   TextButton.icon(
                     onPressed: onLike,
                     style: TextButton.styleFrom(

@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart' hide Visibility;
+import 'package:flutter/services.dart';
 import 'package:sipon/shared/widgets/sipon_message.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../reviews/pages/check_in_page.dart';
 import '../../../shared/localization/language_transform.dart';
@@ -359,6 +361,54 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
       duration: const Duration(milliseconds: 1200),
       messenger: messenger,
     );
+  }
+
+  Future<void> _showPhoneActions() async {
+    final text = SiponLanguageScope.textOf(context);
+    final phone = _detail?.phone.trim() ?? '';
+    if (!RegExp(r'[0-9]').hasMatch(phone)) {
+      _showMockToast(text.t('暂无电话'));
+      return;
+    }
+
+    final action = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(phone),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop('copy'),
+            child: Text(text.t('复制')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop('call'),
+            child: Text(text.t('拨打')),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || action == null) return;
+
+    try {
+      if (action == 'copy') {
+        await Clipboard.setData(ClipboardData(text: phone));
+        if (!mounted) return;
+        _showMockToast(text.t('电话号码已复制'), type: SiponMessageType.success);
+      } else {
+        final opened = await launchUrl(
+          Uri(scheme: 'tel', path: phone.replaceAll(RegExp(r'[\s()-]'), '')),
+          mode: LaunchMode.externalApplication,
+        );
+        if (!mounted || opened) return;
+        _showMockToast(text.t('无法打开拨号页面'), type: SiponMessageType.error);
+      }
+    } on Exception {
+      if (!mounted) return;
+      _showMockToast(
+        text.t(action == 'copy' ? '复制失败，请重试' : '无法打开拨号页面'),
+        type: SiponMessageType.error,
+      );
+    }
   }
 
   Future<void> _openNavigation() async {
@@ -907,11 +957,10 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
             detail: detail,
             onContribute: _openContribution,
             onOpenMap: widget.onAddressTap == null
-                ? _openNavigation
+                ? null
                 : () => widget.onAddressTap!(detail?.venue ?? widget.venue),
-            addressActionLabel: widget.onAddressTap == null ? '点击导航' : '查看地图',
-            onCall: () =>
-                _showMockToast(text.t('正在拨打 ${detail?.phone ?? ''}（演示）')),
+            addressActionLabel: widget.onAddressTap == null ? null : '查看地图',
+            onCall: _showPhoneActions,
           ),
         ],
       ),
@@ -1501,8 +1550,8 @@ class _VenueInfoCard extends StatelessWidget {
 
   final VenueDetail? detail;
   final VoidCallback onContribute;
-  final VoidCallback onOpenMap;
-  final String addressActionLabel;
+  final VoidCallback? onOpenMap;
+  final String? addressActionLabel;
   final VoidCallback onCall;
 
   @override
@@ -1536,7 +1585,9 @@ class _VenueInfoCard extends StatelessWidget {
             icon: Icons.location_on_outlined,
             title: text.t(data.venue.address),
             subtitle: text.t(data.venue.distance),
-            trailingLabel: text.t(addressActionLabel),
+            trailingLabel: addressActionLabel == null
+                ? null
+                : text.t(addressActionLabel!),
             titleMaxLines: null,
             onTap: onOpenMap,
           ),
@@ -1549,7 +1600,7 @@ class _VenueInfoCard extends StatelessWidget {
           _InfoTile(
             icon: Icons.phone_outlined,
             title: data.phone,
-            subtitle: text.t('点击拨打'),
+            subtitle: text.t('复制或拨打'),
             onTap: onCall,
           ),
         ],
@@ -1688,7 +1739,7 @@ class _InfoTile extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final String? trailingLabel;
   final int? titleMaxLines;
 
@@ -1743,29 +1794,31 @@ class _InfoTile extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (trailingLabel case final label?) ...[
-                  Text(
-                    label,
-                    style: TextStyle(
-                      color: scheme.primary,
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0,
+            if (onTap != null) ...[
+              const SizedBox(width: 8),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (trailingLabel case final label?) ...[
+                    Text(
+                      label,
+                      style: TextStyle(
+                        color: scheme.primary,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0,
+                      ),
                     ),
+                    const SizedBox(width: 2),
+                  ],
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: scheme.onSurfaceVariant,
+                    size: 20,
                   ),
-                  const SizedBox(width: 2),
                 ],
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: scheme.onSurfaceVariant,
-                  size: 20,
-                ),
-              ],
-            ),
+              ),
+            ],
           ],
         ),
       ),

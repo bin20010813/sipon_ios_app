@@ -873,27 +873,32 @@ class _FieldTile extends StatelessWidget {
             children: [
               Icon(icon, color: Theme.of(context).colorScheme.primary, size: 21),
               const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurface,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
-                  ),
+              Text(
+                label,
+                maxLines: 1,
+                softWrap: false,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
                 ),
               ),
-              const Spacer(),
-              Text(
-                hasValue ? value! : (placeholder ?? ''),
-                style: TextStyle(
-                  color: hasValue
-                      ? Theme.of(context).colorScheme.onSurface
-                      : Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  hasValue ? value! : (placeholder ?? ''),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(
+                    color: hasValue
+                        ? Theme.of(context).colorScheme.onSurface
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
                 ),
               ),
               const SizedBox(width: 4),

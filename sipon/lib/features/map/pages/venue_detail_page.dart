@@ -54,6 +54,7 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
   /// 地图层是否挂载。挂载即视为展开态：系统返回先逐级收回，
   /// 收回动画结束后才允许 pop 整页。
   bool _mapMounted = false;
+  MapVenue? _mapVenue;
 
   /// 展开/收回动画进行中的防抖标志。
   bool _mapAnimating = false;
@@ -116,7 +117,10 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
     if (_mapMounted || _mapAnimating) return;
 
     _mapAnimating = true;
-    setState(() => _mapMounted = true);
+    setState(() {
+      _mapVenue = venue;
+      _mapMounted = true;
+    });
     try {
       await WidgetsBinding.instance.endOfFrame;
       await _animateSheetTo(_halfExtent);
@@ -170,7 +174,8 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
         _sheetController.size <= _halfExtent + 0.01) {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => VenueFullscreenMapPage(venue: widget.venue),
+          builder: (_) =>
+              VenueFullscreenMapPage(venue: _mapVenue ?? widget.venue),
         ),
       );
     }
@@ -188,7 +193,13 @@ class _VenueDetailPageState extends State<VenueDetailPage> {
     final statusBarTop = MediaQuery.paddingOf(context).top;
 
     final mapLayer = _mapMounted
-        ? VenueMiniMap(venue: widget.venue, onMapTapped: _openFullscreenMap)
+        ? VenueMiniMap(
+            venue: _mapVenue ?? widget.venue,
+            // The map occupies only the exposed top region; the detail sheet
+            // sits below it, so no camera padding is needed inside this map.
+            centered: true,
+            onMapTapped: _openFullscreenMap,
+          )
         : null;
 
     return PopScope(

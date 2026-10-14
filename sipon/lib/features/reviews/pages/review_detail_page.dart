@@ -7,7 +7,7 @@ import '../../../shared/services/sipon_api_service.dart';
 import '../../profile/data/user_profile_data.dart';
 import '../../map/widgets/venue_mini_map.dart';
 import '../../../shared/widgets/sipon_network_image.dart';
-import '../../map/pages/venue_map_half_page.dart';
+import '../../map/pages/venue_detail_page.dart';
 
 /// A single visit, including its own rating and photos (not the bar gallery).
 class ReviewDetailPage extends StatefulWidget {
@@ -334,8 +334,12 @@ class _ReviewDetailPageState extends State<ReviewDetailPage> {
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: InkWell(
-                      onTap: _hasLocation
-                          ? () => openVenueMapHalfPage<void>(context, _venue)
+                      onTap: _venue.id.isNotEmpty
+                          ? () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => VenueDetailPage(venue: _venue),
+                              ),
+                            )
                           : null,
                       child: Padding(
                         padding: const EdgeInsets.all(11),
