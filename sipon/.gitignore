@@ -77,3 +77,4 @@ test
 !/test/
 /test/*
 !/test/sipon_language_test.dart
+!/test/sticker_cutout_service_test.dart

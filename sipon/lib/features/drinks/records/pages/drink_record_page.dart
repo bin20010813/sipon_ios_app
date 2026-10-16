@@ -21,7 +21,6 @@ class DrinkRecordPage extends StatefulWidget {
   /// 当前未传入时，仅做本地校验与成功提示，不写接口。
   final ValueChanged<DrinkRecordDraft>? onSaved;
 
-
   @override
   State<DrinkRecordPage> createState() => _DrinkRecordPageState();
 }
@@ -143,6 +142,7 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
         final message = switch (generated.status) {
           'unsupported' => text.t('当前系统暂不支持自动抠图，已保留原图'),
           'no_subject' => text.t('没有识别到清晰主体，已保留原图'),
+
           _ => text.t('自动抠图失败，已保留原图'),
         };
         _showMessage(
@@ -345,8 +345,11 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
                             onPressed: () => Navigator.of(context).pop(),
                             style: IconButton.styleFrom(
                               fixedSize: const Size(42, 42),
-                              backgroundColor: context.siponColors.subtleSurface,
-                              foregroundColor: Theme.of(context).colorScheme.onSurface,
+                              backgroundColor:
+                                  context.siponColors.subtleSurface,
+                              foregroundColor: Theme.of(
+                                context,
+                              ).colorScheme.onSurface,
                             ),
                             icon: const Icon(Icons.arrow_back_rounded),
                           ),
@@ -448,8 +451,12 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
                         label: Text(text.t('保存贴纸')),
                         style: FilledButton.styleFrom(
                           minimumSize: const Size.fromHeight(48),
-                          backgroundColor: Theme.of(context).colorScheme.primary,
-                          foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primary,
+                          foregroundColor: Theme.of(
+                            context,
+                          ).colorScheme.onPrimary,
                           textStyle: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w900,
@@ -607,8 +614,12 @@ class _StickerComposer extends StatelessWidget {
                   style: FilledButton.styleFrom(
                     backgroundColor: context.siponColors.brandSurface,
                     foregroundColor: Theme.of(context).colorScheme.primary,
-                    disabledBackgroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.12),
-                    disabledForegroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                    disabledBackgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.12),
+                    disabledForegroundColor: Theme.of(
+                      context,
+                    ).colorScheme.onSurfaceVariant,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     minimumSize: const Size(0, 34),
                     padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -789,7 +800,9 @@ class _DrinkChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? Theme.of(context).colorScheme.primary : context.siponColors.brandSurface,
+      color: selected
+          ? Theme.of(context).colorScheme.primary
+          : context.siponColors.brandSurface,
       borderRadius: BorderRadius.circular(15),
       child: InkWell(
         onTap: onTap,
@@ -867,11 +880,17 @@ class _FieldTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
           ),
           child: Row(
             children: [
-              Icon(icon, color: Theme.of(context).colorScheme.primary, size: 21),
+              Icon(
+                icon,
+                color: Theme.of(context).colorScheme.primary,
+                size: 21,
+              ),
               const SizedBox(width: 10),
               Text(
                 label,
@@ -1432,7 +1451,9 @@ class _PlacePickerSheetState extends State<_PlacePickerSheet> {
               decoration: BoxDecoration(
                 color: context.siponColors.subtleSurface,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
               ),
               child: Row(
                 children: [

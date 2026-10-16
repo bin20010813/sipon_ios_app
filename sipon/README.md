@@ -21,6 +21,21 @@ For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
 
+## Android 贴纸抠图（U2NETP / 完全离线）
+
+“记一笔”使用 `onnxruntime-android:1.22.0` 在 CPU 本地执行 U2NETP 通用前景分割。模型已内置于 `android/app/src/main/assets/models/u2netp.onnx`，首次使用也无需下载，无 GMS 设备同样可用。不再使用 ML Kit 或 Google Play 模型安装服务；应用其他业务的网络权限保持不变。
+
+- 模型文件为 4,574,861 字节（约 4.36 MiB），另有 ONNX 原生推理库的包体开销。模型、来源和许可证一起随 APK 分发，详见同目录 `NOTICE.txt` 及 `*-LICENSE.txt`；请将实际 `.onnx` 文件纳入版本管理，不要仅提交 Git LFS 指针。
+- 输入按 EXIF 校正方向，最长边限制 1600，缩放至 320×320 并按模型的 RGB mean/std 归一化；输出 soft-alpha 蒙版恢复至图片尺寸，裁去透明边缘并保存 PNG。
+- 后台串行推理，session 惰性初始化并复用，Activity 销毁时按顺序释放。原图和贴纸存入应用私有 `files/drink_stickers`，无有效前景或处理失败保留原图；异常可通过 Logcat 的 `StickerCutout` 标签排查。
+- 运行时不上传照片、不下载模型，不需要 API Key、Python 或 rembg 环境。开发构建首次解析 Maven 依赖仍可能需要网络，与应用离线抠图无关。
+- iOS 仍使用 Vision，Flutter 通道及记录数据格式不变。修改原生实现或 assets 后须完整重建安装，不能只热重载。
+
+模型来自 rembg 的固定发布地址，MD5 已与其上游记录核对：`8e83ca70e441ab06c318d82300c84806`；SHA-256：`309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8`。
+
+回归命令：在 `android` 目录执行 `./gradlew :app:testDebugUnitTest --tests com.example.sipon.StickerMaskTest`；项目根目录执行 `flutter test test/sticker_cutout_service_test.dart`。
+真机回归：安装后未联网即选图、无 GMS 设备、透明杯/瓶/吸管、复杂背景、EXIF 旋转及镜像照片、连续选图和保存重启。U2NETP 是显著性分割而非精细玻璃材质抠图，透明杯体及细小边缘需使用真实照片评估；算法测试不代表已验证真机画质。
+
 ## iOS 路径插件兼容性
 
 `pubspec.yaml` 将 `path_provider_foundation` 固定为 `2.5.1`，使用原生插件实现。

@@ -24,14 +24,19 @@ internal class SiponUserLocationView(context: Context) : View(context), SensorEv
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val density = resources.displayMetrics.density
     private var position: Location? = null
+    private val locationState = UserLocationState()
     val businessPosition: Gcj02Point?
-        get() = position?.let {
-            MapCoordinateAdapter.toBusiness(Wgs84Point(it.longitude, it.latitude))
-        }
+        get() = locationState.current(android.os.SystemClock.elapsedRealtimeNanos())
+
+    /** The location button's device fix is already GCJ-02, not a camera target. */
+    fun showDevicePosition(point: Gcj02Point) {
+        val now = android.os.SystemClock.elapsedRealtimeNanos()
+        locationState.update(point, now, now)
+        invalidate()
+    }
     private var heading: Float? = null
     private var running = false
     private var resumed = true
-    private val cameraMove = HuaweiMap.OnCameraMoveListener { invalidate() }
 
     fun resume() { resumed = true; start() }
     fun pause() { resumed = false; stop() }
@@ -42,21 +47,21 @@ internal class SiponUserLocationView(context: Context) : View(context), SensorEv
 
     @Suppress("MissingPermission")
     private fun start() {
-        if (running || !resumed || !isAttachedToWindow) return
+        if (!resumed || !isAttachedToWindow) return
         val fine = context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         val coarse = context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        if (!fine && !coarse) return
+        if (!fine && !coarse) { stop(); position = null; locationState.clear(); invalidate(); return }
+        if (running) return
         running = true
-        map?.setOnCameraMoveListener(cameraMove)
-        try {
-            for (provider in listOf(LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER)) {
+        for (provider in listOf(LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER)) {
+            try {
                 if (provider == LocationManager.GPS_PROVIDER && !fine) continue
                 if (!locations.isProviderEnabled(provider)) continue
                 locations.getLastKnownLocation(provider)?.let { acceptLocation(it) }
                 locations.requestLocationUpdates(provider, 1000L, 1f, this, Looper.getMainLooper())
-            }
-        } catch (_: SecurityException) { stop(); return }
-          catch (_: IllegalArgumentException) { /* Unavailable provider: retain available fixes. */ }
+            } catch (_: SecurityException) { /* Try the other permitted provider. */ }
+              catch (_: IllegalArgumentException) { /* Try the other available provider. */ }
+        }
         sensors.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)?.let {
             sensors.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
         }
@@ -66,9 +71,7 @@ internal class SiponUserLocationView(context: Context) : View(context), SensorEv
         running = false
         sensors.unregisterListener(this)
         locations.removeUpdates(this)
-        map?.setOnCameraMoveListener(null)
         heading = null
-        position = null
         invalidate()
     }
 
@@ -85,6 +88,9 @@ internal class SiponUserLocationView(context: Context) : View(context), SensorEv
         if (age !in 0..120_000 || !location.latitude.isFinite() || !location.longitude.isFinite()) return
         if (position != null && location.elapsedRealtimeNanos < position!!.elapsedRealtimeNanos) return
         position = location
+        locationState.update(
+            MapCoordinateAdapter.toBusiness(Wgs84Point(location.longitude, location.latitude)),
+            location.elapsedRealtimeNanos, android.os.SystemClock.elapsedRealtimeNanos())
         invalidate()
     }
 
@@ -120,7 +126,6 @@ internal class SiponUserLocationView(context: Context) : View(context), SensorEv
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val location = position ?: return
         val current = map ?: return
         val business = businessPosition ?: return
         val point = current.projection.toScreenLocation(LatLng(business.lat, business.lng))

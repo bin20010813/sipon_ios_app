@@ -65,7 +65,9 @@ android {
 dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
-    implementation("com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1")
+    // U2NETP 随 assets 打包，CPU 本地推理，不依赖 GMS 或运行时下载。
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.22.0")
+    implementation("androidx.exifinterface:exifinterface:1.4.1")
     implementation("com.huawei.hms:maps:6.15.1.322")
     implementation("com.huawei.hms:maps-basic:6.15.1.322")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

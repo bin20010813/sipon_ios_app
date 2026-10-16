@@ -393,7 +393,9 @@ class _MapPageState extends State<MapPage> {
     final controller = _cityController;
     if (controller == null) return;
     final request = ++_locationRequest;
-    final result = await controller.locateCurrentCity();
+    final result = await controller.locateCurrentCity(
+      purpose: SiponLocationPurpose.mapCenter,
+    );
     if (!mounted || !widget.active || request != _locationRequest) return;
     final position = result.position;
     if (position == null) return;

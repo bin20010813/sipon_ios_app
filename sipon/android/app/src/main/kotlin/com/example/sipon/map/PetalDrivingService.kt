@@ -6,7 +6,6 @@ import com.example.sipon.BuildConfig
 import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONObject
 import java.net.URLEncoder
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -27,7 +26,7 @@ internal class PetalDrivingService {
     private var generation = 0L
     private var pending: ((List<Map<String, Any>>?, String?) -> Unit)? = null
 
-    fun plan(stops: List<Pair<Double, Double>>, onResult: (List<Map<String, Any>>?, String?) -> Unit) {
+    fun plan(stops: List<Gcj02Point>, onResult: (List<Map<String, Any>>?, String?) -> Unit) {
         cancel()
         val revision = generation
         if (BuildConfig.PETAL_ROUTE_KEY.isBlank()) {
@@ -37,12 +36,9 @@ internal class PetalDrivingService {
         pending = onResult
         task = worker.submit {
             try {
-                // Directions API geometry is WGS-84; shared/Dart geometry is GCJ-02.
-                val business = fetchRoute(stops).map { pair ->
-                    MapCoordinateAdapter.toBusiness(Wgs84Point(pair[0], pair[1])).let {
-                        listOf(it.lng, it.lat)
-                    }
-                }
+                // Mainland Directions geometry is already GCJ-02, like Map Kit
+                // in GCJ-02 mode. Converting it as GPS data shifts it off the roads.
+                val business = fetchRoute(stops)
                 val legs = listOf(mapOf<String, Any>("coordinates" to business))
                 main.post { if (revision == generation) finish(legs, null) }
             } catch (error: Exception) {
@@ -71,13 +67,12 @@ internal class PetalDrivingService {
         worker.shutdownNow()
     }
 
-    private fun fetchRoute(stops: List<Pair<Double, Double>>): List<List<Double>> {
+    private fun fetchRoute(stops: List<Gcj02Point>): List<List<Double>> {
         val coordinates = mutableListOf<List<Double>>()
         // Plan consecutive legs so every ordered stop is visited.
         stops.zipWithNext().forEach { (origin, destination) ->
             if (Thread.currentThread().isInterrupted) error("Driving route cancelled")
-            fun location(point: Pair<Double, Double>) = JSONObject().put("lng", point.first).put("lat", point.second)
-            val payload = JSONObject().put("origin", location(origin)).put("destination", location(destination))
+            val payload = PetalRouteRequest.build(origin, destination)
             val request = Request.Builder()
                 .url("https://mapapi.cloud.huawei.com/mapApi/v1/routeService/driving?key=" + URLEncoder.encode(BuildConfig.PETAL_ROUTE_KEY, "UTF-8"))
                 .post(payload.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))

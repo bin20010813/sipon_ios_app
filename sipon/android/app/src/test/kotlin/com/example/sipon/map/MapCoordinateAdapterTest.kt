@@ -11,7 +11,7 @@ class MapCoordinateAdapterTest {
         assertEquals(39.917930749, business.lat, 1e-8)
     }
 
-    @Test fun providerRouteReturnsToItsOriginalDisplayPosition() {
+    @Test fun gpsConversionRoundTripPreservesOriginalPosition() {
         val providerPoints = listOf(
             Wgs84Point(116.397128, 39.916527),
             Wgs84Point(121.4737, 31.2304),

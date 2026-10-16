@@ -14,7 +14,7 @@ import 'map_scene_controller.dart';
 import 'package:sipon/shared/services/map/map_place_result.dart';
 
 /// Android map scene. Business coordinates are GCJ-02; the native adapter
-/// uses GCJ-02 mode for rendering and WGS-84 for the Directions API.
+/// uses GCJ-02 for both rendering and mainland Directions API geometry.
 class PetalAndroidSceneController extends MapSceneController {
   PetalAndroidSceneController({
     required super.onViewportSettled,

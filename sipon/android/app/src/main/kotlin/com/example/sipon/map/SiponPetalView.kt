@@ -45,6 +45,8 @@ internal class SiponPetalView(
     private val useDarkPalette get() = dark || styleId == "muted"
     private val customMapStyleId get() = if (useDarkPalette) DARK_MAP_STYLE_ID else LIGHT_MAP_STYLE_ID
     private var bottomPadding = 0
+    /** 顶部内边距（px）：把系统罗盘推离 Flutter 搜索栏，仅主地图非 0。 */
+    private var topPadding = 0
     private var frame: Map<*, *>? = null
     private var routeRevision = -1L
     private val assets = mutableMapOf<String, Bitmap>()
@@ -101,7 +103,7 @@ internal class SiponPetalView(
         // SurfaceView bypasses Flutter's texture composition and can cover its
         // search controls and bottom sheets. Keep the map in the texture layer.
         val view = TextureMapView(container.context, HuaweiMapOptions()
-            .zoomControlsEnabled(false).tiltGesturesEnabled(false)
+            .zoomControlsEnabled(false).tiltGesturesEnabled(true)
             .dark(false).styleId(customMapStyleId))
         mapView = view
         container.addView(view, 0, FrameLayout.LayoutParams(-1, -1))
@@ -117,16 +119,24 @@ internal class SiponPetalView(
                 isZoomControlsEnabled = false
                 isMyLocationButtonEnabled = false
                 isMapToolbarEnabled = false
-                isTiltGesturesEnabled = false
+                // 双指上下滑由系统倾斜手势接管：上滑加俯仰（3D），
+                // 下滑回俯视（2D）；系统罗盘点击即回正。
+                isTiltGesturesEnabled = true
                 isCompassEnabled = creationParams["compassTopInset"] is Number
             }
             routeArrows.map = loaded
             loaded.setOnCameraMoveStartedListener { cameraMoving = true }
-            loaded.setOnCameraMoveListener { routeArrows.invalidate() }
+            // One owner for camera events: location lifecycle must not replace
+            // this listener and leave route arrows at stale screen positions.
+            loaded.setOnCameraMoveListener {
+                routeArrows.invalidate()
+                userLocation.invalidate()
+            }
             loaded.setOnCameraIdleListener {
                 if (alive && ready) {
                     cameraMoving = false
                     routeArrows.invalidate()
+                    userLocation.invalidate()
                     schedulePoiLayout(0)
                     send("onViewportSettled", viewport())
                 }
@@ -151,6 +161,8 @@ internal class SiponPetalView(
     private fun configureMap() {
         applyAppearance()
         val args = pendingSetup ?: return
+        // 初始相机同样带上内边距，避免第一帧与后续指令间的位置跳动。
+        setPadding(args)
         val start = point(args) ?: cityCenter(args["city"] as? String ?: "")
         val zoom = (args["zoom"] as? Number)?.toFloat() ?: if (point(args) == null) 11.8f else 15f
         map?.moveCamera(CameraUpdateFactory.newLatLngZoom(start, zoom))
@@ -189,14 +201,15 @@ internal class SiponPetalView(
                         isRotateGesturesEnabled = args["rotateEnabled"] != false
                         isZoomGesturesEnabled = args["zoomEnabled"] != false
                         isScrollGesturesEnabled = args["panEnabled"] != false
-                        isTiltGesturesEnabled = false
+                        isTiltGesturesEnabled = true
                     }
                     result.success(null)
                 }
                 "readViewport" -> result.success(viewport())
                 "focusOn", "flyToCity" -> { moveCamera(args); result.success(null) }
                 "centerOnUser" -> {
-                    val target = userLocation.businessPosition?.let { LatLng(it.lat, it.lng) } ?: point(args)
+                    val target = point(args) ?: userLocation.businessPosition?.let { LatLng(it.lat, it.lng) }
+                    target?.let { userLocation.showDevicePosition(Gcj02Point(it.longitude, it.latitude)) }
                     moveCamera(args, target); result.success(null)
                 }
                 "applyStage" -> {
@@ -210,9 +223,9 @@ internal class SiponPetalView(
                 "planRoadRoute" -> {
                     val stops = parseStops(args)
                     require(stops.size in 2..12) { "Invalid route stops" }
-                    // Directions API uses WGS-84; Map Kit itself is configured for GCJ-02.
+                    // Keep the same GCJ-02 coordinates as the markers and Map Kit.
                     drivingService.plan(stops.map {
-                        MapCoordinateAdapter.toDisplay(Gcj02Point(it.longitude, it.latitude)).let { p -> p.lng to p.lat }
+                        Gcj02Point(it.longitude, it.latitude)
                     }) { legs, error ->
                         if (error != null) result.error("route_service", error, null)
                         else result.success(mapOf("crs" to MapCoordinateAdapter.businessCrs, "legs" to legs))
@@ -295,7 +308,12 @@ internal class SiponPetalView(
     private fun setPadding(args: Map<*, *>) {
         bottomPadding = (((args["bottomPadding"] as? Number)?.toDouble() ?: 0.0) * density)
             .toInt().coerceIn(0, (container.height - 1).coerceAtLeast(0))
-        map?.setPadding(0, 0, 0, bottomPadding)
+        // 顶部内边距让系统罗盘落在 Flutter 搜索栏下方：HMS 的系统控件
+        // 相对内边距后的区域边缘摆放。小地图不传 compassTopInset，保持 0。
+        val topDp = (creationParams["compassTopInset"] as? Number)?.toDouble() ?: 0.0
+        topPadding = (topDp.toFloat() * density).toInt()
+            .coerceIn(0, (container.height - 1).coerceAtLeast(0))
+        map?.setPadding(0, topPadding, 0, bottomPadding)
     }
 
     private fun moveCamera(args: Map<*, *>, target: LatLng? = point(args)) {
@@ -304,7 +322,10 @@ internal class SiponPetalView(
         setPadding(args)
         val zoom = (args["zoom"] as? Number)?.toFloat() ?: current.cameraPosition.zoom
         val bearing = (args["bearing"] as? Number)?.toFloat() ?: current.cameraPosition.bearing
-        val update = CameraUpdateFactory.newCameraPosition(CameraPosition(target, zoom.coerceIn(current.minZoomLevel, current.maxZoomLevel), 0f, bearing))
+        // 俯仰角沿用地图当前值：用户用双指滑出的 2D/3D 视角不会被
+        // 后续聚焦、面板拖动等指令打回平面。
+        val update = CameraUpdateFactory.newCameraPosition(
+            CameraPosition(target, zoom.coerceIn(current.minZoomLevel, current.maxZoomLevel), current.cameraPosition.tilt, bearing))
         current.animateCamera(update)
     }
 
@@ -414,8 +435,12 @@ internal class SiponPetalView(
                 labelHeight = label?.let { it.height / density.toDouble() } ?: 0.0)
         }
         val fullScreen = creationParams["showsUserHeading"] == true
+        // 顶部避让 = 指北针距顶距离 + 罗盘高度，POI 不钻到罗盘下面。
+        val topInset = if (fullScreen)
+            ((creationParams["compassTopInset"] as? Number)?.toDouble() ?: 140.0) + 48f.toDouble()
+        else 0.0
         val placements = PetalPoiLayout.select(candidates, width, height, current.cameraPosition.zoom.toDouble(),
-            if (fullScreen) (creationParams["compassTopInset"] as? Number)?.toDouble() ?: 140.0 else 0.0,
+            topInset,
             if (fullScreen) max(220.0, bottomPadding / density.toDouble()) else bottomPadding / density.toDouble())
         val ids = placements.mapTo(hashSetOf()) { it.id }
         val removed = markers.keys.filter { it !in ids }

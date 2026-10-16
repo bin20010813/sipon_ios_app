@@ -156,16 +156,22 @@ class SiponCityController extends ChangeNotifier {
       }
 
       Position? recentPosition;
-      if (purpose == SiponLocationPurpose.checkIn) {
+      final isMapCenter = purpose == SiponLocationPurpose.mapCenter;
+      bool usable(Position? value) =>
+          _usableCheckInPosition(value) &&
+          (!isMapCenter ||
+              DateTime.now().difference(value!.timestamp) <=
+                  const Duration(seconds: 30));
+      if (purpose == SiponLocationPurpose.checkIn || isMapCenter) {
         // 部分平台未提供系统缓存，仍可复用 App 刚取得的合格设备位置。
-        if (_usableCheckInPosition(_lastDevicePosition)) {
+        if (usable(_lastDevicePosition)) {
           recentPosition = _lastDevicePosition;
         } else {
           try {
             final cached = await Geolocator.getLastKnownPosition().timeout(
               const Duration(milliseconds: 500),
             );
-            if (_usableCheckInPosition(cached)) {
+            if (usable(cached)) {
               recentPosition = cached;
             }
           } catch (_) {
@@ -174,14 +180,18 @@ class SiponCityController extends ChangeNotifier {
         }
       }
 
-      final accuracy = purpose == SiponLocationPurpose.checkIn
+      final accuracy = purpose != SiponLocationPurpose.citySuggestion
           ? LocationAccuracy.high
           : LocationAccuracy.low;
       final timeLimit = purpose == SiponLocationPurpose.checkIn
           ? const Duration(seconds: 5)
           : const Duration(seconds: 3);
       final settings = defaultTargetPlatform == TargetPlatform.android
-          ? AndroidSettings(accuracy: accuracy, timeLimit: timeLimit)
+          ? AndroidSettings(
+              accuracy: accuracy,
+              timeLimit: timeLimit,
+              forceLocationManager: isMapCenter,
+            )
           : LocationSettings(accuracy: accuracy, timeLimit: timeLimit);
 
       Position position;
@@ -190,7 +200,8 @@ class SiponCityController extends ChangeNotifier {
             recentPosition ??
             await Geolocator.getCurrentPosition(locationSettings: settings);
       } catch (_) {
-        if (defaultTargetPlatform != TargetPlatform.android ||
+        if (isMapCenter ||
+            defaultTargetPlatform != TargetPlatform.android ||
             !await Geolocator.isLocationServiceEnabled() ||
             !await _hasLocationPermission()) {
           rethrow;
@@ -285,7 +296,7 @@ class SiponCityController extends ChangeNotifier {
   }
 }
 
-enum SiponLocationPurpose { citySuggestion, checkIn }
+enum SiponLocationPurpose { citySuggestion, checkIn, mapCenter }
 
 enum SiponLocateStatus {
   success,

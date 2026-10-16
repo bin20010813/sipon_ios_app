@@ -27,7 +27,7 @@ API 请求/响应、酒馆与打卡、附近查询、搜索结果、地图中心
 | iOS MapKit、鸿蒙 Map Kit | 大陆点位、搜索和视野沿用 SDK 地图坐标，适配层按 GCJ-02 交付；系统原生个人点留在 SDK 内部 |
 | Android 花瓣地图展示 | SDK 开启 `setGcj02CoordinateEnabled(true)`；显示、选点和视野直接使用 GCJ-02；设备 WGS-84 定位经 `toBusiness` 转换 |
 | Android 回中兜底 | Dart 已交付 GCJ-02，原生不得再当作 GPS 转换 |
-| Android 道路服务 | Directions API 请求站点转 WGS-84，返回几何转 GCJ-02；SDK 按 GCJ-02 绘图 |
+| Android 道路服务 | 国内 Directions API 请求站点与返回几何直接使用 GCJ-02；SDK 按 GCJ-02 绘图，禁止重复转换 |
 | 可选后端道路代理 | 请求与响应必须为 `GCJ02`；供应商转换由代理实现，拒绝 WGS84/CGCS2000 响应，禁止只换标签 |
 | 外部导航 | 高德 `dev=0`，百度 `coord_type=gcj02`，腾讯 `coord_type=2`；Apple/花瓣沿用各自大陆地图坐标 |
 

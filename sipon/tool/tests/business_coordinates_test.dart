@@ -37,6 +37,60 @@ class _RouteApi extends SiponApiClient {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  for (final cacheAgeSeconds in [5, 90]) {
+    test(
+      'map button cache age $cacheAgeSeconds uses recent fixes or direct Android location',
+      () async {
+        debugDefaultTargetPlatformOverride = TargetPlatform.android;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+        const channel = MethodChannel('flutter.baseflow.com/geolocator');
+        final messenger =
+            TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+        var freshCalls = 0;
+        Map<String, Object> fix(int age) => {
+          'longitude': 116.397128,
+          'latitude': 39.916527,
+          'timestamp': DateTime.now()
+              .subtract(Duration(seconds: age))
+              .millisecondsSinceEpoch,
+          'accuracy': 5.0,
+          'altitude': 0.0,
+          'heading': 0.0,
+          'speed': 0.0,
+          'speed_accuracy': 0.0,
+        };
+        messenger.setMockMethodCallHandler(channel, (call) async {
+          switch (call.method) {
+            case 'isLocationServiceEnabled':
+              return true;
+            case 'checkPermission':
+              return 3;
+            case 'getLastKnownPosition':
+              return fix(cacheAgeSeconds);
+            case 'getCurrentPosition':
+              freshCalls++;
+              expect((call.arguments as Map)['forceLocationManager'], isTrue);
+              return fix(0);
+            default:
+              throw StateError('Unexpected call ${call.method}');
+          }
+        });
+        addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+        final controller = SiponCityController();
+        addTearDown(controller.dispose);
+        final result = await controller.locateCurrentCity(
+          purpose: SiponLocationPurpose.mapCenter,
+        );
+        expect(result.position!.longitude, closeTo(116.403372494, 1e-8));
+        expect(freshCalls, cacheAgeSeconds <= 30 ? 0 : 1);
+        await controller.locateCurrentCity(
+          purpose: SiponLocationPurpose.mapCenter,
+        );
+        expect(freshCalls, cacheAgeSeconds <= 30 ? 0 : 1);
+      },
+    );
+  }
+
   test('GPS enters GCJ-02 using a fixed Beijing reference', () {
     final point = BusinessCoordinates.fromWgs84(
       longitude: 116.397128,

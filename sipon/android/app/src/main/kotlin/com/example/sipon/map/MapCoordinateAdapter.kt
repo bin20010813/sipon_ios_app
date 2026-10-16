@@ -17,8 +17,8 @@ internal object MapCoordinateAdapter {
     private const val eccentricitySquared = 0.006693421622965943
     private const val inverseIterations = 4
 
-    /** Directions API uses WGS-84; the SDK uses GCJ-02 mode. Device fixes
-     * are WGS-84 and must enter the same business coordinate contract. */
+    /** Inverse conversion for WGS-84 consumers. Do not use for mainland
+     * Directions requests or Map Kit, which both use our GCJ-02 coordinates. */
     fun toDisplay(point: Gcj02Point): Wgs84Point {
         if (outsideChina(point.lng, point.lat)) return Wgs84Point(point.lng, point.lat)
         var lng = point.lng

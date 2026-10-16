@@ -1,0 +1,27 @@
+Android offline sticker cutout — bundled third-party assets
+
+Model: U2NETP (U²-Net small salient-object detection model)
+Authors: Xuebin Qin, Zichen Zhang, Chenyang Huang, Masood Dehghan,
+         Osmar R. Zaiane, Martin Jagersand
+Original project: https://github.com/xuebinqin/U-2-Net
+Original project license: Apache-2.0 (U2NET-LICENSE.txt)
+Paper: U2-Net: Going Deeper with Nested U-Structure for Salient Object Detection,
+       Pattern Recognition 106 (2020), 107404.
+
+Unmodified ONNX distribution used by rembg:
+https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx
+Reference preprocessing: https://github.com/danielgatis/rembg/blob/main/rembg/sessions/u2netp.py
+rembg: Copyright (c) 2020 Daniel Gatis, MIT (REMBG-LICENSE.txt).
+The rembg license does not replace the original model project's license.
+
+File: u2netp.onnx
+Size: 4574861 bytes
+MD5 (upstream rembg checksum): 8e83ca70e441ab06c318d82300c84806
+SHA-256: 309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8
+
+Runtime: Microsoft ONNX Runtime Android 1.22.0
+https://github.com/microsoft/onnxruntime/tree/v1.22.0
+MIT license: ONNXRUNTIME-LICENSE.txt
+
+Sipon loads this model locally from APK assets. No runtime model downloads,
+Google Play services, Python, or rembg executable are required.
