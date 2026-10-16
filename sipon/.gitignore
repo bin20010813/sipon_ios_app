@@ -42,8 +42,10 @@ app.*.map.json
 
 # Android Studio will place build artifacts here
 **/android/.gradle/
+**/android/.kotlin/
 **/android/captures/
 **/android/local.properties
+**/agconnect-services*.json
 **/android/app/debug/
 **/android/app/profile/
 **/android/app/release/
@@ -71,6 +73,7 @@ app.*.map.json
 **/xcuserdata/
 *.xcuserstate
 test
+!/android/app/src/test/
 !/test/
 /test/*
 !/test/sipon_language_test.dart

@@ -2,8 +2,8 @@ package com.example.sipon
 
 import android.graphics.Bitmap
 import android.net.Uri
-import com.example.sipon.map.SiponTiandituFactory
-import com.example.sipon.map.SiponTiandituView
+import com.example.sipon.map.SiponPetalFactory
+import com.example.sipon.map.SiponPetalView
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.segmentation.subject.SubjectSegmentation
 import com.google.mlkit.vision.segmentation.subject.SubjectSegmenterOptions
@@ -15,7 +15,7 @@ import java.io.FileOutputStream
 import java.util.UUID
 
 class MainActivity : FlutterActivity() {
-    private val mapViews = mutableSetOf<SiponTiandituView>()
+    private val mapViews = mutableSetOf<SiponPetalView>()
     companion object {
         private const val CHANNEL = "sipon/sticker_cutout"
     }
@@ -23,8 +23,8 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         flutterEngine.platformViewsController.registry.registerViewFactory(
-            "sipon/tianditu",
-            SiponTiandituFactory(
+            "sipon/petal",
+            SiponPetalFactory(
                 flutterEngine.dartExecutor.binaryMessenger,
                 { mapViews.add(it) },
                 { mapViews.remove(it) },

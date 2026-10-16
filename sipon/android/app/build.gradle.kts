@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -5,22 +7,19 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-val tiandituKey = providers.gradleProperty("TDT_KEY")
-    .orElse(providers.environmentVariable("TDT_KEY"))
-    .orElse("")
-    .get()
-val tiandituSecret = providers.gradleProperty("TDT_SK")
-    .orElse(providers.environmentVariable("TDT_SK"))
-    .orElse("")
-    .get()
-val tiandituRouteKey = providers.gradleProperty("TDT_ROUTE_KEY")
-    .orElse(providers.environmentVariable("TDT_ROUTE_KEY"))
-    .orElse(tiandituKey)
-    .get()
-val tiandituRouteSecret = providers.gradleProperty("TDT_ROUTE_SK")
-    .orElse(providers.environmentVariable("TDT_ROUTE_SK"))
-    .orElse(tiandituSecret)
-    .get()
+val petalLocalProperties = Properties().apply {
+    val propertiesFile = rootProject.file("local.properties")
+    if (propertiesFile.exists()) propertiesFile.inputStream().use { load(it) }
+}
+val petalMapKey = providers.gradleProperty("PETAL_MAP_KEY")
+    .orElse(providers.environmentVariable("PETAL_MAP_KEY"))
+    .orElse(petalLocalProperties.getProperty("PETAL_MAP_KEY", "")).get()
+val petalRouteKey = providers.gradleProperty("PETAL_ROUTE_KEY")
+    .orElse(providers.environmentVariable("PETAL_ROUTE_KEY"))
+    .orElse(petalLocalProperties.getProperty("PETAL_ROUTE_KEY", petalMapKey)).get()
+val petalAppId = providers.gradleProperty("PETAL_APP_ID")
+    .orElse(providers.environmentVariable("PETAL_APP_ID"))
+    .orElse(petalLocalProperties.getProperty("PETAL_APP_ID", "")).get()
 fun quotedBuildConfig(value: String): String =
     "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
@@ -49,10 +48,9 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        buildConfigField("String", "TDT_KEY", quotedBuildConfig(tiandituKey))
-        buildConfigField("String", "TDT_SK", quotedBuildConfig(tiandituSecret))
-        buildConfigField("String", "TDT_ROUTE_KEY", quotedBuildConfig(tiandituRouteKey))
-        buildConfigField("String", "TDT_ROUTE_SK", quotedBuildConfig(tiandituRouteSecret))
+        buildConfigField("String", "PETAL_MAP_KEY", quotedBuildConfig(petalMapKey))
+        buildConfigField("String", "PETAL_ROUTE_KEY", quotedBuildConfig(petalRouteKey))
+        buildConfigField("String", "PETAL_APP_ID", quotedBuildConfig(petalAppId))
     }
 
     buildTypes {
@@ -66,8 +64,10 @@ android {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
     implementation("com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1")
-    implementation("org.maplibre.gl:android-sdk:13.6.1")
+    implementation("com.huawei.hms:maps:6.15.1.322")
+    implementation("com.huawei.hms:maps-basic:6.15.1.322")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }
 

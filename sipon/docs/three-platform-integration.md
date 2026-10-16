@@ -6,7 +6,7 @@
 ## 分支与开发方式
 
 本次整合分支为 `codex/integrate-three-platforms-gcj02`，包含本地已有 iOS MapKit、
-Android 天地图和鸿蒙花瓣地图提交。三端共享 `lib` 业务；平台实现分别位于
+Android 花瓣地图和鸿蒙花瓣地图提交。三端共享 `lib` 业务；平台实现分别位于
 `ios`、`android`、`ohos`，由 `MapEngine` 和公共地图协议衔接。
 
 整合验收后合入 `main`。此后功能和平台修复均从统一主线建立短期分支并回归主线；
@@ -25,9 +25,9 @@ API 请求/响应、酒馆与打卡、附近查询、搜索结果、地图中心
 | API 酒馆和行政区坐标 | 已按 GCJ-02 契约解释，直接使用，不能再次转换 |
 | 历史精选地图城市中心 | 明确为 GCJ-02 地图落点，直接使用 |
 | iOS MapKit、鸿蒙 Map Kit | 大陆点位、搜索和视野沿用 SDK 地图坐标，适配层按 GCJ-02 交付；系统原生个人点留在 SDK 内部 |
-| Android 天地图展示 | 业务 GCJ-02 → `MapCoordinateAdapter.toDisplay`；选点、视野、原生个人点反向使用 `toBusiness` |
+| Android 花瓣地图展示 | SDK 开启 `setGcj02CoordinateEnabled(true)`；显示、选点和视野直接使用 GCJ-02；设备 WGS-84 定位经 `toBusiness` 转换 |
 | Android 回中兜底 | Dart 已交付 GCJ-02，原生不得再当作 GPS 转换 |
-| Android 道路服务 | 请求站点转供应商坐标，返回几何转 GCJ-02；绘图时再次从业务坐标生成显示坐标 |
+| Android 道路服务 | Directions API 请求站点转 WGS-84，返回几何转 GCJ-02；SDK 按 GCJ-02 绘图 |
 | 可选后端道路代理 | 请求与响应必须为 `GCJ02`；供应商转换由代理实现，拒绝 WGS84/CGCS2000 响应，禁止只换标签 |
 | 外部导航 | 高德 `dev=0`，百度 `coord_type=gcj02`，腾讯 `coord_type=2`；Apple/花瓣沿用各自大陆地图坐标 |
 

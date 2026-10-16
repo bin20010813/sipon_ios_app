@@ -49,7 +49,7 @@ class RoutePlanner {
     return parseLegs(response['legs'], expectedLegs: points.length - 1);
   }
 
-  /// Validates the native Tianditu response before it reaches the map layer.
+  /// Validates the native road route response before it reaches the map layer.
   static List<RouteLeg> parseLegs(
     Object? rawLegs, {
     required int expectedLegs,

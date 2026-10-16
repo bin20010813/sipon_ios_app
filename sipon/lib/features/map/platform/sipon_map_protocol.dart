@@ -15,12 +15,11 @@ import 'map_engine.dart';
 
 /// PlatformView 注册用的 viewType，同时也是原生 factory 的注册名。
 const String kSiponMapViewType = 'sipon/mapkit';
-const String kSiponTiandituViewType = 'sipon/tianditu';
 const String kSiponPetalViewType = 'sipon/petal';
 
 String siponMapViewType(MapEngine engine) => switch (engine) {
   MapEngine.mapKit => kSiponMapViewType,
-  MapEngine.tianditu => kSiponTiandituViewType,
+  MapEngine.petalAndroid => kSiponPetalViewType,
   MapEngine.petal => kSiponPetalViewType,
   MapEngine.unsupported => throw UnsupportedError('Map engine unavailable'),
 };

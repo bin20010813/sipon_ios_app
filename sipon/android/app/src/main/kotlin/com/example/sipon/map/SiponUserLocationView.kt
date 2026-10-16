@@ -12,12 +12,12 @@ import android.os.Bundle
 import android.os.Looper
 import android.view.Surface
 import android.view.View
-import org.maplibre.android.geometry.LatLng
-import org.maplibre.android.maps.MapLibreMap
+import com.huawei.hms.maps.model.LatLng
+import com.huawei.hms.maps.HuaweiMap
 
 /** Screen overlay: geographic position comes only from the device, never the camera. */
 internal class SiponUserLocationView(context: Context) : View(context), SensorEventListener, LocationListener {
-    var map: MapLibreMap? = null
+    var map: HuaweiMap? = null
     var dark = false
     private val sensors = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private val locations = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
@@ -26,12 +26,12 @@ internal class SiponUserLocationView(context: Context) : View(context), SensorEv
     private var position: Location? = null
     val businessPosition: Gcj02Point?
         get() = position?.let {
-            MapCoordinateAdapter.toBusiness(Cgcs2000Point(it.longitude, it.latitude))
+            MapCoordinateAdapter.toBusiness(Wgs84Point(it.longitude, it.latitude))
         }
     private var heading: Float? = null
     private var running = false
     private var resumed = true
-    private val cameraMove = MapLibreMap.OnCameraMoveListener { invalidate() }
+    private val cameraMove = HuaweiMap.OnCameraMoveListener { invalidate() }
 
     fun resume() { resumed = true; start() }
     fun pause() { resumed = false; stop() }
@@ -47,7 +47,7 @@ internal class SiponUserLocationView(context: Context) : View(context), SensorEv
         val coarse = context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
         if (!fine && !coarse) return
         running = true
-        map?.addOnCameraMoveListener(cameraMove)
+        map?.setOnCameraMoveListener(cameraMove)
         try {
             for (provider in listOf(LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER)) {
                 if (provider == LocationManager.GPS_PROVIDER && !fine) continue
@@ -66,7 +66,7 @@ internal class SiponUserLocationView(context: Context) : View(context), SensorEv
         running = false
         sensors.unregisterListener(this)
         locations.removeUpdates(this)
-        map?.removeOnCameraMoveListener(cameraMove)
+        map?.setOnCameraMoveListener(null)
         heading = null
         position = null
         invalidate()
@@ -122,10 +122,11 @@ internal class SiponUserLocationView(context: Context) : View(context), SensorEv
         super.onDraw(canvas)
         val location = position ?: return
         val current = map ?: return
-        val point = current.projection.toScreenLocation(LatLng(location.latitude, location.longitude))
+        val business = businessPosition ?: return
+        val point = current.projection.toScreenLocation(LatLng(business.lat, business.lng))
         val color = if (dark) Color.rgb(232, 160, 204) else Color.rgb(154, 61, 120)
         canvas.save()
-        canvas.translate(point.x, point.y)
+        canvas.translate(point.x.toFloat(), point.y.toFloat())
         canvas.scale(density, density)
         heading?.let {
             canvas.save()

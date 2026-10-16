@@ -6,16 +6,16 @@ import org.junit.Test
 
 class MapCoordinateAdapterTest {
     @Test fun devicePointMatchesSharedBeijingReference() {
-        val business = MapCoordinateAdapter.toBusiness(Cgcs2000Point(116.397128, 39.916527))
+        val business = MapCoordinateAdapter.toBusiness(Wgs84Point(116.397128, 39.916527))
         assertEquals(116.403372494, business.lng, 1e-8)
         assertEquals(39.917930749, business.lat, 1e-8)
     }
 
     @Test fun providerRouteReturnsToItsOriginalDisplayPosition() {
         val providerPoints = listOf(
-            Cgcs2000Point(116.397128, 39.916527),
-            Cgcs2000Point(121.4737, 31.2304),
-            Cgcs2000Point(114.0579, 22.5431),
+            Wgs84Point(116.397128, 39.916527),
+            Wgs84Point(121.4737, 31.2304),
+            Wgs84Point(114.0579, 22.5431),
         )
         providerPoints.forEach { provider ->
             val business = MapCoordinateAdapter.toBusiness(provider)

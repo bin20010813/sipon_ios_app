@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 /// The map engine is selected once for both the view and its controller.
-enum MapEngine { mapKit, tianditu, petal, unsupported }
+enum MapEngine { mapKit, petalAndroid, petal, unsupported }
 
 MapEngine selectMapEngine({TargetPlatform? platform, bool? isWeb}) {
   if (isWeb ?? kIsWeb) return MapEngine.unsupported;
@@ -14,7 +14,7 @@ MapEngine selectMapEngine({TargetPlatform? platform, bool? isWeb}) {
     case TargetPlatform.iOS:
       return MapEngine.mapKit;
     case TargetPlatform.android:
-      return MapEngine.tianditu;
+      return MapEngine.petalAndroid;
     default:
       return MapEngine.unsupported;
   }

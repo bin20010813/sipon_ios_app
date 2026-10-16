@@ -14,9 +14,9 @@ import 'map_scene_controller.dart';
 import 'package:sipon/shared/services/map/map_place_result.dart';
 
 /// Android map scene. Business coordinates are GCJ-02; the native adapter
-/// converts them at the Tianditu boundary.
-class TiandituSceneController extends MapSceneController {
-  TiandituSceneController({
+/// uses GCJ-02 mode for rendering and WGS-84 for the Directions API.
+class PetalAndroidSceneController extends MapSceneController {
+  PetalAndroidSceneController({
     required super.onViewportSettled,
     required super.onVenueTapped,
     required super.onBlankTapped,
@@ -253,7 +253,7 @@ class TiandituSceneController extends MapSceneController {
         ...encodeCameraMove(
           longitude: longitude,
           latitude: latitude,
-          zoom: 18.0, // Tianditu's maximum business zoom.
+          zoom: MapSceneController.focusZoom,
           pitch: MapSceneController.focusPitch,
           bearing: MapSceneController.focusBearing,
           bottomPadding: cameraBottomPadding,
@@ -335,7 +335,7 @@ class TiandituSceneController extends MapSceneController {
           encodeRoutePoints(points),
         );
         if (response is! Map || response['crs'] != BusinessCoordinates.crs) {
-          throw const FormatException('Unexpected Tianditu route coordinates');
+          throw const FormatException('Unexpected Petal route coordinates');
         }
         legs = RoutePlanner.parseLegs(response['legs'], expectedLegs: 1);
       }
@@ -365,30 +365,21 @@ class TiandituSceneController extends MapSceneController {
 
   String _describeRouteError(Object error) {
     final message = error is PlatformException ? error.message ?? '' : '$error';
-    if (message.contains('TDT_ROUTE_KEY is missing')) {
-      return '未配置天地图 Key（TDT_KEY 或 TDT_ROUTE_KEY）';
+    if (message.contains('PETAL_ROUTE_KEY is missing')) {
+      return '未配置花瓣地图路线 API Key（PETAL_ROUTE_KEY 或 PETAL_MAP_KEY）';
     }
-    if (message.contains('301012')) {
-      return '天地图 Key 权限类型错误，请配置可调用路线服务的 Key';
-    }
-    if (message.contains('301018')) {
-      return '天地图路线接口不支持当前 Key 类型（301018），请在天地图控制台核对驾车规划 Web 服务的 Key 类型';
-    }
-    if (message.contains('301020')) {
-      return '天地图路线服务安全密钥错误，请检查 TDT_SK 或 TDT_ROUTE_SK';
-    }
-    if (message.contains('301001') ||
-        message.contains('HTTP 401') ||
-        message.contains('HTTP 403')) {
-      return '天地图路线服务鉴权失败，请检查路线 Key 和服务权限';
+    if (message.contains('HTTP 401') ||
+        message.contains('HTTP 403') ||
+        message.contains('010')) {
+      return '花瓣地图路线鉴权失败，请检查 API Key 和 Directions API 权限';
     }
     if (message.contains('timeout') || message.contains('timed out')) {
-      return '天地图路线请求超时，请稍后重试';
+      return '花瓣地图路线请求超时，请稍后重试';
     }
     if (error is FormatException || message.contains('Invalid driving')) {
-      return '天地图路线数据格式异常，请稍后重试';
+      return '花瓣地图路线数据格式异常，请稍后重试';
     }
-    return '天地图路线请求失败，请检查网络或稍后重试';
+    return '花瓣地图路线请求失败，请检查网络或稍后重试';
   }
 
   bool _isRouteCurrent(SiponMapHost host, int revision) =>

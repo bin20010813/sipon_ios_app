@@ -171,7 +171,7 @@ class _SiponMapWidgetState extends State<SiponMapWidget> {
           )
         : PlatformViewLink(
             key: ValueKey(_generation),
-            viewType: kSiponTiandituViewType,
+            viewType: kSiponPetalViewType,
             surfaceFactory: (context, controller) => AndroidViewSurface(
               controller: controller as AndroidViewController,
               gestureRecognizers: gestures,
@@ -180,7 +180,7 @@ class _SiponMapWidgetState extends State<SiponMapWidget> {
             onCreatePlatformView: (parameters) {
               final controller = PlatformViewsService.initSurfaceAndroidView(
                 id: parameters.id,
-                viewType: kSiponTiandituViewType,
+                viewType: kSiponPetalViewType,
                 layoutDirection: TextDirection.ltr,
                 creationParams: params,
                 creationParamsCodec: const StandardMessageCodec(),

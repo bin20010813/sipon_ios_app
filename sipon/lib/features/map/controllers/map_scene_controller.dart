@@ -9,7 +9,7 @@ import '../models/map_display_options.dart';
 import '../models/map_models.dart';
 import '../models/map_viewport.dart';
 import 'mapkit_scene_controller.dart';
-import 'tianditu_scene_controller.dart';
+import 'petal_android_scene_controller.dart';
 import '../platform/map_engine.dart';
 import '../platform/sipon_map_host.dart';
 
@@ -106,7 +106,7 @@ abstract class MapSceneController {
         onBlankTapped: onBlankTapped,
         resolveInitialCityCenter: true,
       ),
-      MapEngine.tianditu => TiandituSceneController(
+      MapEngine.petalAndroid => PetalAndroidSceneController(
         onViewportSettled: onViewportSettled,
         onVenueTapped: onVenueTapped,
         onBlankTapped: onBlankTapped,

@@ -130,7 +130,7 @@ class _AddVenuePageState extends State<AddVenuePage> {
       if (!mounted) return;
       // Android must report the actual screen center after its coordinate
       // adapter. A bounds midpoint is not accurate enough for a submission.
-      if (selectMapEngine() == MapEngine.tianditu &&
+      if (selectMapEngine() == MapEngine.petalAndroid &&
           viewport?.screenCenter == null) {
         _debugLog('map.init.blocked reason=missingScreenCenter');
         return;
@@ -153,7 +153,7 @@ class _AddVenuePageState extends State<AddVenuePage> {
       'map.viewport.settled mapReady=$_mapReady, '
       'hasScreenCenter=${viewport.screenCenter != null}',
     );
-    if (selectMapEngine() == MapEngine.tianditu &&
+    if (selectMapEngine() == MapEngine.petalAndroid &&
         viewport.screenCenter == null) {
       _debugLog('map.location.ignored reason=missingScreenCenter');
       return;

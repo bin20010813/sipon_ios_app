@@ -6,11 +6,11 @@ import io.flutter.plugin.common.StandardMessageCodec
 import io.flutter.plugin.platform.PlatformView
 import io.flutter.plugin.platform.PlatformViewFactory
 
-internal class SiponTiandituFactory(
+internal class SiponPetalFactory(
     private val messenger: BinaryMessenger,
-    private val onCreated: (SiponTiandituView) -> Unit,
-    private val onDisposed: (SiponTiandituView) -> Unit,
+    private val onCreated: (SiponPetalView) -> Unit,
+    private val onDisposed: (SiponPetalView) -> Unit,
 ) : PlatformViewFactory(StandardMessageCodec.INSTANCE) {
     override fun create(context: Context, viewId: Int, args: Any?): PlatformView =
-        SiponTiandituView(context, viewId, messenger, onDisposed).also(onCreated)
+        SiponPetalView(context, viewId, messenger, args as? Map<*, *> ?: emptyMap<Any, Any>(), onDisposed).also(onCreated)
 }

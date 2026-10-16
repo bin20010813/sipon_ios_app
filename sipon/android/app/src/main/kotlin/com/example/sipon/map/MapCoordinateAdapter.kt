@@ -7,24 +7,20 @@ import kotlin.math.sqrt
 
 /** Flutter/API business coordinates are GCJ-02. Convert only at SDK boundaries. */
 internal data class Gcj02Point(val lng: Double, val lat: Double)
-internal data class Cgcs2000Point(val lng: Double, val lat: Double)
+internal data class Wgs84Point(val lng: Double, val lat: Double)
 
 internal object MapCoordinateAdapter {
     const val businessCrs = "GCJ02"
-    const val strategy = "gcj02-to-cgcs2000-v1"
+    const val strategy = "gcj02-to-wgs84-v1"
 
     private const val semiMajorAxis = 6378245.0
     private const val eccentricitySquared = 0.006693421622965943
     private const val inverseIterations = 4
 
-    /**
-     * Tianditu's `_w` tiles use an unencrypted geographic datum with Web
-     * Mercator tiling. CGCS2000 and WGS-84 are close enough for this map
-     * display, so the material correction here is removal of the GCJ-02
-     * offset. Iteration avoids the larger error of a one-step subtraction.
-     */
-    fun toDisplay(point: Gcj02Point): Cgcs2000Point {
-        if (outsideChina(point.lng, point.lat)) return Cgcs2000Point(point.lng, point.lat)
+    /** Directions API uses WGS-84; the SDK uses GCJ-02 mode. Device fixes
+     * are WGS-84 and must enter the same business coordinate contract. */
+    fun toDisplay(point: Gcj02Point): Wgs84Point {
+        if (outsideChina(point.lng, point.lat)) return Wgs84Point(point.lng, point.lat)
         var lng = point.lng
         var lat = point.lat
         repeat(inverseIterations) {
@@ -32,10 +28,10 @@ internal object MapCoordinateAdapter {
             lng -= projected.lng - point.lng
             lat -= projected.lat - point.lat
         }
-        return Cgcs2000Point(lng, lat)
+        return Wgs84Point(lng, lat)
     }
 
-    fun toBusiness(point: Cgcs2000Point): Gcj02Point =
+    fun toBusiness(point: Wgs84Point): Gcj02Point =
         if (outsideChina(point.lng, point.lat)) Gcj02Point(point.lng, point.lat)
         else fromUnshifted(point.lng, point.lat)
 

@@ -1,5 +1,7 @@
 # Android 天地图初版：本地配置与联调
 
+> 历史文档：当前分支已迁移到花瓣地图 SDK，请使用 [Android 花瓣地图配置](android-petal-local-setup.md)。以下保留迁移前记录。
+
 ## 填写天地图 Key
 
 Android 构建从 Gradle 属性 `TDT_KEY` 读取瓦片 Key；环境变量 `TDT_KEY` 也可用，Gradle 属性优先。请把真实值放在本机用户级 `~/.gradle/gradle.properties`，添加一行：

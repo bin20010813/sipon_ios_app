@@ -186,7 +186,7 @@ void main() {
     );
     expect(
       selectMapEngine(platform: TargetPlatform.android, isWeb: false),
-      MapEngine.tianditu,
+      MapEngine.petalAndroid,
     );
     expect(selectMapEngine(isWeb: true), MapEngine.unsupported);
     for (final platform in TargetPlatform.values.where(

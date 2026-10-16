@@ -1,5 +1,7 @@
 # Sipon Android 天地图适配技术方案
 
+> 历史方案：当前分支已迁移到花瓣地图 SDK，请使用 [Android 花瓣地图配置](android-petal-local-setup.md)。
+
 > 历史设计归档：本文的 WGS-84 业务约定已于 2026-10-11 被项目负责人确认的
 > GCJ-02 约定取代，不再作为当前实现依据。当前分支策略、坐标边界和验收要求
 > 见 [三端整合与坐标契约](three-platform-integration.md)。以下保留原始设计记录。
