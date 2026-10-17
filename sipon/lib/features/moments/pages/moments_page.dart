@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import 'package:sipon/shared/services/sipon_city_controller.dart';
 import 'package:sipon/shared/services/home_moments_repository.dart';
@@ -14,18 +15,22 @@ class MomentsPage extends StatefulWidget {
     super.key,
     this.bottomOverlayInset = 0,
     this.onCheckInPressed,
+    this.onNavigationBarHiddenChanged,
     this.repository,
   });
 
   final double bottomOverlayInset;
   final HomeMomentsRepository? repository;
   final Future<void> Function()? onCheckInPressed;
+  final ValueChanged<bool>? onNavigationBarHiddenChanged;
 
   @override
   State<MomentsPage> createState() => MomentsPageState();
 }
 
 class MomentsPageState extends State<MomentsPage> {
+  static const double _navigationScrollThreshold = 18;
+
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<HomeMomentsSectionState> _momentsKey =
       GlobalKey<HomeMomentsSectionState>();
@@ -36,6 +41,8 @@ class MomentsPageState extends State<MomentsPage> {
           : null);
   SiponCityController? _cityController;
   String _city = SiponCityController.defaultCity;
+  double _lastScrollOffset = 0;
+  double _navigationScrollDistance = 0;
 
   @override
   void initState() {
@@ -70,8 +77,38 @@ class MomentsPageState extends State<MomentsPage> {
   void _onScrolled() {
     if (!_scrollController.hasClients) return;
     final position = _scrollController.position;
+    _updateNavigationVisibility(position);
     if (position.pixels >= position.maxScrollExtent - 500) {
       _momentsKey.currentState?.loadMore();
+    }
+  }
+
+  void _updateNavigationVisibility(ScrollPosition position) {
+    final delta = position.pixels - _lastScrollOffset;
+    _lastScrollOffset = position.pixels;
+    if (position.pixels <= position.minScrollExtent) {
+      _navigationScrollDistance = 0;
+      widget.onNavigationBarHiddenChanged?.call(false);
+      return;
+    }
+
+    final direction = position.userScrollDirection;
+    // 只跟随主列表的浏览方向，忽略程序定位和边缘回弹。
+    if (position.outOfRange ||
+        direction == ScrollDirection.idle ||
+        (direction == ScrollDirection.reverse && delta <= 0) ||
+        (direction == ScrollDirection.forward && delta >= 0)) {
+      _navigationScrollDistance = 0;
+      return;
+    }
+
+    if (_navigationScrollDistance.sign != delta.sign) {
+      _navigationScrollDistance = 0;
+    }
+    _navigationScrollDistance += delta;
+    if (_navigationScrollDistance.abs() >= _navigationScrollThreshold) {
+      widget.onNavigationBarHiddenChanged?.call(delta > 0);
+      _navigationScrollDistance = 0;
     }
   }
 

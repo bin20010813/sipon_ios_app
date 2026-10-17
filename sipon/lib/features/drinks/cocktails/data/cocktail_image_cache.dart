@@ -80,11 +80,14 @@ class CocktailImageCache {
   bool _canPreload(BuildContext context) =>
       context.mounted && ModalRoute.of(context)?.isCurrent != false;
 
-  /// 先预取全部推荐缩略图，再预取详情封面；页面离开前台后停止后续预取。
+  /// 先预取全部推荐缩略图，再预取前几项详情封面。
+  /// 避免为尚未打开的详情下载整批中图；0 表示只预取缩略图。
+  /// 页面离开前台后停止后续预取，不取消已开始的请求。
   Future<void> preloadRecommendations(
     List<CocktailInfo> cocktails,
-    BuildContext context,
-  ) async {
+    BuildContext context, {
+    int detailPreloadCount = 2,
+  }) async {
     if (!_canPreload(context) || _clearing != null) return;
     final generation = _generation;
     final dpr = MediaQuery.devicePixelRatioOf(context);
@@ -95,6 +98,10 @@ class CocktailImageCache {
       if (thumbnail != null && thumbnail.isNotEmpty) {
         thumbnails.add(thumbnailProvider(thumbnail, dpr));
       }
+    }
+    for (final cocktail in cocktails.take(
+      detailPreloadCount.clamp(0, cocktails.length),
+    )) {
       final cover = cocktail.resolvedMediumImageUrl();
       if (cover != null && cover.isNotEmpty) {
         covers.add(detailProvider(cover, dpr));

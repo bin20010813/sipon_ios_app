@@ -34,11 +34,13 @@ class _SiponShellState extends State<_SiponShell> {
   final ValueNotifier<double> _mapSheetProgress = ValueNotifier<double>(0);
   // 与首页共享搜索展开状态，用于同步隐藏底栏。
   final ValueNotifier<bool> _homeSearchExpanded = ValueNotifier<bool>(false);
+  final _momentsNavigationHidden = ValueNotifier<bool>(false);
 
   @override
   void dispose() {
     _mapSheetProgress.dispose();
     _homeSearchExpanded.dispose();
+    _momentsNavigationHidden.dispose();
     super.dispose();
   }
 
@@ -49,6 +51,7 @@ class _SiponShellState extends State<_SiponShell> {
   }
 
   void _selectTab(int index) {
+    _momentsNavigationHidden.value = false;
     if (index == _currentIndex) {
       // 再次点击当前 tab 时手动刷新。
       if (index == 2) _momentsPageKey.currentState?.refresh();
@@ -69,6 +72,12 @@ class _SiponShellState extends State<_SiponShell> {
     if (index == 3) {
       _profilePageKey.currentState?.refreshProfile();
       _profilePageKey.currentState?.refreshCounts();
+    }
+  }
+
+  void _handleMomentsNavigationHiddenChanged(bool hidden) {
+    if (_currentIndex == 2) {
+      _momentsNavigationHidden.value = hidden;
     }
   }
 
@@ -190,6 +199,8 @@ class _SiponShellState extends State<_SiponShell> {
                         key: _momentsPageKey,
                         bottomOverlayInset: _effectiveNavigationReserveHeight,
                         onCheckInPressed: _openCheckIn,
+                        onNavigationBarHiddenChanged:
+                            _handleMomentsNavigationHiddenChanged,
                       )
                     : const SizedBox.shrink(),
               ),
@@ -207,6 +218,7 @@ class _SiponShellState extends State<_SiponShell> {
           _ShellBottomBar(
             mapSheetProgress: _mapSheetProgress,
             searchOverlayActive: _homeSearchExpanded,
+            momentsNavigationHidden: _momentsNavigationHidden,
             currentIndex: _currentIndex,
             reserveHeight: _effectiveNavigationReserveHeight,
             bottomGap: _bottomBarBottomGap,

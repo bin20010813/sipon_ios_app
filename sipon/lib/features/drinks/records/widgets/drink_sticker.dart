@@ -398,11 +398,11 @@ class _DrinkStickerGravityPoolState extends State<DrinkStickerGravityPool>
     final x = (event[0] as num).toDouble();
 
     // 横向沿用原重力方向；纵向由各贴纸自身的重力或浮力决定。
-    final target = Offset(x.abs() < .04 ? 0 : x * 1100, 825);
+    final target = Offset(x.abs() < .04 ? 0 : x * 1500, 825);
 
-    _filtered = Offset.lerp(_filtered, target, .18)!;
+    _filtered = Offset.lerp(_filtered, target, .30)!;
 
-    if ((_filtered - _physics.gravity).distance > 35) {
+    if ((_filtered - _physics.gravity).distance > 15) {
       _physics.gravity = _filtered;
       _wake();
     }

@@ -7,6 +7,7 @@ import com.example.sipon.map.SiponPetalView
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.EventChannel
 import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
@@ -16,6 +17,8 @@ class MainActivity : FlutterActivity() {
     private val mapViews = mutableSetOf<SiponPetalView>()
     private val stickerExecutor = Executors.newSingleThreadExecutor()
     private var stickerChannel: MethodChannel? = null
+    private var motionChannel: EventChannel? = null
+    private var stickerMotion: StickerMotionStream? = null
     private val stickerSegmenter by lazy { U2NetStickerSegmenter(applicationContext.assets) }
     companion object {
         private const val CHANNEL = "sipon/sticker_cutout"
@@ -23,6 +26,9 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        stickerMotion = StickerMotionStream(this)
+        motionChannel = EventChannel(flutterEngine.dartExecutor.binaryMessenger, "sipon/sticker_motion")
+            .also { it.setStreamHandler(stickerMotion) }
         flutterEngine.platformViewsController.registry.registerViewFactory(
             "sipon/petal",
             SiponPetalFactory(
@@ -59,10 +65,12 @@ class MainActivity : FlutterActivity() {
 
     override fun onResume() {
         super.onResume()
+        stickerMotion?.setActive(true)
         mapViews.toList().forEach { it.onActivityResume() }
     }
 
     override fun onPause() {
+        stickerMotion?.setActive(false)
         mapViews.toList().forEach { it.onActivityPause() }
         super.onPause()
     }
@@ -78,6 +86,10 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        stickerMotion?.onCancel(null)
+        motionChannel?.setStreamHandler(null)
+        motionChannel = null
+        stickerMotion = null
         mapViews.toList().forEach { it.dispose() }
         stickerChannel?.setMethodCallHandler(null)
         stickerChannel = null

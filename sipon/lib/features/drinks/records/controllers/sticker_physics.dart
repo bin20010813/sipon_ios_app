@@ -20,9 +20,9 @@ class StickerPhysics {
   StickerPhysics({
     this.gravity = const Offset(0, 825),
     this.buoyancy = 300,
-    this.bubbleTiltFactor = 0.22,
-    this.bubbleSpeedLimit = 85,
-    this.damping = 0.86,
+    this.bubbleTiltFactor = 0.45,
+    this.bubbleSpeedLimit = 180,
+    this.damping = 0.94,
     this.wallRestitution = 0.34,
     this.floorRestitution = 0.26,
     this.sleepThresholdFrames = 30,
@@ -40,7 +40,7 @@ class StickerPhysics {
   /// 气泡横向最高速度，避免大幅倾斜时冲到池壁。
   final double bubbleSpeedLimit;
 
-  /// 每帧速度衰减系数（0~1），模拟空气阻力。
+  /// 以 60 FPS 为基准的速度保留比例（0~1），越大阻力越小。
   final double damping;
 
   /// 池壁弹性系数。

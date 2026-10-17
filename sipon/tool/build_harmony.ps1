@@ -86,7 +86,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'HarmonyOS Dart analysis failed.' }
     & $flutterCommand test --no-pub tool/tests
     if ($LASTEXITCODE -ne 0) { throw 'HarmonyOS map regression tests failed.' }
-    & node --test tool/tests/harmony_sticker_test.cjs
+    & node --test tool/tests/harmony_sticker_test.cjs tool/tests/sticker_motion_test.cjs
     if ($LASTEXITCODE -ne 0) { throw 'HarmonyOS native sticker regression tests failed.' }
     & node --test tool/tests/petal_marker_layout_test.cjs tool/tests/petal_marker_artwork_test.cjs
     if ($LASTEXITCODE -ne 0) { throw 'HarmonyOS marker regression tests failed.' }

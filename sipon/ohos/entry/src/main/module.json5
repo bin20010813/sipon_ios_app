@@ -15,6 +15,7 @@
     "abilities": [
       {
         "name": "EntryAbility",
+        "orientation": "portrait",
         "srcEntry": "./ets/entryability/EntryAbility.ets",
         "description": "$string:EntryAbility_desc",
         "icon": "$media:icon",
@@ -35,6 +36,9 @@
       }
     ],
     "requestPermissions": [
+      {
+        "name": "ohos.permission.ACCELEROMETER"
+      },
       {
         "name": "ohos.permission.INTERNET"
       },

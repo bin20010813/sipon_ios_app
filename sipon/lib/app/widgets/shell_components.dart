@@ -4,6 +4,7 @@ class _ShellBottomBar extends StatelessWidget {
   const _ShellBottomBar({
     required this.mapSheetProgress,
     required this.searchOverlayActive,
+    required this.momentsNavigationHidden,
     required this.currentIndex,
     required this.reserveHeight,
     required this.bottomGap,
@@ -13,6 +14,7 @@ class _ShellBottomBar extends StatelessWidget {
 
   final ValueListenable<double> mapSheetProgress;
   final ValueListenable<bool> searchOverlayActive;
+  final ValueListenable<bool> momentsNavigationHidden;
   final int currentIndex;
   final double reserveHeight;
   final double bottomGap;
@@ -23,48 +25,52 @@ class _ShellBottomBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
 
-    return ValueListenableBuilder<double>(
-      valueListenable: mapSheetProgress,
-      builder: (context, sheetProgress, _) => ValueListenableBuilder<bool>(
-        valueListenable: searchOverlayActive,
-        builder: (context, searchActive, _) {
-          final progress = currentIndex == 1 ? sheetProgress : 0.0;
-          // 首页搜索或键盘显示时隐藏底栏，避免误触导航。
-          final hidden = keyboardVisible || searchActive;
-          return Align(
-            alignment: Alignment.bottomCenter,
-            child: IgnorePointer(
-              ignoring: hidden || progress > 0.05,
-              child: AnimatedSlide(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOutCubic,
-                offset: hidden ? const Offset(0, 1.25) : Offset.zero,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 120),
-                  opacity: hidden ? 0 : 1,
-                  child: Transform.translate(
-                    offset: Offset(0, (reserveHeight + 12) * progress),
-                    child: Opacity(
-                      opacity: 1 - progress,
-                      child: SafeArea(
-                        top: false,
-                        bottom: false,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(
-                            maxWidth: HomePage.contentMaxWidth,
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        mapSheetProgress,
+        searchOverlayActive,
+        momentsNavigationHidden,
+      ]),
+      builder: (context, _) {
+        final progress = currentIndex == 1 ? mapSheetProgress.value : 0.0;
+        // 搜索、键盘显示或向下浏览动态时隐藏底栏，避免误触导航。
+        final hidden =
+            keyboardVisible ||
+            searchOverlayActive.value ||
+            (currentIndex == 2 && momentsNavigationHidden.value);
+        return Align(
+          alignment: Alignment.bottomCenter,
+          child: IgnorePointer(
+            ignoring: hidden || progress > 0.05,
+            child: AnimatedSlide(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              offset: hidden ? const Offset(0, 1.25) : Offset.zero,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 120),
+                opacity: hidden ? 0 : 1,
+                child: Transform.translate(
+                  offset: Offset(0, (reserveHeight + 12) * progress),
+                  child: Opacity(
+                    opacity: 1 - progress,
+                    child: SafeArea(
+                      top: false,
+                      bottom: false,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxWidth: HomePage.contentMaxWidth,
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            HomePage.contentHorizontalPadding,
+                            0,
+                            HomePage.contentHorizontalPadding,
+                            bottomGap,
                           ),
-                          child: Padding(
-                            padding: EdgeInsets.fromLTRB(
-                              HomePage.contentHorizontalPadding,
-                              0,
-                              HomePage.contentHorizontalPadding,
-                              bottomGap,
-                            ),
-                            child: _SiponBottomJumpBar(
-                              currentIndex: currentIndex,
-                              onTabSelected: onTabSelected,
-                              onPlusPressed: onPlusPressed,
-                            ),
+                          child: _SiponBottomJumpBar(
+                            currentIndex: currentIndex,
+                            onTabSelected: onTabSelected,
+                            onPlusPressed: onPlusPressed,
                           ),
                         ),
                       ),
@@ -73,9 +79,9 @@ class _ShellBottomBar extends StatelessWidget {
                 ),
               ),
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }

@@ -168,13 +168,19 @@ class _DrinkRecordPageState extends State<DrinkRecordPage> {
   Future<void> _pickPlace() async {
     final chosen = await showModalBottomSheet<String>(
       context: context,
+      isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
-      builder: (_) => _PlacePickerSheet(current: _place),
+      builder: (sheetContext) => SizedBox(
+        // Keep the sheet anchored while loading, filtering, or showing the
+        // keyboard. Only the results viewport should change height.
+        height: MediaQuery.sizeOf(sheetContext).height * 0.8,
+        child: _PlacePickerSheet(current: _place),
+      ),
     );
     if (chosen != null && chosen.isNotEmpty && mounted) {
       setState(() => _place = chosen);
@@ -1432,7 +1438,6 @@ class _PlacePickerSheetState extends State<_PlacePickerSheet> {
           bottom: MediaQuery.of(context).viewInsets.bottom + 24,
         ),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
@@ -1492,8 +1497,7 @@ class _PlacePickerSheetState extends State<_PlacePickerSheet> {
             ),
             const SizedBox(height: 12),
             if (_loading)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 28),
+              Expanded(
                 child: Center(
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
@@ -1502,9 +1506,9 @@ class _PlacePickerSheetState extends State<_PlacePickerSheet> {
                 ),
               )
             else
-              Flexible(
+              Expanded(
                 child: ListView(
-                  shrinkWrap: true,
+                  padding: EdgeInsets.zero,
                   physics: const BouncingScrollPhysics(),
                   children: [
                     for (final place in filtered)

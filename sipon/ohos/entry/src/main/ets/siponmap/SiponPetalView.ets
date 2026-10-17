@@ -7,6 +7,10 @@ import { items, numberValue, payload, position, textValue } from './PetalPayload
 import { PetalLabelCandidate, petalMarkerCaption, selectPetalLabels } from './PetalMarkerLayout';
 import { makePetalMarker, makePetalRouteTexture } from './PetalMarkerArtwork';
 
+// Keep these published cloud styles in sync with Android's SiponPetalView.
+const LIGHT_MAP_STYLE_ID: string = '2061929205284932992';
+const DARK_MAP_STYLE_ID: string = '2061970525261063552';
+
 interface PetalMarkerEntry {
   marker: map.Marker;
   location: mapCommon.LatLng;
@@ -48,7 +52,8 @@ struct PetalMapComponent {
 export class SiponPetalView extends PlatformView implements MethodCallHandler {
   readonly options: mapCommon.MapOptions = {
     position: { target: { latitude: 31.2304, longitude: 121.4737 }, zoom: 12 },
-    tiltGesturesEnabled: false
+    tiltGesturesEnabled: false,
+    dayNightMode: mapCommon.DayNightMode.DAY
   };
   private channel: MethodChannel;
   private controller?: map.MapComponentController;
@@ -83,6 +88,7 @@ export class SiponPetalView extends PlatformView implements MethodCallHandler {
     super();
     this.creation = creation;
     this.brightness = textValue(creation, 'brightness', 'light');
+    this.options.styleId = this.customMapStyleId;
     this.onDisposed = onDisposed;
     this.channel = new MethodChannel(messenger, `sipon/petal_${id}`);
     this.channel.setMethodCallHandler(this);
@@ -271,15 +277,21 @@ export class SiponPetalView extends PlatformView implements MethodCallHandler {
     }
   }
 
+  private get useDarkPalette(): boolean {
+    return this.style === 'muted' || this.brightness === 'dark';
+  }
+
+  private get customMapStyleId(): string {
+    return this.useDarkPalette ? DARK_MAP_STYLE_ID : LIGHT_MAP_STYLE_ID;
+  }
+
   private async applyStyle(): Promise<void> {
     const controller = this.controller;
     if (!controller) return;
     controller.setMapType(this.style === 'satellite' ? mapCommon.MapType.HYBRID : mapCommon.MapType.STANDARD);
-    const dark = this.style === 'muted' || this.brightness === 'dark';
-    await controller.setCustomMapStyle({ styleContent: dark ?
-      '[{"mapFeature":"landcover.natural","options":"geometry.fill","paint":{"color":"#242730"}},' +
-      '{"mapFeature":"water","options":"geometry.fill","paint":{"color":"#182333"}},' +
-      '{"mapFeature":"road","options":"geometry.fill","paint":{"color":"#444852"}}]' : '[]' });
+    // The cloud style owns the palette and base-map POIs, not the SDK night mode or local JSON.
+    controller.setDayNightMode(mapCommon.DayNightMode.DAY);
+    await controller.setCustomMapStyle({ styleId: this.customMapStyleId });
   }
 
   private viewport(): Map<string, Object> | null {
@@ -359,7 +371,7 @@ export class SiponPetalView extends PlatformView implements MethodCallHandler {
       const routeStop = sequence !== undefined;
       const location = position(item);
       const artwork = makePetalMarker(label, rating, sequence, isSelected,
-        this.style === 'muted' || this.brightness === 'dark',
+        this.useDarkPalette,
         this.assets.get(textValue(item, 'category')), vp2px(1));
       const options: mapCommon.MarkerOptions = {
         position: location,

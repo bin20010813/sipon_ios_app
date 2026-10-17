@@ -161,8 +161,8 @@ class _HomeTopBarState extends State<_HomeTopBar> {
                     child: AnimatedContainer(
                       duration: _searchAnimationDuration,
                       curve: Curves.easeOutCubic,
-                      width: widget.expanded ? constraints.maxWidth : 44,
-                      height: 44,
+                      width: widget.expanded ? constraints.maxWidth : 40,
+                      height: widget.expanded ? 44 : 40,
                       clipBehavior: Clip.hardEdge,
                       decoration: BoxDecoration(
                         color: Theme.of(
@@ -219,16 +219,16 @@ class _HomeTopBarState extends State<_HomeTopBar> {
                           Tooltip(
                             message: text.t('搜索'),
                             child: SizedBox(
-                              width: 44,
-                              height: 44,
+                              width: 40,
+                              height: 40,
                               child: GestureDetector(
                                 behavior: HitTestBehavior.opaque,
                                 onTap: _openSearch,
                                 child: Center(
                                   child: Image.asset(
                                     HomePage.searchAsset,
-                                    width: 22,
-                                    height: 22,
+                                    width: 20,
+                                    height: 20,
                                     color: HomePage.mutedOf(context),
                                   ),
                                 ),

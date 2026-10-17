@@ -11,6 +11,7 @@ import android.util.Log
 import android.util.LruCache
 import android.widget.FrameLayout
 import android.view.View
+import android.view.ViewTreeObserver
 import com.example.sipon.BuildConfig
 import com.huawei.hms.maps.*
 import com.huawei.hms.maps.model.*
@@ -37,6 +38,9 @@ internal class SiponPetalView(
     private val userLocation = SiponUserLocationView(context)
     private val routeArrows = PetalRouteArrowView(context)
     private var mapView: MapView? = null
+    private val compassLayoutListener = ViewTreeObserver.OnGlobalLayoutListener {
+        applyCompassAppearance()
+    }
     private var map: HuaweiMap? = null
     private var alive = true
     private var ready = false
@@ -106,6 +110,7 @@ internal class SiponPetalView(
             .zoomControlsEnabled(false).tiltGesturesEnabled(true)
             .dark(false).styleId(customMapStyleId))
         mapView = view
+        view.viewTreeObserver.addOnGlobalLayoutListener(compassLayoutListener)
         container.addView(view, 0, FrameLayout.LayoutParams(-1, -1))
         view.onCreate(Bundle())
         view.onStart()
@@ -154,6 +159,7 @@ internal class SiponPetalView(
             userLocation.resume()
             ready = true
             configureMap()
+            applyCompassAppearance()
             send("onMapReady", null)
         }
     }
@@ -304,6 +310,18 @@ internal class SiponPetalView(
         (args["points"] as? List<*> ?: error("Invalid route stops")).map {
             point(it as? Map<*, *> ?: error("Invalid route stop")) ?: error("Invalid route stop")
         }
+
+    private fun applyCompassAppearance() {
+        if (!alive || creationParams["compassTopInset"] !is Number) return
+        // maps-basic 6.15.1.322 exposes this ID for its native compass. Keep
+        // the SDK artwork, rotation and click handler; only adjust its view.
+        val compass = mapView?.findViewById<View>(
+            com.huawei.hms.maps.provider.huawei.adv.R.id.compass,
+        ) ?: return
+        compass.scaleX = 1.2f
+        compass.scaleY = 1.2f
+        compass.translationY = -12f * density
+    }
 
     private fun setPadding(args: Map<*, *>) {
         bottomPadding = (((args["bottomPadding"] as? Number)?.toDouble() ?: 0.0) * density)
@@ -495,6 +513,8 @@ internal class SiponPetalView(
         drivingService.dispose()
         userLocation.pause(); userLocation.map = null
         routeArrows.legs = emptyList(); routeArrows.map = null
+        mapView?.viewTreeObserver?.takeIf { it.isAlive }
+            ?.removeOnGlobalLayoutListener(compassLayoutListener)
         mapView?.onPause(); mapView?.onStop(); mapView?.onDestroy()
         map = null; mapView = null
         channel.setMethodCallHandler(null)

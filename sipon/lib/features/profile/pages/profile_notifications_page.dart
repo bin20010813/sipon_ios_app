@@ -169,7 +169,6 @@ class _ProfileNotificationsPageState extends State<ProfileNotificationsPage>
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
-    final scheme = Theme.of(context).colorScheme;
     final visible = _notifications
         .where((item) => item.belongsTo(_profile))
         .toList();
@@ -209,45 +208,28 @@ class _ProfileNotificationsPageState extends State<ProfileNotificationsPage>
                 child: Center(child: Text(text.t('暂无消息'))),
               ),
             for (final item in visible)
-              Card(
-                color: item.isUnread
-                    ? scheme.primaryContainer
-                    : scheme.surfaceContainerLow,
-                child: ListTile(
-                  onTap: _busy || _readingAll ? null : () => _open(item),
-                  isThreeLine: true,
-                  leading: Icon(_icon(item)),
-                  title: Text(
-                    item.title,
-                    style: TextStyle(
-                      fontWeight: item.isUnread
-                          ? FontWeight.w700
-                          : FontWeight.w500,
-                    ),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (item.body.isNotEmpty) Text(item.body),
-                      if (item.contentVersion != null)
-                        Text('${text.t('审核内容版本')}：${item.contentVersion}'),
-                      const SizedBox(height: 6),
-                      Text(
-                        [
-                          if (item.createdAt != null)
-                            _formatDate(item.createdAt!),
-                          text.t(item.isUnread ? '未读' : '已读'),
-                        ].join(' · '),
-                      ),
-                    ],
-                  ),
-                  trailing:
-                      item.checkInId != null ||
-                          item.routeId != null ||
-                          item.isProfileModeration
-                      ? const Icon(Icons.chevron_right_rounded)
-                      : null,
-                ),
+              _NotificationCard(
+                title: item.title,
+                icon: _icon(item),
+                timestamp: item.createdAt,
+                isUnread: item.isUnread,
+                onTap: _busy || _readingAll ? null : () => _open(item),
+                showChevron:
+                    item.checkInId != null ||
+                    item.routeId != null ||
+                    item.isProfileModeration,
+                child: item.body.isNotEmpty || item.contentVersion != null
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (item.body.isNotEmpty) Text(item.body),
+                          if (item.contentVersion != null) ...[
+                            if (item.body.isNotEmpty) const SizedBox(height: 6),
+                            Text('${text.t('审核内容版本')}：${item.contentVersion}'),
+                          ],
+                        ],
+                      )
+                    : null,
               ),
             if (_hasMore)
               TextButton(
@@ -261,77 +243,127 @@ class _ProfileNotificationsPageState extends State<ProfileNotificationsPage>
   }
 }
 
-class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({
-    required this.child,
+class _NotificationCard extends StatelessWidget {
+  const _NotificationCard({
+    required this.title,
     required this.icon,
+    this.child,
     this.timestamp,
+    this.isUnread,
+    this.onTap,
+    this.showChevron = false,
   });
 
-  final Widget child;
+  final String title;
   final IconData icon;
+  final Widget? child;
   final DateTime? timestamp;
+  final bool? isUnread;
+  final VoidCallback? onTap;
+  final bool showChevron;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final text = SiponLanguageScope.textOf(context);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
-      child: Column(
-        children: [
-          if (timestamp != null) ...[
-            Text(
-              _formatDate(timestamp!),
-              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
-            ),
-            const SizedBox(height: 14),
-          ],
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: scheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(13),
+              if (timestamp != null) ...[
+                Text(
+                  _formatDate(timestamp!),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
                 ),
-                child: Icon(icon, color: scheme.onPrimaryContainer, size: 21),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      text.t('系统通知'),
-                      style: TextStyle(
-                        color: scheme.onSurfaceVariant,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: scheme.surfaceContainerLow,
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(4),
-                          topRight: Radius.circular(18),
-                          bottomLeft: Radius.circular(18),
-                          bottomRight: Radius.circular(18),
+                const SizedBox(height: 12),
+              ],
+              Card(
+                margin: EdgeInsets.zero,
+                elevation: 0,
+                color: scheme.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  side: BorderSide(color: scheme.outlineVariant),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: onTap,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(icon, color: scheme.primary, size: 22),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                title,
+                                style: TextStyle(
+                                  color: scheme.onSurface,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      child: child,
+                        if (child != null) ...[
+                          const SizedBox(height: 12),
+                          DefaultTextStyle.merge(
+                            style: TextStyle(
+                              color: scheme.onSurfaceVariant,
+                              fontSize: 14,
+                              height: 1.5,
+                            ),
+                            child: child!,
+                          ),
+                        ],
+                        if (isUnread != null || showChevron) ...[
+                          const SizedBox(height: 14),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: isUnread == null
+                                    ? const SizedBox.shrink()
+                                    : Text(
+                                        text.t(isUnread! ? '未读' : '已读'),
+                                        style: TextStyle(
+                                          color: isUnread!
+                                              ? scheme.primary
+                                              : scheme.onSurfaceVariant,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                              ),
+                              if (showChevron)
+                                Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: scheme.onSurfaceVariant,
+                                  size: 20,
+                                ),
+                            ],
+                          ),
+                        ],
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
-              const SizedBox(width: 24),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -345,7 +377,6 @@ class _ModerationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = SiponLanguageScope.textOf(context);
-    final scheme = Theme.of(context).colorScheme;
     final status = profile.profileModerationStatus;
     final title = switch (status) {
       'pending' => '资料审核中',
@@ -359,44 +390,15 @@ class _ModerationCard extends StatelessWidget {
       'rejected' => Icons.error_outline_rounded,
       _ => Icons.info_outline_rounded,
     };
-    return _MessageBubble(
+    return _NotificationCard(
+      title: text.t(title),
       icon: icon,
       timestamp: status == 'pending' ? null : profile.profileModeratedAt,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  text.t(title),
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    color: scheme.onSurface,
-                  ),
-                ),
-                if (status == 'pending') ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    text.t('昵称、头像或简介的修改正在审核中。'),
-                    style: TextStyle(color: scheme.onSurface),
-                  ),
-                ],
-                if (status == 'rejected' &&
-                    profile.profileModerationReason != null) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    '${text.t('原因')}：${profile.profileModerationReason}',
-                    style: TextStyle(color: scheme.onSurface),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
+      child: status == 'pending'
+          ? Text(text.t('昵称、头像或简介的修改正在审核中。'))
+          : status == 'rejected' && profile.profileModerationReason != null
+          ? Text('${text.t('原因')}：${profile.profileModerationReason}')
+          : null,
     );
   }
 }

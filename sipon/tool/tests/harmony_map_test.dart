@@ -179,6 +179,69 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('Petal follows theme changes without recreating the map', (
+    tester,
+  ) async {
+    final calls = <MethodCall>[];
+    final created = <Key>{};
+    final initialBrightness = <Object?>[];
+    final channel = MethodChannel(siponChannelName(MapEngine.petal, 200));
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+      call,
+    ) async {
+      calls.add(call);
+      return null;
+    });
+    PetalMapPlatform.viewBuilder =
+        ({
+          required key,
+          required creationParams,
+          required gestureRecognizers,
+          required onPlatformViewCreated,
+        }) {
+          if (created.add(key)) {
+            initialBrightness.add(creationParams['brightness']);
+            WidgetsBinding.instance.addPostFrameCallback(
+              (_) => onPlatformViewCreated(200),
+            );
+          }
+          return SizedBox(key: key);
+        };
+    addTearDown(() {
+      PetalMapPlatform.viewBuilder = null;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      );
+    });
+
+    Future<void> showTheme(Brightness brightness) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(brightness: brightness),
+          home: SiponMapWidget(
+            engine: MapEngine.petal,
+            initialStyleId: 'standard',
+            onHostReady: (_) {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final appearance = calls.lastWhere(
+        (call) => call.method == SiponMapCommands.setAppearance,
+      );
+      expect(appearance.arguments, encodeAppearance(brightness));
+    }
+
+    await showTheme(Brightness.dark);
+    await showTheme(Brightness.light);
+    await showTheme(Brightness.dark);
+    expect(initialBrightness, ['dark']);
+    expect(created, hasLength(1));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   test('map routing and per-view channels remain isolated', () {
     expect(
       selectMapEngine(platform: TargetPlatform.iOS, isWeb: false),
