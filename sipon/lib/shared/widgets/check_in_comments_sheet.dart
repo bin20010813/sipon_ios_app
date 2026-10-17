@@ -259,7 +259,14 @@ class _CheckInCommentsSheetState extends State<CheckInCommentsSheet> {
                         decoration: InputDecoration(
                           hintText: text.t('写下评论'),
                           counterText: '',
-                          border: const OutlineInputBorder(),
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24),
+                          ),
                         ),
                       ),
                     ),

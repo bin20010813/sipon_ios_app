@@ -13,6 +13,7 @@ import '../services/sipon_api_service.dart';
 import '../services/sipon_auth_service.dart';
 import '../../features/map/pages/venue_map_half_page.dart';
 import 'sipon_network_image.dart';
+import 'sipon_dialog.dart';
 import 'sipon_message.dart';
 import 'check_in_comments_sheet.dart';
 
@@ -253,21 +254,16 @@ class HomeMomentsSectionState extends State<HomeMomentsSection> {
     final next = moment.author.isFollowing != true;
     if (!next) {
       final text = SiponLanguageScope.textOf(context);
-      final confirmed = await showDialog<bool>(
+      final confirmed = await showSiponDialog<bool>(
         context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text(text.t('取消关注')),
+        builder: (dialogContext) => SiponDialog(
+          title: text.t('取消关注'),
+          icon: Icons.person_remove_outlined,
           content: Text(text.t('确定取消关注这位酒友吗？')),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: Text(text.t('取消')),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: Text(text.t('取消关注')),
-            ),
-          ],
+          cancelLabel: text.cancel,
+          confirmLabel: text.t('取消关注'),
+          onCancel: () => Navigator.of(dialogContext).pop(false),
+          onConfirm: () => Navigator.of(dialogContext).pop(true),
         ),
       );
       if (confirmed != true || !mounted) return;

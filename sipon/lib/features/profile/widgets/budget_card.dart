@@ -54,24 +54,24 @@ class _BudgetCardState extends State<_BudgetCard> {
     final controller = TextEditingController(
       text: _store.monthlyBudget.toStringAsFixed(0),
     );
-    final result = await showDialog<double>(
+    final result = await showSiponDialog<double>(
       context: context,
       builder: (dialogContext) {
         final scheme = Theme.of(dialogContext).colorScheme;
-        return AlertDialog(
-          backgroundColor: dialogContext.siponColors.elevatedSurface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          title: Text(
-            text.editBudget,
-            style: TextStyle(
-              color: scheme.onSurface,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0,
-            ),
-          ),
+        return SiponDialog(
+          title: text.editBudget,
+          icon: Icons.account_balance_wallet_outlined,
+          cancelLabel: text.cancel,
+          confirmLabel: text.confirm,
+          onCancel: () => Navigator.of(dialogContext).pop(),
+          onConfirm: () {
+            final value = double.tryParse(controller.text.trim());
+            if (value == null || value < 0) {
+              Navigator.of(dialogContext).pop();
+              return;
+            }
+            Navigator.of(dialogContext).pop(value);
+          },
           content: TextField(
             controller: controller,
             autofocus: true,
@@ -83,45 +83,21 @@ class _BudgetCardState extends State<_BudgetCard> {
                 fontWeight: FontWeight.w600,
               ),
               filled: true,
-              fillColor: scheme.surface,
+              fillColor: dialogContext.siponColors.subtleSurface,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide.none,
               ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: scheme.primary, width: 1.5),
+              ),
               contentPadding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 12,
+                horizontal: 16,
+                vertical: 16,
               ),
             ),
           ),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              style: TextButton.styleFrom(
-                foregroundColor: scheme.onSurfaceVariant,
-              ),
-              child: Text(text.cancel),
-            ),
-            FilledButton(
-              onPressed: () {
-                final value = double.tryParse(controller.text.trim());
-                if (value == null || value < 0) {
-                  Navigator.of(dialogContext).pop();
-                  return;
-                }
-                Navigator.of(dialogContext).pop(value);
-              },
-              style: FilledButton.styleFrom(
-                backgroundColor: scheme.primary,
-                foregroundColor: scheme.onPrimary,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Text(text.confirm),
-            ),
-          ],
         );
       },
     );

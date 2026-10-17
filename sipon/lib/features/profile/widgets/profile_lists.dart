@@ -550,32 +550,14 @@ class _ProfileListSheetState extends State<_ProfileListSheet> {
     final deleteEntry = widget.deleteEntry;
     if (_deleting || _selected.isEmpty || deleteEntry == null) return;
     final ids = Set<int>.of(_selected);
-    final confirmed = await showGeneralDialog<bool>(
+    final confirmed = await showSiponDialog<bool>(
       context: context,
-      barrierDismissible: true,
-      barrierLabel: '取消删除',
-      barrierColor: context.siponColors.scrim,
-      transitionDuration: const Duration(milliseconds: 240),
-      transitionBuilder: (context, animation, secondaryAnimation, child) {
-        final curve = CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOutCubic,
-        );
-        return FadeTransition(
-          opacity: curve,
-          child: ScaleTransition(
-            scale: Tween<double>(begin: 0.94, end: 1).animate(curve),
-            child: child,
-          ),
-        );
-      },
-      pageBuilder: (context, animation, secondaryAnimation) =>
-          _DeleteRecordsDialog(
-            count: ids.length,
-            name: ids.length == 1
-                ? _items.firstWhere((item) => item.id == ids.first).name
-                : null,
-          ),
+      builder: (context) => _DeleteRecordsDialog(
+        count: ids.length,
+        name: ids.length == 1
+            ? _items.firstWhere((item) => item.id == ids.first).name
+            : null,
+      ),
     );
     if (confirmed != true || !mounted) return;
     setState(() => _deleting = true);
@@ -1013,102 +995,29 @@ class _DeleteRecordsDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final siponColors = context.siponColors;
-    return Dialog(
-      backgroundColor: siponColors.elevatedSurface,
-      surfaceTintColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 340),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: siponColors.brandSurface,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.delete_outline_rounded,
-                  color: scheme.primary,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                '删除 $count 条记录？',
-                style: TextStyle(
-                  fontSize: 21,
-                  fontWeight: FontWeight.w700,
-                  color: scheme.onSurface,
-                ),
-              ),
-              const SizedBox(height: 10),
-              if (name != null) ...[
-                Text(
-                  name!,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 6),
-              ],
-              Text(
-                '删除后无法恢复，请确认后再操作。',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  height: 1.6,
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 26),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      style: TextButton.styleFrom(
-                        minimumSize: const Size(0, 48),
-                        backgroundColor: siponColors.subtleSurface,
-                        foregroundColor: scheme.onSurfaceVariant,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                      ),
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('取消'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(0, 48),
-                        backgroundColor: scheme.primary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                      ),
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text('删除'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+    return SiponDialog(
+      title: '删除 $count 条记录？',
+      icon: Icons.delete_outline_rounded,
+      destructive: true,
+      cancelLabel: '取消',
+      confirmLabel: '删除',
+      onCancel: () => Navigator.pop(context, false),
+      onConfirm: () => Navigator.pop(context, true),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (name != null) ...[
+            Text(
+              name!,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+          ],
+          const Text('删除后无法恢复，请确认后再操作。', textAlign: TextAlign.center),
+        ],
       ),
     );
   }

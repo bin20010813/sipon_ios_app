@@ -28,7 +28,7 @@ abstract final class SiponTheme {
       isDark ? SiponThemeColors.dark : SiponThemeColors.light,
     ];
 
-    return ThemeData(
+    final theme = ThemeData(
       brightness: brightness,
       colorScheme: scheme,
       scaffoldBackgroundColor: isDark
@@ -76,6 +76,26 @@ abstract final class SiponTheme {
         contentTextStyle: TextStyle(
           color: isDark ? const Color(0xFF252229) : Colors.white,
         ),
+      ),
+    );
+    final menuForeground = isDark ? Colors.white : Colors.black;
+    final menuTextStyle = theme.textTheme.labelLarge!.copyWith(
+      color: menuForeground,
+    );
+    return theme.copyWith(
+      popupMenuTheme: PopupMenuThemeData(
+        color: isDark ? Colors.black : Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.black,
+        iconColor: menuForeground,
+        textStyle: menuTextStyle,
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          return menuTextStyle.copyWith(
+            color: states.contains(WidgetState.disabled)
+                ? menuForeground.withValues(alpha: 0.38)
+                : menuForeground,
+          );
+        }),
       ),
     );
   }

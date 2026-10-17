@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart' hide Visibility;
 import 'package:flutter/services.dart';
 import 'package:sipon/shared/widgets/sipon_message.dart';
+import 'package:sipon/shared/widgets/sipon_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../reviews/pages/check_in_page.dart';
@@ -371,20 +372,15 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
       return;
     }
 
-    final action = await showDialog<String>(
+    final action = await showSiponDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(phone),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop('copy'),
-            child: Text(text.t('复制')),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop('call'),
-            child: Text(text.t('拨打')),
-          ),
-        ],
+      builder: (dialogContext) => SiponDialog(
+        title: phone,
+        icon: Icons.phone_outlined,
+        cancelLabel: text.t('复制'),
+        confirmLabel: text.t('拨打'),
+        onCancel: () => Navigator.of(dialogContext).pop('copy'),
+        onConfirm: () => Navigator.of(dialogContext).pop('call'),
       ),
     );
     if (!mounted || action == null) return;
@@ -834,14 +830,18 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
       return GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => _openGalleryPreview(context, images, index),
-        child: ClipRRect(
-          borderRadius: borderRadius,
-          child: VenueImage(
-            imageUrl: remote ? path : null,
-            assetPath: remote ? '' : path,
-            auth: remote,
-            width: width,
-            height: height,
+        child: Hero(
+          tag: (this, images[index]),
+          createRectTween: (begin, end) => RectTween(begin: begin, end: end),
+          child: ClipRRect(
+            borderRadius: borderRadius,
+            child: VenueImage(
+              imageUrl: remote ? path : null,
+              assetPath: remote ? '' : path,
+              auth: remote,
+              width: width,
+              height: height,
+            ),
           ),
         ),
       );
@@ -1037,10 +1037,16 @@ class _VenueDetailContentState extends State<VenueDetailContent> {
     int index,
   ) {
     Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        fullscreenDialog: true,
-        builder: (_) =>
-            _VenueGalleryPreview(images: images, initialIndex: index),
+      PageRouteBuilder<void>(
+        transitionDuration: const Duration(milliseconds: 320),
+        reverseTransitionDuration: const Duration(milliseconds: 280),
+        pageBuilder: (_, animation, secondaryAnimation) => _VenueGalleryPreview(
+          images: images,
+          initialIndex: index,
+          heroOwner: this,
+        ),
+        transitionsBuilder: (_, animation, secondaryAnimation, child) =>
+            FadeTransition(opacity: animation, child: child),
       ),
     );
   }
@@ -1051,10 +1057,12 @@ class _VenueGalleryPreview extends StatefulWidget {
   const _VenueGalleryPreview({
     required this.images,
     required this.initialIndex,
+    required this.heroOwner,
   });
 
   final List<VenueGalleryImage> images;
   final int initialIndex;
+  final Object heroOwner;
 
   @override
   State<_VenueGalleryPreview> createState() => _VenueGalleryPreviewState();
@@ -1093,12 +1101,30 @@ class _VenueGalleryPreviewState extends State<_VenueGalleryPreview> {
                         url: path,
                         auth: true,
                         fit: BoxFit.contain,
+                        fallbackWidget:
+                            _isRemoteImage(images[index].mediumImageUrl)
+                            ? SiponNetworkImage(
+                                url: images[index].mediumImageUrl,
+                                auth: true,
+                                fit: BoxFit.contain,
+                              )
+                            : Image.asset(
+                                images[index].mediumImageUrl,
+                                fit: BoxFit.contain,
+                              ),
                       )
                     : Image.asset(path, fit: BoxFit.contain);
                 return InteractiveViewer(
                   minScale: 1,
                   maxScale: 4,
-                  child: Center(child: image),
+                  child: Center(
+                    child: Hero(
+                      tag: (widget.heroOwner, images[index]),
+                      createRectTween: (begin, end) =>
+                          RectTween(begin: begin, end: end),
+                      child: image,
+                    ),
+                  ),
                 );
               },
             ),

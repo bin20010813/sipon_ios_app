@@ -203,7 +203,8 @@ class _MapSearchFieldState extends State<_MapSearchField> {
   }
 
   Widget _buildResults() {
-    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final foreground = isDark ? Colors.white : Colors.black;
     final results = widget.suggestions.take(_maxSuggestions).toList();
     final panelHeight = (results.length * 56.0).clamp(0.0, 336.0).toDouble();
     return Positioned(
@@ -215,12 +216,13 @@ class _MapSearchFieldState extends State<_MapSearchField> {
         offset: const Offset(0, 52),
         child: Material(
           elevation: 6,
-          color: scheme.surface,
+          color: isDark ? Colors.black : Colors.white,
+          surfaceTintColor: Colors.transparent,
           borderRadius: BorderRadius.circular(16),
           clipBehavior: Clip.antiAlias,
           child: Container(
             decoration: BoxDecoration(
-              border: Border.all(color: scheme.outlineVariant),
+              border: Border.all(color: foreground.withValues(alpha: 0.14)),
               borderRadius: BorderRadius.circular(16),
             ),
             child: ListView.builder(
@@ -236,12 +238,12 @@ class _MapSearchFieldState extends State<_MapSearchField> {
                     venue.iconAsset,
                     width: 18,
                     height: 18,
-                    color: scheme.primary,
+                    color: foreground,
                   ),
                   title: Text(
                     venue.name,
                     style: TextStyle(
-                      color: scheme.onSurface,
+                      color: foreground,
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0,
@@ -252,7 +254,7 @@ class _MapSearchFieldState extends State<_MapSearchField> {
                   subtitle: Text(
                     '${venue.address}  |  ${venue.distance}',
                     style: TextStyle(
-                      color: scheme.onSurfaceVariant,
+                      color: foreground.withValues(alpha: 0.65),
                       fontSize: 11,
                       letterSpacing: 0,
                     ),

@@ -14,6 +14,7 @@ import 'package:sipon/shared/widgets/bottom_clamping_bouncing_scroll_physics.dar
 import 'package:sipon/features/drinks/records/widgets/drink_sticker.dart';
 import 'package:sipon/shared/widgets/sipon_network_image.dart';
 import 'package:sipon/shared/widgets/sipon_message.dart';
+import 'package:sipon/shared/widgets/sipon_dialog.dart';
 import 'package:sipon/features/drinks/records/pages/drink_sticker_calendar_page.dart';
 import 'package:sipon/shared/localization/language_transform.dart';
 import 'package:sipon/app/theme/sipon_theme_colors.dart';

@@ -153,12 +153,13 @@ class _ReviewComposerState extends State<ReviewComposer> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final keyboardHeight = MediaQuery.viewInsetsOf(context).bottom;
     return Column(
       children: [
         Expanded(
           child: SingleChildScrollView(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+            padding: EdgeInsets.fromLTRB(20, 20, 20, 24 + keyboardHeight),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -180,7 +181,8 @@ class _ReviewComposerState extends State<ReviewComposer> {
                   '总体评价',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                 ),
-                Row(
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     for (var index = 1; index <= 5; index++)
                       IconButton(
@@ -258,6 +260,12 @@ class _ReviewComposerState extends State<ReviewComposer> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: _controller,
+                  scrollPadding: EdgeInsets.fromLTRB(
+                    20,
+                    20,
+                    20,
+                    20 + keyboardHeight,
+                  ),
                   minLines: 4,
                   maxLines: 7,
                   decoration: InputDecoration(
@@ -310,6 +318,7 @@ class _ReviewComposerState extends State<ReviewComposer> {
         ),
         SafeArea(
           top: false,
+          maintainBottomViewPadding: true,
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
@@ -415,17 +424,22 @@ class _AspectRatingRow extends StatelessWidget {
             ),
           ),
           for (var index = 1; index <= 5; index++)
-            IconButton(
-              onPressed: () => onChanged(index == rating ? 0 : index),
-              tooltip: '$label $index 星',
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints.tightFor(width: 43, height: 43),
-              icon: Icon(
-                index <= rating
-                    ? Icons.star_rounded
-                    : Icons.star_outline_rounded,
-                color: context.siponColors.starRating,
-                size: 27,
+            Expanded(
+              child: IconButton(
+                onPressed: () => onChanged(index == rating ? 0 : index),
+                tooltip: '$label $index 星',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.tightFor(
+                  width: 43,
+                  height: 43,
+                ),
+                icon: Icon(
+                  index <= rating
+                      ? Icons.star_rounded
+                      : Icons.star_outline_rounded,
+                  color: context.siponColors.starRating,
+                  size: 27,
+                ),
               ),
             ),
         ],

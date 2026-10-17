@@ -8,6 +8,7 @@ import 'package:sipon/shared/services/sipon_api_service.dart';
 import 'package:sipon/shared/services/sipon_auth_service.dart';
 import 'package:sipon/shared/services/sipon_search_preferences.dart';
 import 'package:sipon/shared/localization/language_transform.dart';
+import 'package:sipon/shared/widgets/sipon_dialog.dart';
 import 'package:sipon/shared/widgets/sipon_message.dart';
 import 'package:sipon/features/reviews/pages/review_page.dart';
 import 'package:sipon/features/drinks/cocktails/data/cocktail_image_cache.dart';
@@ -295,32 +296,18 @@ class _AccountSecurityPageState extends State<_AccountSecurityPage> {
   /// 弹出确认对话框，用户确认后注销当前账号。
   Future<void> _confirmDeleteAccount() async {
     final text = SiponLanguageScope.textOf(context);
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showSiponDialog<bool>(
       context: context,
-      builder: (dialogContext) {
-        final dialogScheme = Theme.of(dialogContext).colorScheme;
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          title: Text(text.t('注销账号')),
-          content: Text(text.t('注销后账号数据将被永久删除，且无法恢复。')),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: Text(text.cancel),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: FilledButton.styleFrom(
-                backgroundColor: dialogScheme.error,
-                foregroundColor: dialogScheme.onError,
-              ),
-              child: Text(text.t('删除')),
-            ),
-          ],
-        );
-      },
+      builder: (dialogContext) => SiponDialog(
+        title: text.t('注销账号'),
+        icon: Icons.person_remove_outlined,
+        destructive: true,
+        content: Text(text.t('注销后账号数据将被永久删除，且无法恢复。')),
+        cancelLabel: text.cancel,
+        confirmLabel: text.t('删除'),
+        onCancel: () => Navigator.of(dialogContext).pop(false),
+        onConfirm: () => Navigator.of(dialogContext).pop(true),
+      ),
     );
 
     if (confirmed == true) {
@@ -358,32 +345,17 @@ class _AccountSecurityPageState extends State<_AccountSecurityPage> {
 
   Future<void> _confirmLogout() async {
     final text = SiponLanguageScope.textOf(context);
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showSiponDialog<bool>(
       context: context,
-      builder: (dialogContext) {
-        final dialogScheme = Theme.of(dialogContext).colorScheme;
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          title: Text(text.t('退出登录')),
-          content: Text(text.t('退出后需要重新登录才能继续使用 Sipon。')),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: Text(text.cancel),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: FilledButton.styleFrom(
-                backgroundColor: dialogScheme.primary,
-                foregroundColor: dialogScheme.onPrimary,
-              ),
-              child: Text(text.t('退出')),
-            ),
-          ],
-        );
-      },
+      builder: (dialogContext) => SiponDialog(
+        title: text.t('退出登录'),
+        icon: Icons.logout_rounded,
+        content: Text(text.t('退出后需要重新登录才能继续使用 Sipon。')),
+        cancelLabel: text.cancel,
+        confirmLabel: text.t('退出'),
+        onCancel: () => Navigator.of(dialogContext).pop(false),
+        onConfirm: () => Navigator.of(dialogContext).pop(true),
+      ),
     );
 
     if (confirmed == true) {
@@ -1189,26 +1161,20 @@ class _PrivacySettingsPageState extends State<_PrivacySettingsPage> {
   Future<void> _confirmClearCache() async {
     if (_clearingCache) return;
     final text = SiponLanguageScope.textOf(context);
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showSiponDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text(text.t('清理鸡尾酒推荐缓存？')),
+      builder: (dialogContext) => SiponDialog(
+        title: text.t('清理鸡尾酒推荐缓存？'),
+        icon: Icons.cleaning_services_outlined,
         content: Text(
           text.t(
             '将删除本机缓存的鸡尾酒推荐图片、详情封面、配料卡牌图片和推荐数据，下次查看时重新加载。不会退出登录，也不会删除饮酒记录、预算或偏好设置。',
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(text.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(text.t('清理')),
-          ),
-        ],
+        cancelLabel: text.cancel,
+        confirmLabel: text.t('清理'),
+        onCancel: () => Navigator.of(dialogContext).pop(false),
+        onConfirm: () => Navigator.of(dialogContext).pop(true),
       ),
     );
     if (confirmed != true || !mounted || _clearingCache) return;
@@ -2172,6 +2138,9 @@ class _AppearanceRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final colors = context.siponColors;
+    final menuForeground = Theme.of(context).brightness == Brightness.dark
+        ? Colors.white
+        : Colors.black;
     return Padding(
       // 与语言行相同的行高，让两行胶囊上下对齐。
       padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 14),
@@ -2205,12 +2174,13 @@ class _AppearanceRow extends StatelessWidget {
                   initialValue: mode,
                   tooltip: title,
                   offset: const Offset(0, 8),
-                  // 展开菜单与按钮同底色、同圆角，保持一致。
-                  color: colors.brandSurface,
+                  // 展开菜单沿用全局黑白配色。
                   elevation: 8,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(15),
-                    side: BorderSide(color: scheme.outlineVariant),
+                    side: BorderSide(
+                      color: menuForeground.withValues(alpha: 0.14),
+                    ),
                   ),
                   padding: EdgeInsets.zero,
                   onSelected: onChanged,
@@ -2225,17 +2195,13 @@ class _AppearanceRow extends StatelessWidget {
                             Icon(
                               _modeIcon(value),
                               size: 18,
-                              color: value == mode
-                                  ? scheme.primary
-                                  : scheme.onSurfaceVariant,
+                              color: menuForeground,
                             ),
                             const SizedBox(width: 8),
                             Text(
                               _label(value),
                               style: TextStyle(
-                                color: value == mode
-                                    ? scheme.primary
-                                    : scheme.onSurface,
+                                color: menuForeground,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 0,
@@ -2246,7 +2212,7 @@ class _AppearanceRow extends StatelessWidget {
                               Icon(
                                 Icons.check_rounded,
                                 size: 16,
-                                color: scheme.primary,
+                                color: menuForeground,
                               )
                             else
                               const SizedBox(width: 16),

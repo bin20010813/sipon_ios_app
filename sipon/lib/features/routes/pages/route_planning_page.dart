@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sipon/shared/widgets/sipon_message.dart';
+import 'package:sipon/shared/widgets/sipon_dialog.dart';
 import '../../map/models/map_display_options.dart';
 import '../../map/models/map_models.dart';
 import '../../map/controllers/map_scene_controller.dart';
@@ -417,22 +418,17 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
   /// 弹出路线标题输入框，默认取起点酒吧名。
   Future<String?> _promptRouteTitle() {
     final controller = TextEditingController(text: '${_start!.name} 夜饮路线');
-    return showDialog<String>(
+    return showSiponDialog<String>(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          title: Text(
-            '保存路线',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurface,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
+        return SiponDialog(
+          title: '保存路线',
+          icon: Icons.route_outlined,
+          cancelLabel: '取消',
+          confirmLabel: '保存',
+          onCancel: () => Navigator.of(dialogContext).pop(),
+          onConfirm: () =>
+              Navigator.of(dialogContext).pop(controller.text.trim()),
           content: TextField(
             controller: controller,
             autofocus: true,
@@ -442,23 +438,19 @@ class _RoutePlanningPageState extends State<RoutePlanningPage> {
               filled: true,
               fillColor: context.siponColors.subtleSurface,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide.none,
               ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(
+                  color: Theme.of(dialogContext).colorScheme.primary,
+                  width: 1.5,
+                ),
+              ),
+              contentPadding: const EdgeInsets.all(16),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () =>
-                  Navigator.of(dialogContext).pop(controller.text.trim()),
-              style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary),
-              child: Text('保存'),
-            ),
-          ],
         );
       },
     );
@@ -933,6 +925,8 @@ class _InlineBarSearchFieldState extends State<_InlineBarSearchField> {
   }
 
   Widget _buildResults() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final foreground = isDark ? Colors.white : Colors.black;
     final results = _results;
     final panelHeight = (results.length * 56.0).clamp(0.0, 176.0).toDouble();
     return Positioned(
@@ -944,12 +938,13 @@ class _InlineBarSearchFieldState extends State<_InlineBarSearchField> {
         offset: const Offset(0, 40),
         child: Material(
           elevation: 6,
-          color: Theme.of(context).colorScheme.surface,
+          color: isDark ? Colors.black : Colors.white,
+          surfaceTintColor: Colors.transparent,
           borderRadius: BorderRadius.circular(7),
           clipBehavior: Clip.antiAlias,
           child: Container(
             decoration: BoxDecoration(
-              border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+              border: Border.all(color: foreground.withValues(alpha: 0.14)),
               borderRadius: BorderRadius.circular(7),
             ),
             child: ListView.builder(
@@ -964,17 +959,20 @@ class _InlineBarSearchFieldState extends State<_InlineBarSearchField> {
                   leading: Icon(
                     Icons.local_bar_outlined,
                     size: 17,
-                    color: Theme.of(context).colorScheme.primary,
+                    color: foreground,
                   ),
                   title: Text(
                     bar.name,
-                    style: TextStyle(fontSize: 13),
+                    style: TextStyle(color: foreground, fontSize: 13),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   subtitle: Text(
                     '${bar.address}  |  ${bar.distance}',
-                    style: TextStyle(fontSize: 11),
+                    style: TextStyle(
+                      color: foreground.withValues(alpha: 0.65),
+                      fontSize: 11,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),

@@ -943,6 +943,7 @@ class _CheckInCommentPageState extends State<CheckInCommentPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
+    resizeToAvoidBottomInset: false,
     // 页面底沿用主题脚手架底色，与首页、个人页保持一致。
     backgroundColor: Theme.of(context).scaffoldBackgroundColor,
     appBar: AppBar(

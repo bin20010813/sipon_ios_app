@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:sipon/shared/widgets/sipon_dialog.dart';
 import 'package:sipon/shared/widgets/sipon_message.dart';
 
 import 'package:sipon/shared/services/sipon_agreement_links.dart';
@@ -113,29 +114,27 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
   /// 未勾选协议时，弹出阅读协议确认弹窗，返回用户是否选择同意。
   Future<bool> _confirmAgreement() async {
     final text = SiponLanguageScope.textOf(context);
-    final agreed = await showDialog<bool>(
+    final agreed = await showSiponDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: Theme.of(dialogContext).colorScheme.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          title: Text(text.t('阅读并同意协议')),
+        final scheme = Theme.of(dialogContext).colorScheme;
+        return SiponDialog(
+          title: text.t('阅读并同意协议'),
+          icon: Icons.verified_user_outlined,
           content: Text.rich(
             TextSpan(
               text: text.t('请阅读并同意'),
               style: TextStyle(
-                color: Theme.of(dialogContext).colorScheme.onSurfaceVariant,
+                color: scheme.onSurfaceVariant,
                 fontSize: 14,
                 height: 1.6,
               ),
               children: [
                 TextSpan(
                   text: text.t('用户协议'),
-                  style: const TextStyle(
-                    color: _brand,
+                  style: TextStyle(
+                    color: scheme.primary,
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
@@ -144,8 +143,8 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
                 TextSpan(text: text.t('和')),
                 TextSpan(
                   text: text.t('隐私政策'),
-                  style: const TextStyle(
-                    color: _brand,
+                  style: TextStyle(
+                    color: scheme.primary,
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
@@ -155,20 +154,10 @@ class _SmsLoginPageState extends State<SmsLoginPage> {
               ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: Text(text.t('不同意')),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: FilledButton.styleFrom(
-                backgroundColor: _brand,
-                foregroundColor: Colors.white,
-              ),
-              child: Text(text.t('同意并继续')),
-            ),
-          ],
+          cancelLabel: text.t('不同意'),
+          confirmLabel: text.t('同意并继续'),
+          onCancel: () => Navigator.of(dialogContext).pop(false),
+          onConfirm: () => Navigator.of(dialogContext).pop(true),
         );
       },
     );

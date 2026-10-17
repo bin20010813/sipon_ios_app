@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../../app/theme/sipon_theme_colors.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sipon/shared/widgets/sipon_message.dart';
+import 'package:sipon/shared/widgets/sipon_dialog.dart';
 
 import '../data/drink_budget_store.dart';
 import '../../../../shared/services/sipon_data_repository.dart';
@@ -1349,23 +1350,17 @@ class _PlacePickerSheetState extends State<_PlacePickerSheet> {
   Future<void> _pickCustomPlace() async {
     final text = SiponLanguageScope.textOf(context);
     final customController = TextEditingController();
-    final result = await showDialog<String>(
+    final result = await showSiponDialog<String>(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          title: Text(
-            text.t('其他地点'),
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurface,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0,
-            ),
-          ),
+        return SiponDialog(
+          title: text.t('其他地点'),
+          icon: Icons.add_location_alt_outlined,
+          cancelLabel: text.t('取消'),
+          confirmLabel: text.t('确定'),
+          onCancel: () => Navigator.of(dialogContext).pop(),
+          onConfirm: () =>
+              Navigator.of(dialogContext).pop(customController.text.trim()),
           content: TextField(
             controller: customController,
             autofocus: true,
@@ -1385,37 +1380,19 @@ class _PlacePickerSheetState extends State<_PlacePickerSheet> {
               filled: true,
               fillColor: context.siponColors.subtleSurface,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide.none,
               ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 12,
-              ),
-            ),
-          ),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              style: TextButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-              child: Text(text.t('取消')),
-            ),
-            FilledButton(
-              onPressed: () =>
-                  Navigator.of(dialogContext).pop(customController.text.trim()),
-              style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(
+                  color: Theme.of(dialogContext).colorScheme.primary,
+                  width: 1.5,
                 ),
               ),
-              child: Text(text.t('确定')),
+              contentPadding: const EdgeInsets.all(16),
             ),
-          ],
+          ),
         );
       },
     );
